@@ -5,6 +5,14 @@
 #          runtime state is the single "does NOT sync" authority and is exempt (DP-303 T3).
 # Inputs:  --workspace <path> --template <path> --source <workspace|template|both>
 #          --format <summary|markdown|json> --blocking
+#          --strict-company --only-path <rel> (repeatable)
+#
+# --strict-company drops the company-directory carve-outs (.claude/skills/{company},
+# .claude/rules/{company}). Those exist because company-owned surfaces never sync,
+# which is true of a workspace-bound source and false of a template-bound one — so
+# the carve-out must be decided by where the work is going, not assumed. Pair it
+# with --only-path so the strict reading applies to what a push adds rather than to
+# every company file that has always been here.
 # Outputs: leak report on stdout; exit 0 clean, exit 1 with --blocking when hits exist,
 #          exit 2 on usage / missing-input error. POLARIS_TEMPLATE_LEAK on stderr when blocked.
 set -euo pipefail
@@ -27,9 +35,14 @@ Options:
   --source <mode>      workspace | template | both (default: workspace)
   --format <mode>      summary | markdown | json (default: summary)
   --blocking           Exit 1 when material leak hits exist
+  --strict-company     Drop the company-directory carve-outs
+  --only-path <rel>    Limit the scan to this repo-relative path (repeatable)
   -h, --help           Show help
 EOF
 }
+
+STRICT_COMPANY=0
+ONLY_PATHS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,12 +51,14 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE="${2:-}"; shift 2 ;;
     --format) FORMAT="${2:-}"; shift 2 ;;
     --blocking) BLOCKING=1; shift ;;
+    --strict-company) STRICT_COMPANY=1; shift ;;
+    --only-path) ONLY_PATHS+=("${2:-}"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "scan-template-leaks: unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
 
-python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" <<'PY'
+python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "$STRICT_COMPANY" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
 import json
 import os
 import re
@@ -63,6 +78,8 @@ template = Path(template_arg).expanduser().resolve() if template_arg else None
 source_mode = sys.argv[3]
 output_format = sys.argv[4]
 blocking = sys.argv[5] == "1"
+strict_company = sys.argv[6] == "1"
+only_paths = {p for p in sys.argv[7:] if p}
 
 if source_mode not in {"workspace", "template", "both"}:
     print("scan-template-leaks: --source must be workspace, template, or both", file=sys.stderr)
@@ -283,15 +300,26 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     # outside the fixture path.
     if rel.startswith("scripts/selftests/fixtures/"):
         return True
+    if only_paths and rel not in only_paths:
+        return True
     if rel.startswith(".agents/skills"):
         return True
+    # The company carve-outs below rest on "company surfaces never sync". That
+    # holds for a workspace-bound source and fails for a template-bound one, so
+    # --strict-company lets the caller decide it from the destination declaration
+    # instead of leaving it assumed. Maintainer-only skills are a separate
+    # exemption and stay.
     if rel.startswith(".claude/skills/"):
         skill_name = parts[2] if len(parts) > 2 else ""
-        if skill_name in companies or is_maintainer_only_skill(root, skill_name):
+        if is_maintainer_only_skill(root, skill_name):
+            return True
+        if skill_name in companies and not strict_company:
             return True
     if rel.startswith(".claude/rules/"):
         rule_scope = parts[2] if len(parts) > 2 else ""
-        if rule_scope in companies or len(parts) > 3:
+        if rule_scope in companies and not strict_company:
+            return True
+        if len(parts) > 3 and not strict_company:
             return True
     if rel.startswith("docs-manager/src/content/docs/specs/"):
         return True

@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.85.0] - 2026-08-02
+
+### Changed
+
+- 595ac09: DP-462：leak 掃描改由目的地宣告決定嚴格度，成本地板有了量測對象。
+  - `gate-template-leaks.sh` 不再寫死 `--source workspace`。該模式會把 `.claude/skills/{company}`
+    與 `.claude/rules/{company}` 整片跳過，理由「公司面本來就不 sync」只對 `destination: workspace`
+    成立；綁在永遠是 workspace 的旗標上，同一個 live slug 便成了 PR 時合法、sync 時是 leak。現在
+    交付紀錄宣告 `template` 時，公司豁免對這次 push 改到的路徑關掉。
+  - `scan-template-leaks.sh` 新增 `--strict-company` 與 `--only-path`。兩者要一起用：關了豁免又不
+    限範圍，等於為一次沒碰公司檔的 push 掃亮整個 workspace 的公司檔。
+  - `gate-spine-delivery.sh` 新增 `--print-records`，讓「這次 push 屬於哪個 source、去哪裡」只有
+    一條解析路徑，不另寫第二套。
+  - `enumerate-spine-inventory.sh`：從交付的 git diff 與 `.spine/` 現況兩處枚舉成本地板的清單。
+    手寫的清單由寫的人決定漏掉什麼，然後檢查就在漏掉的地方變綠。機器寫的狀態一併計入——排掉它
+    數字立刻合格，正因為如此那個決定不由量測工具做。`judge` 改為先枚舉再檢查。
+
 ## [3.84.3] - 2026-08-02
 
 ### Changed

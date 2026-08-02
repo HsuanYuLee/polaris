@@ -44,11 +44,17 @@ bash scripts/run-hardened-oracle.sh --command '<cmd>' \
 
 ## 成本地板
 
-順手量一次這個 source 逼出了多少檔案：
+順手量一次這個 source 逼出了多少檔案。清單用枚舉的，不是用手寫的——手寫的清單由寫的人決定
+漏掉什麼，然後檢查就在那個漏掉的地方變綠：
 
 ```bash
+bash scripts/enumerate-spine-inventory.sh --source {source}
 bash scripts/check-spine-cost-floor.sh --inventory {source}/.spine/inventory.json
 ```
+
+它從 git diff 與 `.spine/` 現況兩處讀，兩處都不能被說服。`.spine/*.json` 這類機器寫的狀態
+**算在裡面**——把它排掉數字立刻就合格了，正因為如此那個決定不由量測工具做。地板指的是
+「人被迫寫的檔案」還是「流程被迫產生的檔案」，是斷言層的問題，要人在閘一回答。
 
 ## 正負兩表都要驗
 

@@ -141,4 +141,40 @@ Neutral placeholder only.
 MD
 "$SCANNER" --workspace "$no_company" --source workspace --blocking >/tmp/scan-template-leaks-selftest-no-company.out
 
+# --- destination-bound strictness -------------------------------------------
+# The company carve-out is only sound while the content stays here. A caller
+# shipping to the template must be able to turn it off, and turning it off must
+# actually surface the same file the default reading passes.
+strict="$tmpdir/strict"
+mkdir -p "$strict/acme" "$strict/.claude/skills/acme" "$strict/.claude/skills/references"
+cp "$workspace/acme/workspace-config.yaml" "$strict/acme/workspace-config.yaml"
+cat > "$strict/.claude/skills/acme/SKILL.md" <<'MD'
+Company-specific ACME-999 lives here.
+MD
+cat > "$strict/.claude/skills/references/neutral.md" <<'MD'
+Neutral placeholder only.
+MD
+
+"$SCANNER" --workspace "$strict" --source workspace --blocking \
+  >/tmp/scan-template-leaks-selftest-carveout.out \
+  || { echo "selftest failed: company skill should pass the default reading" >&2; exit 1; }
+
+set +e
+"$SCANNER" --workspace "$strict" --source workspace --blocking --strict-company \
+  --only-path .claude/skills/acme/SKILL.md >/tmp/scan-template-leaks-selftest-strict.out 2>&1
+rc=$?
+set -e
+if [[ "$rc" -eq 0 ]]; then
+  echo "selftest failed: --strict-company should surface the company skill" >&2
+  exit 1
+fi
+grep -q "ACME-999" /tmp/scan-template-leaks-selftest-strict.out \
+  || { echo "selftest failed: strict output should name the leaking line" >&2; exit 1; }
+
+# --only-path is the reason strictness is affordable: without it, turning the
+# carve-out off would flag every company file that was already here.
+"$SCANNER" --workspace "$strict" --source workspace --blocking --strict-company \
+  --only-path .claude/skills/references/neutral.md >/tmp/scan-template-leaks-selftest-scoped.out \
+  || { echo "selftest failed: strict scan scoped to a clean path should pass" >&2; exit 1; }
+
 echo "PASS: scan-template-leaks selftest"

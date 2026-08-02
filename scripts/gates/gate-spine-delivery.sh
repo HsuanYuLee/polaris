@@ -35,13 +35,15 @@ set -euo pipefail
 PREFIX="[polaris gate-spine-delivery]"
 REPO_ROOT=""
 IS_SPINE_PUSH_QUERY=0
+PRINT_RECORDS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)           REPO_ROOT="${2:-}"; shift 2 ;;
     --is-spine-push)  IS_SPINE_PUSH_QUERY=1; shift ;;
+    --print-records)  PRINT_RECORDS=1; shift ;;
     -h|--help)
-      echo "Usage: gate-spine-delivery.sh [--repo <path>] [--is-spine-push]" >&2
+      echo "Usage: gate-spine-delivery.sh [--repo <path>] [--is-spine-push] [--print-records]" >&2
       exit 0
       ;;
     *) shift ;;
@@ -69,7 +71,7 @@ HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 # in the range about to leave the machine. A record whose head is already in
 # origin/main describes work that shipped, and is none of this push's business.
 relevant_records() {
-  local record source head
+  local record source head destination
   for record in "$REPO_ROOT"/sources/*/.spine/delivery.json; do
     [[ -f "$record" ]] || continue
     source="${record#"$REPO_ROOT/"}"
@@ -77,9 +79,11 @@ relevant_records() {
     head="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
       "$record" 2>/dev/null || true)"
     [[ -n "$head" ]] || continue
+    destination="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("destination",""))' \
+      "$record" 2>/dev/null || true)"
 
     if [[ "$head" == "$HEAD_SHA" ]]; then
-      printf '%s\t%s\n' "$source" current
+      printf '%s\t%s\t%s\n' "$source" current "$destination"
       continue
     fi
     # Already contained in what the remote has: shipped, not stale.
@@ -89,7 +93,7 @@ relevant_records() {
     # In the range being pushed but not at its tip: work continued after the
     # second gate signed off, and the record no longer describes what ships.
     if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" "$HEAD_SHA" 2>/dev/null; then
-      printf '%s\t%s\n' "$source" stale
+      printf '%s\t%s\t%s\n' "$source" stale "$destination"
     fi
   done
 }
@@ -101,6 +105,17 @@ SOURCES=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && SOURCES+=("$line")
 done < <(relevant_records)
+
+# Other gates need to know where this push is going — the leak scan reads the
+# destination to decide how strictly to treat company surfaces. Serving it from
+# here keeps one resolver for "which record concerns this push"; a second one
+# would drift.
+if [[ "$PRINT_RECORDS" -eq 1 ]]; then
+  for entry in "${SOURCES[@]:-}"; do
+    [[ -n "$entry" ]] && printf '%s\n' "$entry"
+  done
+  exit 0
+fi
 
 # No record concerns this push, so this gate has no opinion and must not claim
 # ownership — the task.md-shaped gates still own whatever this is.
@@ -116,8 +131,10 @@ fi
 
 failures=0
 for entry in "${SOURCES[@]}"; do
-  source="${entry%%$'\t'*}"
-  state="${entry##*$'\t'}"
+  # Fields are source \t state \t destination; read them positionally rather than
+  # by trimming from the ends, which silently picked up the wrong field the moment
+  # a third column arrived.
+  IFS=$'\t' read -r source state _destination <<<"$entry"
 
   if [[ "$state" == "current" ]]; then
     echo "$PREFIX ✅ ${source}: delivery intent current @ ${HEAD_SHA:0:12}." >&2

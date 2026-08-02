@@ -978,6 +978,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/enumerate-spine-inventory.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/enumerate-spine-inventory-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/env/_lib.sh",
       "kind": "support",
       "runner": "bash",
@@ -4095,6 +4104,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/enumerate-spine-inventory-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/enumerate-spine-inventory-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/external-write-language-preflight-selftest.sh",
