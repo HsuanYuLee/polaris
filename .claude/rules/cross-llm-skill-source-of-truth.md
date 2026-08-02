@@ -19,7 +19,12 @@
 
 - 更新 shared skill 時，編輯 `.claude/skills/{skill}/SKILL.md`。
 - 更新 skills 消費的 shared reference 時，編輯 `.claude/skills/references/*`。
-- Company-specific skills 維持在 `.claude/skills/{company}/`。
+- Company-specific skills 與其他 skill 一樣放在 `.claude/skills/{name}/`，命名為
+  `{company}-{name}`，並在 frontmatter 宣告 `scope: company-only` 與 `company: {company}`。
+  **不要**放進 `.claude/skills/{company}/` 子目錄：執行期只登記深度一層，放進去就不在 skill
+  清單上、`Skill` 工具叫不到——曾有一整組公司 skill 因此在存在期間從未被載入過。同步與
+  外洩掃描改讀 `scope: company-only` 宣告來排除，所以位置回到可及深度不會讓公司內容流進
+  template。
 - Maintainer-only skills 維持在 `.claude/skills/`，並保留既有 scope controls。
 - Runtime-specific adapter examples 必須指回 `.claude/skills/references/model-tier-policy.md`；不得在 `.agents/skills`、generated prompts 或 runtime notes 複製具體 model policy。
 

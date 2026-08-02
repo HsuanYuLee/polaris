@@ -479,7 +479,20 @@ for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
     continue
   fi
 
-  # Skip company-specific skill directories
+  # Skip company-specific skills. The declaration is the frontmatter, not the
+  # path: company skills used to live in .claude/skills/{company}/ and were
+  # excluded by directory name, but that depth is not registered by the runtime —
+  # six skills sat there unreachable for as long as they existed. They are now at
+  # the registered depth as {company}-{name}, so the exclusion has to read what
+  # the skill declares about itself rather than infer it from where it sits.
+  if grep -qE '^[[:space:]]*scope:[[:space:]]*company-only' "$skill_dir/SKILL.md" 2>/dev/null; then
+    echo "  ~ $skill_name/ (company-only, skipped)"
+    continue
+  fi
+
+  # A directory named exactly after a company is kept out too: nothing should be
+  # shipped from there, and a stray SKILL.md at that depth would be unreachable
+  # anyway.
   skip=false
   if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
     for company in "${COMPANY_DIRS[@]}"; do

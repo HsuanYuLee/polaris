@@ -5323,6 +5323,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/sync-to-polaris-company-skill-scope-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/update-active-thread-selftest.sh",
       "kind": "selftest",
       "runner": "bash",

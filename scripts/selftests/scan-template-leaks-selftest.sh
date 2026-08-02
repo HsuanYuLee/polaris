@@ -141,10 +141,8 @@ Neutral placeholder only.
 MD
 "$SCANNER" --workspace "$no_company" --source workspace --blocking >/tmp/scan-template-leaks-selftest-no-company.out
 
-# --- destination-bound strictness -------------------------------------------
-# The company carve-out is only sound while the content stays here. A caller
-# shipping to the template must be able to turn it off, and turning it off must
-# actually surface the same file the default reading passes.
+# --- the company carve-out is unconditional ----------------------------------
+# It mirrors the sync copy set, which does not vary by delivery destination.
 strict="$tmpdir/strict"
 mkdir -p "$strict/acme" "$strict/.claude/skills/acme" "$strict/.claude/skills/references"
 cp "$workspace/acme/workspace-config.yaml" "$strict/acme/workspace-config.yaml"
@@ -157,24 +155,64 @@ MD
 
 "$SCANNER" --workspace "$strict" --source workspace --blocking \
   >/tmp/scan-template-leaks-selftest-carveout.out \
-  || { echo "selftest failed: company skill should pass the default reading" >&2; exit 1; }
+  || { echo "selftest failed: a company skill directory should not be flagged" >&2; exit 1; }
+
+# --only-path narrows a scan for triage without changing what counts as a leak.
+"$SCANNER" --workspace "$strict" --source workspace --blocking \
+  --only-path .claude/skills/references/neutral.md >/tmp/scan-template-leaks-selftest-scoped.out \
+  || { echo "selftest failed: scan scoped to a clean path should pass" >&2; exit 1; }
+
+# A company skill at the depth the runtime actually registers. The old carve-out
+# keyed off the directory being named after a company, which forced company
+# skills to sit one level too deep to ever be loaded. Here the exclusion has to
+# come from the skill's own declaration.
+declared="$tmpdir/declared"
+mkdir -p "$declared/acme" "$declared/.claude/skills/acme-thing" "$declared/.claude/skills/plain-thing"
+cp "$workspace/acme/workspace-config.yaml" "$declared/acme/workspace-config.yaml"
+cat > "$declared/.claude/skills/acme-thing/SKILL.md" <<'MD'
+---
+name: acme-thing
+scope: company-only
+company: acme
+---
+Company-specific ACME-999 lives here, at a depth the runtime registers.
+MD
+cat > "$declared/.claude/skills/plain-thing/SKILL.md" <<'MD'
+---
+name: plain-thing
+---
+Shared skill that happens to mention ACME-999.
+MD
 
 set +e
-"$SCANNER" --workspace "$strict" --source workspace --blocking --strict-company \
-  --only-path .claude/skills/acme/SKILL.md >/tmp/scan-template-leaks-selftest-strict.out 2>&1
+"$SCANNER" --workspace "$declared" --source workspace --blocking \
+  --only-path .claude/skills/acme-thing/SKILL.md \
+  >/tmp/scan-template-leaks-selftest-declared.out 2>&1
 rc=$?
 set -e
-if [[ "$rc" -eq 0 ]]; then
-  echo "selftest failed: --strict-company should surface the company skill" >&2
-  exit 1
-fi
-grep -q "ACME-999" /tmp/scan-template-leaks-selftest-strict.out \
-  || { echo "selftest failed: strict output should name the leaking line" >&2; exit 1; }
+[[ "$rc" -eq 0 ]] \
+  || { echo "selftest failed: scope: company-only should carry the carve-out" >&2; exit 1; }
 
-# --only-path is the reason strictness is affordable: without it, turning the
-# carve-out off would flag every company file that was already here.
-"$SCANNER" --workspace "$strict" --source workspace --blocking --strict-company \
-  --only-path .claude/skills/references/neutral.md >/tmp/scan-template-leaks-selftest-scoped.out \
-  || { echo "selftest failed: strict scan scoped to a clean path should pass" >&2; exit 1; }
+# The declaration is what buys the exemption, so a skill without it stays caught
+# even though it sits at exactly the same depth.
+set +e
+"$SCANNER" --workspace "$declared" --source workspace --blocking \
+  --only-path .claude/skills/plain-thing/SKILL.md \
+  >/tmp/scan-template-leaks-selftest-undeclared.out 2>&1
+rc=$?
+set -e
+[[ "$rc" -ne 0 ]] \
+  || { echo "selftest failed: an undeclared skill at the same depth must still be flagged" >&2; exit 1; }
+
+# The declaration is what buys the exemption, and it does so for every delivery:
+# the exemption tracks what sync copies, not where a given delivery is headed.
+set +e
+"$SCANNER" --workspace "$declared" --source workspace --blocking \
+  --only-path .claude/skills/acme-thing/SKILL.md \
+  >/tmp/scan-template-leaks-selftest-declared-again.out 2>&1
+rc=$?
+set -e
+[[ "$rc" -eq 0 ]] \
+  || { echo "selftest failed: the company-only exemption must not depend on destination" >&2; exit 1; }
 
 echo "PASS: scan-template-leaks selftest"

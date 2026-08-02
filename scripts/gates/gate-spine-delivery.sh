@@ -114,10 +114,10 @@ while IFS= read -r line; do
   [[ -n "$line" ]] && SOURCES+=("$line")
 done < <(relevant_records)
 
-# Other gates need to know where this push is going — the leak scan reads the
-# destination to decide how strictly to treat company surfaces. Serving it from
-# here keeps one resolver for "which record concerns this push"; a second one
-# would drift.
+# Introspection: which records concern this push, as source \t state \t destination.
+# Added for the leak gate, which no longer needs it; kept because "which record
+# concerns this push" must have exactly one resolver, and a future second reader
+# asking that question has to come here rather than grow its own.
 if [[ "$PRINT_RECORDS" -eq 1 ]]; then
   for entry in "${SOURCES[@]:-}"; do
     [[ -n "$entry" ]] && printf '%s\n' "$entry"

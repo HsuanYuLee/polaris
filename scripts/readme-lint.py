@@ -54,21 +54,29 @@ DEPRECATED_SKILL_ALIASES = {
 }
 
 
-def get_maintainer_only_skills() -> set[str]:
-    """Read SKILL.md frontmatter for `scope: maintainer-only` — same mechanism as sync-to-polaris.sh."""
-    maintainer = set()
+def get_non_template_skills() -> set[str]:
+    """Skills that must not appear in template-facing docs, read from their own
+    `scope:` declaration — same mechanism as sync-to-polaris.sh.
+
+    Two scopes qualify and for different reasons. A maintainer-only skill ships
+    but is not for the reader of the docs. A company-only skill must not be
+    named in docs/ at all: docs/ syncs to the template, so writing the skill's
+    name there would be the leak the scan exists to catch.
+    """
+    excluded = set()
     for p in SKILLS_DIR.glob("*/SKILL.md"):
         rel = p.relative_to(SKILLS_DIR)
         if len(rel.parts) != 2:
             continue
         try:
             text = p.read_text(encoding="utf-8")
-            if "scope:" in text and "maintainer-only" in text:
-                # Narrow check: both substrings appear in frontmatter
-                maintainer.add(p.parent.name)
         except Exception:
-            pass
-    return maintainer
+            continue
+        # Indentation-tolerant: a SKILL.md may declare scope at the top level or
+        # nested under metadata:, and both are in use.
+        if re.search(r"(?m)^\s*scope:\s*(maintainer-only|company-only)\s*$", text):
+            excluded.add(p.parent.name)
+    return excluded
 
 # Known non-skill backtick terms that look like skill names (reduce false positives)
 KNOWN_NON_SKILLS = {
@@ -340,9 +348,8 @@ def main():
 
     actual_skills = get_actual_skills()
     actual_count = len(actual_skills)
-    maintainer_only = get_maintainer_only_skills()
-    # Treat maintainer-only skills as internal for doc-mention purposes
-    actual_skills = actual_skills - maintainer_only
+    # Skills that declare themselves out of the template-facing docs
+    actual_skills = actual_skills - get_non_template_skills()
     actual_count = len(actual_skills)
     all_findings = []
     fixed_files = []

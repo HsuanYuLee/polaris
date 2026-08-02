@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.87.0] - 2026-08-02
+
+### Changed
+
+- 285ef2b: DP-462：公司 skill 搬到執行期真的會登記的深度，排除改讀宣告。
+  `.claude/skills/{company}/{name}/SKILL.md` 深了一層，執行期只登記
+  `.claude/skills/{name}/SKILL.md`——放在那裡的 skill 從來不在清單上，`Skill` 工具也就叫不到。
+  一整組公司 skill 因此在存在期間一次都沒被載入過，而沒有任何一端會抗議：不在清單上不會報錯，
+  只是不出現。
+  改成 `.claude/skills/{company}-{name}/`，並在 frontmatter 宣告 `scope: company-only` 與
+  `company:`。
+  位置一改，原本用**目錄名**認公司的排除規則就失效，公司 skill 會跟著同步進 template。所以
+  身分從位置挪到宣告：`sync-to-polaris.sh` 與 `scan-template-leaks.sh` 各改一處，改讀
+  `scope: company-only`。`scan-template-leaks.sh` 的 `is_maintainer_only_skill()` 一併換成通用的
+  `skill_scope()`，maintainer-only 的豁免行為不變。
+  `cross-llm-skill-source-of-truth.md` 原本規定公司 skill「維持在 `.claude/skills/{company}/`」，
+  那條契約正是不可及的成因，一併改掉。
+  新增 `sync-to-polaris-company-skill-scope-selftest.sh`：宣告 company-only 的不進 template、
+  同深度的共用 skill 照進、maintainer-only 豁免不受影響。
+  連帶撤掉 v3.85.0 的 `--strict-company`。當時的理由是「公司豁免建立在『公司表面不會同步』上，
+  template-bound 的交付會讓這個前提失效」，所以由 destination 決定要不要關掉豁免。事後量了才
+  發現前提是錯的：sync 只複製 `.claude/rules/*.md` 一層與非 company-only 的 skill，被豁免的路徑
+  與被複製的路徑**不相交**，而且 sync 複製完還會再掃 template 樹本身。嚴格模式因此沒有多抓到
+  任何預設掃描抓不到的東西——本輪自己那個 L1 rule 的洩漏就是預設掃描抓到的——卻擋下了第一個
+  正當改到公司 handbook 的交付。`gate-template-leaks.sh` 的 destination 接線與 scanner 的
+  `--strict-company` 旗標一併移除，`--only-path` 留下當分診工具。
+  `readme-lint.py` 的 skill 排除一併改讀宣告：company-only 與 maintainer-only 都不進
+  template-facing docs——後者是「不給讀者看」，前者是「寫進 `docs/` 就是洩漏」，理由不同但
+  結論相同。三處讀 `scope:` 的地方統一容許縮排，因為既有 SKILL.md 有的把它放在頂層、有的
+  放在 `metadata:` 底下。原本 lint 用「`scope:` 與 `maintainer-only` 兩個字串都出現過」的寬鬆
+  比對，換成有錨點的比對後才發現這個形狀差異。
+
 ## [3.86.0] - 2026-08-02
 
 ### Changed

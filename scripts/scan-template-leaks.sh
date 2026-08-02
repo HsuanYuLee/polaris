@@ -5,14 +5,7 @@
 #          runtime state is the single "does NOT sync" authority and is exempt (DP-303 T3).
 # Inputs:  --workspace <path> --template <path> --source <workspace|template|both>
 #          --format <summary|markdown|json> --blocking
-#          --strict-company --only-path <rel> (repeatable)
-#
-# --strict-company drops the company-directory carve-outs (.claude/skills/{company},
-# .claude/rules/{company}). Those exist because company-owned surfaces never sync,
-# which is true of a workspace-bound source and false of a template-bound one — so
-# the carve-out must be decided by where the work is going, not assumed. Pair it
-# with --only-path so the strict reading applies to what a push adds rather than to
-# every company file that has always been here.
+#          --only-path <rel> (repeatable, triage aid)
 # Outputs: leak report on stdout; exit 0 clean, exit 1 with --blocking when hits exist,
 #          exit 2 on usage / missing-input error. POLARIS_TEMPLATE_LEAK on stderr when blocked.
 set -euo pipefail
@@ -35,13 +28,11 @@ Options:
   --source <mode>      workspace | template | both (default: workspace)
   --format <mode>      summary | markdown | json (default: summary)
   --blocking           Exit 1 when material leak hits exist
-  --strict-company     Drop the company-directory carve-outs
   --only-path <rel>    Limit the scan to this repo-relative path (repeatable)
   -h, --help           Show help
 EOF
 }
 
-STRICT_COMPANY=0
 ONLY_PATHS=()
 
 while [[ $# -gt 0 ]]; do
@@ -51,14 +42,13 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE="${2:-}"; shift 2 ;;
     --format) FORMAT="${2:-}"; shift 2 ;;
     --blocking) BLOCKING=1; shift ;;
-    --strict-company) STRICT_COMPANY=1; shift ;;
     --only-path) ONLY_PATHS+=("${2:-}"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "scan-template-leaks: unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
 
-python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "$STRICT_COMPANY" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
+python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
 import json
 import os
 import re
@@ -78,8 +68,7 @@ template = Path(template_arg).expanduser().resolve() if template_arg else None
 source_mode = sys.argv[3]
 output_format = sys.argv[4]
 blocking = sys.argv[5] == "1"
-strict_company = sys.argv[6] == "1"
-only_paths = {p for p in sys.argv[7:] if p}
+only_paths = {p for p in sys.argv[6:] if p}
 
 if source_mode not in {"workspace", "template", "both"}:
     print("scan-template-leaks: --source must be workspace, template, or both", file=sys.stderr)
@@ -228,18 +217,30 @@ def is_text_file(path: Path):
     return path.name in TEXT_NAMES or path.suffix in TEXT_SUFFIXES
 
 
-def is_maintainer_only_skill(root: Path, skill_name: str):
+def skill_scope(root: Path, skill_name: str):
+    """Read what a skill declares its scope to be.
+
+    Returns the declared scope string, or "" when the skill has no SKILL.md, no
+    frontmatter, or no scope line. Callers compare against a specific scope
+    rather than inferring one from where the directory sits: company skills used
+    to be identified by living under .claude/skills/{company}/, a depth the
+    runtime never registers, so the path could not be both the exclusion key and
+    a reachable location.
+    """
     skill_md = root / ".claude" / "skills" / skill_name / "SKILL.md"
     if not skill_md.exists():
-        return False
+        return ""
     try:
         text = skill_md.read_text(encoding="utf-8", errors="ignore")
     except Exception:
-        return False
+        return ""
     frontmatter = text.split("---", 2)
     if len(frontmatter) < 3:
-        return False
-    return bool(re.search(r"(?m)^scope:\s*maintainer-only\s*$", frontmatter[1]))
+        return ""
+    # Indentation-tolerant: scope may be declared at the top level or nested
+    # under metadata:, and both are in use.
+    match = re.search(r"(?m)^\s*scope:\s*(\S+)\s*$", frontmatter[1])
+    return match.group(1) if match else ""
 
 
 def resolve_gitignored(root: Path, rel_paths):
@@ -304,22 +305,27 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
         return True
     if rel.startswith(".agents/skills"):
         return True
-    # The company carve-outs below rest on "company surfaces never sync". That
-    # holds for a workspace-bound source and fails for a template-bound one, so
-    # --strict-company lets the caller decide it from the destination declaration
-    # instead of leaving it assumed. Maintainer-only skills are a separate
-    # exemption and stay.
+    # The company carve-outs mirror the sync copy set, same as the gitignore rule
+    # above: sync copies .claude/rules/*.md at one level only and skips skills
+    # declaring company-only, so neither surface can reach the template no matter
+    # where the delivery is headed. v3.85.0 made these conditional on the delivery
+    # destination, on the reasoning that a template-bound source invalidates them.
+    # Measured afterwards, that reasoning was wrong: the set of paths sync copies
+    # and the set carved out here do not intersect, and sync re-scans the template
+    # tree itself after copying. The condition only ever produced false positives
+    # on a delivery that legitimately touched company files, so it is gone.
     if rel.startswith(".claude/skills/"):
         skill_name = parts[2] if len(parts) > 2 else ""
-        if is_maintainer_only_skill(root, skill_name):
+        scope = skill_scope(root, skill_name)
+        if scope in {"maintainer-only", "company-only"}:
             return True
-        if skill_name in companies and not strict_company:
+        if skill_name in companies:
             return True
     if rel.startswith(".claude/rules/"):
         rule_scope = parts[2] if len(parts) > 2 else ""
-        if rule_scope in companies and not strict_company:
+        if rule_scope in companies:
             return True
-        if len(parts) > 3 and not strict_company:
+        if len(parts) > 3:
             return True
     if rel.startswith("docs-manager/src/content/docs/specs/"):
         return True
