@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.89.0] - 2026-08-02
+
+### Changed
+
+- b4bdeb2: DP-463：公司 skill 回到資料夾模式，並且叫得到。
+  `.claude/skills/{company}/{name}/` 是這個 repo 的既有慣例，不只一個人在維護它。
+  v3.87.0 為了換取可及性把六支搬到深度一，單方面改掉了共用慣例，還撞上同事一個
+  開著的 PR。這一版兩個都要：檔案回資料夾，深度一放 symlink 讓執行期登記得到。
+  實測過的：深度二確實不登記（空專案對照、同事分支上用真實設定、三種明確叫法全
+  `Unknown`），symlink 則登記得到而且真的載入巢狀檔案的內容。註冊名由目錄決定，
+  不是 frontmatter 的 `name:`，所以前綴留在 symlink 上就夠。
+  新增 `sync-company-skill-links.sh`：命名空間是自己描述的（沒有 `SKILL.md`、底下
+  有 skill 的目錄），所以多一間公司不用改腳本、不用改設定。pre-commit 替提交者建好
+  symlink 並 `git add`，加 skill 的人不需要知道有這回事；PR gate W6b 給沒裝 hook 的人
+  兜底。撐不住 symlink 的環境明講並失敗，不留下看起來有、實際叫不到的檔案。
+  外洩掃描的公司豁免改成從**擁有該檔案的 skill** 解析宣告，不再問「這個目錄叫不叫
+  公司名」——那條退路正是上次搬家會壞掉的成因。`SKILL.md` 旁邊的 scripts、references
+  自己什麼都沒宣告，歸屬只能來自擁有它們的 skill。selftest 的 fixture 原本就是靠那條
+  退路過的，一改就紅：它一直在測退路，沒在測宣告。已改成宣告驅動並補上命名空間案例，
+  案例中的命名空間故意不叫任何一間已設定的公司。
+  順帶把某支公司環境 skill 從 `{company}-frontend-dev-env` 更名為
+  `{company}-web-dev-env`：軸線是產品面不是前後端，不同產品面各有自己的啟動方式，
+  之後各是一支 `{company}-{面}-dev-env`。
+
 ## [3.88.0] - 2026-08-02
 
 ### Changed

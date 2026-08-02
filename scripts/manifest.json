@@ -5312,6 +5312,15 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/sync-company-skill-links-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/sync-company-skill-links-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/sync-spec-sidebar-metadata-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -5995,6 +6004,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-company-skill-links.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/sync-company-skill-links-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/sync-from-polaris.sh",

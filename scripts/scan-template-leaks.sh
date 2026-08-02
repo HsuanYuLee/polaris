@@ -315,12 +315,19 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     # tree itself after copying. The condition only ever produced false positives
     # on a delivery that legitimately touched company files, so it is gone.
     if rel.startswith(".claude/skills/"):
-        skill_name = parts[2] if len(parts) > 2 else ""
-        scope = skill_scope(root, skill_name)
-        if scope in {"maintainer-only", "company-only"}:
-            return True
-        if skill_name in companies:
-            return True
+        # Resolve through the owning skill, not through the directory's name. A
+        # skill lives either at .claude/skills/{name}/ or, under the repo's
+        # namespace convention, at .claude/skills/{ns}/{name}/ — and the files
+        # that sit beside SKILL.md (scripts, references, fixtures) declare
+        # nothing themselves, so their scope has to come from the skill that
+        # owns them. Asking "is this directory named after a company" would put
+        # the answer back in the path, which is what broke the last time the
+        # layout moved.
+        for depth in (2, 3):
+            if len(parts) > depth:
+                scope = skill_scope(root, "/".join(parts[2:depth + 1]))
+                if scope in {"maintainer-only", "company-only"}:
+                    return True
     if rel.startswith(".claude/rules/"):
         rule_scope = parts[2] if len(parts) > 2 else ""
         if rule_scope in companies:

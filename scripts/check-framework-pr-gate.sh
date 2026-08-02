@@ -160,6 +160,7 @@ fi
 
 VALIDATE_SPEC_SOURCE_PARITY="${POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN:-scripts/validate-spec-source-parity.sh}"
 GATE_TEMPLATE_LEAKS="${POLARIS_GATE_TEMPLATE_LEAKS_BIN:-scripts/gates/gate-template-leaks.sh}"
+SYNC_COMPANY_SKILL_LINKS="${POLARIS_SYNC_COMPANY_SKILL_LINKS_BIN:-scripts/sync-company-skill-links.sh}"
 LINT_BASH_VAR_UTF8_BOUNDARY="${POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN:-scripts/lint-bash-variable-utf8-boundary.sh}"
 # W12 (DP-296 T4 / AC3): refinement.json consumer schema binding. Binds every
 # declared tasks[] consumer to the canonical schema field whitelist (the field set
@@ -242,6 +243,10 @@ run_gate "W5 spec source parity" "$VALIDATE_SPEC_SOURCE_PARITY"
 # files BEFORE the workspace PR is opened, instead of only at sync-to-polaris
 # post-merge.
 run_gate "W6 template leaks (workspace)" "$GATE_TEMPLATE_LEAKS"
+# W6b: 資料夾模式的公司 skill 必須在深度一登記得到。pre-commit 會自動補 symlink，
+# 這裡是給沒裝 hook 的人的兜底——沒登記的 skill 執行期看不到，而 routing 散文照樣會
+# 把工作分派給它，於是模型照著一份從未被讀取的程序辦事。
+run_gate "W6b company skill links" "$SYNC_COMPANY_SKILL_LINKS" --check
 # W7: bash $VAR<non-ASCII byte> boundary lint (DP-255).
 # Catches `$foo<CJK fullwidth punct>` patterns where bash variable expansion
 # under `set -u` parses the multi-byte UTF-8 continuation byte as identifier

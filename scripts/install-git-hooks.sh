@@ -57,6 +57,15 @@ if [[ -x "$REPO_ROOT/scripts/check-scope-headers.sh" ]]; then
   fi
 fi
 
+# Company skill links: 加一支資料夾模式的 skill 的人不需要知道深度一要補 symlink，
+# 這裡替他補上並 stage。撐不住 symlink 的環境會 exit 2 明講，不會靜默放行。
+if [[ -x "$REPO_ROOT/scripts/sync-company-skill-links.sh" ]]; then
+  bash "$REPO_ROOT/scripts/sync-company-skill-links.sh" --stage >/dev/null || {
+    bash "$REPO_ROOT/scripts/sync-company-skill-links.sh" --check
+    exit 1
+  }
+fi
+
 # Gate: version-docs-lint
 if [[ -x "$GATES_DIR/gate-version-lint.sh" ]]; then
   bash "$GATES_DIR/gate-version-lint.sh" --repo "$REPO_ROOT"

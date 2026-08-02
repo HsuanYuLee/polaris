@@ -480,11 +480,12 @@ for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
   fi
 
   # Skip company-specific skills. The declaration is the frontmatter, not the
-  # path: company skills used to live in .claude/skills/{company}/ and were
-  # excluded by directory name, but that depth is not registered by the runtime —
-  # six skills sat there unreachable for as long as they existed. They are now at
-  # the registered depth as {company}-{name}, so the exclusion has to read what
-  # the skill declares about itself rather than infer it from where it sits.
+  # path. Company skills live in .claude/skills/{company}/{name}/ — the repo's
+  # convention, and more than one person maintains it — with a depth-one symlink
+  # so the runtime registers them at all. That means this loop sees each company
+  # skill twice: once through the symlink (has SKILL.md, caught here) and once as
+  # the {company}/ namespace directory (no SKILL.md, caught above). Excluding by
+  # directory name would only catch one of the two shapes.
   if grep -qE '^[[:space:]]*scope:[[:space:]]*company-only' "$skill_dir/SKILL.md" 2>/dev/null; then
     echo "  ~ $skill_name/ (company-only, skipped)"
     continue

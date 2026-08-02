@@ -84,6 +84,7 @@ common_env=(
   "POLARIS_CHECK_QUARANTINE_BIN=$pass_stub"
   "POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN=$pass_stub"
   "POLARIS_GATE_TEMPLATE_LEAKS_BIN=$pass_stub"
+  "POLARIS_SYNC_COMPANY_SKILL_LINKS_BIN=$pass_stub"
   "POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN=$pass_stub"
   "POLARIS_VALIDATE_MISE_DEPENDENCY_BIN=$pass_stub"
   "POLARIS_VALIDATE_SCRIPT_HEADER_BIN=$pass_stub"
@@ -137,6 +138,21 @@ env "${common_env[@]}" "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub"
 set -e
 assert_exit "case5 all-pass aggregate" 0 "$rc5"
 assert_grep "case5 terminal PASS line" "PASS: framework PR gate" "$tmpdir/case5.out"
+
+# ---------------------------------------------------------------------------
+# Case 6: W6b company skill links FAILS → aggregate fails closed at W6b.
+# A folder-mode skill with no depth-one registration is invisible to the
+# runtime, while the routing prose still dispatches work to it — so the model
+# follows a procedure nobody ever read. That has to block, not warn.
+# ---------------------------------------------------------------------------
+set +e
+env "${common_env[@]}" \
+  "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
+  "POLARIS_SYNC_COMPANY_SKILL_LINKS_BIN=$fail_stub" \
+  bash "$AGG" >"$tmpdir/case6.out" 2>"$tmpdir/case6.err"; rc6=$?
+set -e
+assert_exit "case6 W6b failure blocks aggregate" 1 "$rc6"
+assert_grep "case6 aggregate names W6b" "W6b company skill links" "$tmpdir/case6.err"
 
 # ---------------------------------------------------------------------------
 echo "----------------------------------------"

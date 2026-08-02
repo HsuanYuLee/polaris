@@ -31,6 +31,11 @@ Do not use ACME-123 in shared templates.
 MD
 
 cat > "$workspace/.claude/skills/acme/SKILL.md" <<'MD'
+---
+name: acme
+scope: company-only
+company: acme
+---
 Company-specific ACME-999 is intentionally excluded.
 MD
 
@@ -147,6 +152,11 @@ strict="$tmpdir/strict"
 mkdir -p "$strict/acme" "$strict/.claude/skills/acme" "$strict/.claude/skills/references"
 cp "$workspace/acme/workspace-config.yaml" "$strict/acme/workspace-config.yaml"
 cat > "$strict/.claude/skills/acme/SKILL.md" <<'MD'
+---
+name: acme
+scope: company-only
+company: acme
+---
 Company-specific ACME-999 lives here.
 MD
 cat > "$strict/.claude/skills/references/neutral.md" <<'MD'
@@ -214,5 +224,31 @@ rc=$?
 set -e
 [[ "$rc" -eq 0 ]] \
   || { echo "selftest failed: the company-only exemption must not depend on destination" >&2; exit 1; }
+
+# Namespace mode: the repo's convention keeps company skills at
+# .claude/skills/{ns}/{name}/ with a depth-one symlink for registration. The
+# files beside SKILL.md — scripts, references, fixtures — declare nothing
+# themselves, so the exemption has to resolve through the skill that owns them.
+# The namespace here is deliberately NOT named after any configured company:
+# if this case only passes when the directory name matches a company, the
+# answer is back in the path.
+nested="$tmpdir/nested"
+mkdir -p "$nested/acme" "$nested/.claude/skills/teamx/log-search/references"
+cp "$workspace/acme/workspace-config.yaml" "$nested/acme/workspace-config.yaml"
+cat > "$nested/.claude/skills/teamx/log-search/SKILL.md" <<'MD'
+---
+name: log-search
+scope: company-only
+company: acme
+---
+Company-specific ACME-999 lives here.
+MD
+cat > "$nested/.claude/skills/teamx/log-search/references/schema.md" <<'MD'
+ACME-999 appears in a file that declares nothing of its own.
+MD
+
+"$SCANNER" --workspace "$nested" --source workspace --blocking \
+  >/tmp/scan-template-leaks-selftest-nested.out 2>&1 \
+  || { echo "selftest failed: a namespace-mode company skill and its sibling files must be excluded" >&2; exit 1; }
 
 echo "PASS: scan-template-leaks selftest"
