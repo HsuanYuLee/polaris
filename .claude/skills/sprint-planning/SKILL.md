@@ -16,9 +16,9 @@ release authority；是否 `release_eligible` / `release_completed` 仍必須由
 
 ## 前置：讀取 workspace config
 
-讀取 workspace config（參考 `references/workspace-config-reader.md`）。
+讀取 workspace config（參考 `workspace-config.yaml`）。
 本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys 用於 JQL）、`confluence.space`、`scrum.sprint_capacity`。
-若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
+若 config 不存在，使用 `workspace-config.yaml`（讀不到就用預設） 的 fallback 值。
 
 ## Defaults
 
@@ -155,7 +155,7 @@ Carry-over 在排序時有更高優先權（已經開始的工作應該先完成
 
 **Guardrails**：
 - 總點數超過 capacity 10% 以上時主動提醒
-- 有未估點的 tickets 時提醒需要先估點（可觸發 `breakdown`）
+- 有未估點的 tickets 時提醒需要先估點（可觸發 `refinement`）
 - 有依賴衝突時（如 A blocks B 但 B 排在 A 前面）主動提醒
 
 ### 7. Generate Release page draft (optional)
@@ -190,10 +190,10 @@ Release page 是 planning / communication artifact，不是 release gate。頁�
 
 **Step 7c — 推送 Confluence**：
 
-**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。Release page / planning summary 寫入 Confluence 前，先把最終內容落成 temp markdown，執行：
+**Workspace language policy gate（blocking）**：完整規則見 `rules/style-and-language.md`。Release page / planning summary 寫入 Confluence 前，先把最終內容落成 temp markdown，執行：
 
 ```bash
-bash scripts/validate-language-policy.sh --blocking --mode artifact <sprint-planning-release-page.md>
+bash .claude/skills/sprint-planning/scripts/validate-language-policy.sh --blocking --mode artifact <sprint-planning-release-page.md>
 ```
 
 exit ≠ 0 → 修正頁面主敘述語言後重跑；不可把未通過 gate 的 release page 寫入 Confluence。
@@ -227,4 +227,4 @@ exit ≠ 0 → 修正頁面主敘述語言後重跑；不可把未通過 gate �
 
 > **Non-optional.** Execute before reporting task completion.
 
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Run the checklist in [post-task-reflection-checkpoint.md].

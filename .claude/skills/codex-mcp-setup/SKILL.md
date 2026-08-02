@@ -14,7 +14,7 @@ description: "Use when the user wants to set up or sync Codex MCP servers for Po
 執行：
 
 ```bash
-bash scripts/sync-codex-mcp.sh --dry-run
+bash .claude/skills/codex-mcp-setup/scripts/sync-codex-mcp.sh --dry-run
 ```
 
 這會檢查 baseline servers 是否已存在：
@@ -26,7 +26,7 @@ bash scripts/sync-codex-mcp.sh --dry-run
 執行：
 
 ```bash
-bash scripts/sync-codex-mcp.sh --apply --login
+bash .claude/skills/codex-mcp-setup/scripts/sync-codex-mcp.sh --apply --login
 ```
 
 注意：
@@ -38,7 +38,7 @@ bash scripts/sync-codex-mcp.sh --apply --login
 若使用者希望 Codex 使用 Calendar，使用 streamable server URL：
 
 ```bash
-bash scripts/sync-codex-mcp.sh --apply --login \
+bash .claude/skills/codex-mcp-setup/scripts/sync-codex-mcp.sh --apply --login \
   --with-google-calendar-url "<MCP_SSE_URL>" \
   --google-calendar-token-env "<TOKEN_ENV_VAR>"
 ```
@@ -49,7 +49,7 @@ bash scripts/sync-codex-mcp.sh --apply --login \
 
 ```bash
 mise run cross-runtime-sync
-bash scripts/mechanism-parity.sh --strict
+bash .claude/skills/codex-mcp-setup/scripts/mechanism-parity.sh --strict
 bash .claude/skills/codex-mcp-setup/scripts/polaris-codex-doctor.sh
 ```
 

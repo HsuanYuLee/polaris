@@ -176,7 +176,7 @@ PY
 #   C) escaped-JSON single line  -> decode correctly, both consumers parse
 #   D) real-newline detailed dump -> passthrough unchanged (no double-decode / breakage)
 #   E) empty input               -> stays empty; probe still reports SOURCE_UNAVAILABLE
-probe="$(cd "$script_dir/../../../.." && pwd)/scripts/review-inbox-discovery-probe.sh"
+probe="$script_dir/review-inbox-discovery-probe.sh"
 [[ -r "$probe" ]] || { echo "FAIL: probe not found at $probe" >&2; exit 1; }
 
 # Canonical real-newline detailed dump used to build the escaped-JSON fixture. Use a

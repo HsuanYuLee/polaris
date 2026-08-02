@@ -5,7 +5,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 measurer="$script_dir/measure-review-inbox-session.sh"
-learnings="$script_dir/../../references/scripts/polaris-learnings.sh"
+learnings="$script_dir/polaris-learnings.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -72,6 +72,6 @@ HOME="$home" POLARIS_WORKSPACE_ROOT="$workspace" "$measurer" \
 HOME="$home" POLARIS_WORKSPACE_ROOT="$workspace" "$learnings" query \
   --type telemetry \
   --tag review-inbox \
-  | jq -e '.[0].metadata.review_inbox_run.main_session_input_tokens > 0' >/dev/null
+  | jq -s -e '.[0].metadata.review_inbox_run.main_session_input_tokens > 0' >/dev/null
 
 echo "measure-review-inbox-session selftest: PASS"

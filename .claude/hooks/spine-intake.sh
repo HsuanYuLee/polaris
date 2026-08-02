@@ -2,7 +2,7 @@
 # spine-intake.sh — UserPromptSubmit hook：脊椎的上匝道
 #
 # 為什麼是 hook 而不是 skill description：description 是**邀請**，模型看得到也可以不理。
-# 2026-08-02 的 dogfood 兩跑實測，`assert` 帶著情境化的 description 出現在清單上，模型仍然
+# 2026-08-02 的 dogfood 兩跑實測，`refinement` 帶著情境化的 description 出現在清單上，模型仍然
 # 直接開工，一次都沒叫（拆掉舊層再跑一次也一樣）。skill 的自動調用是裁量的，沒有東西強制它。
 #
 # hook 不同的地方只有一件：它**必然**執行，而且注入點就在使用者訊息旁邊，不是 context 最
@@ -47,10 +47,10 @@ SOURCES_DIR="${CLAUDE_PROJECT_DIR:-.}/sources"
 active="$(python3 - "$SOURCES_DIR" <<'PY' 2>/dev/null || true
 import glob, json, os, sys
 
-# 站在 work / judge 表示閘一簽過了、還沒交付。assert 不算：那正是還在上匝道上。
+# 站在 engineering / verify-ac 表示閘一簽過了、還沒交付。refinement 不算：那正是還在上匝道上。
 #
 # 判準是站別，不是 loop 的 status。`converged` 說的是「這一輪收斂了」，不是「已經出貨」——
-# 第一版拿它當已交付，於是一個站在 judge、證據都齊、正等釋出的 source 被當成不在進行中，
+# 第一版拿它當已交付，於是一個站在 verify-ac、證據都齊、正等釋出的 source 被當成不在進行中，
 # 下一句話又收到完整上匝道。當場在自己身上發生的。
 rows = []
 for path in sorted(glob.glob(os.path.join(sys.argv[1], "*", ".spine", "loop-state.json"))):
@@ -58,25 +58,25 @@ for path in sorted(glob.glob(os.path.join(sys.argv[1], "*", ".spine", "loop-stat
         data = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
         continue
-    if data.get("station") in ("work", "judge"):
+    if data.get("station") in ("engineering", "verify-ac"):
         rows.append(f"{os.path.basename(os.path.dirname(os.path.dirname(path)))} 在 {data['station']}")
 print("；".join(rows), end="")
 PY
 )"
 
-# 判準留在一處：這裡只問問題，不重述 assert 的完整判準。把判準抄過來就會有兩份會漂的複本。
+# 判準留在一處：這裡只問問題，不重述 refinement 的完整判準。把判準抄過來就會有兩份會漂的複本。
 if [[ -n "$active" ]]; then
   cat <<TXT
 [spine intake] 進行中：${active}。
 同一件事就直接往下做，不用再說一次立案判斷——重問已經簽過的東西是儀式，不是把關。
-換成另一件會改變行為的事，才做立案判斷並走 assert。不確定現在在哪就跑
+換成另一件會改變行為的事，才做立案判斷並走 refinement。不確定現在在哪就跑
 \`spine-loop-state.sh where\`，不要問人。
 TXT
 else
   cat <<'TXT'
 [spine intake] 動手之前，先說出立案判斷：這件事要不要立案，依據是什麼。
 判準是「有沒有『怎麼算成功』需要人簽字」——唯讀查詢與說明不用，會改變行為的要。
-不用立案就直接做；要立案就走 assert。判斷說出來讓人能當場推翻，不要靜默決定。
+不用立案就直接做；要立案就走 refinement。判斷說出來讓人能當場推翻，不要靜默決定。
 TXT
 fi
 exit 0

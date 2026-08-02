@@ -18,17 +18,17 @@ user-invocable: true
 
 ## Workflow
 
-Shared authority: `bash scripts/resolve-company-context.sh`
+Shared authority: `bash .claude/skills/use-company/scripts/resolve-company-context.sh`
 
 ### Step 1 — Resolve Target Company
 
 **If the user provides a company name:**
-1. Run `bash scripts/resolve-company-context.sh --company "<name>" --format json`
+1. Run `bash .claude/skills/use-company/scripts/resolve-company-context.sh --company "<name>" --format json`
 2. If `status=ok` → proceed with resolved payload
 3. 若 `status=error` → 直接呈現 resolver 的 fail-stop diagnostics；skill 內不得自己重寫 YAML matching
 
 **If no company name provided:**
-1. Run `bash scripts/resolve-company-context.sh --format json`
+1. Run `bash .claude/skills/use-company/scripts/resolve-company-context.sh --format json`
 2. If `status=ok` → proceed with resolved payload
 3. 若 `error_code=default_company_unset` → 列出已註冊公司，請使用者選擇
 4. 其他 resolver error 一律直接回報 fail-stop diagnostics；不得默默猜測
@@ -84,8 +84,8 @@ Resolved via: jira.projects[].key match ("PROJ")
 
 Diagnostic mode must also consume the shared resolver:
 
-- `bash scripts/resolve-company-context.sh --ticket PROJ-123 --format json`
-- `bash scripts/resolve-company-context.sh --project PROJ --format json`
+- `bash .claude/skills/use-company/scripts/resolve-company-context.sh --ticket PROJ-123 --format json`
+- `bash .claude/skills/use-company/scripts/resolve-company-context.sh --project PROJ --format json`
 
 skill 可以為了可讀性重排 resolver 結果，但不得自創另一個 routing verdict。
 
@@ -94,4 +94,4 @@ skill 可以為了可讀性重排 resolver 結果，但不得自創另一個 rou
 
 > **Non-optional.** Execute before reporting task completion.
 
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Run the checklist in [post-task-reflection-checkpoint.md].

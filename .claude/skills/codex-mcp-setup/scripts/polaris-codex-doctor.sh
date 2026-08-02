@@ -111,14 +111,14 @@ echo
 echo "[1/5] required commands"
 check_cmd git
 check_cmd gh
-if [[ -x scripts/polaris-doctor.sh ]]; then
-  if bash scripts/polaris-doctor.sh --profile core --simulate-no-vscode-path; then
+if [[ -x .claude/skills/codex-mcp-setup/scripts/polaris-doctor.sh ]]; then
+  if bash .claude/skills/codex-mcp-setup/scripts/polaris-doctor.sh --profile core --simulate-no-vscode-path; then
     pass "Polaris core runtime doctor passed"
   else
     warn "Polaris core runtime doctor reported missing managed tools"
   fi
 else
-  warn "scripts/polaris-doctor.sh missing"
+  warn ".claude/skills/codex-mcp-setup/scripts/polaris-doctor.sh missing"
 fi
 echo
 

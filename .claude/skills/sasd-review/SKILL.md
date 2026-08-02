@@ -54,7 +54,7 @@ decision 留在主 session；sub-agent 只提供 codebase impact evidence。
 ## Design Rules
 
 - Task estimates 必須使用 Fibonacci scale。
-- Task list 要能直接成為 breakdown input；每個 task 有 file scope 與 verification method。
+- Task list 要能直接被接手施工；每個 task 有 file scope 與 verification method。
 - Dev scope 使用具體 file/module/service，不寫泛稱。
 - 不確定的研究結論標 confidence。
 - Runtime feasibility probe 需要跑環境時，使用 dedicated worktree，不污染 main checkout。
@@ -62,7 +62,7 @@ decision 留在主 session；sub-agent 只提供 codebase impact evidence。
 ## Completion
 
 輸出 SA/SD draft、unresolved questions、chosen approach、estimated points/days、publish status、
-以及建議下一步：更新 JIRA/Confluence、或進 `breakdown`。
+以及建議下一步：更新 JIRA/Confluence、或把成功的定義拿去 `refinement` 簽。
 
 ## Post-Task Reflection (required)
 

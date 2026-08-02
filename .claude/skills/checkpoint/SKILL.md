@@ -59,7 +59,7 @@ rows。
 ## Step 2.5 — L2 Deterministic Check: cross-session-carry-forward
 
 Save mode 的 carry-forward gate 由 `checkpoint-carry-forward-flow.md` 執行；必須呼叫
-`scripts/check-carry-forward.sh`，通過後才可回報 checkpoint saved。
+`.claude/skills/checkpoint/scripts/check-carry-forward.sh`，通過後才可回報 checkpoint saved。
 
 ## Post-Task Reflection (required)
 

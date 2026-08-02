@@ -10,11 +10,11 @@ metadata:
 
 掃描 `{config: github.org}` org（fallback: `your-org`）下指定使用者的 open PR，偵測 rebase、CI、review comments、approval / stale approval，並用 shared PR state vocabulary 做分類後等待使用者選擇下一步。
 
-核心邊界：本 skill 只偵測、分類、呈報與在使用者選擇後通知 reviewer；不自動修正 CI failure、review comments 或 rebase conflict。需修正的 PR 交給 `engineering`。
+核心邊界：本 skill 只偵測、分類、呈報與在使用者選擇後通知 reviewer；不自動修正 CI failure、review comments 或 rebase conflict。需修正的 PR 另行處理（修 review comments 多半不用立案，直接做；會改變成功定義的走 `refinement`）。
 
 ## 前置
 
-讀取 workspace config（見 `references/workspace-config-reader.md`），需要：
+讀取 workspace config（見 `workspace-config.yaml`），需要：
 
 - `github.org`
 - `slack.channels.ai_notifications`
@@ -32,10 +32,10 @@ Script 路徑相對於本 skill 目錄。執行前確認有 `+x` 權限。
 
 | Script | 用途 | Output contract |
 |--------|------|-----------------|
-| `scripts/fetch-user-open-prs.sh` | 搜尋 author open PR，含 base/head/labels | PR JSON array |
-| `scripts/rebase-pr-branch.sh` | 批次 rebase PR branches | 加上 `rebase_status` |
-| `scripts/fetch-pr-review-comments.sh` | 批次取得未回覆 actionable comments | 加上 `actionable_comments` |
-| `scripts/check-pr-approval-status.sh` | 批次檢查 approvals / stale | 加上 approval fields |
+| `.claude/skills/check-pr-approvals/scripts/fetch-user-open-prs.sh` | 搜尋 author open PR，含 base/head/labels | PR JSON array |
+| `.claude/skills/check-pr-approvals/scripts/rebase-pr-branch.sh` | 批次 rebase PR branches | 加上 `rebase_status` |
+| `.claude/skills/check-pr-approvals/scripts/fetch-pr-review-comments.sh` | 批次取得未回覆 actionable comments | 加上 `actionable_comments` |
+| `.claude/skills/check-pr-approvals/scripts/check-pr-approval-status.sh` | 批次檢查 approvals / stale | 加上 approval fields |
 
 Script 是 deterministic source；不要在入口重寫其內部 API / stale / bot filter 邏輯。PR
 type、mergeability、base_freshness、`awaiting_re_review` / `mergeable_ready` 語義以 shared
@@ -49,8 +49,8 @@ author-side completion / release authority。
 | 產出分類報告、加 label、送 Slack、處理需修正 PR 時 | `references/check-pr-approvals-reporting.md` | report table、Slack wording、label fallback、JIRA remediation routing |
 | 判讀 approval / stale semantics 前 | `../references/stale-approval-detection.md` | stale approval 權威定義 |
 | 掃到 merged PR 時 | `../references/feature-branch-pr-gate.md` | Feature Branch PR Gate |
-| Slack message 送出前 | `../references/workspace-language-policy.md` | language gate |
-| 收尾前 | `../references/post-task-reflection-checkpoint.md` | post-task reflection |
+| Slack message 送出前 | `../`rules/style-and-language.md` | language gate |
+ion |
 
 ## Workflow
 
@@ -110,10 +110,10 @@ Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
 | 分類 | 條件 | 下一步 |
 |------|------|--------|
 | 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 shared classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
-| 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示走 `engineering` |
+| 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示這張要先修 |
 | ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知；這只代表 approval threshold 達標，不等於 release completed |
 
-若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `scripts/pr-review-state-classifier.sh`
+若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `.claude/skills/check-pr-approvals/scripts/pr-review-state-classifier.sh`
 或等價 thread-aware evidence 判斷。`AWAITING_RE_REVIEW` 代表作者已處理且需要 reviewer
 重新 review；不得把它列為 🔧，也不得將 JIRA 轉回 `IN DEVELOPMENT`。
 
@@ -137,7 +137,7 @@ shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_f
 3. 送出前先把 message 寫成 temp markdown，跑：
 
    ```bash
-   bash scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
+   bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
    ```
 
 4. language gate 通過後才送 Slack。
@@ -163,4 +163,4 @@ shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_f
 
 ## Post-Task Reflection
 
-收尾前執行 [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md)。
+收尾前執行 [post-task-reflection-checkpoint.md]。

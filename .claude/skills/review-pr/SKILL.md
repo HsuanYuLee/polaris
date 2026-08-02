@@ -10,8 +10,7 @@ description: >
   intent. NOT for "請<同仁/大家/人名>幫我 review" (subject = others) — that is
   催 review, route to check-pr-approvals. NOT for "review 大家的 PR" / "掃 PR"
   (object = others' PRs) — route to review-inbox. NOT for fixing review comments
-  on your own PR — route to engineering revision mode.
-  (use engineering revision mode for that).
+  on your own PR — that needs no relay, just fix it.
 metadata:
   author: Polaris
   version: 2.1.0
@@ -25,7 +24,7 @@ comments，並提交 GitHub review。
 ## Contract
 
 此 skill 只處理單一 PR review。多 PR discovery 與 batch orchestration 交給
-`review-inbox`；修自己的 PR review comments 交給 `engineering` revision mode。
+`review-inbox`；修自己的 PR review comments 就直接修（那不需要重簽成功的定義）。
 
 Reviewer stance：prioritize bugs、behavior regressions、security、type safety、project
 rule violations、missing tests。不要用 personal style preference 擋 merge。

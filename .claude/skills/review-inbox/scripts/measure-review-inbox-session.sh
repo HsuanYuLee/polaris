@@ -17,7 +17,7 @@ OUTPUT_FILE=""
 ARTIFACT_DIR=""
 OUT_PATH=""
 WRITE_LEARNINGS=false
-LEARNINGS_SCRIPT="$WORKSPACE_ROOT/.claude/skills/references/scripts/polaris-learnings.sh"
+LEARNINGS_SCRIPT="$(dirname "${BASH_SOURCE[0]}")/polaris-learnings.sh"
 
 usage() {
   cat >&2 <<'EOF'

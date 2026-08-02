@@ -1,5 +1,31 @@
 # Changelog
 
+## [4.0.0] - 2026-08-03
+
+### Changed
+
+- abd2190: DP-462：舊交付層拆除，脊椎成為唯一的路。
+  三站改名成它們實際在做的事——`assert` / `work` / `judge` → `refinement` /
+  `engineering` / `verify-ac`——連 `loop-state.json` 裡存的站別值一起遷移，不留相容層。
+  舊交付主鏈的 6 支 skill 與 374 支舊層 selftest 拆掉；共用的 `scripts/` 目錄整個消失，
+  每支腳本歸戶到**直接讀它、叫它的那支 skill**。`.claude/rules/` 28 份剩 1 份，
+  `CLAUDE.md` 154 行剩 67 行，`.claude/hooks/` 6 支剩 1 支上匝道。
+  判準從**可達性**換成**擁有權**。可達性試了三次都失敗（closure 算出 1120/1165、
+  minimal-spine 1059/1165、reference transitive liveness 175/186）——它會把「有人 import
+  過」當成「還活著」，而拆除要問的是「誰在讀它」。擁有權可以一句話講完：**直接讀它、
+  叫它的那個檔擁有它**，而且它跟可攜性同構——只有 skill 目錄會被帶到 claude.ai 與
+  Cowork，所以「這件事能不能只靠一支 skill 完成」同時是歸屬判準與可攜判準。
+  `framework-release` 重新成為一支 skill。拆除過程中我把釋出執行器塞進 `verify-ac`
+  裡面，那是弄壞的邊界不是設計：merge PR、壓版號、同步 template 都是 skill 在做的事，
+  而且它有機械行為，可以封在自己身上。`verify-ac` 留下判定那一半。
+  白名單不是一張清單是一條規則：**skill 與它自己的 script／一份風格與語言 rule／
+  脊椎／其餘一律質疑**。量到的違規從 47 降到 0，兩個方向都驗過。
+  六條斷言全部有儀器與雙向證據。最後一條 B-P1（端到端獨立）沒辦法讀檔證明，所以拿
+  DP-463 在舊層歸零之後真的重走一次判定；同一支儀器跑在拆除前的 commit 上是紅的。
+  重走時抓到 `sync-to-polaris.sh` 還留著一條用目錄名比對公司清單的退路，以及它搬進
+  skill 之後把 workspace 根算成 `.claude/skills/{skill}`——dry-run 顯示它打算 prune
+  1120 項。
+
 ## [3.90.0] - 2026-08-03
 
 ### Changed

@@ -91,7 +91,7 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
 任何 blocked PR 的原因，以及 telemetry run_id。Telemetry 可用：
 
 ```bash
-POLARIS_WORKSPACE_ROOT={workspace_root} .claude/skills/references/scripts/polaris-learnings.sh query --type telemetry --tag review-inbox
+POLARIS_WORKSPACE_ROOT={workspace_root} .claude/skills/review-inbox/scripts/polaris-learnings.sh query --type telemetry --tag review-inbox
 ```
 
 查到 `metadata.review_inbox_run.main_session_input_tokens`。

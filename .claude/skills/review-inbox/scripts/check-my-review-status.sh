@@ -16,7 +16,7 @@
 #                            或 prior_review_no_new_push：我已 review 且 review 後 head 未變
 #
 # DP-315：approval-staleness（APPROVED→needs_re_approve）改走共用 helper
-# scripts/lib/approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
+# 旁邊的 approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
 # 不再用 commit 時間戳（review submit time 與 PR last-push time 比較）判 approval 是否失效
 # ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。
 # DP-355：head.sha 改由 PR 物件 /pulls/N 的 .head.sha 取得（與 check-pr-approvals 一致），
@@ -31,7 +31,7 @@ set -euo pipefail
 # 載入 DP-315 canonical commit_id 基準 staleness atom（單一 writer path，與
 # check-pr-approvals 共用）。approval_staleness <review_commit_id> <head_sha>
 # 輸出 "valid" / "stale"。
-APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/approval-staleness.sh"
+APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/approval-staleness.sh"
 if [[ ! -f "$APPROVAL_STALENESS_HELPER" ]]; then
   echo "POLARIS_TOOL_MISSING:approval-staleness.sh (expected at $APPROVAL_STALENESS_HELPER)" >&2
   exit 1

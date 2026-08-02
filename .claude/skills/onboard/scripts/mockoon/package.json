@@ -1,0 +1,10 @@
+{
+  "name": "polaris-mockoon",
+  "private": true,
+  "description": "Polaris framework Mockoon CLI runner for E2E stable fixtures and API profiling",
+  "scripts": {
+    "start": "bash mockoon-runner.sh start",
+    "stop": "bash mockoon-runner.sh stop",
+    "status": "bash mockoon-runner.sh status"
+  }
+}

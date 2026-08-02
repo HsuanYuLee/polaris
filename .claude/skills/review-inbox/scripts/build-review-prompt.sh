@@ -87,7 +87,7 @@ else
 fi
 HANDBOOK_JSON="[]"
 if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
-  HANDBOOK_RESOLVER="$ROOT_DIR/scripts/resolve-handbook.sh"
+  HANDBOOK_RESOLVER="$SCRIPT_DIR/resolve-handbook.sh"
   if [[ ! -x "$HANDBOOK_RESOLVER" ]]; then
     echo "Canonical handbook resolver not found: $HANDBOOK_RESOLVER" >&2
     exit 1

@@ -1,6 +1,6 @@
 ---
 name: converge
-description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (use engineering) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
+description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (sign it at `refinement`, or just do it) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
 metadata:
   author: Polaris
   version: 1.1.0
@@ -13,9 +13,9 @@ review / merge 的 gap，提出排序後的推進計畫，經使用者確認後�
 
 ## Contract
 
-`converge` 不是單張 ticket 施工（用 `engineering`），也不是 read-only dashboard（用
-`my-triage`）。它可以路由到 `breakdown`、`engineering`、`check-pr-approvals`、
-`feature-branch-pr-gate.md`，但不取代下游 skill 的 gate 或 ownership。
+`converge` 不是單張 ticket 施工（會改變行為的走 `refinement`，不用立案的直接做），也不是
+read-only dashboard（用 `my-triage`）。它可以路由到 `refinement`、`check-pr-approvals`，
+但不取代下游 skill 的 gate 或 ownership。
 它屬於 `mixed reader / routing orchestrator`：workspace config 只用來決定 scan scope、
 project set、與 reporting defaults，不得把 config read 本身升格成 stage authority。`converge`
 可以提出 route proposal，但 proposal 不等於 workflow transition；只有下游 skill 自己的

@@ -47,19 +47,19 @@
       "id": 8,
       "query": "fix review comments on my PR",
       "should_trigger": false,
-      "notes": "修自己的 review → engineering (revision mode)"
+      "notes": "修自己的 review → 直接修，不經 review-pr"
     },
     {
       "id": 9,
       "query": "修正 review",
       "should_trigger": false,
-      "notes": "修正 review → engineering (revision mode)"
+      "notes": "修正 review → 直接修，不經 review-pr"
     },
     {
       "id": 10,
       "query": "發 PR",
       "should_trigger": false,
-      "notes": "發 PR alone is not review-pr; framework/docs needs DP-backed task.md then engineering"
+      "notes": "發 PR alone is not review-pr"
     },
     {
       "id": 11,
@@ -71,7 +71,7 @@
       "id": 12,
       "query": "做 PROJ-448",
       "should_trigger": false,
-      "notes": "做 ticket → engineering"
+      "notes": "做 ticket → 不是 review-pr"
     },
     {
       "id": 13,

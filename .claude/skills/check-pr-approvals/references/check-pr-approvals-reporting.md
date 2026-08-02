@@ -57,7 +57,7 @@ Label 失敗不應中斷整批 Slack reminder，但必須在最後回報哪些 P
 只通知使用者選中的 🟢 PR。Slack message 送出前必須 materialize 成 temp markdown，並通過：
 
 ```bash
-bash scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
+bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
 ```
 
 Slack wording 不使用「催促」、「催」、「趕快」。用「麻煩大家幫忙」、「有空幫忙看一下」。
@@ -104,7 +104,7 @@ Reviewer details：
 Comment 範例：
 
 ```text
-PR #{number} 目前仍需修正：{reason}。已轉回 IN DEVELOPMENT，方便後續使用 engineering 修正。
+PR #{number} 目前仍需修正：{reason}。已轉回 IN DEVELOPMENT。
 ```
 
 若 ticket key 萃取不到，不做 JIRA routing，報告中標 `無對應 ticket`。
@@ -119,12 +119,12 @@ PR #{number} 目前仍需修正：{reason}。已轉回 IN DEVELOPMENT，方便�
 
 ### Spec Done Marker
 
-從 branch / title 萃取 ticket key。若是 Epic key（例如 `GT-*`），不在此標 parent implemented；Epic closeout 由 verify-AC / parent lifecycle 處理。
+從 branch / title 萃取 ticket key。若是 Epic key（例如 `GT-*`），不在此標 parent implemented；parent 的收尾不歸本 skill。
 
 若是 Bug 或 ad-hoc task，且 `specs/companies/{company}/{TICKET}/` container 存在，執行：
 
 ```bash
-scripts/mark-spec-implemented.sh {TICKET}
+.claude/skills/check-pr-approvals/scripts/mark-spec-implemented.sh {TICKET}
 ```
 
 此操作 idempotent。若 container 不存在，靜默略過或在最後摘要列為 no-op。

@@ -39,15 +39,14 @@ authority。
 5. Add GitHub progress for In Development items.
 6. 排成 resume candidates、Bugs、In Development、priority-based todo groups。
 7. 盤點 DP closeout drift（report-only）：跑 `mise run closeout-drift`（呼叫
-   `scripts/detect-closeout-drift.sh --dry-run --json`，不變更 specs）。把
+   `.claude/skills/my-triage/scripts/detect-closeout-drift.sh --dry-run --json`，不變更 specs）。把
    `delivered-drift-high` / `delivered-drift-low` / `stranded` 結果併入 dashboard 的
    「closeout drift」群組，讓使用者看到已交付卻從未 archive 的 LOCKED DP，或 LOCKED 後
    過期且無交付證據的 DP。`gh` 不可用時 report 會標 PR 證據未檢——轉述該註記，不視為失敗。
 8. Render dashboard and write compact `.daily-triage.json` in the same pass.
-9. Recommend next routes：`engineering`、`breakdown`、`check-pr-approvals`、
-   `sprint-planning`，或 explicit topic resume。closeout-drift findings 的建議：
-   `delivered-drift-high` 建議走 `framework-release` closeout / archive；
-   `delivered-drift-low` / `stranded` 建議人工 review（絕不自動 archive——detector 本身只 report）。
+9. Recommend next routes：會改變行為的走 `refinement`（不用立案的直接做），另有
+   `check-pr-approvals`、`sprint-planning`，或 explicit topic resume。closeout-drift
+   findings 一律建議人工 review（絕不自動 archive——detector 本身只 report）。
 
 ## Hard Rules
 

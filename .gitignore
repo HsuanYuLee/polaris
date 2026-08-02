@@ -160,11 +160,11 @@ workspace-config.yaml
 */polaris-config/
 
 # Framework tool runtime (node_modules + outputs)
-scripts/e2e/node_modules/
+.claude/skills/*/scripts/e2e/node_modules/
 scripts/e2e/e2e-results/
 scripts/e2e/e2e-results.json
 scripts/e2e/test-results/
-scripts/mockoon/node_modules/
+.claude/skills/*/scripts/mockoon/node_modules/
 tools/polaris-toolchain/node_modules/
 
 # System / IDE

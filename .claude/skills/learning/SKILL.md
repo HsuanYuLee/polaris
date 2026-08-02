@@ -19,9 +19,8 @@ metadata:
 - 任何 Slack / JIRA / GitHub / Confluence 或其他 external write 前，遵守
   `workspace-language-policy.md` 或 external write gate。
 - 任何 specs Markdown 產出或匯入，遵守 `starlight-authoring-contract.md`。
-- Learning 可以 seed / import research evidence，但不得自動 invoke
-  `refinement`，也不得替 refinement 改寫 final decisions / AC / technical
-  approach。
+- Learning 可以 seed / import research evidence，但不得自動 invoke `refinement`，
+  也不得替任何已凍結的斷言改寫成功的定義。
 - 寫入 handbook、backlog、learnings、README acknowledgement、RemoteTrigger 或
   specs artifact 後，最後必跑 Post-Task Reflection。
 
@@ -50,63 +49,27 @@ metadata:
 - ambiguous：詢問「這個學習要用在 Polaris 框架，還是特定產品 repo？」
 
 GitHub repo 若包含 `.claude/skills/`、`SKILL.md` 或 `skills/`，探索前先跑
-`scripts/skill-sanitizer.py` pre-scan；HIGH/CRITICAL 風險需讓使用者確認是否繼續。
+`.claude/skills/learning/scripts/skill-sanitizer.py` pre-scan；HIGH/CRITICAL 風險需讓使用者確認是否繼續。
 
 External mode 的 execute 階段只有在使用者確認後進行，落點三選一或混選：
 
-- Route A：seed ticketless DP / refinement research artifact。
+- Route A：把研究結果交給 `refinement`，由人決定要不要立案。
 - Route B：寫入 backlog。
 - Route C：只寫 `polaris-learnings`。
 
-Quick path 不可走 Route A；需 Standard / Deep 才能 seed DP。
-Route A learning producer 不得直接寫 `design-plans/DP-*/index.md`、`plan.md`、
-`refinement.md` 或 `refinement.json`；只能寫 `artifacts/research-report.md` 或
-`artifacts/research/*.md`。寫入前後必須呼叫
-`scripts/validate-learning-seed-contract.sh --producer learning --diff-range <base..head>`；
-refinement LOCK 前的 structural audit 則由 refinement 以
-`--producer refinement --source-container <DP-folder>` 顯式呼叫。
+Quick path 不可走 Route A；需 Standard / Deep 才能 seed。
 
-### External Seed Contract — DP Container Authority
+### Route A：research 怎麼落地
 
-`/learning` External Route A seed 時，**DP container 不存在**的處理：
+研究產出的是**證據與判斷**，不是成功的定義。兩者的分界就是 Route A 的全部規則：
 
-- 不要手動 Write `index.md` / `plan.md` / `refinement.md` / `refinement.json`，也不要填
-  canonical authoring field（`status`、`sidebar`、`locked_at` 等）。
-- 提示使用者下一步跑 `/refinement "topic"`，由 `refinement` 透過
-  `scripts/create-design-plan.sh` 建立 container（這是 `refinement-source-mode.md` T1
-  指定的唯一 template authority）。
-- DP container 已存在時，才在 `{source_container}/artifacts/research-report.md` 寫 evidence；
-  `/refinement` 讀到 research-report 後，依 T0 規則轉成 candidate Decisions。
+- **source 已存在**：把 research 寫進該 source 的活區（`sources/{source}/index.md` 活區段落），
+  或放在旁邊的檔案並在活區指過去。**不要碰凍結塊**——那是已經簽過的成功定義，改它要回 `refinement`。
+- **source 不存在**：不要自己建。研究到一個值得立案的題目時，把題目與依據講出來，
+  由人在 `refinement` 決定要不要簽。learning 產出的是 `refinement` 的輸入，不是它的替代品。
 
-Why：違反契約會把 canonical field 填成非 schema 值（實例：DP-188 seed 階段用
-`status: DRAFT`，validator 在 refinement 開頭擋下，需手動修為 `DISCUSSION`）。
-Deterministic enforcement 由 `scripts/validate-learning-seed-contract.sh` 把關，但 LLM
-producer 不應該依賴 gate exit 2 才停手。
-若 research D2 transport artifact 位於 `docs-manager/src/content/docs/specs/**/*.md`，
-必須走 specs-bound emit contract：frontmatter 包含 `title`、`description`、
-`draft: true`、`sidebar.hidden: true`、`artifact_type`、`source`、`created`，並符合
-`scripts/lib/evidence-producers.json` 的 learning research producer entry。
-
-### Producer-Env Writer Rules (DP-228 T10)
-
-`SKILL.md` 是 **documentation pointer**，不是 executable writer。寫入 learning research
-artifact（例如 `docs-manager/src/content/docs/specs/**/artifacts/research/*.md`）的
-writer authority 來自 producer-env + `scripts/lib/evidence-producers.json` registry。
-
-寫 research artifact 前必須 `export POLARIS_SKILL_WRITER=learning`，再呼叫 Claude
-`Write` / `Edit` / `MultiEdit`：
-
-```bash
-export POLARIS_SKILL_WRITER=learning
-# 然後使用 Write tool 寫入 docs-manager/src/content/docs/specs/**/artifacts/research/*.md
-```
-
-- `POLARIS_SKILL_WRITER` 只允許設成 `learning`；`no-direct-evidence-write` hook 會交叉
-  比對寫入路徑是否屬於 learning owning_skill entry，不符即 deny。
-- 禁止用 Bash heredoc（`cat > specs/.../artifacts/research/foo.md <<'EOF'`）寫 research
-  artifact；Bash heredoc 不走 hook，繞過 producer-env 認證與 learning seed contract。
-- 寫入後必跑 `scripts/validate-learning-seed-contract.sh --producer learning
-  --diff-range <base..head>`；validator fail 等同 writer fail，artifact 需修正後重寫。
+Why：research 是「我讀到了什麼」，斷言是「怎樣算成功」。讓研究直接寫成功的定義，
+等於讓收集證據的人自己決定及格線。
 
 ## Queue Mode Contract
 

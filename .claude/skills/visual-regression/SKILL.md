@@ -1,18 +1,15 @@
 ---
 name: visual-regression
 description: >
-  Transitional standalone visual regression guard using before/after screenshot comparison. Two modes: SIT (compare staging vs local dev)
+  Standalone visual regression guard using before/after screenshot comparison. Two modes: SIT (compare staging vs local dev)
   or Local (compare git-stashed base vs current changes). No long-lived baselines — captures fresh screenshots
   each run and deletes after comparison. Config-driven from workspace-config.yaml.
   Use when: "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "screenshot test",
   "畫面測試", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題", "check if pages look right",
-  for standalone manual investigation. Engineering / verify-AC Layer C uses scripts/run-visual-snapshot.sh instead.
+  for standalone manual investigation.
 ---
 
 # Visual Regression
-
-> Transitional manual guard. Engineering 與 verify-AC 的 native Layer C evidence
-> authority 是 `scripts/run-visual-snapshot.sh`，不是此 standalone skill。
 
 Before/after screenshot comparison guard。每次執行都抓 fresh before / after
 screenshots，使用 Playwright diff，分析後刪除 temporary snapshots 與 test results；
@@ -37,7 +34,6 @@ VR 在 quality chain 中回答：「既有頁面是否仍 visually intact？」�
 | Screenshot execution | `visual-regression-capture-flow.md`, `dependency-consent.md` |
 | Fixtures enabled | `api-contract-guard.md`, `visual-regression-fixture-flow.md`, `epic-folder-structure.md` |
 | Analysis or JIRA report | `visual-regression-analysis-reporting.md`, `vr-jira-report-template.md`, `workspace-language-policy.md` |
-| Engineering / verify-AC Layer C | Do not run this skill; use `scripts/run-visual-snapshot.sh` via `engineer-delivery-flow.md` or verify-AC references |
 
 JIRA report、Slack summary，或任何 external write body 送出前，必須依
 `workspace-language-policy.md` 或 external write gate 驗證語言。
@@ -67,8 +63,7 @@ JIRA report、Slack summary，或任何 external write body 送出前，必須�
 ## Completion
 
 Standalone run 回報 domain、comparison path、pages count、diff summary、HTML report path、
-cleanup status。Engineering / verify-AC triggered runs do not use this skill；它們回報
-`run-visual-snapshot.sh` 的 Layer C evidence path 與 status。
+cleanup status。
 
 ## Post-Task Reflection (required)
 

@@ -19,7 +19,7 @@ metadata:
 # Unit Test
 
 `unit-test` 是 project-aware unit testing guide，用於寫測試、修測試、review test quality，
-或在 engineering 中執行 TDD。
+或在施工途中執行 TDD。
 
 ## Contract
 

@@ -39,7 +39,7 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 5. Merge and deduplicate YDY，並做 plan vs actual comparison。
 6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR、Polaris backlog、
    DP closeout drift。closeout drift 用 `mise run closeout-drift`（呼叫
-   `scripts/detect-closeout-drift.sh --dry-run --json`，report-only，不變更 specs）取得：把
+   `.claude/skills/standup/scripts/detect-closeout-drift.sh --dry-run --json`，report-only，不變更 specs）取得：把
    `delivered-drift-high`（已交付未 archive，可排入 closeout）與 `stranded`（LOCKED 過期無交付
    證據，需 review）併入 TDT candidate；`delivered-drift-low` 列為待確認。`gh` 不可用時 report
    會標 PR 證據未檢，轉述該註記、不視為失敗。
