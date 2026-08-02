@@ -12,6 +12,10 @@
 # The fence is verified first and the intent is refused if it does not hold.
 # Delivering a source whose frozen assertions no longer match what was signed
 # would be shipping against a definition of success nobody agreed to.
+#
+# Then every assertion the fence declares must have oracle evidence at the head
+# being delivered. That is the difference between a definition of success that
+# was agreed to and one that was met.
 
 set -euo pipefail
 
@@ -98,6 +102,79 @@ fi
 # Empty when the source has no history of its own — the fence verifier already
 # refuses that case, so this records the absence rather than inventing a value.
 SOURCE_HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
+
+# Every assertion the fence declares has to have been measured, at this head, by
+# the oracle. Before this check nothing anywhere required evidence to exist
+# before delivery: this script re-verified the fence, gate-spine-delivery says
+# in its own words that it checks staleness rather than existence, and the
+# release tail mentions neither evidence nor oracle. "Judge said PASS" was
+# carried in prose the whole way.
+#
+# The head has to match because evidence proves a tree green, not a branch.
+# Measurements taken three commits ago say nothing about what is being shipped,
+# and a flow that runs to the end on one word is exactly the flow that would
+# otherwise ship them.
+#
+# The producer has to be the oracle because a hand-written PASS is
+# self-certification. The oracle pins tools before trusting them and keeps the
+# exit code; a JSON file is whoever typed it.
+python3 - "$INDEX" "$SOURCE_DIR/.spine/evidence" "$HEAD_SHA" <<'PY' || exit 1
+import json
+import os
+import re
+import sys
+
+index_path, evidence_dir, head = sys.argv[1:4]
+
+fences = re.findall(
+    r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
+    open(index_path, encoding="utf-8").read(),
+    re.S,
+)
+# An id opening a list item, bold or not. Matching only the bold form would tie
+# this to one house style and quietly find nothing when someone drops the
+# asterisks — and finding nothing here reads as "nothing to prove".
+# Ordered, de-duplicated: the report reads in the order a person signed them.
+ids = list(dict.fromkeys(re.findall(
+    r"^[ \t]*[-*][ \t]*\**([A-Z]+-[PN]\d+)\b", "\n".join(fences), re.M)))
+
+if not ids:
+    print("POLARIS_DELIVERY_INTENT_NO_ASSERTIONS", file=sys.stderr)
+    print(f"{index_path} has a fence but no assertion ids in it; "
+          "there is nothing to have proven", file=sys.stderr)
+    sys.exit(1)
+
+problems = []
+for aid in ids:
+    path = os.path.join(evidence_dir, f"{aid}.json")
+    if not os.path.exists(path):
+        problems.append(f"  {aid}: no evidence at {path}")
+        continue
+    try:
+        ev = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        problems.append(f"  {aid}: evidence unreadable ({exc})")
+        continue
+    if ev.get("producer") != "run-hardened-oracle.sh":
+        problems.append(
+            f"  {aid}: producer is {ev.get('producer')!r}, not run-hardened-oracle.sh")
+    if ev.get("verdict") != "PASS":
+        problems.append(f"  {aid}: verdict is {ev.get('verdict')!r}, not PASS")
+    elif ev.get("head_sha") != head:
+        problems.append(
+            f"  {aid}: measured at {str(ev.get('head_sha'))[:12]}, delivering {head[:12]}")
+
+if problems:
+    print("POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE", file=sys.stderr)
+    print(f"{len(ids)} assertions declared; refusing to record delivery intent:",
+          file=sys.stderr)
+    print("\n".join(problems), file=sys.stderr)
+    print("Re-measure at the delivered head with run-hardened-oracle.sh "
+          "--evidence-out, then record again.", file=sys.stderr)
+    sys.exit(1)
+
+print(f"EVIDENCE: {len(ids)} assertions measured at {head[:12]} ({', '.join(ids)})")
+PY
 
 # Whoever runs this is the one accountable for the summary, same as the fence
 # signer. Recording it makes the handoff traceable to a person, not a process.

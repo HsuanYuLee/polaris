@@ -68,7 +68,7 @@ PY
 
 # The empty round is recorded as empty — nothing is invented to make it look
 # like a delivery, which is the incentive a fail-stop would create.
-[[ "$(bash "$LOOP" show --state "$S1" | head -1)" == "status=open rounds=1 unconverged=1 max_rounds=3" ]] \
+[[ "$(bash "$LOOP" show --state "$S1" | head -1)" == "status=open station=work stopped=no rounds=1 unconverged=1 max_rounds=3" ]] \
   || fail "show did not report the zero-delta round accurately: $(bash "$LOOP" show --state "$S1" | head -1)"
 
 # --- Case 2: convergence closes the loop ------------------------------------
@@ -89,7 +89,7 @@ bash "$LOOP" record --state "$S3" --outcome unconverged >/dev/null
 bash "$LOOP" record --state "$S3" --outcome zero_delta >/dev/null
 [[ "$(next_action "$S3")" == "continue" ]] || fail "escalated after 2 of 3 rounds"
 bash "$LOOP" record --state "$S3" --outcome unconverged >/dev/null
-[[ "$(next_action "$S3")" == "escalate" ]] \
+[[ "$(next_action "$S3")" == "stop:unconverged_cap" ]] \
   || fail "the loop did not escalate at its cap, got $(next_action "$S3")"
 
 # "Stops self-turning" has to mean the next round is refused, not merely that a
@@ -119,7 +119,7 @@ bash "$LOOP" init --state "$S5a" --max-rounds 2 >/dev/null
 bash "$LOOP" record --state "$S5a" --outcome unconverged >/dev/null
 [[ "$(next_action "$S5a")" == "continue" ]] || fail "N=2 escalated after 1 round"
 bash "$LOOP" record --state "$S5a" --outcome unconverged >/dev/null
-[[ "$(next_action "$S5a")" == "escalate" ]] || fail "N=2 did not escalate at round 2"
+[[ "$(next_action "$S5a")" == "stop:unconverged_cap" ]] || fail "N=2 did not escalate at round 2"
 
 S5b="$WORK/cap-5.json"
 bash "$LOOP" init --state "$S5b" --max-rounds 5 >/dev/null
@@ -131,12 +131,12 @@ done
 for _ in 4 5; do
   bash "$LOOP" record --state "$S5b" --outcome unconverged >/dev/null
 done
-[[ "$(next_action "$S5b")" == "escalate" ]] || fail "N=5 did not escalate at round 5"
+[[ "$(next_action "$S5b")" == "stop:unconverged_cap" ]] || fail "N=5 did not escalate at round 5"
 
 # Reset may also carry a new N — the cap lives in the adjustable zone.
 bash "$LOOP" reset --state "$S5b" --by tester --max-rounds 1 >/dev/null
 bash "$LOOP" record --state "$S5b" --outcome zero_delta >/dev/null
-[[ "$(next_action "$S5b")" == "escalate" ]] \
+[[ "$(next_action "$S5b")" == "stop:unconverged_cap" ]] \
   || fail "a reset-time cap change did not move the boundary"
 
 # --- Case 6: bad inputs fail closed ------------------------------------------
@@ -146,5 +146,57 @@ assert_marker "missing state" POLARIS_SPINE_LOOP_STATE_MISSING \
   bash "$LOOP" next --state "$WORK/never-created.json"
 assert_marker "non-positive cap" POLARIS_SPINE_LOOP_BAD_CAP \
   bash "$LOOP" init --state "$WORK/bad-cap.json" --max-rounds 0
+
+# --- Case 7: the flow knows where it is without being told ------------------
+# One word from a human starts this and nobody names the next entry again, so
+# the station has to come off disk. Asking is the symptom, not the fix.
+S7="$WORK/station.json"
+bash "$LOOP" init --state "$S7" >/dev/null
+where7="$(bash "$LOOP" where --state "$S7")"
+grep -q '^station=work$' <<<"$where7" || fail "a fresh loop does not open at work: $where7"
+grep -q '^next_station=judge$' <<<"$where7" || fail "where does not say where to go next: $where7"
+bash "$LOOP" advance --state "$S7" --to judge >/dev/null
+grep -q '^station=judge$' <<<"$(bash "$LOOP" where --state "$S7")" \
+  || fail "advancing did not move the station"
+bash "$LOOP" advance --state "$S7" --to delivered >/dev/null
+grep -q 'next_station=none' <<<"$(bash "$LOOP" where --state "$S7")" \
+  || fail "delivered is not terminal: $(bash "$LOOP" where --state "$S7")"
+assert_marker "unknown station" POLARIS_SPINE_LOOP_BAD_STATION \
+  bash "$LOOP" advance --state "$S7" --to somewhere-else
+
+# --- Case 8: it stops in four named places, and nowhere else ----------------
+# A flow that can stop anywhere needs someone watching it, which is the same as
+# not running by itself. The enum is what lets a person walk away.
+S8="$WORK/stops.json"
+bash "$LOOP" init --state "$S8" >/dev/null
+for kind in assertion_wrong surfaced_concern unconverged_cap unauthorized_action; do
+  bash "$LOOP" stop --state "$S8" --kind "$kind" --note "$kind case" >/dev/null \
+    || fail "$kind is one of the four and must be recordable"
+  [[ "$(next_action "$S8")" == "stop:$kind" ]] \
+    || fail "next did not name the stop: got $(next_action "$S8")"
+  bash "$LOOP" advance --state "$S8" --to work --by tester >/dev/null
+done
+assert_marker "undeclared stop" POLARIS_SPINE_LOOP_UNDECLARED_STOP \
+  bash "$LOOP" stop --state "$S8" --kind because_i_felt_like_it
+
+# A recorded stop is not decorative: walking past one is a human's move.
+bash "$LOOP" stop --state "$S8" --kind surfaced_concern --note "pulling in a package" >/dev/null
+assert_marker "unsigned resume" POLARIS_SPINE_LOOP_STOP_UNCLEARED \
+  bash "$LOOP" advance --state "$S8" --to judge
+where8="$(bash "$LOOP" where --state "$S8")"
+grep -q '^stopped=surfaced_concern$' <<<"$where8" || fail "where hides the stop: $where8"
+grep -q 'pulling in a package' <<<"$where8" || fail "where drops the reason: $where8"
+
+# --- Case 9: a state written before stations says so ------------------------
+# Reporting a default as though it were known would be an invention, and this
+# state exists precisely so nobody has to guess.
+S9="$WORK/legacy.json"
+python3 - "$S9" <<'PY'
+import json, sys
+json.dump({"schema_version": 1, "producer": "spine-loop-state.sh", "max_rounds": 3,
+           "rounds": [], "status": "open"}, open(sys.argv[1], "w"))
+PY
+grep -q 'predates stations' <<<"$(bash "$LOOP" where --state "$S9")" \
+  || fail "a pre-stations state was reported as though its station were known"
 
 echo "PASS: spine-loop-state-selftest.sh"

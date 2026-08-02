@@ -62,8 +62,13 @@ new_repo() {
 }
 
 record() {
-  # Description: record delivery intent inside a fixture repo.
+  # Description: record delivery intent inside a fixture repo. The fence's one
+  #   assertion is measured first, at the head about to be recorded, because
+  #   recording refuses an assertion nobody proved.
   # Args: $1 = repo, $2 = version bump
+  (cd "$1" && bash "$ROOT_DIR/scripts/run-hardened-oracle.sh" \
+    --command 'echo MEASURED' --expect-evidence MEASURED \
+    --evidence-out "$1/sources/DP-000-selftest/.spine/evidence/A-P1.json" >/dev/null)
   (cd "$1" && bash "$ROOT_DIR/scripts/record-delivery-intent.sh" \
     --source sources/DP-000-selftest --version-bump "$2" --summary 'a line' >/dev/null)
 }

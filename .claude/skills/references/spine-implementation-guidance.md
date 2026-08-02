@@ -60,6 +60,14 @@ PATH 上較早的 shim、靜默跳過的測試、被吞成 generic timeout 的�
 
 第三類是唯一停人的。前兩類自己轉完就往下走，不用等人回話。
 
+停人的時候要**停得讓人看得見**。`spine-loop-state.sh stop --kind` 只認四種：
+`assertion_wrong`（就是上表第三類）、`surfaced_concern`（下面那三件要浮出來的事）、
+`unconverged_cap`（上限打到，`record` 自己會判，不用手動）、`unauthorized_action`
+（需要人授權的不可逆動作）。其餘字串會被拒絕。
+
+這四種以外的「停」都不是停，是不知道自己在哪——那個從
+`spine-loop-state.sh where` 讀，不從人身上問。
+
 施工計劃那一類不存在：這條流程不分「明確施工」與「嘗試實作」兩種模式。看得懂就做，看不懂
 就先探。模式宣告是一個還沒被驗證的預測，用一次廉價的嘗試去測，比用一個昂貴的宣告去猜誠實。
 

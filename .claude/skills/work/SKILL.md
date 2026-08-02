@@ -90,4 +90,26 @@ bash scripts/spine-loop-state.sh next --state {source}/.spine/loop-state.json
 什麼。**凍結塊不要動**——需要動它時，回 `assert`，而且改完要 commit：凍結 ＝ commit，
 `verify` 會拿 fence 內文跟 git 歷史比，改了沒 commit 就是紅的，重簽也救不了。
 
-準備受審時轉 `judge`。
+準備受審時**自己轉 `judge`**，不要停下來問人要不要送審：
+
+```bash
+bash scripts/spine-loop-state.sh advance \
+  --state {source}/.spine/loop-state.json --to judge
+```
+
+**要停的時候，用 `stop --kind` 停。** 上面那三件要浮出來的事就是 `surfaced_concern`；
+撞到需要人授權的不可逆動作是 `unauthorized_action`。停了才開口，不然回來的人只看到一個
+不動的 source。接手時反過來——先跑 `where` 讀出站別，不要問人現在到哪了：
+
+```bash
+bash scripts/spine-loop-state.sh where --state {source}/.spine/loop-state.json
+```
+
+### 送審之前，先讓證據跟得上 head
+
+`judge` 的交付紀錄會逐條檢查：fence 宣告的每個斷言 ID 都要有 `verdict: PASS` 的證據，
+而且**證據綁的 head 要等於要交付的那個 head**。證據證的是一棵樹綠了，不是一條分支綠了；
+量完之後又推了三個 commit，那些證據就跟要出去的東西無關了。
+
+所以順序是：**code 全部 commit 完 → 才跑量測 → 才送審**。反過來做，judge 會把你打回來
+重量一次。

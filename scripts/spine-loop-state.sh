@@ -18,10 +18,25 @@
 # adjustable zone — it is a tuning parameter, not an acceptance condition, and
 # moving it moves the boundary with it.
 #
+# This state also answers "where am I". Once one word from a human starts the
+# flow and nobody names the next entry again, two questions have to be
+# answerable off disk rather than out of a conversation: which station this
+# source is at, and — if it is not moving — which of the four declared reasons
+# it stopped for. A flow that can stop anywhere needs a human watching it, which
+# is the same as not running by itself; a flow that can only stop in four named
+# places can be left alone.
+#
+# The four are fixed here rather than passed in. An unnamed stop and a silent
+# stop are the same thing to whoever comes back later, so the enum refuses
+# anything it does not recognise instead of recording a free-text reason.
+#
 # Subcommands:
 #   init  --state <path> [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
-#   next  --state <path>          prints continue | escalate | done
+#   next  --state <path>          prints continue | escalate | done | stop:<kind>
+#   where --state <path>          prints station, stop, rounds — the resume view
+#   advance --state <path> --to assert|work|judge|delivered [--by <human>]
+#   stop  --state <path> --kind <kind> [--note <text>]
 #   reset --state <path> --by <human> [--max-rounds N]
 #   show  --state <path>
 #
@@ -33,14 +48,28 @@ set -uo pipefail
 
 DEFAULT_MAX_ROUNDS=3
 
+# The stations, in the order the flow walks them. `delivered` is the terminal:
+# what happens after it — compressing a version, promoting a branch, cutting a
+# release — belongs to whichever project this is, not to the spine.
+STATIONS="assert work judge delivered"
+
+# The four declared stops. Nothing else is a stop; anything else is "I do not
+# know where I am", which is a state to be read off disk, not a reason to halt.
+STOP_KINDS="assertion_wrong surfaced_concern unconverged_cap unauthorized_action"
+
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  spine-loop-state.sh init   --state <path> [--max-rounds N]
-  spine-loop-state.sh record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
-  spine-loop-state.sh next   --state <path>
-  spine-loop-state.sh reset  --state <path> --by <human> [--max-rounds N]
-  spine-loop-state.sh show   --state <path>
+  spine-loop-state.sh init    --state <path> [--max-rounds N]
+  spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
+  spine-loop-state.sh next    --state <path>
+  spine-loop-state.sh where   --state <path>
+  spine-loop-state.sh advance --state <path> --to assert|work|judge|delivered [--by <human>]
+  spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
+  spine-loop-state.sh reset   --state <path> --by <human> [--max-rounds N]
+  spine-loop-state.sh show    --state <path>
+
+Stop kinds: assertion_wrong | surfaced_concern | unconverged_cap | unauthorized_action
 EOF
 }
 
@@ -67,6 +96,8 @@ OUTCOME=""
 NOTE=""
 BY=""
 MAX_ROUNDS=""
+TO=""
+KIND=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -76,10 +107,23 @@ parse_args() {
       --note) NOTE="${2:-}"; shift 2 ;;
       --by) BY="${2:-}"; shift 2 ;;
       --max-rounds) MAX_ROUNDS="${2:-}"; shift 2 ;;
+      --to) TO="${2:-}"; shift 2 ;;
+      --kind) KIND="${2:-}"; shift 2 ;;
       *) usage; exit 2 ;;
     esac
   done
   [[ -n "$STATE" ]] || { usage; exit 2; }
+}
+
+in_list() {
+  # Description: whether $1 appears as a whole word in the space-separated $2.
+  # Args: $1 = needle, $2 = haystack
+  # Returns: 0 when present, 1 otherwise.
+  local needle="$1" item
+  for item in $2; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
 }
 
 cmd_init() {
@@ -99,11 +143,16 @@ from datetime import datetime, timezone
 
 state, max_rounds = sys.argv[1], int(sys.argv[2])
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "producer": "spine-loop-state.sh",
     "max_rounds": max_rounds,
     "rounds": [],
     "status": "open",
+    # This file is created at the end of the first gate, so the station it
+    # opens at is the one after it.
+    "station": "work",
+    "stop": None,
+    "stops": [],
     "created_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 }
 os.makedirs(os.path.dirname(os.path.abspath(state)) or ".", exist_ok=True)
@@ -161,6 +210,9 @@ else:
     # round that did not converge, whatever it produced.
     unconverged = sum(1 for r in data["rounds"] if r["outcome"] != "converged")
     if unconverged >= data["max_rounds"]:
+        # Reaching the cap is one of the four declared stops, but it is not
+        # written down as one: status == escalated already says it, and two
+        # records of one fact drift apart. next and where derive it.
         data["status"] = "escalated"
 
 with open(state, "w", encoding="utf-8") as handle:
@@ -179,8 +231,130 @@ import json
 import sys
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
-status = data["status"]
-print({"open": "continue", "escalated": "escalate", "converged": "done"}[status])
+stop = data.get("stop")
+# One way to ask "am I stopped, and which of the four" — including the cap,
+# which is derived from status rather than stored. A flow told "continue" while
+# it is halted would walk straight past the thing that halted it, and a flow
+# told "escalate" has to already know that word is secretly one of the four.
+if stop:
+    print(f"stop:{stop['kind']}")
+elif data["status"] == "escalated":
+    print("stop:unconverged_cap")
+else:
+    print({"open": "continue", "converged": "done"}[data["status"]])
+PY
+}
+
+cmd_where() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE; run init first"
+  require_python3
+  python3 - "$STATE" <<'PY'
+import json
+import sys
+
+# The resume view. Whoever picks this source up next — a new session, a
+# different person, tomorrow's you — gets where it is and what is left without
+# reconstructing it from a conversation that is gone.
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+stations = ["assert", "work", "judge", "delivered"]
+# States written before stations existed do not know where they are, and
+# saying "work" as though they did would be an invention. Say which it is.
+legacy = "station" not in data
+station = data.get("station", "work")
+unconverged = sum(1 for r in data["rounds"] if r["outcome"] != "converged")
+stop = data.get("stop")
+if not stop and data["status"] == "escalated":
+    stop = {
+        "kind": "unconverged_cap",
+        "note": f"{unconverged} unconverged rounds reached the cap of {data['max_rounds']}",
+        "at": data["rounds"][-1]["recorded_at"] if data["rounds"] else None,
+    }
+
+print(f"station={station}" + ("  (defaulted: this state predates stations)" if legacy else ""))
+if stop:
+    print(f"stopped={stop['kind']}")
+    if stop.get("note"):
+        print(f"  why: {stop['note']}")
+    print(f"  since: {stop.get('at') or 'unknown'}")
+    print("  resume with: " + ("reset --by <human>" if stop["kind"] == "unconverged_cap"
+                               else "advance --to <station> --by <human>"))
+else:
+    print("stopped=no")
+    nxt = stations[stations.index(station) + 1] if station in stations[:-1] else None
+    print(f"next_station={nxt or 'none (terminal)'}")
+print(f"rounds={len(data['rounds'])} unconverged={unconverged} "
+      f"remaining={max(0, data['max_rounds'] - unconverged)} status={data['status']}")
+PY
+}
+
+cmd_advance() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE; run init first"
+  in_list "$TO" "$STATIONS" \
+    || die "POLARIS_SPINE_LOOP_BAD_STATION" \
+         "--to must be one of: $STATIONS (got '${TO:-}')"
+
+  require_python3
+  python3 - "$STATE" "$TO" "$BY" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+state, to, by = sys.argv[1:4]
+data = json.load(open(state, encoding="utf-8"))
+
+# Leaving a stop is a human's move, in the same shape as resetting the cap.
+# Without this the flow could record a stop and then walk past it unaided,
+# which would make the stop decorative.
+if data.get("stop") and not by:
+    print("POLARIS_SPINE_LOOP_STOP_UNCLEARED", file=sys.stderr)
+    print(f"this source is stopped at '{data['stop']['kind']}'; "
+          "advancing past a stop requires --by <human>", file=sys.stderr)
+    sys.exit(2)
+
+previous = data.get("station", "work")
+data["station"] = to
+if data.get("stop"):
+    data["stop"] = None
+    data["cleared_by"] = by
+data["schema_version"] = 2
+with open(state, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+print(f"STATION: {previous} -> {to}")
+PY
+}
+
+cmd_stop() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE; run init first"
+  in_list "$KIND" "$STOP_KINDS" \
+    || die "POLARIS_SPINE_LOOP_UNDECLARED_STOP" \
+         "--kind must be one of: $STOP_KINDS (got '${KIND:-}')." \
+         "A stop that is not one of these is not a stop — it is 'I do not know where I am', which where reads off disk."
+
+  require_python3
+  python3 - "$STATE" "$KIND" "$NOTE" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+state, kind, note = sys.argv[1:4]
+data = json.load(open(state, encoding="utf-8"))
+entry = {
+    "kind": kind,
+    "note": note or None,
+    "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "station": data.get("station", "work"),
+}
+data["stop"] = entry
+data.setdefault("stops", []).append(entry)
+data["schema_version"] = 2
+with open(state, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+print(f"STOP: {kind} at station {entry['station']}")
 PY
 }
 
@@ -228,7 +402,9 @@ import sys
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 unconverged = sum(1 for r in data["rounds"] if r["outcome"] != "converged")
-print(f"status={data['status']} rounds={len(data['rounds'])} "
+stop = data.get("stop")
+print(f"status={data['status']} station={data.get('station', 'work')} "
+      f"stopped={stop['kind'] if stop else 'no'} rounds={len(data['rounds'])} "
       f"unconverged={unconverged} max_rounds={data['max_rounds']}")
 for round_ in data["rounds"]:
     print(f"  {round_['index']}: {round_['outcome']} "
@@ -244,6 +420,9 @@ main() {
     init) cmd_init "$@" ;;
     record) cmd_record "$@" ;;
     next) cmd_next "$@" ;;
+    where) cmd_where "$@" ;;
+    advance) cmd_advance "$@" ;;
+    stop) cmd_stop "$@" ;;
     reset) cmd_reset "$@" ;;
     show) cmd_show "$@" ;;
     -h|--help) usage; exit 0 ;;

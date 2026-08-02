@@ -117,6 +117,32 @@ git 歷史：`verify` 預設把 fence 內文與該檔在 HEAD 的版本比，不
 - **不決定量測命令。** 那是活區，屬 `work`。
 - **不切成很多張單。** 第一趟粗切寫進活文件當草稿即可，切錯了在 loop 裡重切，不用回來重簽。
 
-## 交出去
+## 交出去：人說一句「開工」，之後不再問路
 
-seal 完成、`verify` PASS、loop state 建好，就轉 `work`。
+seal 完成、`verify` PASS、loop state 建好，就轉 `work`——**不要回頭問「接下來要做什麼」**。
+人在這裡簽的是成功的定義；簽完之後該走哪一站，是流程自己讀得出來的東西，不是要人再指一次
+的東西。
+
+```bash
+bash scripts/spine-loop-state.sh where --state {source}/.spine/loop-state.json
+```
+
+它會說出站別、有沒有停、還剩幾輪。**任何時候不確定現在在哪，就跑它，不要問人**——問人
+才是不知道自己在哪的那個症狀。
+
+流程只在四種地方停，而且停的時候要說出是哪一種：
+
+| 停點 | `--kind` |
+|---|---|
+| 斷言不對，要人重簽 | `assertion_wrong` |
+| `work` 那三件要浮出來的事 | `surfaced_concern` |
+| 連續未收斂打到上限 | `unconverged_cap`（`record` 自己會寫，不用手動） |
+| 需要人授權的不可逆動作 | `unauthorized_action` |
+
+```bash
+bash scripts/spine-loop-state.sh stop \
+  --state {source}/.spine/loop-state.json --kind surfaced_concern --note '<一句話>'
+```
+
+這四種以外的字串會被拒絕。停了就要留下紀錄再開口——**停在紀錄外等於沒停**，回來的人只看得到
+一個不動的 source，看不到它為什麼不動。

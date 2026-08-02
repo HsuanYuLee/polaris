@@ -97,6 +97,15 @@ bash scripts/record-delivery-intent.sh \
 它會先重驗 fence 才寫。斷言被動過的 source 記錄不了交付意向——對著一份沒人簽過的成功定義
 出貨，比不出貨糟。
 
+接著它逐條檢查 fence 宣告的每個斷言 ID：要有 `{source}/.spine/evidence/{ID}.json`、
+`verdict` 是 `PASS`、`producer` 是 `run-hardened-oracle.sh`、而且 `head_sha` **等於要交付的
+那個 head**。缺一條、手寫一條、或量測比交付的 head 舊，都寫不下去，而且它會逐條告訴你是哪
+一條、差在哪。
+
+三件事各有理由。**要有**，是因為在這之前沒有任何東西要求交付前得有證據，「judge 說 PASS」
+一路是靠散文帶著走的。**要是 oracle 產的**，是因為手寫的 PASS 是自己給自己蓋章。
+**head 要對上**，是因為證據證的是一棵樹綠了；量完之後又推的 commit，證據沒看過。
+
 `destination` 決定去哪：`workspace` 留在本地，`template` 才進 Polaris template repo。那是
 閘一由人宣告的，這裡只讀不改。
 
@@ -108,6 +117,27 @@ bash scripts/spine-release.sh --source {source}            # 看它打算做什�
 bash scripts/spine-release.sh --source {source} --execute
 ```
 
+紀錄寫完就把站別推到終點，讓下一個人（或下一個 session）讀得到這裡已經走完：
+
+```bash
+bash scripts/spine-loop-state.sh advance \
+  --state {source}/.spine/loop-state.json --to delivered
+```
+
 ## 判非 PASS 之後
 
-回 `work`。若非 PASS 的原因是斷言本身錯了，那是第四類流轉——回 `assert` 讓人重簽。
+**自己回 `work`，不要停下來問人要不要修**：
+
+```bash
+bash scripts/spine-loop-state.sh advance \
+  --state {source}/.spine/loop-state.json --to work
+```
+
+若非 PASS 的原因是斷言本身錯了，那是第四類流轉——那個要停，而且要停得讓人看得見：
+
+```bash
+bash scripts/spine-loop-state.sh stop \
+  --state {source}/.spine/loop-state.json --kind assertion_wrong --note '<哪一條、為什麼>'
+```
+
+停完回 `assert` 讓人重簽。

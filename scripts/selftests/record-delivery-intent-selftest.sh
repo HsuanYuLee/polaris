@@ -18,8 +18,20 @@ fi
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 RECORD="$ROOT_DIR/scripts/record-delivery-intent.sh"
 FENCE="$ROOT_DIR/scripts/frozen-assertion-fence.sh"
+ORACLE="$ROOT_DIR/scripts/run-hardened-oracle.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+
+# Description: measure one assertion for real, so the evidence carries the
+#   oracle's own producer stamp and the head of the repo it ran in. Writing the
+#   JSON by hand here would test a check against a forgery it is meant to catch.
+# Args: $1 = repo path, $2 = source dir (absolute), $3 = assertion id
+measure() {
+  local repo="$1" source="$2" aid="$3"
+  (cd "$repo" && bash "$ORACLE" --command 'echo MEASURED' \
+     --expect-evidence MEASURED \
+     --evidence-out "$source/.spine/evidence/$aid.json" >/dev/null)
+}
 
 fail() {
   echo "FAIL: $*" >&2
@@ -59,6 +71,7 @@ echo "record-delivery-intent selftest"
 # The happy path: a sealed source hands downstream a destination and a head.
 source="$(new_sealed_source happy template)"
 repo="$WORK/happy"
+measure "$repo" "$source" A-P1
 (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
   --version-bump minor --summary 'a line a human will read' >/dev/null) \
   || fail "a sealed source with a destination should record"
@@ -122,6 +135,7 @@ repo="$WORK/twoheads"
 echo "shipped work" >> "$repo/tool.sh"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "the work being delivered"
+measure "$repo" "$source" A-P1
 (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
   --version-bump patch --summary 'two histories' >/dev/null) \
   || fail "a source in its own repository should still record"
@@ -136,5 +150,50 @@ assert d["head_sha"] != d["source_head_sha"], "two histories collapsed into one"
   "$(git -C "$repo" rev-parse HEAD)" "$(git -C "$source/.." rev-parse HEAD)" \
   || fail "the record must name both heads, each from its own repository"
 echo "  ok  the shipping head and the judged head come from their own repositories"
+
+# An assertion nobody measured is an assertion nobody met. Before this check
+# existed, "judge said PASS" travelled the whole way as prose — the last real
+# delivery shipped with one of seven assertions carrying no evidence at all.
+source="$(new_sealed_source noevidence template)"
+repo="$WORK/noevidence"
+out="$( (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+  --version-bump patch --summary 'x' 2>&1) )" && fail "an unmeasured assertion should refuse to record"
+grep -Fq POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE <<<"$out" \
+  || fail "missing evidence did not emit its marker; got: $out"
+grep -Fq "A-P1: no evidence" <<<"$out" \
+  || fail "the refusal must name which assertion is unmeasured; got: $out"
+[[ -f "$source/.spine/delivery.json" ]] \
+  && fail "a refused recording must not leave a record behind"
+echo "  ok  an unmeasured assertion refuses to record, by name"
+
+# Evidence proves a tree green, not a branch. Measurements taken before the last
+# few commits say nothing about what is going out.
+source="$(new_sealed_source stale template)"
+repo="$WORK/stale"
+measure "$repo" "$source" A-P1
+echo "one more change after measuring" >> "$repo/tool.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "moved on after the measurement"
+out="$( (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+  --version-bump patch --summary 'x' 2>&1) )" && fail "stale evidence should refuse to record"
+grep -Fq "A-P1: measured at" <<<"$out" \
+  || fail "the refusal must say which head was measured; got: $out"
+echo "  ok  evidence from an earlier head refuses to record"
+
+# A hand-written PASS is self-certification. The oracle pins its tools before
+# trusting them and keeps the exit code; a JSON file is whoever typed it.
+source="$(new_sealed_source handwritten template)"
+repo="$WORK/handwritten"
+mkdir -p "$source/.spine/evidence"
+python3 - "$source/.spine/evidence/A-P1.json" "$(git -C "$repo" rev-parse HEAD)" <<'PY'
+import json, sys
+json.dump({"schema_version": 1, "producer": "me", "verdict": "PASS",
+           "head_sha": sys.argv[2]}, open(sys.argv[1], "w"))
+PY
+out="$( (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+  --version-bump patch --summary 'x' 2>&1) )" && fail "hand-written evidence should refuse to record"
+grep -Fq "not run-hardened-oracle.sh" <<<"$out" \
+  || fail "the refusal must name the producer problem; got: $out"
+echo "  ok  hand-written evidence refuses to record"
 
 echo "PASS: record-delivery-intent"

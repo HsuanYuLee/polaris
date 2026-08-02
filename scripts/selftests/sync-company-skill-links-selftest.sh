@@ -38,7 +38,7 @@ out="$(run --check)"; rc=$?
 if [[ $rc -eq 2 && "$out" == *POLARIS_COMPANY_SKILL_LINK_DRIFT* ]]; then
   ok "資料夾模式但沒登記 -> DRIFT"
 else
-  bad "資料夾模式但沒登記，應該 DRIFT（rc=$rc）"
+  bad "資料夾模式但沒登記，應該 DRIFT（rc=${rc}）"
 fi
 
 run >/dev/null
@@ -49,7 +49,7 @@ else
 fi
 
 out="$(run --check)"; rc=$?
-[[ $rc -eq 0 ]] && ok "補完之後 --check 綠" || bad "補完之後 --check 仍紅（rc=$rc）"
+[[ $rc -eq 0 ]] && ok "補完之後 --check 綠" || bad "補完之後 --check 仍紅（rc=${rc}）"
 
 # --- 別人只放資料夾，不需要知道有 symlink 這回事 ---------------------------
 add_skill "exampleco/newcomer"
