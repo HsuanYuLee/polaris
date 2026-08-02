@@ -21,11 +21,24 @@ version: 1.0.0
 一個 source 是一個目錄：
 
 ```
-{source}/
-  index.md                       正文含凍結塊 fence，其餘是活文件
-  .spine/loop-state.json         輪次
-  .spine/measurement-ledger.json 量測命令登錄
+sources/                         你自己的 git repo，框架 repo 忽略它
+  {source}/
+    index.md                     正文含凍結塊 fence，其餘是活文件
+    .spine/loop-state.json       輪次
+    .spine/measurement-ledger.json 量測命令登錄
 ```
+
+**`sources/` 不歸框架版控。** 它記的是你在做什麼、為什麼這樣定義成功；換一個人用同一套
+框架，這裡的內容完全不一樣。框架只提供空殼（`_template/sources/`）。第一次使用時：
+
+```bash
+cp _template/sources/README.md sources/README.md
+cp _template/sources/gitignore.example sources/.gitignore
+cd sources && git init && git add . && git commit -m "sources: 開始"
+```
+
+它仍然必須是一個 git repo——理由見下方〈凍結 ＝ commit〉。`verify` 從檔案自己的路徑解析
+repo，會自動跟著 `sources/` 進它自己的歷史，不需要告訴它。
 
 凍結塊與活文件同檔。這是成本地板：一個工作被迫產生的檔案不超過兩個（這份與 code），
 純文件類的工作只有一份。

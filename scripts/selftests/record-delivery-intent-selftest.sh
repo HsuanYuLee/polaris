@@ -111,4 +111,30 @@ fi
   && fail "a rejected invocation must not leave a record behind"
 echo "  ok  invalid arguments rejected before writing"
 
+# sources/ is the user's own repository nested inside the framework's, so the
+# commit that ships and the commit that was judged come from different histories.
+# Recording either one twice would pin the release tail to the wrong commit.
+source="$(new_sealed_source twoheads template)"
+repo="$WORK/twoheads"
+(cd "$source/.." && git init -q && git config user.email selftest@example.com \
+  && git config user.name selftest && git add -A && git commit -qm "sources of their own")
+# The delivering repository moves on; the source repository does not.
+echo "shipped work" >> "$repo/tool.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "the work being delivered"
+(cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+  --version-bump patch --summary 'two histories' >/dev/null) \
+  || fail "a source in its own repository should still record"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+ship, judged = sys.argv[2], sys.argv[3]
+assert d["head_sha"] == ship, f"head_sha must be what ships: {d}"
+assert d["source_head_sha"] == judged, f"source_head_sha must be what was judged: {d}"
+assert d["head_sha"] != d["source_head_sha"], "two histories collapsed into one"
+' "$source/.spine/delivery.json" \
+  "$(git -C "$repo" rev-parse HEAD)" "$(git -C "$source/.." rev-parse HEAD)" \
+  || fail "the record must name both heads, each from its own repository"
+echo "  ok  the shipping head and the judged head come from their own repositories"
+
 echo "PASS: record-delivery-intent"

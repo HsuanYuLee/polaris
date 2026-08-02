@@ -81,20 +81,27 @@ destination="$(awk '
 [[ -n "$destination" ]] || die "POLARIS_DELIVERY_INTENT_NO_DESTINATION" \
   "$INDEX declares no destination; run check-source-destination.sh for the contract"
 
-# The head being recorded is the head of the repository the source lives in, not
-# of whichever checkout this script happens to sit in. Those coincide in the main
-# checkout and diverge in a worktree — and a record silently pinned to another
-# checkout's HEAD names a commit that is not what ships.
-SOURCE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
+# Two repositories, two heads, and they are not interchangeable. What ships is the
+# checkout this is invoked from — not the one this script happens to sit in, which
+# differs inside a worktree. What was judged is the source's own repository, which
+# sources/ is: the documents belong to whoever uses the framework, so they are
+# versioned separately. Recording only one of these would leave the release tail
+# pinned to a commit from the wrong history.
+DELIVERING_REPO="$(git rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
+SOURCE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$DELIVERING_REPO")"
 if [[ -z "$HEAD_SHA" ]]; then
-  HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
+  HEAD_SHA="$(git -C "$DELIVERING_REPO" rev-parse HEAD 2>/dev/null || true)"
 fi
 [[ -n "$HEAD_SHA" ]] || die "POLARIS_DELIVERY_INTENT_NO_HEAD" \
   "could not resolve a head sha; pass --head explicitly"
 
+# Empty when the source has no history of its own — the fence verifier already
+# refuses that case, so this records the absence rather than inventing a value.
+SOURCE_HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
+
 # Whoever runs this is the one accountable for the summary, same as the fence
 # signer. Recording it makes the handoff traceable to a person, not a process.
-judged_by="$(git -C "$SOURCE_REPO" config user.name 2>/dev/null || echo unknown)"
+judged_by="$(git -C "$DELIVERING_REPO" config user.name 2>/dev/null || echo unknown)"
 judged_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 OUT_DIR="$SOURCE_DIR/.spine"
@@ -102,17 +109,18 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
 python3 - "$OUT" "$SOURCE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
-  "$SUMMARY" "$judged_by" "$judged_at" <<'PY'
+  "$SUMMARY" "$judged_by" "$judged_at" "$SOURCE_HEAD_SHA" <<'PY'
 import json
 import sys
 
-out, source, destination, head, bump, summary, by, at = sys.argv[1:9]
+out, source, destination, head, bump, summary, by, at, source_head = sys.argv[1:10]
 payload = {
     "schema_version": 1,
     "producer": "record-delivery-intent.sh",
     "source": source,
     "destination": destination,
     "head_sha": head,
+    "source_head_sha": source_head,
     "version_bump": bump,
     "changelog_summary": summary,
     "judged_by": by,
@@ -124,4 +132,4 @@ with open(out, "w", encoding="utf-8") as handle:
 PY
 
 echo "RECORDED: $OUT"
-echo "  destination=$destination head=${HEAD_SHA:0:12} bump=$VERSION_BUMP"
+echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${SOURCE_HEAD_SHA:0:12} bump=$VERSION_BUMP"

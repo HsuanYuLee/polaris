@@ -7,11 +7,13 @@ set -euo pipefail
 # intentionally ignored and must not enter workspace/template git history.
 #
 # A spine source's .spine/ is the same kind of thing — loop state and the
-# measurement ledger are rewritten every round — so it is protected too. Its
-# sibling sources/*/index.md is deliberately NOT protected: it carries the frozen
-# assertions, and freezing is committing. History is the only tamper evidence a
-# writer inside the repo cannot rewrite in place, so that one file has to be
-# tracked. The boundary is contract vs. execution state, not a directory name.
+# measurement ledger are rewritten every round — so it is protected too.
+#
+# sources/ as a whole is now the user's own git repository and is ignored by this
+# one, so nothing under it can be tracked here anyway. This guard stays because
+# the ignore rule is a decision someone can undo in one line, and the thing it
+# would let through — execution state entering framework history — is exactly what
+# the guard names. Its scope is contract vs. execution state, not a directory.
 
 PREFIX="[polaris gate-no-tracked-specs]"
 PROTECTED_PREFIXES=(

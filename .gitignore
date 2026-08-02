@@ -49,14 +49,18 @@ docs-manager/public/evidence/
 docs-manager/src/content/docs/specs/
 
 # ── sources/ (frozen assertions + living documents) ──
-# A source's index.md carries the frozen assertions and is tracked: freezing is
-# committing, and history is the only tamper evidence a writer inside the repo
-# cannot rewrite in place. Its .spine/ sibling is execution state rewritten every
-# round, so it stays out of history. docs-manager only renders these; it does not
-# own them, which is why they no longer live inside it.
-!sources/
-!sources/**
-sources/*/.spine/
+# Not the framework's to version. A source records what *this* user is doing and
+# why they defined success that way; the next person running the same framework
+# has entirely different contents here. So sources/ is its own git repository,
+# owned by whoever uses the framework, and this repository ignores it. The
+# template ships an empty shell (_template/sources/) and nothing else.
+#
+# It still has to be a git repository, because freezing is committing: the seal
+# only proves the fence is self-consistent, and history is the only tamper
+# evidence a writer inside the file cannot rewrite in place. The fence verifier
+# resolves the repository from the file's own path, so it follows sources/ into
+# its own history without being told.
+sources/
 
 # ── scripts/ framework utilities ──
 !scripts/

@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.86.0] - 2026-08-02
+
+### Changed
+
+- 0b985b0: DP-462：文件搬出框架 repo，改由使用的人自己版控。
+  `sources/` 記的是使用這套框架的人在做什麼、為什麼這樣定義成功。換一個人，內容完全不一樣。
+  用 git 只是因為好管理，不是因為它屬於框架——所以它現在是使用者自己的 repo，框架 repo 忽略
+  整個目錄，template 只提供空殼 `_template/sources/`。
+  它仍然必須是 git repo：凍結 ＝ commit，封條只證明自洽，歷史才是檔案內的寫入者改不掉的竄改
+  證據。`frozen-assertion-fence.sh` 本來就從檔案自己的路徑解析 repo，會自動跟進 `sources/` 的
+  歷史。
+  連帶修正 v3.85.2 的一處：`record-delivery-intent.sh` 當時把 head 改成從 source 所在 repo 取，
+  理由是 worktree。理由對，答案在這個目標態下錯——出貨的 commit 與被判定的 commit 現在來自兩段
+  歷史。紀錄改為同時帶 `head_sha`（出貨，來自呼叫所在的 repo）與 `source_head_sha`（判定，來自
+  source 的 repo）。
+
 ## [3.85.2] - 2026-08-02
 
 ### Changed
