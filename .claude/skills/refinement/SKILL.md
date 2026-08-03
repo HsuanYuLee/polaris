@@ -1,42 +1,23 @@
 ---
 name: refinement
-description: 有人帶著一件要做的事出現時的第一站。先判斷這件事要不要立案並說出依據；要立案的，把「怎麼算成功」談成人簽得下去的斷言，凍結起來。任何會改變程式碼或行為的請求都從這裡進，使用者不需要記得這個名字。
+description: 流程的第一站，也是第一個閘：把「怎麼算成功」談成人簽得下去的斷言，凍結起來。由 driving-work-to-done 在判定要立案之後帶進來。
 when_to_use: |
-  使用者說出一件想做的事、而現場還沒有對應的單時。例如「幫我做 X」「我要改 Y」
-  「這個需求…」「X 壞了要修」「想重構 Z」——不論有沒有指令名稱。
+  driving-work-to-done 判定一件事要立案、而現場還沒有對應的單時。
 
-  也用於：既有單的成功定義本身錯了，要回來重簽（第四類流轉）。
+  也用於：既有單的成功定義本身錯了，停 `assertion_wrong` 之後回來重簽。
 
-  不用於：唯讀的查詢與說明（「這支腳本在幹嘛」「查一下 X」）。那些沒有「怎麼算成功」
-  要簽，直接回答即可。
-version: 2.0.0
+  不用於：判斷「這件事要不要立案」——那在 driving-work-to-done。
+version: 3.0.0
 ---
 
-# refinement — 閘一：立案判斷與凍結斷言
+# refinement — 閘一：凍結斷言
 
-這個入口做兩件事：**先判斷要不要立案**，要立案的才把成功的定義變成**人簽得下去**的斷言，
-鎖起來。
+這一站只做一件事：把成功的定義變成**人簽得下去**的斷言，鎖起來。
 
 鎖起來之後，做法怎麼變都不用回來問人；只有成功的定義本身錯了才需要回到這裡重簽。
 
-## 零、先做立案判斷，並說出來
-
-被叫起來的第一件事不是寫斷言，是**判斷這件事該不該立案，並把判斷與依據說出口**，然後才
-動作。不要靜默決定——人要能當場推翻它。
-
-判準只有一條：**有沒有「怎麼算成功」需要人簽字。**
-
-| 這件事 | 立案？ |
-|---|---|
-| 查一下、說明一段程式、跑個既有測試 | 否。沒有要簽的東西，直接做 |
-| 改 typo、調一個顯然的常數 | 否。成功的定義不會有爭議 |
-| 會改變行為、會有人問「這樣算好了嗎」 | **是** |
-| 不確定 | **是**。立案的成本遠低於做完才發現目標不對 |
-
-說出來的樣子：「我判斷這件事**要**立案，因為驗收標準不只一種可能」，或「我判斷**不用**
-立案，這是唯讀查詢，直接做」。一句話就夠，不需要表格。
-
-不立案的，到此為止，直接把事情做完。立案的，往下走。
+**要不要立案的判斷不在這裡**，在 `driving-work-to-done`。走到這一站表示那個判斷已經做過
+而且說出來了。
 
 ## 單的形狀
 
@@ -106,8 +87,8 @@ git add {issue}/index.md && git commit -m "freeze: {issue} 斷言"
 # 3. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/index.md
 
-# 4. 開輪次
-bash .claude/skills/refinement/scripts/spine-loop-state.sh init --state {issue}/.spine/loop-state.json
+# 4. 開輪次（狀態機住在殼裡——「現在在哪、下一步是什麼」只有一個地方回答）
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init --state {issue}/.spine/loop-state.json
 ```
 
 **凍結 ＝ commit，不是 ＝ 蓋封條。** 封條只證明 fence 內文與 frontmatter 自洽——改了 fence
@@ -124,33 +105,12 @@ git 歷史：`verify` 預設把 fence 內文與該檔在 HEAD 的版本比，不
   宣告去猜誠實。
 - **不決定量測命令。** 那是活區，屬 `engineering`。
 - **不切成很多張單。** 第一趟粗切寫進活文件當草稿即可，切錯了在 loop 裡重切，不用回來重簽。
+- **不寫「怎麼算 done」。** 那一類工作共用的完成條件由領域 pack 帶進來，不進這張單的凍結區。
+  抄進去等於每張單都重簽一次同樣幾行不承載新資訊的東西。
+- **不決定下一步。** 走完這一站要去哪，寫在 `driving-work-to-done`，只寫在那裡。
 
-## 交出去：人說一句「開工」，之後不再問路
+## 領域知識
 
-seal 完成、`verify` PASS、loop state 建好，就轉 `engineering`——**不要回頭問「接下來要做什麼」**。
-人在這裡簽的是成功的定義；簽完之後該走哪一站，是流程自己讀得出來的東西，不是要人再指一次
-的東西。
-
-```bash
-bash .claude/skills/refinement/scripts/spine-loop-state.sh where --state {issue}/.spine/loop-state.json
-```
-
-它會說出站別、有沒有停、還剩幾輪。**任何時候不確定現在在哪，就跑它，不要問人**——問人
-才是不知道自己在哪的那個症狀。
-
-流程只在四種地方停，而且停的時候要說出是哪一種：
-
-| 停點 | `--kind` |
-|---|---|
-| 斷言不對，要人重簽 | `assertion_wrong` |
-| `engineering` 那三件要浮出來的事 | `surfaced_concern` |
-| 連續未收斂打到上限 | `unconverged_cap`（`record` 自己會寫，不用手動） |
-| 需要人授權的不可逆動作 | `unauthorized_action` |
-
-```bash
-bash .claude/skills/refinement/scripts/spine-loop-state.sh stop \
-  --state {issue}/.spine/loop-state.json --kind surfaced_concern --note '<一句話>'
-```
-
-這四種以外的字串會被拒絕。停了就要留下紀錄再開口——**停在紀錄外等於沒停**，回來的人只看得到
-一張不動的單，看不到它為什麼不動。
+這一站簽的是**這張單獨有的**成功條件。**這一類工作共用的**那份（definition of done）由
+`driving-work-to-done` 判定領域、載入對應的 pack、記在單的狀態裡。seal 完就回殼把那件事做掉，
+它不是這一站的活。

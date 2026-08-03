@@ -1,19 +1,17 @@
 ---
 name: engineering
-description: 已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘，四類流轉只有「斷言錯了」會停人。
+description: 已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘。
 when_to_use: |
-  某張單的斷言已經凍結，接下來要動手做的時候。例如「開始做」「繼續 DP-NNN」
-  「接著推進」「這一片來做」，或剛從 refinement 交出來。
+  某張單的斷言已經凍結，接下來要動手做的時候，或剛從 refinement 交出來。
 
   也用於：跨 session 接手一張做到一半的單——讀凍結塊與活文件就能接上。
 
-  不用於：還沒有斷言的工作（先走 refinement）、要判這次算不算達成（走 verify-ac）。
-version: 2.0.0
+  不用於：還沒有斷言的工作、要判這次算不算達成（走 verify-ac）、
+  決定下一站是哪一站（走 driving-work-to-done）。
+version: 3.0.0
 ---
 
 # engineering — 兩個閘之間
-
-前置必讀：`.claude/skills/references/spine-implementation-guidance.md`。
 
 這裡沒有閘。派工怎麼切、實作怎麼做、試幾次、走哪條路，都在這裡，沒有人在等你交表格。
 正因為頭尾兩個閘在，中間才可以很隨便。
@@ -25,7 +23,7 @@ artifact。
 
 ```bash
 bash .claude/skills/engineering/scripts/frozen-assertion-fence.sh verify {issue}/index.md
-bash .claude/skills/engineering/scripts/spine-loop-state.sh show --state {issue}/.spine/loop-state.json
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh show --state {issue}/.spine/loop-state.json
 bash .claude/skills/engineering/scripts/record-measurement-change.sh show --ledger {issue}/.spine/measurement-ledger.json
 ```
 
@@ -50,13 +48,13 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 
 紅不了的命令什麼都沒量。一個因為工具不存在而失敗的紀錄不算紅過，它只證明環境壞了。
 
-## 四類流轉，只有一類停人
+## 在這裡發現問題，先自己解
 
-| 發現的問題 | 往哪走 |
+| 發現的問題 | 怎麼辦 |
 |---|---|
 | 量測方法不對 | 原地改，帶紅過證據換命令，繼續 |
 | 切分不對 | 重切，繼續 |
-| 斷言不對 | **停**，回 `refinement` 讓人重簽 |
+| 斷言不對 | 不是這一站能解的——回 `driving-work-to-done` 讀該停哪一種 |
 
 施工計劃那一類不存在：這條流程不分「明確施工」與「嘗試實作」。看得懂就做，看不懂就先探。
 
@@ -66,10 +64,9 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 是知識，寫進活文件就是交付。不要為了讓這一輪看起來有東西，把失敗的探索包裝成交付。
 
 ```bash
-bash .claude/skills/engineering/scripts/spine-loop-state.sh record \
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh record \
   --state {issue}/.spine/loop-state.json \
   --outcome converged|unconverged|zero_delta --note '<一句話>'
-bash .claude/skills/engineering/scripts/spine-loop-state.sh next --state {issue}/.spine/loop-state.json
 ```
 
 連續沒收斂到上限時流程升人類，不繼續自轉。上限是活區可調的參數，不是驗收條件。
@@ -90,20 +87,8 @@ bash .claude/skills/engineering/scripts/spine-loop-state.sh next --state {issue}
 什麼。**凍結塊不要動**——需要動它時，回 `refinement`，而且改完要 commit：凍結 ＝ commit，
 `verify` 會拿 fence 內文跟 git 歷史比，改了沒 commit 就是紅的，重簽也救不了。
 
-準備受審時**自己轉 `verify-ac`**，不要停下來問人要不要送審：
-
-```bash
-bash .claude/skills/engineering/scripts/spine-loop-state.sh advance \
-  --state {issue}/.spine/loop-state.json --to verify-ac
-```
-
-**要停的時候，用 `stop --kind` 停。** 上面那三件要浮出來的事就是 `surfaced_concern`；
-撞到需要人授權的不可逆動作是 `unauthorized_action`。停了才開口，不然回來的人只看到一個
-不動的單。接手時反過來——先跑 `where` 讀出站別，不要問人現在到哪了：
-
-```bash
-bash .claude/skills/engineering/scripts/spine-loop-state.sh where --state {issue}/.spine/loop-state.json
-```
+這一輪做完，回 `driving-work-to-done` 讀下一步——換站與停點都由那裡回答，這一站不自己決定
+往哪走。
 
 ### 送審之前，先讓證據跟得上 head
 

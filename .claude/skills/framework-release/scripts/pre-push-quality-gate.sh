@@ -10,6 +10,9 @@
 #    讀到錯的那一份，而且沒有人會發現。
 # 三、skill 腳本的同目錄引用：腳本搬家會把寫死的相對路徑變成執行期才炸的洞。DP-462 拆完
 #    共用 scripts/ 之後，三個斷點都是釋出跑到一半才炸的——那時候版號已經壓下去了。
+# 四、散文引用行為：同一個洞的另一面。SKILL.md 指名的檔案、子命令、旗標，搬家之後會一個
+#    一個變成空位，而讀的人第一行就被指過去。`engineering` 與 `verify-ac` 的「前置必讀」
+#    指著兩個不存在的檔，從 DP-462 一路活到 4.1.0，沒有任何東西看得見。
 
 set -euo pipefail
 
@@ -21,6 +24,7 @@ fail=0
 bash "$GATES/gate-template-leaks.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-runtime-instruction-manifest.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-skill-script-references.sh" --repo "$ROOT_DIR" || fail=1
+bash "$GATES/gate-prose-matches-behaviour.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-ignore-classes.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-dangling-declarations.sh" --repo "$ROOT_DIR" || fail=1
 

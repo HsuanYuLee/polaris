@@ -40,7 +40,7 @@ workspace memory，因此必須先有本 session 的 dry-run 結果與使用者�
 | Apply | `memory-hygiene-apply-flow.md` |
 
 Classification rules live in `.claude/skills/memory-hygiene/scripts/memory-hygiene-tiering.py` and
-`rules/feedback-and-memory.md` Memory Tiering.
+`_template/rule-examples/feedback-and-memory.md` Memory Tiering.
 
 Plan artifact authority lives in `bash .claude/skills/memory-hygiene/scripts/validate-memory-hygiene-plan.sh`。
 `apply` 不應直接吃任意 JSON；必須先通過 plan validator。

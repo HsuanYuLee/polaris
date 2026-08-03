@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.2.0] - 2026-08-03
+
+### Changed
+
+- ae556e6: DP-473：流轉與「怎麼算 done」收進一層殼
+  `driving-work-to-done` 是新的唯一入口，也是唯一回答「下一步是什麼」的地方：立案判斷、
+  站別、四種停點、跨單的「接下來做哪一張」、領域知識的載入與記錄。`refinement` /
+  `engineering` / `verify-ac` 各自只留「這一站在做什麼」。
+  `swe-knowledge` 是新的通用 pack，帶軟體工程共用的 definition of done（存在 branch、
+  存在 PR、判定過才進預設分支、push 前跑完本機驗證），由殼在判定領域時載入。每張單的
+  凍結區從此只承載那張單獨有的驗收條件。
+  `spine-loop-state.sh` 從三份複本收成一份，並新增 `next --across-issues`。
+  新增 `gate-prose-matches-behaviour.sh`：SKILL.md 指名的檔案／子命令／旗標要對得上實際
+  行為，掛在 pre-push 上。
+
 ## [4.1.0] - 2026-08-03
 
 ### Changed

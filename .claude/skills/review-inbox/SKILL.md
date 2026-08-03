@@ -35,7 +35,7 @@ Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awa
 | Situation | Load |
 |---|---|
 | Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `shared-defaults.md`, `stale-approval-detection.md`, `workspace-config-reader.md` |
-| Batch review execution | `review-inbox-batch-review-flow.md`, `review-inbox/dispatch-context-bundle.md` |
+| Batch review execution | `review-inbox-batch-review-flow.md`, `.claude/skills/review-inbox/dispatch-context-bundle.md` |
 | Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `workspace-language-policy.md` |
 
 Slack channel scan 可以派 read-only sub-agent。Per-PR review 不得使用 Claude Code

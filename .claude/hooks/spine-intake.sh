@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
-# spine-intake.sh — UserPromptSubmit hook：脊椎的上匝道
+# spine-intake.sh — UserPromptSubmit hook：只做一件事，指路。
 #
-# 為什麼是 hook 而不是 skill description：description 是**邀請**，模型看得到也可以不理。
-# 2026-08-02 的 dogfood 兩跑實測，`refinement` 帶著情境化的 description 出現在清單上，模型仍然
-# 直接開工，一次都沒叫（拆掉舊層再跑一次也一樣）。skill 的自動調用是裁量的，沒有東西強制它。
+# 為什麼還留著一個 hook
+# --------------------
+# skill 的 description 是**邀請**，模型看得到也可以不理。2026-08-02 的 dogfood 兩跑實測，
+# `refinement` 帶著情境化的 description 出現在清單上，模型仍然直接開工，一次都沒叫（拆掉舊層
+# 再跑一次也一樣）。hook 不同的地方只有一件：它**必然**執行，而且注入點就在使用者訊息旁邊。
+# 模型仍然可以不照做——沒有任何機制能強迫一次 tool call——但「入口有沒有送到眼前」從裁量
+# 變成確定。這是這條路的天花板，明講，不假裝它是強制。
 #
-# hook 不同的地方只有一件：它**必然**執行，而且注入點就在使用者訊息旁邊，不是 context 最
-# 上面。模型仍然可以不照做——沒有任何機制能強迫一次 tool call——但「要求有沒有送到眼前」
-# 從裁量變成確定。這是這條路的天花板，明講，不假裝它是強制。
+# 為什麼它只剩一行
+# ----------------
+# 上一版把立案判準整段抄在這裡，於是每一輪都逼出一句形式化的「立案判斷：不用立案」——用散文
+# 應付散文，正是這條路最該防的東西。更糟的是它變成第二個回答「下一步是什麼」的地方：判準有
+# 兩份就會漂，而漂掉的那一刻沒有人在看。
 #
-# 承載：DP-462 B-P4（立案判斷可見）。B-P4 說的是「**當一件工作進來時**」，不是每一句話。
-# 第一版對每個非斜線訊息都問一次，包含工作進行中的「繼續」——那比它自己的斷言寬。代價不是
-# 多幾行字：每輪逼出一句形式化的「立案判斷：不用立案」，就是用散文應付散文，正是這條路最該
-# 防的東西；同時它在一條「開工之後不需要人再指定下一站」的流程裡，每輪重插一個判斷點。
+# 所以判準一句都不抄。這裡只說出入口的名字與磁碟上的現況，**不說任何「你該怎麼做」**——
+# 一個只給名字、不給答案的東西，不可能跟殼給出不同的答案。
 #
-# 所以要不要問，從磁碟決定：有 source 開著且已過閘一時，改成報站別，不重問。判斷這件事
-# 不用猜——`issues/*/*/.spine/loop-state.json` 就寫在那裡。
+# 拿掉它會怎樣：四支 skill 照常成立，只是被叫起來的機率回到裁量。所以它是這個 repo 的便利，
+# 不是流程的前提——搬去 claude.ai / Cowork 時不需要跟著搬。
 #
 # Input:  stdin JSON，欄位 user_prompt（或 prompt）
-# Stdout: 注入 prompt context 的短提示
+# Stdout: 一行 context
 # Exit:   永遠 0——這是提示，不擋使用者的話
 
 set -uo pipefail
@@ -36,13 +40,12 @@ print(d.get("user_prompt") or d.get("prompt") or "", end="")
 
 [[ -n "$prompt" ]] || exit 0
 
-# 斜線指令自己就是明確的入口，不需要再提醒一次。
+# 斜線指令自己就是明確的入口，不需要再指一次路。
 case "$prompt" in
   /*) exit 0 ;;
 esac
 
-# 有沒有單已經過了閘一。`issues/` 是使用者自己的 repo，可能根本不存在——不存在就
-# 當作沒有進行中的工作，走完整上匝道。
+# 有沒有單已經過了閘一。`issues/` 是使用者自己的 repo，可能根本不存在。
 ISSUES_DIR="${CLAUDE_PROJECT_DIR:-.}/issues"
 active="$(python3 - "$ISSUES_DIR" <<'PY' 2>/dev/null || true
 import glob, json, os, sys
@@ -50,8 +53,7 @@ import glob, json, os, sys
 # 站在 engineering / verify-ac 表示閘一簽過了、還沒交付。refinement 不算：那正是還在上匝道上。
 #
 # 判準是站別，不是 loop 的 status。`converged` 說的是「這一輪收斂了」，不是「已經出貨」——
-# 第一版拿它當已交付，於是一張站在 verify-ac、證據都齊、正等釋出的單被當成不在進行中，
-# 下一句話又收到完整上匝道。當場在自己身上發生的。
+# 第一版拿它當已交付，於是一張站在 verify-ac、證據都齊、正等釋出的單被當成不在進行中。
 rows = []
 # 版面是 issues/{命名空間}/{單}/.spine/。命名空間只是路徑的一段，不參與任何判定。
 for path in sorted(glob.glob(os.path.join(sys.argv[1], "*", "*", ".spine", "loop-state.json"))):
@@ -67,19 +69,9 @@ print("；".join(rows), end="")
 PY
 )"
 
-# 判準留在一處：這裡只問問題，不重述 refinement 的完整判準。把判準抄過來就會有兩份會漂的複本。
 if [[ -n "$active" ]]; then
-  cat <<TXT
-[spine intake] 進行中：${active}。
-同一件事就直接往下做，不用再說一次立案判斷——重問已經簽過的東西是儀式，不是把關。
-換成另一件會改變行為的事，才做立案判斷並走 refinement。不確定現在在哪就跑
-\`spine-loop-state.sh where\`，不要問人。
-TXT
+  echo "[spine intake] 進行中：${active}。流轉與立案的判準在 driving-work-to-done。"
 else
-  cat <<'TXT'
-[spine intake] 動手之前，先說出立案判斷：這件事要不要立案，依據是什麼。
-判準是「有沒有『怎麼算成功』需要人簽字」——唯讀查詢與說明不用，會改變行為的要。
-不用立案就直接做；要立案就走 refinement。判斷說出來讓人能當場推翻，不要靜默決定。
-TXT
+  echo "[spine intake] 有工作進來的話，入口是 driving-work-to-done。"
 fi
 exit 0

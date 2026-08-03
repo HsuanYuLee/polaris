@@ -37,7 +37,14 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
 1. **重驗** —— fence 與交付紀錄都要還成立。任一項不成立就停，這時候還沒有任何東西被送出去。
 2. **壓版號** —— 讀 changeset 決定 patch / minor / major。**沒有 changeset 就是沒有版本變更**，
    而交付紀錄裡宣告過 `version_bump` 的話這是矛盾，不是可以印一行 note 略過的事。
-3. **促進 main** —— 開一個分支 → main 的 PR，過閘之後 fast-forward。不是直接推 main。
+3. **促進 main** —— 找到這條 branch **已經開好**的 PR，過閘之後 fast-forward。不是直接推 main。
+
+   **這支不開 PR。** 它 `gh pr list --state open`，找不到就 die（`POLARIS_SPINE_RELEASE_NO_PR`，
+   `spine-release.sh:186`）。開 PR 是 SWE 的 definition of done，屬 `swe-knowledge`——PR 開出來
+   就是實作完成，而這支是完成**之後**的事。
+
+   **壓完版號就要促進到 main，不停在中間。** 一個壓了版號卻沒進 main 的 commit，是一個宣稱
+   已經發生、但任何人 clone 下來都看不到的版本。這兩步之間沒有停點。
 4. **同步 template** —— 只有 `destination: template` 的單才做。`workspace` 的到第 3 步為止。
 5. **接回本機** —— main 快轉、git hook 重裝、已併的分支刪掉。
 
@@ -54,6 +61,7 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
 | `gate-runtime-instruction-manifest.sh` | 生成的常駐指令過期——之後每個 session 都會靜默讀到錯的那份 |
 | `gate-no-tracked-specs.sh` | 個人的規劃內容混進這個 repo |
 | `gate-skill-script-references.sh` | skill 腳本指向不存在的同目錄檔案——搬家留下的洞，執行期才炸 |
+| `gate-prose-matches-behaviour.sh` | SKILL.md 指名的檔案／子命令／旗標對不上實際行為——同一個洞的散文那一面 |
 
 前兩道也掛在 git 的 pre-push 上，由 `install-git-hooks.sh` 裝：
 

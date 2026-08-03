@@ -190,7 +190,7 @@ Release page 是 planning / communication artifact，不是 release gate。頁�
 
 **Step 7c — 推送 Confluence**：
 
-**Workspace language policy gate（blocking）**：完整規則見 `rules/style-and-language.md`。Release page / planning summary 寫入 Confluence 前，先把最終內容落成 temp markdown，執行：
+**Workspace language policy gate（blocking）**：完整規則見 `.claude/rules/style-and-language.md`。Release page / planning summary 寫入 Confluence 前，先把最終內容落成 temp markdown，執行：
 
 ```bash
 bash .claude/skills/sprint-planning/scripts/validate-language-policy.sh --blocking --mode artifact <sprint-planning-release-page.md>

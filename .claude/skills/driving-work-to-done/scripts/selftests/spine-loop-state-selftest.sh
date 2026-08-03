@@ -311,4 +311,68 @@ bash "$LOOP" record --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --ou
 [[ -d "$S10_ROOT/ns/archive/OTHER" ]] \
   || fail "收斂著的單被動到了"
 
+
+# Case 11：跨單。「手上有六張單，接下來做哪一張」原本只有人回答得出來，而每一次問人
+# 就是連續退化成單步的那一刻。
+S11="$WORK/issues11"
+mkdir -p "$S11/nsA/EARLY/.spine" "$S11/nsB/LATE/.spine" "$S11/nsB/STOPPED/.spine" "$S11/nsA/DONE/.spine"
+git -C "$S11" init -q
+git -C "$S11" config user.email t@t
+git -C "$S11" config user.name t
+for s in nsA/EARLY nsB/LATE nsB/STOPPED nsA/DONE; do
+  bash "$LOOP" init --state "$S11/$s/.spine/loop-state.json" >/dev/null
+done
+git -C "$S11" add -A && git -C "$S11" commit -qm seed
+
+# EARLY 先動、LATE 後動：同一站時該推薦最近動過的那一張。
+# 時間直接寫死，不用 sleep：兩次 record 落在同一秒的話這個 case 什麼都沒驗到，
+# 而它剛好就是這樣第一次跑出假訊號的。
+bash "$LOOP" record --state "$S11/nsA/EARLY/.spine/loop-state.json" --outcome unconverged >/dev/null
+bash "$LOOP" record --state "$S11/nsB/LATE/.spine/loop-state.json" --outcome unconverged >/dev/null
+python3 - "$S11" <<'PYSTAMP'
+import json, sys
+for name, stamp in (("nsA/EARLY", "2020-01-01T00:00:00Z"), ("nsB/LATE", "2030-01-01T00:00:00Z")):
+    path = f"{sys.argv[1]}/{name}/.spine/loop-state.json"
+    data = json.load(open(path, encoding="utf-8"))
+    data["rounds"][-1]["recorded_at"] = stamp
+    json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PYSTAMP
+out="$(bash "$LOOP" next --across-issues "$S11")"
+printf '%s' "$out" | grep -q 'next:nsB/LATE' \
+  || fail "同一站時沒有推薦最近動過的那一張：$out"
+echo "  ok  跨單推薦最近動過的那一張"
+
+# 往後站的先做：在製品不該堆高。名字排序會選 EARLY，站別排序該選 LATE。
+bash "$LOOP" advance --state "$S11/nsA/EARLY/.spine/loop-state.json" --to verify-ac >/dev/null
+out="$(bash "$LOOP" next --across-issues "$S11")"
+printf '%s' "$out" | grep -q 'next:nsA/EARLY' \
+  || fail "站別沒有壓過最近動過的：$out"
+echo "  ok  最靠近交付的先做"
+
+# 停住的要逐張列名，不能混進「可以做」裡，也不能安靜消失。
+bash "$LOOP" stop --state "$S11/nsB/STOPPED/.spine/loop-state.json" --kind surfaced_concern --note x >/dev/null
+out="$(bash "$LOOP" next --across-issues "$S11")"
+printf '%s' "$out" | grep -q 'blocked:nsB/STOPPED .*stop=surfaced_concern' \
+  || fail "停住的單沒有被列出來：$out"
+printf '%s' "$out" | grep -q 'next:nsB/STOPPED' \
+  && fail "停住的單被推薦了：$out"
+echo "  ok  停住的逐張列名，不會被推薦"
+
+# 收斂完的算成數字，不列成清單——但那個數字必須在。收斂那一刻歸檔器會把它搬進
+# archive/，所以這同時證明跨單掃描看得到兩層，不是只掃活躍區那一層。
+bash "$LOOP" record --state "$S11/nsA/DONE/.spine/loop-state.json" --outcome converged >/dev/null
+[[ -d "$S11/nsA/archive/DONE" ]] || fail "收斂之後沒有被歸檔"
+out="$(bash "$LOOP" next --across-issues "$S11")"
+printf '%s' "$out" | grep -qE 'counted: .*settled=[1-9]' \
+  || fail "收斂完的沒有被算進 settled：$out"
+echo "  ok  收斂完的算成數字而不是安靜消失"
+
+# 全部停住時要說 none，不可以硬挑一張停住的出來。
+bash "$LOOP" stop --state "$S11/nsA/EARLY/.spine/loop-state.json" --kind assertion_wrong --note x >/dev/null
+bash "$LOOP" stop --state "$S11/nsB/LATE/.spine/loop-state.json" --kind assertion_wrong --note x >/dev/null
+out="$(bash "$LOOP" next --across-issues "$S11")"
+printf '%s' "$out" | grep -q 'next:none' \
+  || fail "全部停住時沒有回 none：$out"
+echo "  ok  全部停住時回 none"
+
 echo "PASS: spine-loop-state-selftest.sh"

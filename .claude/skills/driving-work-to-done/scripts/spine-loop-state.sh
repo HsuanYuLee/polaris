@@ -34,6 +34,7 @@
 #   init  --state <path> [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
+#   next  --across-issues <root>  prints which issue to work next, across the whole tree
 #   where --state <path>          prints station, stop, rounds — the resume view
 #   advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
 #   stop  --state <path> --kind <kind> [--note <text>]
@@ -79,6 +80,7 @@ Usage:
   spine-loop-state.sh init    --state <path> [--max-rounds N]
   spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
   spine-loop-state.sh next    --state <path>
+  spine-loop-state.sh next    --across-issues <issues root>
   spine-loop-state.sh where   --state <path>
   spine-loop-state.sh advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
   spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
@@ -134,6 +136,7 @@ MAX_ROUNDS=""
 TO=""
 KIND=""
 AUTHORIZATION=""
+ACROSS_ISSUES=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -146,10 +149,11 @@ parse_args() {
       --to) TO="${2:-}"; shift 2 ;;
       --kind) KIND="${2:-}"; shift 2 ;;
       --authorization) AUTHORIZATION="${2:-}"; shift 2 ;;
+      --across-issues) ACROSS_ISSUES="${2:-}"; shift 2 ;;
       *) usage; exit 2 ;;
     esac
   done
-  [[ -n "$STATE" ]] || { usage; exit 2; }
+  [[ -n "$STATE" || -n "$ACROSS_ISSUES" ]] || { usage; exit 2; }
 }
 
 in_list() {
@@ -287,20 +291,90 @@ PY
   [[ "$rc" -eq 0 ]] || return "$rc"
 
   # 收斂那一刻，這張單就不再擋在路上了。位置跟著狀態走是流程的事，不是人要記得的事——
-  # 靠人記得搬，遲早會有一張做完的單混在待辦裡。歸檔的判定住在 verify-ac（判定站），
-  # 這裡跨 skill 取用而不複製一份：兩份會漂，而漂掉的那一刻正好是位置與狀態對不上的時候。
+  # 靠人記得搬，遲早會有一張做完的單混在待辦裡。
   local archiver
-  archiver="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../verify-ac/scripts" 2>/dev/null && pwd)/archive-delivered-issues.sh"
+  archiver="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/archive-delivered-issues.sh"
   local root
   root="$(issues_root_of "$STATE")"
   if [[ -f "$archiver" && -n "$root" ]]; then
-    bash "$archiver" --issues "$root" >/dev/null || true
+    # 不吞它的話。`|| true` 曾經把一次「根解錯了、103 個目錄被搬進 archive/archive/」
+    # 整段吃掉，record 照樣印 ROUND N 然後回 0。輪次已經寫進去了，所以歸檔失敗不該
+    # 反過來讓 record 失敗；但它必須被看見——位置與狀態對不上正是要被看見的那件事。
+    bash "$archiver" --issues "$root" >/dev/null \
+      || echo "[spine-loop-state] 歸檔沒跑完，位置可能與狀態對不上：$archiver --issues $root" >&2
   fi
   return 0
 }
 
 cmd_next() {
   parse_args "$@"
+  # 跨單那一層。單一張單內部的推進早就有機制（輪次、四種停點、where）；缺的一直是
+  # 「手上有六張單，接下來做哪一張」——那個問題只有人回答得出來，所以每一次都要問人，
+  # 而每一次問人就是連續退化成單步的那一刻。
+  #
+  # 它是這支腳本多一個模式，不是一支新 skill：一支新 skill 就是第二個回答「下一步」的
+  # 地方，正是這張單在拆的形狀。
+  if [[ -n "$ACROSS_ISSUES" ]]; then
+    require_python3
+    python3 - "$ACROSS_ISSUES" "$STATIONS" <<'PY'
+import glob
+import json
+import os
+import sys
+
+root, stations = sys.argv[1], sys.argv[2].split()
+# 排序只靠狀態，不靠路徑：命名空間叫什麼、單號多大，都不參與判定。往後站的先做——
+# 一張已經在 verify-ac 的單離交付最近，把它放著去開新的單，就是把在製品堆高。
+rank = {name: index for index, name in enumerate(stations)}
+rows, unreadable = [], 0
+for path in sorted(glob.glob(os.path.join(root, "*", "*", ".spine", "loop-state.json"))
+                   + glob.glob(os.path.join(root, "*", "*", "*", ".spine", "loop-state.json"))):
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        unreadable += 1
+        continue
+    issue_dir = os.path.dirname(os.path.dirname(path))
+    name = os.path.relpath(issue_dir, root)
+    station = data.get("station", "engineering")
+    stop = data.get("stop")
+    if data.get("status") == "escalated" and not stop:
+        stop = {"kind": "unconverged_cap"}
+    rounds = data.get("rounds") or []
+    rows.append({
+        "name": name,
+        "station": station,
+        "stopped": stop["kind"] if stop else None,
+        "status": data.get("status"),
+        # 最後一次記輪次的時間。它是「你剛剛在做哪一張」唯一寫在磁碟上的痕跡。
+        "touched": rounds[-1].get("recorded_at", "") if rounds else "",
+    })
+
+live = [r for r in rows if r["station"] != "delivered" and r["status"] != "converged"]
+movable = [r for r in live if not r["stopped"]]
+blocked = [r for r in live if r["stopped"]]
+
+# 最靠近交付的、沒停的那一張。同一站時取最近動過的——那是「你剛剛在做哪一張」寫在磁碟上
+# 的唯一痕跡，而丟掉它就會在 session 中途把人推去另一張單。都沒動過才用名字，讓同一棵樹
+# 每次問都得到同一個答案：一個會變的建議等於沒有建議。
+movable.sort(key=lambda r: (-rank.get(r["station"], 0), r["touched"] == "",
+                            [-ord(c) for c in r["touched"]], r["name"]))
+
+if movable:
+    pick = movable[0]
+    print(f"next:{pick['name']} station={pick['station']}")
+else:
+    print("next:none")
+
+for row in blocked:
+    print(f"blocked:{row['name']} station={row['station']} stop={row['stopped']}")
+# 已交付與收斂的不列成清單，但要有數字。不被判定的第三態如果安靜，下一次就會有人
+# 以為那些也被看過了。
+print(f"counted: live={len(live)} movable={len(movable)} blocked={len(blocked)} "
+      f"settled={len(rows) - len(live)} unreadable={unreadable}")
+PY
+    return 0
+  fi
   [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE; run init first"
   require_python3
   python3 - "$STATE" <<'PY'

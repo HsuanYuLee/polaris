@@ -7,13 +7,12 @@ when_to_use: |
 
   判 PASS 之後也在這裡寫交付紀錄，供釋出尾段讀。
 
-  不用於：還在做、只是想跑個測試看看（那是 engineering 的量測）。
-version: 2.0.0
+  不用於：還在做、只是想跑個測試看看（那是 engineering 的量測）、
+  決定下一站是哪一站（走 driving-work-to-done）。
+version: 3.0.0
 ---
 
 # verify-ac — 閘二：執行 oracle
-
-前置必讀：`.claude/skills/references/spine-review-guidance.md`。
 
 輸出有兩部分，權力不一樣：**機械判定會擋**（由 exit code 承載，不需要讀者同意）；
 **判斷報告不擋**（帶引用的意見，由人裁）。把兩者混在一起，閘就會開始擋一些沒人能精確
@@ -109,35 +108,10 @@ bash .claude/skills/verify-ac/scripts/record-delivery-intent.sh \
 `destination` 決定去哪：`workspace` 留在本地，`template` 才進 Polaris template repo。那是
 閘一由人宣告的，這裡只讀不改。
 
-紀錄寫完，verify-ac 就結束了。之後由 `spine-release.sh` 讀那份紀錄跑釋出尾段——壓版本、促進
-`main`、視 destination 決定要不要同步 template 與打 tag。它預設只預覽，`--execute` 才動手：
+紀錄寫完，這一站就結束了。之後怎麼出貨**不在這條流程裡**——釋出尾段是每個專案自己的事，
+它讀這份紀錄，而這一站不需要知道它叫什麼名字。這是刻意的：一旦這裡指名某支釋出腳本，
+這四支 skill 就搬不到沒有那支腳本的地方了。
 
-```bash
-bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue}            # 看它打算做什麼
-bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} --execute
-```
-
-紀錄寫完就把站別推到終點，讓下一個人（或下一個 session）讀得到這裡已經走完：
-
-```bash
-bash .claude/skills/verify-ac/scripts/spine-loop-state.sh advance \
-  --state {issue}/.spine/loop-state.json --to delivered
-```
-
-## 判非 PASS 之後
-
-**自己回 `engineering`，不要停下來問人要不要修**：
-
-```bash
-bash .claude/skills/verify-ac/scripts/spine-loop-state.sh advance \
-  --state {issue}/.spine/loop-state.json --to engineering
-```
-
-若非 PASS 的原因是斷言本身錯了，那是第四類流轉——那個要停，而且要停得讓人看得見：
-
-```bash
-bash .claude/skills/verify-ac/scripts/spine-loop-state.sh stop \
-  --state {issue}/.spine/loop-state.json --kind assertion_wrong --note '<哪一條、為什麼>'
-```
-
-停完回 `refinement` 讓人重簽。
+**把判定結果帶回 `driving-work-to-done`**——PASS 之後要不要
+推站別、非 PASS 要回哪一站、原因是實作沒到還是斷言本身錯了該停哪一種，都在那裡回答，
+不在這裡。這一站產出的是判定，不是下一步。

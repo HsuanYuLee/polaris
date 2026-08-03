@@ -47,9 +47,9 @@ author-side completion / release authority。
 | 何時讀 | Reference | 用途 |
 |--------|-----------|------|
 | 產出分類報告、加 label、送 Slack、處理需修正 PR 時 | `references/check-pr-approvals-reporting.md` | report table、Slack wording、label fallback、JIRA remediation routing |
-| 判讀 approval / stale semantics 前 | `../references/stale-approval-detection.md` | stale approval 權威定義 |
-| 掃到 merged PR 時 | `../references/feature-branch-pr-gate.md` | Feature Branch PR Gate |
-| Slack message 送出前 | `../`rules/style-and-language.md` | language gate |
+| 判讀 approval / stale semantics 前 | `references/stale-approval-detection.md` | stale approval 權威定義 |
+| 掃到 merged PR 時 | `references/feature-branch-pr-gate.md` | Feature Branch PR Gate |
+| Slack message 送出前 | `.claude/rules/style-and-language.md` | language gate |
 ion |
 
 ## Workflow
@@ -74,7 +74,7 @@ ion |
 ### 3. Check CI
 
 對 rebase 成功或 skipped 的 PR 查。CI / mergeability / base freshness vocabulary 以
-`../references/pr-state-contract.md` 與 shared PR state scripts 為準；本 skill 不再依賴
+`references/pr-state-contract.md` 與 shared PR state scripts 為準；本 skill 不再依賴
 舊的 shared reference PR status helper，也不自行重建 PR readiness schema。
 
 Classification（先看 shared PR state，再看傳統 bucket）：
@@ -96,7 +96,7 @@ echo "$ci_passed_prs" \
 
 ### 5. Check Approvals
 
-先讀 `../references/stale-approval-detection.md`，再跑：
+先讀 `references/stale-approval-detection.md`，再跑：
 
 ```bash
 echo "$review_comment_checked_prs" \
@@ -146,7 +146,7 @@ shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_f
 
 如果掃描過程發現 merged PR：
 
-- 讀 `../references/feature-branch-pr-gate.md` 並執行 gate。
+- 讀 `references/feature-branch-pr-gate.md` 並執行 gate。
 - 若 branch / title 可萃取非 Epic ticket key，且對應 spec container 存在，依 reporting reference 執行 Spec Done Marker。
 
 ## Hard Safety Rules

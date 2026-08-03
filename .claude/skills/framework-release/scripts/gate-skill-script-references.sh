@@ -91,9 +91,26 @@ for rel in listed:
     scanned += 1
     here = os.path.dirname(path)
     body = strip_heredocs(text)
+    # 變數不一定指向自己那一層。`script_dir="$(cd "$(dirname "$0")/.." && pwd)"` 在
+    # selftest 裡很常見——它指的是 scripts/，不是 selftests/。照著它的 `..` 往上退，
+    # 不然這道閘會對一批寫得完全正確的 selftest 判紅。
+    #
+    # 這個洞原本被一份重複的檔遮著：同一支腳本在 scripts/ 與 scripts/selftests/ 各有一份，
+    # 於是錯的解析也找得到檔案。刪掉重複的那一刻它才露出來。
+    base_of = {}
+    for name, ups in re.findall(
+        rf'({SELF_DIR_VARS})=\s*"\$\(cd\s+"\$\(dirname[^)]*\)((?:/\.\.)*)"?\s*&&\s*pwd\)"',
+        body,
+    ):
+        resolved = here
+        for _ in range(ups.count("..")):
+            resolved = os.path.dirname(resolved)
+        base_of[name.upper()] = resolved
     for match in REF_VAR.finditer(body):
         target = match.group(1)
-        if not os.path.exists(os.path.join(here, target)):
+        var = re.search(SELF_DIR_VARS, match.group(0), re.IGNORECASE)
+        base = base_of.get(var.group(0).upper(), here) if var else here
+        if not os.path.exists(os.path.join(base, target)):
             problems.append(f"  {rel} -> {target}")
     for match in REF_INLINE.finditer(body):
         base = here

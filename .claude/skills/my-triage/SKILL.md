@@ -39,8 +39,8 @@ authority。
 5. Add GitHub progress for In Development items.
 6. 排成 resume candidates、Bugs、In Development、priority-based todo groups。
 7. 盤點單的位置漂移（report-only）：跑
-   `bash .claude/skills/verify-ac/scripts/archive-delivered-issues.sh --check`。它比對
-   `issues/` 底下每一張單的位置與 `.spine/loop-state.json` 的 `status`，對不上就列出來。
+   `bash .claude/skills/driving-work-to-done/scripts/archive-delivered-issues.sh --check`。它比對
+   `issues/` 底下每一張單的位置與 `{issue}/.spine/loop-state.json` 的 `status`，對不上就列出來。
    把結果併入 dashboard，讓使用者看到已收斂卻還擋在活躍區、或還沒收斂卻躺在 archive 的單。
    沒有輪次狀態的目錄不參與判定，但它會把數量印出來——照樣轉述，不要當成已檢查過。
 8. Render dashboard and write compact `.daily-triage.json` in the same pass.

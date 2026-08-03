@@ -91,6 +91,33 @@ bash "$GATE" --repo "$repo4" >/dev/null 2>&1
 assert_eq "$?" "0" "heredoc 內容不算這個檔的引用"
 
 echo ""
+
+# 變數用 `/..` 定義時，指的是上一層，不是自己那一層。selftest 幾乎都長這樣。
+# 這一版之前會把一批寫得完全正確的 selftest 判紅，而那個錯誤被一份重複的檔遮著。
+repo="$WORK/parentdir_ok"
+make_repo "$repo"
+mkdir -p "$repo/.claude/skills/probe/scripts/selftests"
+cat > "$repo/.claude/skills/probe/scripts/selftests/x-selftest.sh" <<'EOF'
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+resolver="$script_dir/resolver.sh"
+EOF
+touch "$repo/.claude/skills/probe/scripts/resolver.sh"
+git -C "$repo" add -A && git -C "$repo" commit -qm init
+bash "$GATE" --repo "$repo" >/dev/null 2>&1
+assert_eq "$?" 0 "變數帶 /.. 時往上一層解析，正確的引用不判紅"
+
+# 但往上退之後還是找不到的，仍然要紅——修掉假紅不可以順手修成瞎的。
+repo="$WORK/parentdir_broken"
+make_repo "$repo"
+mkdir -p "$repo/.claude/skills/probe/scripts/selftests"
+cat > "$repo/.claude/skills/probe/scripts/selftests/x-selftest.sh" <<'EOF'
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+resolver="$script_dir/gone.sh"
+EOF
+git -C "$repo" add -A && git -C "$repo" commit -qm init
+bash "$GATE" --repo "$repo" >/dev/null 2>&1
+assert_eq "$?" 1 "往上退之後仍然不存在的引用，還是要紅"
+
 echo "PASS=$pass FAIL=$fail"
 [[ "$fail" -eq 0 ]] || exit 1
 echo "PASS: gate-skill-script-references-selftest.sh"
