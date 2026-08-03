@@ -49,6 +49,7 @@ plan:
   how:
     answer: "拿這筆測資"
     source: environment
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$full" 2>&1)" || fail "齊備的卻被擋：$out"
@@ -69,6 +70,7 @@ plan:
   how:
     answer: "手動跑一次"
     source: human
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$na" 2>&1)" || fail "標成不適用的卻被擋：$out"
@@ -91,6 +93,7 @@ plan:
   how:
     answer: "手動"
     source: human
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$empty" 2>&1)" && fail "空著的卻放行了"
@@ -109,6 +112,7 @@ plan:
   how:
     answer: "手動"
     source: human
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$missing" 2>&1)" && fail "少一項卻放行了"
@@ -129,6 +133,7 @@ plan:
   how:
     answer: "手動"
     source: human
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$bare_na" 2>&1)" && fail "不適用沒說理由卻放行了"
@@ -149,6 +154,7 @@ plan:
   how:
     answer: "手動"
     source: human
+    environments: none
 EOF
 )"
 out="$(bash "$CHECK" "$badsrc" 2>&1)" && fail "source 亂寫卻放行了"
@@ -158,7 +164,7 @@ echo "  ok  source 不在三種裡時被擋"
 nothing="$(new_issue nothing </dev/null)"
 out="$(bash "$CHECK" "$nothing" 2>&1)" && fail "完全沒有 plan 區塊卻放行了"
 grep -q '沒有 plan 區塊' <<<"$out" || fail "沒說出整個區塊不在：$out"
-grep -q '一次一題' <<<"$out" || fail "拒絕沒有指向問法：$out"
+grep -q '交一份草案' <<<"$out" || fail "拒絕沒有指向做法：$out"
 echo "  ok  完全沒有 plan 區塊時被擋，並指向問法"
 
 # 剖析器很窄，所以看不懂的要拒絕而不是略過——略過的話，一個縮排打錯的區塊會靜默地變成
@@ -176,5 +182,86 @@ out="$(bash "$CHECK" "$weird" 2>&1)" && fail "讀不懂的區塊卻放行了"
 grep -q 'POLARIS_PLAN_BLOCK_UNPARSEABLE' <<<"$out" || fail "讀不懂沒有專屬 marker：$out"
 grep -q '讀不懂' <<<"$out" || fail "沒有指出是哪一行：$out"
 echo "  ok  讀不懂的行被拒絕，不是被略過"
+
+# ── 環境是列出來的，不是寫在句子裡 ──────────────────────────────────────────
+#
+# 「要起哪些東西」寫在自由文字裡，沒有任何東西讀得懂。列出來之後，「哪個環境還沒有人會
+# 起」就算得出來——而那是「該沉澱一份領域知識了」唯一的機械訊號。
+
+noenv="$(new_issue noenv <<'EOF'
+plan:
+  what:
+    answer: "做這個"
+    source: human
+  when:
+    not_applicable: "無"
+  why:
+    answer: "因為那個"
+    source: human
+  how:
+    answer: "本機起兩個東西然後點一點"
+    source: human
+EOF
+)"
+out="$(bash "$CHECK" "$noenv" 2>&1)" && fail "how 沒有 environments 卻放行了"
+grep -q 'environments' <<<"$out" || fail "沒指出缺的是 environments：$out"
+grep -q 'environments: none' <<<"$out" || fail "沒說出不需要環境時該怎麼寫：$out"
+echo "  ok  how 沒有 environments 時被擋，並說出不需要時怎麼寫"
+
+# 沒有人會起的環境，要在凍結之前就被指名。這一段自己造一棵假的 skill 樹——量的是
+# 「找不找得到宣告」，不是這台機器現在剛好裝了什麼。
+SK="$WORK/skills"
+mkdir -p "$SK/somepack" "$SK/refinement/scripts"
+printf '%s\n' '---' 'name: somepack' '---' \
+  '<!-- ANYPREFIX-ENVIRONMENT-known-env: bash start-known.sh -->' > "$SK/somepack/SKILL.md"
+
+listed="$(new_issue listed <<'EOF'
+plan:
+  what:
+    answer: "做這個"
+    source: human
+  when:
+    not_applicable: "無"
+  why:
+    answer: "因為那個"
+    source: human
+  how:
+    answer: "起兩個環境"
+    source: human
+    environments: [known-env, nobody-starts-this]
+EOF
+)"
+out="$(bash "$CHECK" "$listed" --skills "$SK" 2>&1)" && fail "有環境沒人會起卻放行了"
+grep -q 'POLARIS_PLAN_ENVIRONMENT_UNCLAIMED' <<<"$out" || fail "沒有專屬 marker：$out"
+grep -q 'nobody-starts-this' <<<"$out" || fail "沒指名是哪個環境沒人會起：$out"
+grep -q 'known-env→somepack' <<<"$out" || fail "沒說出已經有人會起的是哪些：$out"
+grep -q 'ENVIRONMENT-' <<<"$out" || fail "拒絕沒說出宣告要怎麼寫：$out"
+echo "  ok  沒人會起的環境被指名，並說出宣告怎麼寫"
+
+# 反向：全部都有人會起就放行——否則上面那個結果只證明它會擋，不證明它會分辨。
+allknown="$(new_issue allknown <<'EOF'
+plan:
+  what:
+    answer: "做這個"
+    source: human
+  when:
+    not_applicable: "無"
+  why:
+    answer: "因為那個"
+    source: human
+  how:
+    answer: "起一個環境"
+    source: human
+    environments: [known-env]
+EOF
+)"
+out="$(bash "$CHECK" "$allknown" --skills "$SK" 2>&1)" || fail "環境都有人會起卻被擋：$out"
+grep -q '都有人會起' <<<"$out" || fail "放行卻沒說出環境對上了：$out"
+echo "  ok  環境都有人會起時放行"
+
+# `none` 是一個寫下來的答案，不是欄位不見——它不得被當成一個叫做 none 的環境去找。
+out="$(bash "$CHECK" "$full" --skills "$SK" 2>&1)" || fail "environments: none 卻被當成一個環境去找：$out"
+grep -q '不需要起任何環境' <<<"$out" || fail "none 沒有被讀成「不需要」：$out"
+echo "  ok  environments: none 讀成不需要，不是一個叫 none 的環境"
 
 echo "PASS: check-plan-answers"
