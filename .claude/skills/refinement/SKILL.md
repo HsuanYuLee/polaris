@@ -87,9 +87,21 @@ git add {issue}/index.md && git commit -m "freeze: {issue} 斷言"
 # 3. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/index.md
 
-# 4. 開輪次（狀態機住在殼裡——「現在在哪、下一步是什麼」只有一個地方回答）
-bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init --state {issue}/.spine/loop-state.json
+# 4. 開輪次。領域的決定是這一步的一部分，不是之後補的欄位——「這件工作屬於哪個領域」
+#    沒被回答就往下走，等於流程不知道它要滿足什麼條件。
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
+  --state {issue}/.spine/loop-state.json --pack swe-knowledge
+#    不改程式碼的工作（報告、調查、文件、資料分析）要說出理由：
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
+  --state {issue}/.spine/loop-state.json --pack none --why '<為什麼這件工作沒有領域完成條件>'
 ```
+
+**`init` 會跑該領域宣告的開工條件，不成立就不開輪次。** 條件是什麼**這裡不說**——它寫在
+那個領域自己的知識裡，寫在這裡就是第二份。拒絕的訊息會說出缺的是哪一條、怎麼修，照著做
+再跑一次就是了。
+
+所以第 1 步之前先跑一次 `init` 是划算的：條件沒滿足的話，凍結的那個 commit 會落在一個
+不該落的地方，而那時候它已經在那裡了。
 
 **凍結 ＝ commit，不是 ＝ 蓋封條。** 封條只證明 fence 內文與 frontmatter 自洽——改了 fence
 再重簽一次，封條一樣自洽。`--by` 只是一個字串，agent 也打得出來。真正擋住偷改的是

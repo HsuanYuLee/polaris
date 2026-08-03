@@ -49,7 +49,7 @@ assert_marker() {
 
 # --- Case 1: a zero-delta round continues, and the round still advances -----
 S1="$WORK/zero-delta.json"
-bash "$LOOP" init --state "$S1" >/dev/null
+bash "$LOOP" init --state "$S1" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 bash "$LOOP" record --state "$S1" --outcome zero_delta \
   --note "tried route A, hit X, concluding route B; code discarded" >/dev/null \
   || fail "a zero-delta round was rejected instead of continuing"
@@ -75,7 +75,7 @@ PY
 
 # --- Case 2: convergence closes the loop ------------------------------------
 S2="$WORK/converges.json"
-bash "$LOOP" init --state "$S2" >/dev/null
+bash "$LOOP" init --state "$S2" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 bash "$LOOP" record --state "$S2" --outcome zero_delta >/dev/null
 bash "$LOOP" record --state "$S2" --outcome converged >/dev/null
 [[ "$(next_action "$S2")" == "done" ]] \
@@ -96,7 +96,7 @@ PY
 
 # --- Case 3: the cap escalates and the loop stops turning itself ------------
 S3="$WORK/cap.json"
-bash "$LOOP" init --state "$S3" >/dev/null   # default cap N=3
+bash "$LOOP" init --state "$S3" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null   # default cap N=3
 bash "$LOOP" record --state "$S3" --outcome unconverged >/dev/null
 [[ "$(next_action "$S3")" == "continue" ]] || fail "escalated after 1 of 3 rounds"
 bash "$LOOP" record --state "$S3" --outcome zero_delta >/dev/null
@@ -175,14 +175,14 @@ grep -q '繼續，我授權' <<<"$(bash "$LOOP" show --state "$S3")" \
 
 # --- Case 5: N is adjustable and the boundary moves with it -----------------
 S5a="$WORK/cap-2.json"
-bash "$LOOP" init --state "$S5a" --max-rounds 2 >/dev/null
+bash "$LOOP" init --state "$S5a" --pack none --why '量測用的暫存 fixture，不是一件真的工作' --max-rounds 2 >/dev/null
 bash "$LOOP" record --state "$S5a" --outcome unconverged >/dev/null
 [[ "$(next_action "$S5a")" == "continue" ]] || fail "N=2 escalated after 1 round"
 bash "$LOOP" record --state "$S5a" --outcome unconverged >/dev/null
 [[ "$(next_action "$S5a")" == "stop:unconverged_cap" ]] || fail "N=2 did not escalate at round 2"
 
 S5b="$WORK/cap-5.json"
-bash "$LOOP" init --state "$S5b" --max-rounds 5 >/dev/null
+bash "$LOOP" init --state "$S5b" --pack none --why '量測用的暫存 fixture，不是一件真的工作' --max-rounds 5 >/dev/null
 for _ in 1 2 3; do
   bash "$LOOP" record --state "$S5b" --outcome unconverged >/dev/null
 done
@@ -205,13 +205,13 @@ assert_marker "unknown outcome" POLARIS_SPINE_LOOP_BAD_OUTCOME \
 assert_marker "missing state" POLARIS_SPINE_LOOP_STATE_MISSING \
   bash "$LOOP" next --state "$WORK/never-created.json"
 assert_marker "non-positive cap" POLARIS_SPINE_LOOP_BAD_CAP \
-  bash "$LOOP" init --state "$WORK/bad-cap.json" --max-rounds 0
+  bash "$LOOP" init --state "$WORK/bad-cap.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' --max-rounds 0
 
 # --- Case 7: the flow knows where it is without being told ------------------
 # One word from a human starts this and nobody names the next entry again, so
 # the station has to come off disk. Asking is the symptom, not the fix.
 S7="$WORK/station.json"
-bash "$LOOP" init --state "$S7" >/dev/null
+bash "$LOOP" init --state "$S7" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 where7="$(bash "$LOOP" where --state "$S7")"
 grep -q '^station=engineering$' <<<"$where7" || fail "a fresh loop does not open at work: $where7"
 grep -q '^next_station=verify-ac$' <<<"$where7" || fail "where does not say where to go next: $where7"
@@ -228,7 +228,7 @@ assert_marker "unknown station" POLARIS_SPINE_LOOP_BAD_STATION \
 # A flow that can stop anywhere needs someone watching it, which is the same as
 # not running by itself. The enum is what lets a person walk away.
 S8="$WORK/stops.json"
-bash "$LOOP" init --state "$S8" >/dev/null
+bash "$LOOP" init --state "$S8" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 for kind in assertion_wrong surfaced_concern unconverged_cap unauthorized_action; do
   bash "$LOOP" stop --state "$S8" --kind "$kind" --note "$kind case" >/dev/null \
     || fail "$kind is one of the four and must be recordable"
@@ -255,7 +255,7 @@ assert_marker "undeclared stop" POLARIS_SPINE_LOOP_UNDECLARED_STOP \
 # A converged loop that refused the next round broke that path in the middle,
 # and the only escape was the reset that deleted the history.
 S9="$WORK/verdict.json"
-bash "$LOOP" init --state "$S9" >/dev/null
+bash "$LOOP" init --state "$S9" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 bash "$LOOP" record --state "$S9" --outcome converged >/dev/null
 bash "$LOOP" advance --state "$S9" --to verify-ac --by tester >/dev/null
 bash "$LOOP" advance --state "$S9" --to engineering --by tester >/dev/null
@@ -297,7 +297,7 @@ mkdir -p "$S10_ROOT/ns/archive/T/.spine" "$S10_ROOT/ns/archive/OTHER/.spine"
 git -C "$S10_ROOT" init -q
 git -C "$S10_ROOT" config user.email t@t
 git -C "$S10_ROOT" config user.name t
-bash "$LOOP" init --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" >/dev/null
+bash "$LOOP" init --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 bash "$LOOP" record --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --outcome converged >/dev/null
 printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/archive/OTHER/.spine/loop-state.json"
 git -C "$S10_ROOT" add -A
@@ -320,7 +320,7 @@ git -C "$S11" init -q
 git -C "$S11" config user.email t@t
 git -C "$S11" config user.name t
 for s in nsA/EARLY nsB/LATE nsB/STOPPED nsA/DONE; do
-  bash "$LOOP" init --state "$S11/$s/.spine/loop-state.json" >/dev/null
+  bash "$LOOP" init --state "$S11/$s/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 done
 git -C "$S11" add -A && git -C "$S11" commit -qm seed
 
@@ -374,5 +374,65 @@ out="$(bash "$LOOP" next --across-issues "$S11")"
 printf '%s' "$out" | grep -q 'next:none' \
   || fail "全部停住時沒有回 none：$out"
 echo "  ok  全部停住時回 none"
+
+
+# Case 12：開工條件。核心不認得任何一個領域的條件，它只會去讀 pack 的宣告然後跑它——
+# 所以這幾個 case 用一個假的 pack，整段不出現任何軟體工程的東西。
+S12="$WORK/skills12"
+mkdir -p "$S12/fakepack/scripts" "$S12/driving-work-to-done/scripts"
+cp "$LOOP" "$S12/driving-work-to-done/scripts/spine-loop-state.sh"
+LOOP12="$S12/driving-work-to-done/scripts/spine-loop-state.sh"
+cat > "$S12/fakepack/scripts/gate.sh" <<'EOF'
+#!/usr/bin/env bash
+[[ -f "$WORK12/allowed" ]] || { echo "假條件不成立：$WORK12/allowed 不在" >&2; exit 2; }
+echo "FAKE-PRECONDITION-OK"
+EOF
+chmod +x "$S12/fakepack/scripts/gate.sh"
+printf '%s\n' '---' 'name: fakepack' '---' \
+  "<!-- FAKE-PRECONDITION: bash $S12/fakepack/scripts/gate.sh -->" > "$S12/fakepack/SKILL.md"
+export WORK12="$WORK"
+
+# 沒帶 --pack：領域的決定是開工的一部分，不是之後補的欄位。
+bash "$LOOP12" init --state "$WORK/p1.json" >/dev/null 2>&1 \
+  && fail "init 沒帶 --pack 卻成功了"
+[[ ! -f "$WORK/p1.json" ]] || fail "被拒的 init 還是留下了 state"
+echo "  ok  init 沒帶 --pack 被拒，而且沒留下 state"
+
+# 條件不成立：拒絕開輪次，而且不留下半個 state。
+bash "$LOOP12" init --state "$WORK/p2.json" --pack fakepack >/dev/null 2>&1 \
+  && fail "開工條件不成立卻開了輪次"
+[[ ! -f "$WORK/p2.json" ]] || fail "條件沒過卻留下了 state"
+echo "  ok  開工條件不成立時輪次不開，也不留下 state"
+
+# 條件成立：照常開。
+touch "$WORK/allowed"
+bash "$LOOP12" init --state "$WORK/p3.json" --pack fakepack >/dev/null 2>&1 \
+  || fail "開工條件成立卻開不了輪次"
+echo "  ok  開工條件成立時照常開輪次"
+
+# 沒有適用的領域：不施加任何條件——連條件不成立的時候都不該被擋到。
+rm -f "$WORK/allowed"
+bash "$LOOP12" init --state "$WORK/p4.json" --pack none --why '這是一份報告' >/dev/null 2>&1 \
+  || fail "--pack none 被領域條件擋到了，那不是它的條件"
+recorded="$(python3 -c 'import json,sys;d=json.load(open(sys.argv[1]))["knowledge_pack"];print(d["pack"], d.get("why",""))' "$WORK/p4.json")"
+[[ "$recorded" == "none 這是一份報告" ]] || fail "none 與理由沒有一起記下來：$recorded"
+echo "  ok  沒有適用的領域時不施加條件，而且理由記下來了"
+
+# none 沒帶理由：一個沒有理由的跳過不存在。
+bash "$LOOP12" init --state "$WORK/p5.json" --pack none >/dev/null 2>&1 \
+  && fail "--pack none 沒帶 --why 卻成功了"
+echo "  ok  --pack none 沒帶理由被拒"
+
+# 指名一個不存在的 pack：安靜的失敗是這整套最該防的東西。
+bash "$LOOP12" init --state "$WORK/p6.json" --pack nosuchpack >/dev/null 2>&1 \
+  && fail "解析不到的 pack 卻開了輪次"
+echo "  ok  解析不到的 pack 被拒"
+
+# pack 存在但沒有宣告開工條件：那是合法狀態，不是量不到。
+mkdir -p "$S12/quietpack"
+printf '%s\n' '---' 'name: quietpack' '---' 'no preconditions here' > "$S12/quietpack/SKILL.md"
+bash "$LOOP12" init --state "$WORK/p7.json" --pack quietpack >/dev/null 2>&1 \
+  || fail "沒有宣告開工條件的 pack 被當成量不到"
+echo "  ok  pack 沒有宣告條件時照常開輪次"
 
 echo "PASS: spine-loop-state-selftest.sh"

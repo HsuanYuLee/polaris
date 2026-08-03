@@ -31,7 +31,7 @@
 # anything it does not recognise instead of recording a free-text reason.
 #
 # Subcommands:
-#   init  --state <path> [--max-rounds N]
+#   init  --state <path> --pack <領域名>|none [--why <理由>] [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
 #   next  --across-issues <root>  prints which issue to work next, across the whole tree
@@ -77,7 +77,7 @@ STOP_KINDS="assertion_wrong surfaced_concern unconverged_cap unauthorized_action
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  spine-loop-state.sh init    --state <path> [--max-rounds N]
+  spine-loop-state.sh init    --state <path> --pack <領域名>|none [--why <理由>] [--max-rounds N]
   spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
   spine-loop-state.sh next    --state <path>
   spine-loop-state.sh next    --across-issues <issues root>
@@ -137,6 +137,8 @@ TO=""
 KIND=""
 AUTHORIZATION=""
 ACROSS_ISSUES=""
+PACK=""
+WHY=""
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -150,6 +152,8 @@ parse_args() {
       --kind) KIND="${2:-}"; shift 2 ;;
       --authorization) AUTHORIZATION="${2:-}"; shift 2 ;;
       --across-issues) ACROSS_ISSUES="${2:-}"; shift 2 ;;
+      --pack) PACK="${2:-}"; shift 2 ;;
+      --why) WHY="${2:-}"; shift 2 ;;
       *) usage; exit 2 ;;
     esac
   done
@@ -167,6 +171,42 @@ in_list() {
   return 1
 }
 
+# Description: 跑指名 pack 宣告的開工條件；不成立就 die。
+# Args: $1 = pack 名字（none 代表沒有適用的領域）
+#
+# 核心不認得任何一個領域的條件。它只做三件事：找到那個 pack 的 SKILL.md、讀出
+# `SWE-PRECONDITION:` 那一行指名的命令、跑它。條件的內容寫在 pack 裡，改條件不用動這裡；
+# 而這裡不知道「branch」是什麼字，所以一件寫報告的工作走這條路不會撞到任何 SWE 的東西。
+#
+# 宣告不見了不是通過，是量不到——pack 存在但沒有宣告，代表它沒有開工條件，那是一個
+# 合法的狀態；pack 解析不到才是拒絕，而那個由 record-knowledge-pack.sh 擋。
+run_pack_precondition() {
+  local pack="$1" skills_dir doc declared rc
+  [[ "$pack" != "none" ]] || return 0
+  skills_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)" || return 0
+  doc="$skills_dir/$pack/SKILL.md"
+  [[ -f "$doc" ]] || die "POLARIS_SPINE_PACK_UNRESOLVED" \
+    "解析不到領域知識「${pack}」——找不到 ${doc}。指名一個不存在的 pack 是安靜的失敗。"
+
+  # 宣告寫在 HTML 註解裡，所以要把收尾的 `-->` 剝掉。第一版用 `[^>]*` 抓，於是把 `--`
+  # 留在命令尾巴上，被指名的腳本收到一個不認得的參數就 exit 2——而那個 2 會被讀成
+  # 「開工條件不成立」。一個解析錯誤偽裝成一次失敗的檢查，比檢查沒跑更難查。
+  declared="$(sed -n 's/.*[A-Z-]*PRECONDITION:[[:space:]]*\(.*\)-->.*/\1/p' "$doc" | head -1)"
+  declared="${declared%"${declared##*[![:space:]]}"}"
+  if [[ -z "$declared" ]]; then
+    echo "[spine-loop-state] ${pack} 沒有宣告開工條件，直接開輪次。" >&2
+    return 0
+  fi
+
+  echo "[spine-loop-state] ${pack} 宣告的開工條件：${declared}" >&2
+  rc=0
+  ( cd "$skills_dir/../.." && eval "$declared" ) >&2 || rc=$?
+  [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_PRECONDITION_FAILED" \
+    "${pack} 的開工條件沒過（exit ${rc}），輪次不開。上面那幾行說了缺什麼、怎麼修。
+不打算滿足它的話，用 --pack none --why '<為什麼這件工作不適用這個領域>'——
+跳過要有理由，一個沒有理由的跳過不存在。"
+}
+
 cmd_init() {
   parse_args "$@"
   [[ -n "$MAX_ROUNDS" ]] || MAX_ROUNDS="$DEFAULT_MAX_ROUNDS"
@@ -175,15 +215,33 @@ cmd_init() {
   [[ -e "$STATE" ]] \
     && die "POLARIS_SPINE_LOOP_STATE_EXISTS" "state already exists at $STATE; use reset to start a new lineage"
 
+  # 領域的決定跟開輪次是同一個動作。分成兩步的那一版要人記得補第二步，而「需要什麼知識」
+  # 沒被回答就往下走，正是 K-N1 禁止的形狀。
+  [[ -n "$PACK" ]] || die "POLARIS_SPINE_PACK_UNDECLARED" \
+    "init 要 --pack <領域名>|none。這件工作屬於哪個領域是開工的一部分，不是之後補的欄位。
+會改到程式碼、要進版控 → --pack swe-knowledge
+不會改程式碼（報告、調查、文件、資料分析） → --pack none --why '<理由>'"
+  if [[ "$PACK" == "none" ]]; then
+    [[ -n "$WHY" ]] || die "POLARIS_KNOWLEDGE_PACK_NONE_UNJUSTIFIED" \
+      "--pack none 要帶 --why。「沒有適用的領域」是一個被記下來的選擇，不是欄位空著。"
+  fi
+  run_pack_precondition "$PACK"
+
   require_python3
-  python3 - "$STATE" "$MAX_ROUNDS" <<'PY'
+  python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
-state, max_rounds = sys.argv[1], int(sys.argv[2])
+state, max_rounds, pack, why = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+knowledge_pack = {"pack": pack}
+if why:
+    knowledge_pack["why"] = why
 payload = {
+    # 領域的決定跟輪次同時落地。分成兩個檔案／兩個動作的那一版，「有沒有記」變成一個
+    # 要人記得去查的東西，而沒記跟記了 none 在檔案裡長得一樣。
+    "knowledge_pack": knowledge_pack,
     "schema_version": 2,
     "producer": "spine-loop-state.sh",
     "max_rounds": max_rounds,

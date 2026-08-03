@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.3.0] - 2026-08-03
+
+### Changed
+
+- e716818: DP-474：開工前的條件由領域宣告，核心不認得它
+  `spine-loop-state.sh init` 現在要 `--pack <領域名>|none`，並且會跑該 pack 宣告的開工
+  條件（`<!-- *-PRECONDITION: ... -->`），不成立就不開輪次也不留下 state。核心不認得
+  任何一個領域的條件——換一個跟軟體工程無關的領域，整條路徑照樣走完。
+  `swe-knowledge` 新增 `check-swe-precondition.sh`（不站在預設分支上）並宣告它。
+  「實作前先開 branch」從 `.claude/rules/document-flow.md` 搬進 `swe-knowledge`，只留
+  命名慣例與「`issues/` 不開 branch」。
+
 ## [4.2.0] - 2026-08-03
 
 ### Changed

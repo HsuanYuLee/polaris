@@ -38,10 +38,25 @@ version: 1.0.0
 它在三站裡沒有主人；43 分鐘後有人寫了一句跟腳本矛盾的散文把洞蓋住，於是「PR 算不算完成」
 有兩個互相矛盾的答案在流通。現在它有主人了，就是這一條。
 
+## 開工前要成立的條件
+
+第 1 條有一個時機問題：它必須在**動手之前**成立，事後才發現改動躺在預設分支上，那些
+commit 已經在那裡了。所以它不是驗收時才量的東西，是開輪次那一刻的前置條件。
+
+下面這一行是機器讀的。核心不認得「branch」是什麼——它只知道去找這一行、跑它指名的命令、
+非 0 就拒絕開工。條件寫在這裡，不寫在核心裡：
+
+<!-- SWE-PRECONDITION: bash .claude/skills/swe-knowledge/scripts/check-swe-precondition.sh -->
+
+2026-08-03 那次，三張單的 commit 全部混在預設分支上，而寫下這條規矩的 commit 本身也在
+預設分支上——規矩在寫下的一小時內失效四次。靠人記得的規則的失效率就是那個樣子，所以
+它現在有一道閘。
+
 ## 量它
 
 ```bash
-bash .claude/skills/swe-knowledge/scripts/check-swe-done.sh --repo <path>
+bash .claude/skills/swe-knowledge/scripts/check-swe-precondition.sh --repo <path>   # 開工前
+bash .claude/skills/swe-knowledge/scripts/check-swe-done.sh --repo <path>           # 交付前
 ```
 
 它查三件事：現在不站在預設分支上、這條 branch 有 open 的 PR、以及工作區是乾淨的。查不到

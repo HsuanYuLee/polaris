@@ -123,12 +123,23 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --acro
 | 會改到程式碼、要進版控 | `swe-knowledge` |
 | 不會改程式碼（報告、調查、文件、資料分析） | 沒有適用的領域 |
 
+領域的決定**就在開輪次那一步**，不是之後補的欄位：
+
 ```bash
-bash .claude/skills/driving-work-to-done/scripts/record-knowledge-pack.sh \
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
   --state {issue}/.spine/loop-state.json --pack swe-knowledge
-# 沒有適用的領域時，這一樣要記，而且要說出理由：
-bash .claude/skills/driving-work-to-done/scripts/record-knowledge-pack.sh \
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
   --state {issue}/.spine/loop-state.json --pack none --why '<為什麼這件工作沒有領域完成條件>'
+```
+
+`init` 還會跑那個領域宣告的**開工條件**——條件寫在 pack 自己的知識裡，核心只負責找到它、
+跑它、不成立就拒絕開輪次。所以核心不認得任何一個領域的條件，換一個領域不用動核心。
+
+中途要改判領域（做著做著發現它其實會動到程式碼）用這一支，它是覆蓋不是追加：
+
+```bash
+bash .claude/skills/driving-work-to-done/scripts/record-knowledge-pack.sh record \
+  --state {issue}/.spine/loop-state.json --pack swe-knowledge
 ```
 
 **「沒有適用的領域」是一個被記下來的選擇，不是欄位空著。** 兩者在檔案裡長得不一樣，
