@@ -35,7 +35,8 @@
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
 #   next  --across-issues <root>  prints which issue to work next, across the whole tree
-#   where --state <path>          prints station, stop, rounds — the resume view
+#   where --state <path>          prints station, stop, rounds, and whether this
+#                                 workspace is still the one the issue opened in
 #   advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
 #   stop  --state <path> --kind <kind> [--note <text>]
 #   reset --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
@@ -171,28 +172,65 @@ in_list() {
   return 1
 }
 
+# Description: 解出 skill 根目錄（所有 pack 的家）。
+# Prints: 絕對路徑；解不出來就印空字串。
+skills_root() {
+  cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd
+}
+
+# Description: 解出指名 pack 的 SKILL.md。
+# Args: $1 = pack 名字
+# Prints: 檔案路徑
+# Returns: 0 找得到，1 找不到
+#
+# 這裡刻意不 die：它的呼叫者都在 `$( )` 裡，而 `die` 在 subshell 只殺得掉那個 subshell，
+# 主流程照樣往下跑。第一版就是那樣寫的，於是「指名一個不存在的 pack」從拒絕變成安靜放行
+# ——正好是這整套最該防的形狀。要不要 die 由呼叫者在它自己那一層決定。
+pack_doc() {
+  local root doc
+  root="$(skills_root)" || return 1
+  doc="$root/$1/SKILL.md"
+  [[ -f "$doc" ]] || return 1
+  printf '%s' "$doc"
+}
+
+# Description: 讀出某份 pack 知識裡宣告的某一行命令。
+# Args: $1 = SKILL.md 路徑, $2 = 宣告的鍵（PRECONDITION、WORKSPACE-IDENTITY）
+# Prints: 宣告的命令字串；沒有宣告這一項就印空字串。
+#
+# 兩種宣告共用這一支。抄成兩份剖析器的話，兩邊會各自長出自己的邊界情形——而其中一邊的
+# 剖析錯誤會偽裝成一次失敗的檢查，那比檢查沒跑更難查（`--` 沒剝乾淨那次就是）。
+pack_declaration() {
+  local declared
+  # 宣告寫在 HTML 註解裡，所以要把收尾的 `-->` 剝掉，再剝尾端空白。
+  declared="$(sed -n "s/.*[A-Z-]*${2}:[[:space:]]*\(.*\)-->.*/\1/p" "$1" | head -1)"
+  printf '%s' "${declared%"${declared##*[![:space:]]}"}"
+}
+
+# Description: 在 repo 根目錄跑一行宣告出來的命令。
+# Args: $1 = 命令字串
+# Prints: 該命令的 stdout（原樣）
+# Returns: 該命令的 exit code
+run_declared() {
+  local root; root="$(skills_root)"
+  ( cd "$root/../.." && eval "$1" )
+}
+
 # Description: 跑指名 pack 宣告的開工條件；不成立就 die。
 # Args: $1 = pack 名字（none 代表沒有適用的領域）
 #
-# 核心不認得任何一個領域的條件。它只做三件事：找到那個 pack 的 SKILL.md、讀出
-# `SWE-PRECONDITION:` 那一行指名的命令、跑它。條件的內容寫在 pack 裡，改條件不用動這裡；
-# 而這裡不知道「branch」是什麼字，所以一件寫報告的工作走這條路不會撞到任何 SWE 的東西。
+# 核心不認得任何一個領域的條件。它只做三件事：找到那個 pack 的 SKILL.md、讀出宣告的那一
+# 行、跑它。條件的內容寫在 pack 裡，改條件不用動這裡；而這裡不知道「branch」是什麼字，
+# 所以一件寫報告的工作走這條路不會撞到任何 SWE 的東西。
 #
 # 宣告不見了不是通過，是量不到——pack 存在但沒有宣告，代表它沒有開工條件，那是一個
-# 合法的狀態；pack 解析不到才是拒絕，而那個由 record-knowledge-pack.sh 擋。
+# 合法的狀態；pack 解析不到才是拒絕，而那個由 pack_declaration 擋。
 run_pack_precondition() {
-  local pack="$1" skills_dir doc declared rc
+  local pack="$1" doc declared rc
   [[ "$pack" != "none" ]] || return 0
-  skills_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)" || return 0
-  doc="$skills_dir/$pack/SKILL.md"
-  [[ -f "$doc" ]] || die "POLARIS_SPINE_PACK_UNRESOLVED" \
-    "解析不到領域知識「${pack}」——找不到 ${doc}。指名一個不存在的 pack 是安靜的失敗。"
-
-  # 宣告寫在 HTML 註解裡，所以要把收尾的 `-->` 剝掉。第一版用 `[^>]*` 抓，於是把 `--`
-  # 留在命令尾巴上，被指名的腳本收到一個不認得的參數就 exit 2——而那個 2 會被讀成
-  # 「開工條件不成立」。一個解析錯誤偽裝成一次失敗的檢查，比檢查沒跑更難查。
-  declared="$(sed -n 's/.*[A-Z-]*PRECONDITION:[[:space:]]*\(.*\)-->.*/\1/p' "$doc" | head -1)"
-  declared="${declared%"${declared##*[![:space:]]}"}"
+  doc="$(pack_doc "$pack")" || die "POLARIS_SPINE_PACK_UNRESOLVED" \
+    "解析不到領域知識「${pack}」——找不到它的 SKILL.md。指名一個不存在的 pack 是安靜的失敗。"
+  declared="$(pack_declaration "$doc" PRECONDITION)"
   if [[ -z "$declared" ]]; then
     echo "[spine-loop-state] ${pack} 沒有宣告開工條件，直接開輪次。" >&2
     return 0
@@ -200,11 +238,78 @@ run_pack_precondition() {
 
   echo "[spine-loop-state] ${pack} 宣告的開工條件：${declared}" >&2
   rc=0
-  ( cd "$skills_dir/../.." && eval "$declared" ) >&2 || rc=$?
+  run_declared "$declared" >&2 || rc=$?
   [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_PRECONDITION_FAILED" \
     "${pack} 的開工條件沒過（exit ${rc}），輪次不開。上面那幾行說了缺什麼、怎麼修。
 不打算滿足它的話，用 --pack none --why '<為什麼這件工作不適用這個領域>'——
 跳過要有理由，一個沒有理由的跳過不存在。"
+}
+
+# Description: 求一次「這個工作區現在是誰」。
+# Args: $1 = pack 名字
+# Prints: 一行 `<狀態>\t<值或理由>`，狀態是 none|undeclared|ok|unmeasurable
+#
+# 核心把那個值當**不透明字串**看待：它只會拿它跟先前記下的那一個比相不相等。所以換一個
+# 領域只要換那個領域印什麼，這裡一行都不用動；而「求不出來」有自己的狀態，永遠不會跟
+# 「求出來而且相等」走到同一個分支。
+pack_identity() {
+  local pack="$1" doc declared value rc=0
+  [[ -n "$pack" && "$pack" != "none" ]] || { printf 'none\t\n'; return 0; }
+  # 這裡解不到 pack 是「量不到」而不是「拒絕」：開輪次那一刻的拒絕由 run_pack_precondition
+  # 負責，而事後比對時 pack 不在了，能說的只有「這一行沒有比對到任何東西」。
+  doc="$(pack_doc "$pack")" || { printf 'unmeasurable\t解析不到領域知識「%s」\n' "$pack"; return 0; }
+  declared="$(pack_declaration "$doc" WORKSPACE-IDENTITY)"
+  [[ -n "$declared" ]] || { printf 'undeclared\t\n'; return 0; }
+  value="$(run_declared "$declared" 2>/dev/null)" || rc=$?
+  value="$(printf '%s' "$value" | head -1)"
+  if [[ "$rc" -ne 0 || -z "$value" ]]; then
+    printf 'unmeasurable\t%s\n' "$declared"
+    return 0
+  fi
+  printf 'ok\t%s\n' "$value"
+}
+
+# Description: 把「當初記下的工作區」與「現在的工作區」比一次，結果印出來。
+# Args: $1 = state 檔路徑
+#
+# 這是 M-P2 的形狀：漂掉的時候要說得出兩邊各是什麼，只說「不一致」等於要人自己去查。
+# 三種結果各自有自己的字首，`ok` 以外的都不得被讀成一致——特別是 `unmeasurable`，
+# 一個求不出值來的比對什麼都沒比。
+report_workspace_identity() {
+  local state="$1" recorded_kind recorded now_line now_kind now
+  read -r recorded_kind recorded <<<"$(python3 - "$state" <<'PY'
+import json, sys
+w = json.load(open(sys.argv[1], encoding="utf-8")).get("workspace_identity")
+if not w:
+    print("unrecorded")           # 這張單開輪次時還沒有這個欄位
+else:
+    print(w.get("kind", "unrecorded"), w.get("value", ""))
+PY
+)"
+  case "$recorded_kind" in
+    none|undeclared) return 0 ;;   # 沒有領域、或那個領域沒有宣告身分：沒有東西該被比對
+    unrecorded)
+      echo "workspace=unrecorded  這張單開輪次時還沒有記下工作區身分，沒有東西可以比對。"
+      return 0 ;;
+  esac
+
+  local pack; pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$state")"
+  now_line="$(pack_identity "$pack")"
+  now_kind="${now_line%%$'\t'*}"
+  now="${now_line#*$'\t'}"
+
+  if [[ "$now_kind" != "ok" ]]; then
+    echo "workspace=unmeasurable  當初記的是「${recorded}」，現在求不出值來（${now_kind}）。"
+    echo "  量不到不等於還在原地——這一行沒有比對到任何東西。"
+    return 0
+  fi
+  if [[ "$now" == "$recorded" ]]; then
+    echo "workspace=ok  ${now}"
+    return 0
+  fi
+  echo "workspace=DRIFTED  當初記的是「${recorded}」，現在是「${now}」。"
+  echo "  這張單的改動預期落在前者。可能是有人在這個工作區切走了，也可能是另一個 session"
+  echo "  正在共用同一份 checkout——先確認要落在哪一邊，再繼續動手。"
 }
 
 cmd_init() {
@@ -227,18 +332,39 @@ cmd_init() {
   fi
   run_pack_precondition "$PACK"
 
+  # 「這張單落在哪個工作區」跟開輪次是同一個動作。事後補記的話，補記的時候讀到的已經是
+  # 漂掉之後的值，那個欄位就永遠自洽而永遠沒有用。
+  local identity_line identity_kind identity
+  identity_line="$(pack_identity "$PACK")"
+  identity_kind="${identity_line%%$'\t'*}"
+  identity="${identity_line#*$'\t'}"
+  if [[ "$identity_kind" == "unmeasurable" ]]; then
+    die "POLARIS_SPINE_IDENTITY_UNMEASURABLE" \
+      "${PACK} 宣告了工作區身分（${identity}），但現在求不出值來，輪次不開。
+記不到值的話，之後每一次比對都只能回「量不到」——那跟沒有這道檢查是同一件事。
+上面那幾行說了缺什麼。"
+  fi
+  [[ "$identity_kind" == "ok" ]] || identity=""
+
   require_python3
-  python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" <<'PY'
+  python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" "$identity_kind" "$identity" <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 state, max_rounds, pack, why = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+identity_kind, identity = sys.argv[5], sys.argv[6]
 knowledge_pack = {"pack": pack}
 if why:
     knowledge_pack["why"] = why
+# 「這個領域沒有宣告身分」與「有宣告、值是 X」在檔案裡長得不一樣。欄位空著跟被記為
+# 沒有，是同一個安靜的第三態，而那正是這張單要拆掉的形狀。
+workspace = {"kind": identity_kind}
+if identity:
+    workspace["value"] = identity
 payload = {
+    "workspace_identity": workspace,
     # 領域的決定跟輪次同時落地。分成兩個檔案／兩個動作的那一版，「有沒有記」變成一個
     # 要人記得去查的東西，而沒記跟記了 none 在檔案裡長得一樣。
     "knowledge_pack": knowledge_pack,
@@ -504,6 +630,9 @@ else:
 print(f"rounds={len(data['rounds'])} unconverged={unconverged} "
       f"remaining={max(0, data['max_rounds'] - unconverged)} status={data['status']}")
 PY
+  # 站別是「走到哪」，這一行是「還在不在原地」。兩件事都屬於 resume view：接手的人要知道
+  # 的不只是下一步做什麼，還有他手上這個工作區是不是這張單當初落腳的那一個。
+  report_workspace_identity "$STATE"
 }
 
 cmd_advance() {

@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
-# Cost floor: how many files does the flow force into existence?
+# Legacy layers: is the flow still load-bearing on the machine the spine replaced?
 #
-# The new spine claims a source is one frozen block plus one living document.
-# That claim is only worth something if it can be measured, so this check counts
-# the artifacts a piece of work was *forced* to produce — "forced" meaning the
-# flow does not complete without it — and asserts the count stays at the floor:
+# A forced task.md, completion-gate marker, ac-verification marker, task
+# snapshot, auto-pass ledger or verify report means the old layer is still
+# required for the flow to finish. "Forced" means the flow does not complete
+# without it; anything a person chose to write is not judged here.
 #
-#   code work  -> at most 2 (the living document and the code)
-#   docs work  -> at most 1 (the living document)
+# This used to also count the forced artifacts and refuse anything above a
+# "cost floor" of 2. Three things were wrong with that at once, found 2026-08-03:
 #
-# Anything a person chose to write is not counted. The number under scrutiny is
-# the toll the process charges, not the volume of work someone did.
+#   1. The comparison was `len(forced) > limit` — an upper bound. Every line of
+#      prose called it a floor. A lower bound is satisfied by construction, so
+#      the name described something that would have carried no information.
+#   2. As an upper bound it was red on every real ticket ever measured: the
+#      spine itself writes index.md, loop-state.json and measurement-ledger.json,
+#      so the forced count is a constant 3 against a limit of 2.
+#   3. Nobody called it, which is why (2) went unnoticed. It lived in prose only.
 #
-# The second half of the check names the old layers explicitly. A forced
-# task.md, completion-gate marker, ac-verification marker, task snapshot,
-# ledger or verify report means the flow still runs on the machine the spine was
-# built to replace, and that is a failure even when the count happens to fit.
+# Counting a constant carries no information. What does carry information is
+# which layers are load-bearing, so that is all that is left.
 #
 # Usage:
-#   check-spine-cost-floor.sh --inventory <path.json>
+#   check-spine-legacy-layers.sh --inventory <path.json>
 #
 # Inventory shape:
 #   {
@@ -34,7 +37,7 @@ set -uo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  check-spine-cost-floor.sh --inventory <path.json>
+  check-spine-legacy-layers.sh --inventory <path.json>
 EOF
 }
 
@@ -56,7 +59,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$INVENTORY" ]]; then
-  echo "POLARIS_SPINE_COST_FLOOR_INVENTORY_MISSING" >&2
+  echo "POLARIS_SPINE_LEGACY_INVENTORY_MISSING" >&2
   echo "no inventory at $INVENTORY" >&2
   exit 2
 fi
@@ -68,9 +71,7 @@ import sys
 
 path = sys.argv[1]
 
-# The floor comes straight from the assertion: one living document, plus the
-# code when there is code.
-FLOOR = {"code": 2, "docs": 1}
+KINDS = ("code", "docs")
 
 # The layers the spine exists to stop depending on. A forced artifact matching
 # any of these means the old machine is still load-bearing.
@@ -99,45 +100,51 @@ def fail(marker, message):
 try:
     data = json.load(open(path, encoding="utf-8"))
 except (json.JSONDecodeError, OSError) as exc:
-    fail("POLARIS_SPINE_COST_FLOOR_INVENTORY_MISSING",
+    fail("POLARIS_SPINE_LEGACY_INVENTORY_MISSING",
          f"inventory at {path} is not readable JSON: {exc}")
 
 kind = data.get("kind")
-if kind not in FLOOR:
-    fail("POLARIS_SPINE_COST_FLOOR_BAD_KIND",
-         f"kind must be one of {sorted(FLOOR)} (got {kind!r})")
+if kind not in KINDS:
+    fail("POLARIS_SPINE_LEGACY_BAD_KIND",
+         f"kind must be one of {sorted(KINDS)} (got {kind!r})")
 
 artifacts = data.get("artifacts")
 if not isinstance(artifacts, list):
-    fail("POLARIS_SPINE_COST_FLOOR_INVENTORY_MISSING",
+    fail("POLARIS_SPINE_LEGACY_INVENTORY_MISSING",
          f"inventory at {path} has no artifacts list")
 
 forced = [a for a in artifacts if a.get("forced")]
 
 unjustified = [a["path"] for a in forced if not str(a.get("reason", "")).strip()]
 if unjustified:
-    fail("POLARIS_SPINE_COST_FLOOR_UNJUSTIFIED",
+    fail("POLARIS_SPINE_LEGACY_UNJUSTIFIED",
          "every forced artifact has to say why the flow cannot finish without it:\n"
          + "\n".join(f"  {p}" for p in unjustified))
 
+# Judged against every artifact, not just the forced ones. The `forced` filter was
+# inherited from the counting doctrine, and it made this half unable to fire at all:
+# the enumerator only ever sets forced=True on index.md, the .spine state files and
+# .changeset/*.md, so no legacy path could reach this loop. A check that cannot go
+# red is worse than one nobody calls — it reports green and means nothing.
+#
+# Touching an old-layer artifact at all is the signal. A delivery that writes a
+# tasks/T1/index.md or an auto-pass ledger is running the machine the spine
+# replaced, whether or not the flow would technically finish without it.
 legacy = []
-for artifact in forced:
+for artifact in artifacts:
     for pattern, layer in LEGACY_PATTERNS:
         if re.search(pattern, artifact["path"]):
             legacy.append((artifact["path"], layer))
             break
 if legacy:
-    fail("POLARIS_SPINE_COST_FLOOR_LEGACY_ARTIFACT_FORCED",
-         "the flow still cannot finish without the layers the spine replaces:\n"
+    fail("POLARIS_SPINE_LEGACY_ARTIFACT_FORCED",
+         "this delivery still produces the layers the spine replaces:\n"
          + "\n".join(f"  {p}  ({layer})" for p, layer in legacy))
 
-limit = FLOOR[kind]
-if len(forced) > limit:
-    fail("POLARIS_SPINE_COST_FLOOR_EXCEEDED",
-         f"{kind} work forced {len(forced)} files into existence, floor is {limit}:\n"
-         + "\n".join(f"  {a['path']}" for a in forced))
-
+# The count is reported, never judged. It is a constant the spine writes itself,
+# so a threshold on it would only ever be theatre — but leaving the number unsaid
+# would make "nothing was counted" and "the count was fine" look alike.
 optional = len(artifacts) - len(forced)
-print(f"PASS: spine cost floor — {kind} work forced {len(forced)}/{limit} file(s) "
-      f"({optional} produced by choice, not counted)")
+print(f"PASS: no legacy layer is load-bearing — {kind} work forced {len(forced)} "
+      f"file(s), {optional} more produced by choice (count reported, not judged)")
 PY

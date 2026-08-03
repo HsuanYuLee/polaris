@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.4.0] - 2026-08-03
+
+### Changed
+
+- 007a9f2: DP-475：工作區身分在開輪次那刻記下，之後隨時比對得出來
+  開工條件是一次性的事件，它問「有沒有站在預設分支上」——那對所有單都一樣，切到**另一張
+  單**的分支照樣通過。真正會發生的事故是兩個 session 互搶同一個 checkout，而那個情境下開工
+  條件全綠。
+  `swe-knowledge` 多宣告一行 `<!-- SWE-WORKSPACE-IDENTITY: ... -->`；`init` 求值後把輸出當
+  **不透明字串**記進 `loop-state.json`，`where` 每次拿現況比一次，結果是 `ok`、`DRIFTED`
+  （說出當初與現在各是什麼）或 `unmeasurable`（不得被讀成一致）。求不出值就不開輪次，
+  `--pack none` 不記也不比。核心不知道那個字串是分支名——比相不相等不需要知道。
+  `check-spine-cost-floor.sh` 改名為 `check-spine-legacy-layers.sh`，並拆掉計數半段：判定式
+  `len(forced) > 2` 是上界而散文一律稱它為地板，而脊椎自己就會寫三個檔案，所以它對每一張真單
+  都是紅的——沒被發現是因為沒有任何自動路徑呼叫它。舊層偵測那一半也修了：原本只判
+  `forced` 的產物，而枚舉器只會對固定五類標 `forced=true`，於是舊層路徑永遠到不了判定。
+  現在判全部產物，並接進 `record-delivery-intent.sh`（枚舉器同時排掉被刪除的檔案，否則
+  拆舊層的單會被自己擋住）。`engineering/scripts/` 底下那份 byte-identical 複本刪除。
+
 ## [4.3.0] - 2026-08-03
 
 ### Changed

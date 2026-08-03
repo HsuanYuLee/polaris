@@ -42,19 +42,25 @@ bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
 並原樣保留 stderr 與 exit code。這是因為工具會說謊：PATH 上較早的 shim、靜默跳過的測試、
 被吞成 generic timeout 的錯誤，三者都能讓一個空的執行看起來像綠的。
 
-## 成本地板
+## 舊層還撐著沒有
 
-順手量一次這張單逼出了多少檔案。清單用枚舉的，不是用手寫的——手寫的清單由寫的人決定
-漏掉什麼，然後檢查就在那個漏掉的地方變綠：
+問的是：這張單走完全程，有沒有哪一步非得靠脊椎要取代的那套東西（`task.md`、
+completion-gate marker、auto-pass ledger、verify report）才走得完。
+
+**不用自己跑，交付紀錄那一步會跑。** `record-delivery-intent.sh` 會枚舉這張單逼出了哪些
+檔案、把清單餵進檢查，非 0 就不寫紀錄。想先看的話：
 
 ```bash
 bash .claude/skills/verify-ac/scripts/enumerate-spine-inventory.sh --issue {issue}
-bash .claude/skills/verify-ac/scripts/check-spine-cost-floor.sh --inventory {issue}/.spine/inventory.json
+bash .claude/skills/verify-ac/scripts/check-spine-legacy-layers.sh --inventory {issue}/.spine/inventory.json
 ```
 
-它從 git diff 與 `.spine/` 現況兩處讀，兩處都不能被說服。`.spine/*.json` 這類機器寫的狀態
-**算在裡面**——把它排掉數字立刻就合格了，正因為如此那個決定不由量測工具做。地板指的是
-「人被迫寫的檔案」還是「流程被迫產生的檔案」，是斷言層的問題，要人在閘一回答。
+清單用枚舉的，不是手寫的——手寫的清單由寫的人決定漏掉什麼，然後檢查就在那個漏掉的地方
+變綠。它從 git diff 與 `.spine/` 現況兩處讀，兩處都不能被說服。
+
+**「逼出幾個檔案」這個數字只印出來，不判定。** 那三個檔案是脊椎自己寫的，數量恆定，對一個
+常數設門檻只會是儀式。這件事 2026-08-03 才被拆掉：門檻設在 2、實際恆為 3，於是它對每一張
+真單都是紅的——而因為沒有人呼叫它，紅了幾個月沒有人知道。
 
 ## 正負兩表都要驗
 

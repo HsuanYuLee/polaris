@@ -71,6 +71,22 @@ if ! bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$INDEX" >/dev/nu
     "  bash .claude/skills/verify-ac/scripts/frozen-assertion-fence.sh verify $INDEX"
 fi
 
+# 舊層還撐著的話，這張單交付不出去。這道檢查以前只寫在散文裡，於是它對每一張真單都紅了
+# 幾個月而沒有人知道——一道沒有人呼叫的檢查跟沒有那道檢查，在出事的時候長得一樣。所以
+# 它接在這裡：清單由枚舉器產生（手寫的清單由寫的人決定漏掉什麼），寫紀錄之前跑，非 0 就
+# 不寫。枚舉器跑不起來也不放行，那是量不到，不是通過。
+INVENTORY="$ISSUE_DIR/.spine/inventory.json"
+if ! bash "$ROOT_DIR/scripts/enumerate-spine-inventory.sh" --issue "$ISSUE_DIR" >/dev/null 2>&1; then
+  die "POLARIS_DELIVERY_INTENT_INVENTORY_UNBUILDABLE" \
+    "無法枚舉這張單逼出了哪些檔案，交付紀錄不寫。直接跑它看原因：" \
+    "  bash .claude/skills/verify-ac/scripts/enumerate-spine-inventory.sh --issue $ISSUE_DIR"
+fi
+if ! legacy_out="$(bash "$ROOT_DIR/scripts/check-spine-legacy-layers.sh" --inventory "$INVENTORY" 2>&1)"; then
+  die "POLARIS_DELIVERY_INTENT_LEGACY_LAYER_FORCED" \
+    "這張單的流程還撐在脊椎要取代的舊層上，交付紀錄不寫：" "$legacy_out"
+fi
+echo "$legacy_out"
+
 destination="$(awk '
   NR == 1 && $0 == "---" { inside = 1; next }
   inside && $0 == "---"   { exit }

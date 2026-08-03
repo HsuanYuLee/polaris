@@ -435,4 +435,71 @@ bash "$LOOP12" init --state "$WORK/p7.json" --pack quietpack >/dev/null 2>&1 \
   || fail "沒有宣告開工條件的 pack 被當成量不到"
 echo "  ok  pack 沒有宣告條件時照常開輪次"
 
+
+# Case 13：工作區身分。開工條件問的是「有沒有站在對的一類地方」，對所有單都一樣；身分問的
+# 是「這張單當初落在哪」，每張單不同。後者才抓得到「兩個 session 共用同一份 checkout」。
+# 這一段一樣用假的 pack，核心不知道那個字串是什麼意思，它只比相不相等。
+S13="$WORK/skills13"
+mkdir -p "$S13/idpack/scripts" "$S13/driving-work-to-done/scripts"
+cp "$LOOP" "$S13/driving-work-to-done/scripts/spine-loop-state.sh"
+LOOP13="$S13/driving-work-to-done/scripts/spine-loop-state.sh"
+cat > "$S13/idpack/scripts/who.sh" <<'EOF'
+#!/usr/bin/env bash
+[[ -f "$WORK13/whoami" ]] || { echo "求不出身分" >&2; exit 2; }
+cat "$WORK13/whoami"
+EOF
+chmod +x "$S13/idpack/scripts/who.sh"
+printf '%s\n' '---' 'name: idpack' '---' \
+  "<!-- FAKE-WORKSPACE-IDENTITY: bash $S13/idpack/scripts/who.sh -->" > "$S13/idpack/SKILL.md"
+export WORK13="$WORK"
+
+# 求不出值就不開輪次：記不到值的話，之後每次比對都只能回「量不到」，那跟沒有這道檢查一樣。
+bash "$LOOP13" init --state "$WORK/w0.json" --pack idpack >/dev/null 2>&1 \
+  && fail "身分求不出值卻開了輪次"
+[[ ! -f "$WORK/w0.json" ]] || fail "被拒的 init 還是留下了 state"
+echo "  ok  身分求不出值時輪次不開，也沒留下 state"
+
+printf 'lane-A\n' > "$WORK/whoami"
+bash "$LOOP13" init --state "$WORK/w1.json" --pack idpack >/dev/null 2>&1 \
+  || fail "身分求得出值卻沒開輪次"
+grep -q '"value": "lane-A"' "$WORK/w1.json" || fail "開輪次沒把身分記進 state"
+echo "  ok  身分在開輪次那一刻被記下來"
+
+bash "$LOOP13" where --state "$WORK/w1.json" 2>&1 | grep -q '^workspace=ok  lane-A$' \
+  || fail "身分沒變卻不是 ok"
+echo "  ok  身分沒變時回 ok"
+
+# 漂掉要說得出兩邊各是什麼，只說「不一致」等於要人自己去查。
+printf 'lane-B\n' > "$WORK/whoami"
+drift="$(bash "$LOOP13" where --state "$WORK/w1.json" 2>&1)"
+grep -q 'workspace=DRIFTED' <<<"$drift" || fail "身分變了卻沒說漂掉：$drift"
+grep -q 'lane-A' <<<"$drift" || fail "漂掉的訊息沒說出當初記的是什麼"
+grep -q 'lane-B' <<<"$drift" || fail "漂掉的訊息沒說出現在是什麼"
+echo "  ok  漂掉時說得出兩邊各是什麼"
+
+# 量不到不得跟一致長得一樣。
+rm -f "$WORK/whoami"
+unmeasurable="$(bash "$LOOP13" where --state "$WORK/w1.json" 2>&1)"
+grep -q 'workspace=unmeasurable' <<<"$unmeasurable" || fail "求不出值卻沒說量不到：$unmeasurable"
+grep -q 'workspace=ok' <<<"$unmeasurable" && fail "求不出值卻回了 ok"
+echo "  ok  求不出值時說量不到，不說一致"
+
+# 沒有領域就沒有身分：不記、不比，流程照常走完。
+bash "$LOOP13" init --state "$WORK/w2.json" --pack none --why '純文件' >/dev/null 2>&1 \
+  || fail "--pack none 沒開成輪次"
+grep -q '"kind": "none"' "$WORK/w2.json" || fail "--pack none 沒把「沒有領域」記下來"
+bash "$LOOP13" where --state "$WORK/w2.json" 2>&1 | grep -q 'workspace=' \
+  && fail "--pack none 卻施加了身分比對"
+echo "  ok  沒有領域時不記身分也不比對"
+
+# 那個領域沒有宣告身分：合法狀態，不是量不到。
+mkdir -p "$S13/quietpack"
+printf '%s\n' '---' 'name: quietpack' '---' 'nothing declared' > "$S13/quietpack/SKILL.md"
+bash "$LOOP13" init --state "$WORK/w3.json" --pack quietpack >/dev/null 2>&1 \
+  || fail "沒宣告身分的 pack 被當成量不到"
+grep -q '"kind": "undeclared"' "$WORK/w3.json" || fail "沒宣告身分沒被記成 undeclared"
+bash "$LOOP13" where --state "$WORK/w3.json" 2>&1 | grep -q 'workspace=' \
+  && fail "沒宣告身分的 pack 卻施加了比對"
+echo "  ok  領域沒宣告身分時不記也不比"
+
 echo "PASS: spine-loop-state-selftest.sh"

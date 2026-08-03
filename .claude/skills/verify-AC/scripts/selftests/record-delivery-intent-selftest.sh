@@ -65,6 +65,11 @@ new_sealed_issue() {
   bash "$FENCE" seal "$issue/index.md" --by selftest >/dev/null
   git -C "$repo" add -A
   git -C "$repo" commit -qm "seal selftest source"
+
+  # 交付紀錄現在會枚舉這張單逼出了哪些檔案，而枚舉是拿 base 做 diff 的。沒有 base 就
+  # 解不出交付內容，那是量不到——所以這個 fixture 要有一個 base，不然它量的是「拒絕」
+  # 而不是「記得下來」。
+  git -C "$repo" update-ref refs/remotes/origin/main HEAD
   printf '%s' "$issue"
 }
 
@@ -86,6 +91,23 @@ assert d["changelog_summary"] == "a line a human will read", d
 assert len(d["head_sha"]) >= 12, d
 ' "$issue/.spine/delivery.json" || fail "the record is missing what the release tail reads"
 echo "  ok  sealed source records destination and head"
+
+# 交付到一半還在產出脊椎要取代的舊層，紀錄就寫不下去。這個 case 是接線的端到端證明：
+# 檢查是由這支腳本呼叫的（不是散文叫人記得跑），而且它真的紅得起來——清單由枚舉器產生，
+# 不是手餵的 fixture。
+issue="$(new_sealed_issue legacy template)"
+repo="$WORK/legacy"
+mkdir -p "$repo/specs/design-plans/DP-999-x/tasks/T1"
+echo "old layer" > "$repo/specs/design-plans/DP-999-x/tasks/T1/index.md"
+git -C "$repo" add -A && git -C "$repo" commit -qm "still running the old machine"
+measure "$repo" "$issue" A-P1
+if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
+     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+  fail "a delivery still producing the old layer should refuse to record"
+fi
+[[ -f "$issue/.spine/delivery.json" ]] \
+  && fail "a refused recording must not leave a record behind"
+echo "  ok  a delivery still producing the old layer refuses to record"
 
 # Delivering against assertions nobody signed is worse than not delivering.
 issue="$(new_sealed_issue tampered template)"

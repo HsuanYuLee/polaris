@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Purpose: Verify the cost floor counts what the flow forces, and only that.
+# Purpose: Verify the check refuses a flow still load-bearing on a legacy layer,
+#          and refuses nothing on the strength of a count.
 # Inputs: Hermetic inventory fixtures under mktemp.
-# Outputs: PASS when a colour-change-sized code work sits at 2 forced files, a
-#          docs-only work at 1, chosen artifacts do not count, exceeding the
-#          floor fails, and a forced legacy-layer artifact fails even when the
-#          count would fit.
+# Outputs: PASS when clean inventories are accepted at any forced count, a forced
+#          legacy-layer artifact is refused, and a forced artifact with no stated
+#          reason is refused.
 
 set -euo pipefail
 
@@ -17,7 +17,7 @@ fi
 # 往上兩層是這支 skill 自己的目錄，所以下面的 $ROOT_DIR/scripts/X 指的是
 # 這支 skill 帶著的那一份，不是 repo 根目錄的共用檔——共用檔已經沒有了。
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-CHECK="$ROOT_DIR/scripts/check-spine-cost-floor.sh"
+CHECK="$ROOT_DIR/scripts/check-spine-legacy-layers.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -36,7 +36,7 @@ assert_pass() {
   # Description: assert the check accepted the inventory.
   # Args: $1 = case name, $2 = inventory path
   bash "$CHECK" --inventory "$2" >/dev/null \
-    || fail "$1 was rejected but should sit at the floor"
+    || fail "$1 was rejected but has no legacy layer in it"
   echo "  ok  $1"
 }
 
@@ -85,32 +85,31 @@ write_inventory "$WORK/chosen-extras.json" '{
 }'
 assert_pass "artifacts written by choice do not count" "$WORK/chosen-extras.json"
 
-# --- Case 4: exceeding the floor fails --------------------------------------
-write_inventory "$WORK/over-floor.json" '{
+# --- Case 4: the count is never the reason for a refusal ---------------------
+# 這兩個 fixture 以前是紅的（門檻 2）。它們現在必須是綠的：門檻設在一個由流程自己寫死的
+# 常數上，對每一張真單都紅，而且沒有人呼叫它所以沒有人知道。留著改名字等於把那個錯誤
+# 換個標記繼續斷言一次。
+write_inventory "$WORK/three-forced.json" '{
   "kind": "code",
   "artifacts": [
-    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "活文件"},
-    {"path": "src/thing.ts", "forced": true, "reason": "工作本身"},
-    {"path": "specs/spine/x/handoff.md", "forced": true,
-     "reason": "流程要求交接檔才肯往下"}
+    {"path": "issues/ns/X/index.md", "forced": true, "reason": "活文件"},
+    {"path": "issues/ns/X/.spine/loop-state.json", "forced": true, "reason": "輪次"},
+    {"path": "issues/ns/X/.spine/measurement-ledger.json", "forced": true, "reason": "量測登錄"}
   ]
 }'
-assert_marker "code work forced to 3 files" \
-  POLARIS_SPINE_COST_FLOOR_EXCEEDED "$WORK/over-floor.json"
+assert_pass "three forced files is not a reason to refuse" "$WORK/three-forced.json"
 
-write_inventory "$WORK/docs-over-floor.json" '{
+write_inventory "$WORK/docs-two-forced.json" '{
   "kind": "docs",
   "artifacts": [
-    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "活文件"},
-    {"path": "specs/spine/x/summary.md", "forced": true, "reason": "流程要求摘要檔"}
+    {"path": "issues/ns/X/index.md", "forced": true, "reason": "活文件"},
+    {"path": "issues/ns/X/.spine/loop-state.json", "forced": true, "reason": "輪次"}
   ]
 }'
-assert_marker "docs work forced to 2 files" \
-  POLARIS_SPINE_COST_FLOOR_EXCEEDED "$WORK/docs-over-floor.json"
+assert_pass "docs work above the old floor is not refused" "$WORK/docs-two-forced.json"
 
-# --- Case 5: a forced legacy artifact fails even inside the count -----------
-# The count fits (2), so a pure counter would let this through. The spine exists
-# precisely so these layers stop being load-bearing.
+# --- Case 5: a forced legacy artifact is refused ----------------------------
+# This is the whole job now: which layers are load-bearing, not how many files.
 for spec in \
   'specs/design-plans/DP-999-x/tasks/T1/index.md|task.md schema chain' \
   '.polaris/evidence/completion-gate/DP-999-T1-abc.json|completion-gate marker layer' \
@@ -133,11 +132,13 @@ json.dump({
 }, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 PY
   assert_marker "forced legacy artifact: $legacy_path" \
-    POLARIS_SPINE_COST_FLOOR_LEGACY_ARTIFACT_FORCED "$WORK/legacy.json"
+    POLARIS_SPINE_LEGACY_ARTIFACT_FORCED "$WORK/legacy.json"
 done
 
-# The same paths produced by choice are fine — the spine does not ban the old
-# layers from existing, only from being required.
+# 舊層「自願產生」也要被擋。這個案例以前斷言的是相反的事（forced=false 就放行），而那個
+# 版本讓整道檢查不可能變紅：枚舉器只會對 index.md、.spine/*.json 與 .changeset/*.md 標
+# forced=true，所以沒有任何一條舊層路徑到得了判定。一道紅不了的檢查比沒有人呼叫的更糟——
+# 它會回綠，而那個綠什麼都不代表。
 write_inventory "$WORK/legacy-optional.json" '{
   "kind": "code",
   "artifacts": [
@@ -146,8 +147,8 @@ write_inventory "$WORK/legacy-optional.json" '{
     {"path": "specs/design-plans/DP-999-x/tasks/T1/index.md", "forced": false}
   ]
 }'
-assert_pass "legacy artifacts are allowed to exist, just not to be required" \
-  "$WORK/legacy-optional.json"
+assert_marker "a legacy artifact produced by choice is still the old machine running" \
+  POLARIS_SPINE_LEGACY_ARTIFACT_FORCED "$WORK/legacy-optional.json"
 
 # The spine's own state is not a legacy layer. This case exists because the
 # legacy list once caught `.spine/measurement-ledger.json` by name alone, and
@@ -172,17 +173,17 @@ write_inventory "$WORK/unjustified.json" '{
   ]
 }'
 assert_marker "forced artifact with no reason" \
-  POLARIS_SPINE_COST_FLOOR_UNJUSTIFIED "$WORK/unjustified.json"
+  POLARIS_SPINE_LEGACY_UNJUSTIFIED "$WORK/unjustified.json"
 
 # --- Case 7: malformed input fails closed -----------------------------------
 write_inventory "$WORK/bad-kind.json" '{"kind": "other", "artifacts": []}'
-assert_marker "unknown kind" POLARIS_SPINE_COST_FLOOR_BAD_KIND "$WORK/bad-kind.json"
+assert_marker "unknown kind" POLARIS_SPINE_LEGACY_BAD_KIND "$WORK/bad-kind.json"
 
 printf 'not json\n' > "$WORK/not-json.json"
 assert_marker "unreadable inventory" \
-  POLARIS_SPINE_COST_FLOOR_INVENTORY_MISSING "$WORK/not-json.json"
+  POLARIS_SPINE_LEGACY_INVENTORY_MISSING "$WORK/not-json.json"
 
 assert_marker "absent inventory" \
-  POLARIS_SPINE_COST_FLOOR_INVENTORY_MISSING "$WORK/never-written.json"
+  POLARIS_SPINE_LEGACY_INVENTORY_MISSING "$WORK/never-written.json"
 
-echo "PASS: check-spine-cost-floor-selftest.sh"
+echo "PASS: check-spine-legacy-layers-selftest.sh"

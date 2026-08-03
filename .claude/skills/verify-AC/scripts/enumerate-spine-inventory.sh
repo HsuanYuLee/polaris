@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Produce the inventory check-spine-cost-floor.sh consumes, by looking at
+# Purpose: Produce the inventory check-spine-legacy-layers.sh consumes, by looking at
 #          what a delivery actually left behind rather than by asking someone to
 #          list it.
 # Inputs:  --issue <dir>, optional --base <ref> (default origin/main),
@@ -9,7 +9,7 @@
 #
 # Why this exists
 # ---------------
-# The cost floor was asserted and then never measured, because the check needs an
+# The legacy-layer check was asserted and then never measured, because it needs an
 # inventory and nothing produced one. A hand-written inventory is worse than none:
 # whoever writes it decides what to leave out, and the check goes green on the
 # omission. This enumerates from two sources that cannot be talked out of it — the
@@ -85,7 +85,10 @@ git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1 \
   || die "POLARIS_SPINE_INVENTORY_BAD_BASE" \
     "cannot resolve --base '$BASE_REF'; an unresolvable base would report an empty delivery"
 
-CHANGED="$(git -C "$REPO_ROOT" diff --name-only "$BASE_REF"...HEAD 2>/dev/null || true)"
+# `--diff-filter=d` 排掉被刪除的檔案。清單問的是「這次交付留下了什麼」，而刪掉的東西不是
+# 留下的東西。這一條不只是語意整齊：舊層偵測是拿這份清單判的，不排掉刪除的話，一張把舊層
+# 拆掉的單會因為它的 diff 提到那些路徑而被自己擋下來。
+CHANGED="$(git -C "$REPO_ROOT" diff --name-only --diff-filter=d "$BASE_REF"...HEAD 2>/dev/null || true)"
 
 python3 - "$REPO_ROOT" "$ISSUE_DIR" "$OUT" "$CHANGED" <<'PY'
 import json

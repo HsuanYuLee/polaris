@@ -52,10 +52,25 @@ commit 已經在那裡了。所以它不是驗收時才量的東西，是開輪�
 預設分支上——規矩在寫下的一小時內失效四次。靠人記得的規則的失效率就是那個樣子，所以
 它現在有一道閘。
 
+## 施工期間：這個工作區還是不是原來那個
+
+開工條件是一次性的事件，它問「有沒有站在預設分支上」——那是一個對所有單都一樣的判準。
+切到**另一張單**的分支照樣通過它，而那正是真的會發生的事故：兩個 session 互搶同一個
+checkout，commit 落到別人的 feature 分支上。
+
+所以除了「開工前成立什麼」，還要有「這張單當初落在哪」。下面這一行也是機器讀的，它印出
+的字串核心當作**不透明的識別**存起來，之後任何一刻拿現況比對。核心不知道那是分支名，
+比對相不相等不需要知道：
+
+<!-- SWE-WORKSPACE-IDENTITY: bash .claude/skills/swe-knowledge/scripts/workspace-identity.sh -->
+
+求不出來（detached HEAD、不在 repo 裡）一律回非 0，核心會說「量不到」而不是「一致」。
+
 ## 量它
 
 ```bash
 bash .claude/skills/swe-knowledge/scripts/check-swe-precondition.sh --repo <path>   # 開工前
+bash .claude/skills/swe-knowledge/scripts/workspace-identity.sh --repo <path>       # 施工期間比對用
 bash .claude/skills/swe-knowledge/scripts/check-swe-done.sh --repo <path>           # 交付前
 ```
 
