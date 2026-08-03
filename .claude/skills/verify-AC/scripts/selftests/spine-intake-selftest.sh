@@ -2,7 +2,7 @@
 # Purpose: Verify the spine's on-ramp asks for a filing decision when a piece of
 #          engineering arrives, and reports the station instead when one is already
 #          past the first gate.
-# Inputs:  Hermetic sources/ fixtures under mktemp.
+# Inputs:  Hermetic issues/ fixtures under mktemp.
 # Outputs: PASS when a cold project gets the full on-ramp, an open source at
 #          engineering or verify-ac gets the station line instead, a source still at refinement
 #          or already converged does not suppress the on-ramp, a slash command
@@ -40,8 +40,8 @@ print(json.dumps({"user_prompt": sys.argv[1]}))' "$2")"
 #       $4 = status
 make_source() {
   local proj="$1" name="$2" station="$3" status="$4"
-  mkdir -p "$proj/sources/$name/.spine"
-  python3 - "$proj/sources/$name/.spine/loop-state.json" "$station" "$status" <<'PY'
+  mkdir -p "$proj/issues/ns/$name/.spine"
+  python3 - "$proj/issues/ns/$name/.spine/loop-state.json" "$station" "$status" <<'PY'
 import json, sys
 path, station, status = sys.argv[1:4]
 payload = {"schema_version": 2, "producer": "spine-loop-state.sh",

@@ -151,7 +151,7 @@ find_task_md_by_key() {
     # Glob legacy T*.md and folder-native T*/index.md in active tasks/ first,
     # then tasks/pr-release/ (DP-033 D8 fallback — downstream tasks must still
     # resolve when an upstream has been moved to pr-release/ by
-    # mark-spec-implemented.sh's move-first sequence).
+    # the move-first sequence: the file moves, then the frontmatter changes).
     shopt -s nullglob
     for candidate in \
         "$tasks_dir"/T*.md \

@@ -2,7 +2,7 @@
 name: framework-release
 description: 判定通過之後把東西送出去的那一段：把分支併進 main、壓版號、視目的地同步到 template repo、把本機接回釋出後的狀態。它不判斷該不該出貨——那是 verify-ac 寫在交付紀錄裡的事。
 when_to_use: |
-  某個 source 已經judged PASS、交付紀錄寫好了，要真的出貨的時候。例如「出貨吧」
+  某張單已經judged PASS、交付紀錄寫好了，要真的出貨的時候。例如「出貨吧」
   「釋出」「壓版本」「同步到 template」，或剛從 verify-ac 交出來。
 
   也用於：只想先看它打算做什麼（預設就是預覽，不加 --execute 不會動任何東西）。
@@ -22,14 +22,14 @@ skill 讀那份紀錄，把它變成真的發生的事。
 ## 先看它打算做什麼
 
 ```bash
-bash .claude/skills/framework-release/scripts/spine-release.sh --source {source}
+bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue}
 ```
 
 **預設是預覽，不會動任何東西。** 它會印出目的地、判定人、紀錄釘的 commit、現在的 HEAD、
 以及接下來每一步打算做什麼。看過了再加 `--execute`。
 
 ```bash
-bash .claude/skills/framework-release/scripts/spine-release.sh --source {source} --execute
+bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} --execute
 ```
 
 ## 尾段做哪幾件事
@@ -38,10 +38,10 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --source {source}
 2. **壓版號** —— 讀 changeset 決定 patch / minor / major。**沒有 changeset 就是沒有版本變更**，
    而交付紀錄裡宣告過 `version_bump` 的話這是矛盾，不是可以印一行 note 略過的事。
 3. **促進 main** —— 開一個分支 → main 的 PR，過閘之後 fast-forward。不是直接推 main。
-4. **同步 template** —— 只有 `destination: template` 的 source 才做。`workspace` 的到第 3 步為止。
+4. **同步 template** —— 只有 `destination: template` 的單才做。`workspace` 的到第 3 步為止。
 5. **接回本機** —— main 快轉、git hook 重裝、已併的分支刪掉。
 
-`destination` 是人在閘一宣告的，寫在 `{source}/index.md` 的 frontmatter。這裡只讀不改。
+`destination` 是人在閘一宣告的，寫在 `{issue}/index.md` 的 frontmatter。這裡只讀不改。
 
 ## 它自己帶的閘
 

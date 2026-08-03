@@ -117,17 +117,16 @@ PR #{number} 目前仍需修正：{reason}。已轉回 IN DEVELOPMENT。
 
 讀 `../references/feature-branch-pr-gate.md`，依該 reference 執行偵測與回報。不要在本 reference 重寫 gate 語意。
 
-### Spec Done Marker
+### 完成的標記不在這裡下
 
-從 branch / title 萃取 ticket key。若是 Epic key（例如 `GT-*`），不在此標 parent implemented；parent 的收尾不歸本 skill。
+從 branch / title 萃取到的 ticket key，**本 skill 不替它標任何完成狀態**。
 
-若是 Bug 或 ad-hoc task，且 `specs/companies/{company}/{TICKET}/` container 存在，執行：
+一張單完成了沒有，唯一的答案在 `issues/{命名空間}/{單}/.spine/loop-state.json` 的
+`status`，由 `verify-ac` 判定之後寫下。位置（活躍區 / `archive/`）是那個狀態的投影，由
+`spine-loop-state.sh record` 自己搬。
 
-```bash
-.claude/skills/check-pr-approvals/scripts/mark-spec-implemented.sh {TICKET}
-```
-
-此操作 idempotent。若 container 不存在，靜默略過或在最後摘要列為 no-op。
+本 skill 只回報 PR 的狀態。看到一張單該收而沒收，說出來，不要動手——第二個會寫完成狀態
+的地方，就是第二套會跟位置打架的權威。
 
 ## Completion Summary
 

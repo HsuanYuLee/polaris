@@ -2,10 +2,10 @@
 name: engineering
 description: 已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘，四類流轉只有「斷言錯了」會停人。
 when_to_use: |
-  某個 source 的斷言已經凍結，接下來要動手做的時候。例如「開始做」「繼續 DP-NNN」
+  某張單的斷言已經凍結，接下來要動手做的時候。例如「開始做」「繼續 DP-NNN」
   「接著推進」「這一片來做」，或剛從 refinement 交出來。
 
-  也用於：跨 session 接手一份做到一半的 source——讀凍結塊與活文件就能接上。
+  也用於：跨 session 接手一張做到一半的單——讀凍結塊與活文件就能接上。
 
   不用於：還沒有斷言的工作（先走 refinement）、要判這次算不算達成（走 verify-ac）。
 version: 2.0.0
@@ -20,13 +20,13 @@ version: 2.0.0
 
 ## 接手
 
-讀 `{source}/index.md` 就夠了——凍結塊是成功的定義，活文件是其餘一切。不需要去翻別的
+讀 `{issue}/index.md` 就夠了——凍結塊是成功的定義，活文件是其餘一切。不需要去翻別的
 artifact。
 
 ```bash
-bash .claude/skills/engineering/scripts/frozen-assertion-fence.sh verify {source}/index.md
-bash .claude/skills/engineering/scripts/spine-loop-state.sh show --state {source}/.spine/loop-state.json
-bash .claude/skills/engineering/scripts/record-measurement-change.sh show --ledger {source}/.spine/measurement-ledger.json
+bash .claude/skills/engineering/scripts/frozen-assertion-fence.sh verify {issue}/index.md
+bash .claude/skills/engineering/scripts/spine-loop-state.sh show --state {issue}/.spine/loop-state.json
+bash .claude/skills/engineering/scripts/record-measurement-change.sh show --ledger {issue}/.spine/measurement-ledger.json
 ```
 
 ## 量測命令
@@ -35,7 +35,7 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh show --ledg
 
 ```bash
 bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
-  --ledger {source}/.spine/measurement-ledger.json \
+  --ledger {issue}/.spine/measurement-ledger.json \
   --assertion-id A-P1 --new-command '<cmd>' --baseline
 ```
 
@@ -44,7 +44,7 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 
 ```bash
 bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
-  --ledger {source}/.spine/measurement-ledger.json \
+  --ledger {issue}/.spine/measurement-ledger.json \
   --assertion-id A-P1 --old-command '<舊>' --new-command '<新>' --red-evidence <path>
 ```
 
@@ -67,9 +67,9 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 
 ```bash
 bash .claude/skills/engineering/scripts/spine-loop-state.sh record \
-  --state {source}/.spine/loop-state.json \
+  --state {issue}/.spine/loop-state.json \
   --outcome converged|unconverged|zero_delta --note '<一句話>'
-bash .claude/skills/engineering/scripts/spine-loop-state.sh next --state {source}/.spine/loop-state.json
+bash .claude/skills/engineering/scripts/spine-loop-state.sh next --state {issue}/.spine/loop-state.json
 ```
 
 連續沒收斂到上限時流程升人類，不繼續自轉。上限是活區可調的參數，不是驗收條件。
@@ -94,15 +94,15 @@ bash .claude/skills/engineering/scripts/spine-loop-state.sh next --state {source
 
 ```bash
 bash .claude/skills/engineering/scripts/spine-loop-state.sh advance \
-  --state {source}/.spine/loop-state.json --to verify-ac
+  --state {issue}/.spine/loop-state.json --to verify-ac
 ```
 
 **要停的時候，用 `stop --kind` 停。** 上面那三件要浮出來的事就是 `surfaced_concern`；
 撞到需要人授權的不可逆動作是 `unauthorized_action`。停了才開口，不然回來的人只看到一個
-不動的 source。接手時反過來——先跑 `where` 讀出站別，不要問人現在到哪了：
+不動的單。接手時反過來——先跑 `where` 讀出站別，不要問人現在到哪了：
 
 ```bash
-bash .claude/skills/engineering/scripts/spine-loop-state.sh where --state {source}/.spine/loop-state.json
+bash .claude/skills/engineering/scripts/spine-loop-state.sh where --state {issue}/.spine/loop-state.json
 ```
 
 ### 送審之前，先讓證據跟得上 head

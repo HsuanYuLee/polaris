@@ -9,7 +9,7 @@ set -euo pipefail
 # A spine source's .spine/ is the same kind of thing — loop state and the
 # measurement ledger are rewritten every round — so it is protected too.
 #
-# sources/ as a whole is now the user's own git repository and is ignored by this
+# issues/ as a whole is now the user's own git repository and is ignored by this
 # one, so nothing under it can be tracked here anyway. This guard stays because
 # the ignore rule is a decision someone can undo in one line, and the thing it
 # would let through — execution state entering framework history — is exactly what
@@ -20,7 +20,7 @@ PROTECTED_PREFIXES=(
   "docs-manager/src/content/docs/specs/"
   # git ls-files recurses into a literal directory prefix, but a pathspec with a
   # wildcard segment needs an explicit trailing /* or it matches nothing.
-  "sources/*/.spine/*"
+  "issues/*/.spine/*"
 )
 REPO_ROOT=""
 

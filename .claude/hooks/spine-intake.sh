@@ -15,7 +15,7 @@
 # 防的東西；同時它在一條「開工之後不需要人再指定下一站」的流程裡，每輪重插一個判斷點。
 #
 # 所以要不要問，從磁碟決定：有 source 開著且已過閘一時，改成報站別，不重問。判斷這件事
-# 不用猜——`sources/*/.spine/loop-state.json` 就寫在那裡。
+# 不用猜——`issues/*/*/.spine/loop-state.json` 就寫在那裡。
 #
 # Input:  stdin JSON，欄位 user_prompt（或 prompt）
 # Stdout: 注入 prompt context 的短提示
@@ -41,25 +41,28 @@ case "$prompt" in
   /*) exit 0 ;;
 esac
 
-# 有沒有 source 已經過了閘一。`sources/` 是使用者自己的 repo，可能根本不存在——不存在就
+# 有沒有單已經過了閘一。`issues/` 是使用者自己的 repo，可能根本不存在——不存在就
 # 當作沒有進行中的工作，走完整上匝道。
-SOURCES_DIR="${CLAUDE_PROJECT_DIR:-.}/sources"
-active="$(python3 - "$SOURCES_DIR" <<'PY' 2>/dev/null || true
+ISSUES_DIR="${CLAUDE_PROJECT_DIR:-.}/issues"
+active="$(python3 - "$ISSUES_DIR" <<'PY' 2>/dev/null || true
 import glob, json, os, sys
 
 # 站在 engineering / verify-ac 表示閘一簽過了、還沒交付。refinement 不算：那正是還在上匝道上。
 #
 # 判準是站別，不是 loop 的 status。`converged` 說的是「這一輪收斂了」，不是「已經出貨」——
-# 第一版拿它當已交付，於是一個站在 verify-ac、證據都齊、正等釋出的 source 被當成不在進行中，
+# 第一版拿它當已交付，於是一張站在 verify-ac、證據都齊、正等釋出的單被當成不在進行中，
 # 下一句話又收到完整上匝道。當場在自己身上發生的。
 rows = []
-for path in sorted(glob.glob(os.path.join(sys.argv[1], "*", ".spine", "loop-state.json"))):
+# 版面是 issues/{命名空間}/{單}/.spine/。命名空間只是路徑的一段，不參與任何判定。
+for path in sorted(glob.glob(os.path.join(sys.argv[1], "*", "*", ".spine", "loop-state.json"))):
     try:
         data = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
         continue
     if data.get("station") in ("engineering", "verify-ac"):
-        rows.append(f"{os.path.basename(os.path.dirname(os.path.dirname(path)))} 在 {data['station']}")
+        issue_dir = os.path.dirname(os.path.dirname(path))
+        name = os.path.join(os.path.basename(os.path.dirname(issue_dir)), os.path.basename(issue_dir))
+        rows.append(f"{name} 在 {data['station']}")
 print("；".join(rows), end="")
 PY
 )"

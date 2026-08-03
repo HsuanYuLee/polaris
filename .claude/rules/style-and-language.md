@@ -1,10 +1,12 @@
 # 風格與語言
 
-這是唯一一份常駐規則。它只講兩件事：**用什麼語言寫**，以及**寫成什麼樣子**。
+這份只講兩件事：**用什麼語言寫**，以及**寫成什麼樣子**。文件該住在哪、由誰搬，在
+`document-flow.md`。
 
-判準是可攜性：只有 skill 目錄會被帶到 claude.ai / Cowork，rules 與 hooks 不會。所以任何
-需要 hook、validator、worktree 或這個 repo 特定目錄才成立的東西，都不屬於這裡——它要嘛
-搬進某支 skill 自己的目錄，要嘛本來就不必要。
+判準是可攜性：只有 skill 目錄會被帶到 claude.ai / Cowork，rules 與 hooks 不會。**所以
+這一份必須到哪裡都成立**——任何需要 hook、validator、worktree 或這個 repo 特定目錄才
+成立的東西都不屬於這裡，它要嘛搬進某支 skill 自己的目錄，要嘛屬於 `document-flow.md`
+那種明講「只在這個 repo 裡成立」的規則。
 
 ## 語言
 

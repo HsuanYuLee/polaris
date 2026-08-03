@@ -183,6 +183,24 @@ cmd_hash() {
   fi
 }
 
+rename_source_of() {
+  # Description: the path a file used to have, when it arrived at its current one by rename.
+  # Args: $1 = repo root, $2 = path relative to that root
+  # Returns: the old path on stdout, or nothing when this is not a rename.
+  #
+  # 兩種都要看得到：已經 commit 的搬移，以及還躺在 index 裡的（歸檔器用 `git mv`，所以單
+  # 剛收斂時就是這一種）。-M 讓 git 自己判定相似度，不用我們猜。
+  #
+  # 不可以用 pathspec 限定成新路徑：搬移是由「一邊消失、一邊出現」推出來的，只給 git 看
+  # 出現的那一邊，它就只看得到一個新檔案，回空的。所以整份列出來，自己 filter。
+  local repo="$1" path="$2" src
+  src="$(git -C "$repo" diff --cached -M --name-status --diff-filter=R 2>/dev/null \
+         | awk -F'\t' -v target="$path" '$3 == target { print $2; exit }')"
+  [[ -n "$src" ]] && { printf '%s\n' "$src"; return 0; }
+  git -C "$repo" log -1 --format= --diff-filter=R --find-renames --name-status 2>/dev/null \
+    | awk -F'\t' -v target="$path" '$3 == target { print $2; exit }'
+}
+
 assert_unchanged_since() {
   # Description: fail closed when a fence differs from the same file at a git ref.
   # Args: $1 = file, $2 = git ref, $3.. = block keys
@@ -204,13 +222,24 @@ assert_unchanged_since() {
   rel="$(python3 -c 'import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), os.path.realpath(sys.argv[2])))' "$file" "$repo_root")"
 
   if ! git -C "$repo_root" cat-file -e "${ref}:${rel}" 2>/dev/null; then
-    if git -C "$repo_root" rev-parse --verify --quiet "$ref" >/dev/null; then
-      # Absent at the ref means this fence is new. A new fence is signed, not compared.
+    if ! git -C "$repo_root" rev-parse --verify --quiet "$ref" >/dev/null; then
+      die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" \
+        "cannot resolve ${ref} in ${repo_root}; refusing to claim the fence is unchanged"
+    fi
+    # 不在 ref 上有兩種原因，結論相反：真的是新的（沒得比），或者它只是換了位置。
+    # 一張單收斂時歸檔器會把它搬走，那一刻「不在 HEAD 上」對每一張正在交付的單都成立——
+    # 把兩種混為一談，等於在交付的那一刻讓凍結檢查變成一句空話，而那正是它最該說話的時候。
+    local renamed_from
+    renamed_from="$(rename_source_of "$repo_root" "$rel")"
+    if [[ -n "$renamed_from" ]]; then
+      # 全形標點緊接變數時一定要 ${}，否則 bash 會把標點吃進變數名。
+      echo "MOVED: $rel 在 ${ref} 上叫 ${renamed_from}；比對的是它搬家前的內容"
+      rel="$renamed_from"
+    else
+      # A new fence is signed, not compared.
       echo "NEW: $rel does not exist at ${ref}; nothing to compare against"
       return 0
     fi
-    die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" \
-      "cannot resolve ${ref} in ${repo_root}; refusing to claim the fence is unchanged"
   fi
 
   blob="$(mktemp)"

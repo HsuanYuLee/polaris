@@ -38,15 +38,16 @@ authority。
 4. Verify status category and remove completed/status-mismatched items.
 5. Add GitHub progress for In Development items.
 6. 排成 resume candidates、Bugs、In Development、priority-based todo groups。
-7. 盤點 DP closeout drift（report-only）：跑 `mise run closeout-drift`（呼叫
-   `.claude/skills/my-triage/scripts/detect-closeout-drift.sh --dry-run --json`，不變更 specs）。把
-   `delivered-drift-high` / `delivered-drift-low` / `stranded` 結果併入 dashboard 的
-   「closeout drift」群組，讓使用者看到已交付卻從未 archive 的 LOCKED DP，或 LOCKED 後
-   過期且無交付證據的 DP。`gh` 不可用時 report 會標 PR 證據未檢——轉述該註記，不視為失敗。
+7. 盤點單的位置漂移（report-only）：跑
+   `bash .claude/skills/verify-ac/scripts/archive-delivered-issues.sh --check`。它比對
+   `issues/` 底下每一張單的位置與 `.spine/loop-state.json` 的 `status`，對不上就列出來。
+   把結果併入 dashboard，讓使用者看到已收斂卻還擋在活躍區、或還沒收斂卻躺在 archive 的單。
+   沒有輪次狀態的目錄不參與判定，但它會把數量印出來——照樣轉述，不要當成已檢查過。
 8. Render dashboard and write compact `.daily-triage.json` in the same pass.
 9. Recommend next routes：會改變行為的走 `refinement`（不用立案的直接做），另有
-   `check-pr-approvals`、`sprint-planning`，或 explicit topic resume。closeout-drift
-   findings 一律建議人工 review（絕不自動 archive——detector 本身只 report）。
+   `check-pr-approvals`、`sprint-planning`，或 explicit topic resume。位置漂移**不要在這裡
+   動手搬**——搬是 `spine-loop-state.sh record` 的事，這裡只報。想讓一張單離開待辦清單，
+   讓它收斂，不要搬它。
 
 ## Hard Rules
 

@@ -6,7 +6,7 @@
 # Outputs: PASS when a record pinned to HEAD passes, a record left behind by
 #          later commits blocks, a record for work already in origin/main is
 #          ignored, a repo with no record is disclaimed, and a push that changes
-#          nothing under sources/ is still recognised by its record.
+#          nothing under issues/ is still recognised by its record.
 
 set -euo pipefail
 
@@ -37,8 +37,8 @@ new_repo() {
   git init -q "$repo"
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name selftest
-  mkdir -p "$repo/sources/DP-000-selftest/.spine" "$repo/scripts"
-  echo assertion > "$repo/sources/DP-000-selftest/index.md"
+  mkdir -p "$repo/issues/ns/DP-000-selftest/.spine" "$repo/scripts"
+  echo assertion > "$repo/issues/ns/DP-000-selftest/index.md"
   git -C "$repo" add -A
   git -C "$repo" commit -qm base
   git -C "$repo" branch -f origin/main HEAD
@@ -50,12 +50,12 @@ new_repo() {
 write_record() {
   python3 -c '
 import json, sys
-json.dump({"schema_version": 1, "source": "sources/DP-000-selftest",
+json.dump({"schema_version": 1, "source": "issues/ns/DP-000-selftest",
            "head_sha": sys.argv[2]}, open(sys.argv[1], "w"))
-' "$1/sources/DP-000-selftest/.spine/delivery.json" "$2"
+' "$1/issues/ns/DP-000-selftest/.spine/delivery.json" "$2"
 }
 
-# Description: add a commit that touches only scripts/, never sources/.
+# Description: add a commit that touches only scripts/, never issues/.
 # Args: $1 = repo, $2 = message
 commit_work_outside_sources() {
   echo "work $2" >> "$1/scripts/tool.sh"
@@ -74,11 +74,11 @@ bash "$GATE" --repo "$repo" >/dev/null 2>&1 \
 echo "  ok  record at HEAD passes"
 
 # The regression this shape was written to prevent: a spine source's work lands
-# in scripts/ or skills/, and only the record lives under sources/. Deciding
+# in scripts/ or skills/, and only the record lives under issues/. Deciding
 # relevance by which files changed missed real deliveries entirely, so the gate
 # silently handed them to a gate that demands a task.md they cannot have.
 if ! bash "$GATE" --repo "$repo" --is-spine-push >/dev/null 2>&1; then
-  fail "a push changing nothing under sources/ must still be recognised by its record"
+  fail "a push changing nothing under issues/ must still be recognised by its record"
 fi
 echo "  ok  relevance comes from the record, not from changed paths"
 
@@ -136,5 +136,25 @@ refusal="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
 printf '%s' "$refusal" | grep -q 'does not contain' \
   || fail "the refusal must say the recorded commit is not in this repository: $refusal"
 echo "  ok  a record pinned outside this repository blocks"
+
+# 收斂完的單住在 {命名空間}/archive/。交付紀錄只有在收斂之後才寫得出來，而收斂那一刻
+# 歸檔器就把單搬過去——所以只掃活躍區那一層的話，這道閘對每一次真實交付都會回
+# 「這不是脊椎推送」，然後促進 main 被擋。2026-08-03 三張單全部撞上。
+repo="$(new_repo archived)"
+commit_work_outside_sources "$repo" "work in progress"
+head="$(git -C "$repo" rev-parse HEAD)"
+mkdir -p "$repo/issues/ns/archive/DP-001-archived/.spine"
+echo assertion > "$repo/issues/ns/archive/DP-001-archived/index.md"
+python3 -c '
+import json, sys
+json.dump({"schema_version": 1, "source": "issues/ns/archive/DP-001-archived",
+           "destination": "template", "head_sha": sys.argv[2], "version_bump": "patch"},
+          open(sys.argv[1], "w"))
+' "$repo/issues/ns/archive/DP-001-archived/.spine/delivery.json" "$head"
+bash "$GATE" --repo "$repo" --is-spine-push >/dev/null 2>&1 \
+  || fail "歸檔後的交付紀錄沒被看見——這道閘只掃了活躍區那一層"
+bash "$GATE" --repo "$repo" --print-records 2>&1 | grep -q 'archive/DP-001-archived' \
+  || fail "歸檔後的交付紀錄沒有被列出來"
+echo "  ok  收斂歸檔後的交付紀錄仍然看得見"
 
 echo "PASS: gate-spine-delivery"

@@ -12,7 +12,7 @@
 # It owns exactly one question: does the recorded delivery intent still describe
 # the commit being pushed?
 #
-# `record-delivery-intent.sh` writes {source}/.spine/delivery.json pinned to a
+# `record-delivery-intent.sh` writes {issue}/.spine/delivery.json pinned to a
 # head sha, after verifying the frozen assertion fence. That record is what the
 # release tail reads. It goes stale the moment another commit lands, and nothing
 # re-verifies it — the failure mode is recording intent, committing more, then
@@ -57,12 +57,12 @@ HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 
 # Description: echo the source dirs whose delivery record concerns this push.
 # Args:   none (reads REPO_ROOT / HEAD_SHA)
-# Output: repo-relative source dirs, e.g. sources/DP-462-spine-cutover
+# Output: repo-relative issue dirs, e.g. issues/framework/DP-462-spine-cutover
 #
 # Relevance is decided by the head the record itself names, not by which files
-# the push happens to touch. An earlier version matched paths under sources/ and
+# the push happens to touch. An earlier version matched paths under issues/ and
 # was wrong: a spine source's work usually lands in scripts/ or skills/, and only
-# the record lives under sources/, so real deliveries were not recognised as
+# the record lives under issues/, so real deliveries were not recognised as
 # deliveries at all. The record already states which commit it is about — reading
 # that is both simpler and correct, and it is the authoritative field the path
 # heuristic was standing in for.
@@ -71,11 +71,15 @@ HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 # in the range about to leave the machine. A record whose head is already in
 # origin/main describes work that shipped, and is none of this push's business.
 relevant_records() {
-  local record source head destination
-  for record in "$REPO_ROOT"/sources/*/.spine/delivery.json; do
+  local record issue head destination
+  # 兩層都要掃。交付紀錄只有在單收斂之後才寫得出來，而收斂那一刻歸檔器就把單搬進
+  # {命名空間}/archive/——所以「活躍區那一層」這個範圍，結構上永遠一份紀錄都看不到。
+  # 只掃 issues/*/*/ 的版本讓這道閘對每一次真實交付都回「這不是脊椎推送」。
+  for record in "$REPO_ROOT"/issues/*/*/.spine/delivery.json \
+                "$REPO_ROOT"/issues/*/archive/*/.spine/delivery.json; do
     [[ -f "$record" ]] || continue
-    source="${record#"$REPO_ROOT/"}"
-    source="${source%/.spine/delivery.json}"
+    issue="${record#"$REPO_ROOT/"}"
+    issue="${issue%/.spine/delivery.json}"
     head="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
       "$record" 2>/dev/null || true)"
     [[ -n "$head" ]] || continue
@@ -83,7 +87,7 @@ relevant_records() {
       "$record" 2>/dev/null || true)"
 
     if [[ "$head" == "$HEAD_SHA" ]]; then
-      printf '%s\t%s\t%s\n' "$source" current "$destination"
+      printf '%s\t%s\t%s\n' "$issue" current "$destination"
       continue
     fi
     # A head this repository does not contain cannot be reasoned about at all —
@@ -91,7 +95,7 @@ relevant_records() {
     # out silently, leaving the release tail to announce "record current" from an
     # empty check. It is unusable, which is a refusal, not an absence of opinion.
     if ! git -C "$REPO_ROOT" cat-file -e "${head}^{commit}" 2>/dev/null; then
-      printf '%s\t%s\t%s\n' "$source" unknown_head "$destination"
+      printf '%s\t%s\t%s\n' "$issue" unknown_head "$destination"
       continue
     fi
     # Already contained in what the remote has: shipped, not stale.
@@ -101,7 +105,7 @@ relevant_records() {
     # In the range being pushed but not at its tip: work continued after the
     # second gate signed off, and the record no longer describes what ships.
     if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" "$HEAD_SHA" 2>/dev/null; then
-      printf '%s\t%s\t%s\n' "$source" stale "$destination"
+      printf '%s\t%s\t%s\n' "$issue" stale "$destination"
     fi
   done
 }
@@ -109,17 +113,17 @@ relevant_records() {
 # Collected with a read loop rather than mapfile: the stock macOS bash is 3.2 and
 # has no mapfile, so a gate written with it would silently exit 127 on the very
 # machine that runs the pre-push hook.
-SOURCES=()
+RECORDS=()
 while IFS= read -r line; do
-  [[ -n "$line" ]] && SOURCES+=("$line")
+  [[ -n "$line" ]] && RECORDS+=("$line")
 done < <(relevant_records)
 
-# Introspection: which records concern this push, as source \t state \t destination.
+# Introspection: which records concern this push, as issue \t state \t destination.
 # Added for the leak gate, which no longer needs it; kept because "which record
 # concerns this push" must have exactly one resolver, and a future second reader
 # asking that question has to come here rather than grow its own.
 if [[ "$PRINT_RECORDS" -eq 1 ]]; then
-  for entry in "${SOURCES[@]:-}"; do
+  for entry in "${RECORDS[@]:-}"; do
     [[ -n "$entry" ]] && printf '%s\n' "$entry"
   done
   exit 0
@@ -127,7 +131,7 @@ fi
 
 # No record concerns this push, so this gate has no opinion and must not claim
 # ownership — the task.md-shaped gates still own whatever this is.
-if [[ ${#SOURCES[@]} -eq 0 ]]; then
+if [[ ${#RECORDS[@]} -eq 0 ]]; then
   [[ "$IS_SPINE_PUSH_QUERY" -eq 1 ]] && exit 1
   exit 0
 fi
@@ -138,31 +142,31 @@ fi
 [[ "$IS_SPINE_PUSH_QUERY" -eq 1 ]] && exit 0
 
 failures=0
-for entry in "${SOURCES[@]}"; do
-  # Fields are source \t state \t destination; read them positionally rather than
+for entry in "${RECORDS[@]}"; do
+  # Fields are issue \t state \t destination; read them positionally rather than
   # by trimming from the ends, which silently picked up the wrong field the moment
   # a third column arrived.
-  IFS=$'\t' read -r source state _destination <<<"$entry"
+  IFS=$'\t' read -r issue state _destination <<<"$entry"
 
   if [[ "$state" == "current" ]]; then
-    echo "$PREFIX ✅ ${source}: delivery intent current @ ${HEAD_SHA:0:12}." >&2
+    echo "$PREFIX ✅ ${issue}: delivery intent current @ ${HEAD_SHA:0:12}." >&2
     continue
   fi
 
   recorded="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
-    "$REPO_ROOT/$source/.spine/delivery.json" 2>/dev/null || true)"
+    "$REPO_ROOT/$issue/.spine/delivery.json" 2>/dev/null || true)"
   if [[ "$state" == "unknown_head" ]]; then
-    echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${recorded:0:12}, which this repository does not contain." >&2
+    echo "$PREFIX BLOCKED: ${issue} recorded its delivery intent at ${recorded:0:12}, which this repository does not contain." >&2
     echo "$PREFIX A record pinned to a commit that is not here describes work this push cannot be." >&2
     echo "$PREFIX Re-run judge's handoff step from the checkout that is shipping:" >&2
-    echo "$PREFIX   bash scripts/record-delivery-intent.sh --source ${source} --version-bump <bump> --summary '<line>'" >&2
+    echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
     failures=$((failures + 1))
     continue
   fi
-  echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${recorded:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
+  echo "$PREFIX BLOCKED: ${issue} recorded its delivery intent at ${recorded:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
   echo "$PREFIX The record the release tail reads describes a different commit than the one being pushed." >&2
   echo "$PREFIX Re-run judge's handoff step so the record and the commit agree:" >&2
-  echo "$PREFIX   bash scripts/record-delivery-intent.sh --source ${source} --version-bump <bump> --summary '<line>'" >&2
+  echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
   failures=$((failures + 1))
 done
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Purpose: Ship what the second gate signed off, reading {source}/.spine/delivery.json.
-# Inputs:  --source <dir>, optional --repo, --execute (default is a preview).
+# Purpose: Ship what the second gate signed off, reading {issue}/.spine/delivery.json.
+# Inputs:  --issue <dir>, optional --repo, --execute (default is a preview).
 # Outputs: version compression, main promotion, and — for a template-bound
 #          source — template sync, tag and GitHub release. Exit 1 on any refusal.
 #
@@ -26,7 +26,7 @@
 
 set -euo pipefail
 
-SOURCE_DIR=""
+ISSUE_DIR=""
 REPO_PATH=""
 EXECUTE=0
 PROBE_TAG=""
@@ -45,7 +45,7 @@ note() { echo "   $*" >&2; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --source)  SOURCE_DIR="${2:-}"; shift 2 ;;
+    --issue)  ISSUE_DIR="${2:-}"; shift 2 ;;
     --repo)    REPO_PATH="${2:-}"; shift 2 ;;
     --execute) EXECUTE=1; shift ;;
     # Answers "has origin already released this version?" and exits. The tail asks
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     # release; two answers to one question is how the skip below went wrong.
     --origin-has-tag) PROBE_TAG="${2:-}"; shift 2 ;;
     -h|--help)
-      echo "Usage: spine-release.sh --source <dir> [--repo <path>] [--execute]" >&2
+      echo "Usage: spine-release.sh --issue <dir> [--repo <path>] [--execute]" >&2
       echo "Without --execute this previews what it would do and changes nothing." >&2
       exit 0
       ;;
@@ -61,7 +61,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$SOURCE_DIR" || -n "$PROBE_TAG" ]] || die "POLARIS_SPINE_RELEASE_USAGE" "--source is required"
+[[ -n "$ISSUE_DIR" || -n "$PROBE_TAG" ]] || die "POLARIS_SPINE_RELEASE_USAGE" "--issue is required"
 [[ -n "$REPO_PATH" ]] || REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REPO_PATH="$(cd "$REPO_PATH" && pwd)"
 
@@ -84,10 +84,10 @@ SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 兩份會漂，而漂掉的那一刻正好是「判定過的東西」與「出貨的東西」對不上的時候。
 VERIFY_AC="$(cd "$SCRIPTS/../../verify-ac/scripts" && pwd)"
 
-RECORD="$REPO_PATH/$SOURCE_DIR/.spine/delivery.json"
+RECORD="$REPO_PATH/$ISSUE_DIR/.spine/delivery.json"
 [[ -f "$RECORD" ]] || die "POLARIS_SPINE_RELEASE_NO_RECORD" \
-  "$SOURCE_DIR has no delivery record; the second gate has not handed anything over." \
-  "Run verify-ac, then: bash .claude/skills/verify-ac/scripts/record-delivery-intent.sh --source $SOURCE_DIR ..."
+  "$ISSUE_DIR has no delivery record; the second gate has not handed anything over." \
+  "Run verify-ac, then: bash .claude/skills/verify-ac/scripts/record-delivery-intent.sh --issue $ISSUE_DIR ..."
 
 # Description: echo one field from the delivery record.
 # Args: $1 = field name
@@ -112,7 +112,7 @@ BRANCH="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD)"
 HEAD_SHA="$(git -C "$REPO_PATH" rev-parse HEAD)"
 
 step "delivery record"
-note "source        $SOURCE_DIR"
+note "source        $ISSUE_DIR"
 note "destination   $DESTINATION"
 note "judged by     ${JUDGED_BY:-unknown}"
 note "recorded head ${RECORDED_HEAD:0:12}"
@@ -121,10 +121,10 @@ note "branch        $BRANCH"
 
 # The fence and the record must both still hold, checked here rather than trusted
 # from whenever verify-ac ran.
-if ! bash "$VERIFY_AC/frozen-assertion-fence.sh" verify "$REPO_PATH/$SOURCE_DIR/index.md" >/dev/null 2>&1; then
+if ! bash "$VERIFY_AC/frozen-assertion-fence.sh" verify "$REPO_PATH/$ISSUE_DIR/index.md" >/dev/null 2>&1; then
   die "POLARIS_SPINE_RELEASE_FENCE_UNVERIFIED" \
-    "$SOURCE_DIR/index.md no longer matches what was signed; refusing to ship." \
-    "  bash .claude/skills/verify-ac/scripts/frozen-assertion-fence.sh verify $SOURCE_DIR/index.md"
+    "$ISSUE_DIR/index.md no longer matches what was signed; refusing to ship." \
+    "  bash .claude/skills/verify-ac/scripts/frozen-assertion-fence.sh verify $ISSUE_DIR/index.md"
 fi
 if ! bash "$SCRIPTS/gate-spine-delivery.sh" --repo "$REPO_PATH" >/dev/null 2>&1; then
   die "POLARIS_SPINE_RELEASE_RECORD_STALE" \
@@ -167,7 +167,7 @@ if [[ "$DESTINATION" == "template" ]]; then
     parent="$(git -C "$REPO_PATH" rev-parse HEAD^)"
     [[ "$parent" == "$HEAD_SHA" ]] || die "POLARIS_SPINE_RELEASE_UNEXPECTED_DELTA" \
       "the version commit is not sitting directly on the judged head; refusing to re-pin."
-    bash "$VERIFY_AC/record-delivery-intent.sh" --source "$SOURCE_DIR" \
+    bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_DIR" \
       --version-bump "$VERSION_BUMP" --summary "$SUMMARY" --head "$new_head" >&2
     HEAD_SHA="$new_head"
   else
@@ -278,4 +278,4 @@ fi
 land_locally
 
 step "done"
-note "$SOURCE_DIR shipped at $tag"
+note "$ISSUE_DIR shipped at $tag"

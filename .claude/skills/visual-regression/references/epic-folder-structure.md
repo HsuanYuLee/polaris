@@ -40,7 +40,16 @@ docs-manager/src/content/docs/specs/companies/{company}/{EPIC_KEY}/
 docs-manager/src/content/docs/specs/companies/{company}/archive/{EPIC_KEY}/
 ```
 
-Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。只有 parent container 已標 `IMPLEMENTED` 或 `ABANDONED` 時，才可執行 `.claude/skills/visual-regression/scripts/archive-spec.sh {EPIC_KEY}`。Archive 後 docs-manager 會直接讀取 `docs-manager/src/content/docs/specs/companies/{company}/archive/{EPIC_KEY}/` canonical folder tree；resolver / engineering 預設不再把它當 active work。
+Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。
+
+**這個 move 不再由本 skill 做，也沒有 helper 可以叫。** 舊層那支歸檔 helper 已經
+拆掉——它是第二套決定「這張單完成了沒有」的機制，跟 `.spine/loop-state.json` 打架。現在
+只有一個權威：單收斂時，`spine-loop-state.sh record` 自己呼叫
+`archive-delivered-issues.sh` 把它搬進同命名空間的 `archive/`。
+
+留在 `docs-manager/src/content/docs/specs/` 底下的是**證據**（截圖、報告、build 產物），
+不是知識。知識已經跟著單搬進 `issues/`。要找一張舊單的來龍去脈去 `issues/`，要找它當時
+貼的圖才來這裡。詳見 `.claude/rules/document-flow.md`。
 
 ## Path Resolution
 
@@ -68,31 +77,21 @@ Archive 是整個 container 的 move，不是 copy；active namespace 與 archiv
 | `tests/vr/baseline/` | visual-regression (record) | visual-regression (compare) | Epic 存續期 |
 | `verification/` | verify-AC | verify-AC (re-run), human review | Epic 存續期 |
 
-Framework DP release closeout 會在 parent DP 變成 `IMPLEMENTED` 後自動執行 archive
-move；docs-manager 直接讀 canonical `specs/`，因此不需要額外 viewer sync。
+### 換位置由流程做
 
-Product Epic / Bug / Task closeout 後若不再需要留在 active sidebar，執行 archive helper：
+一張單換不換位置，由 `issues/{命名空間}/{單}/.spine/loop-state.json` 的 `status` 決定，
+沒有第二個開關、也沒有 frontmatter 欄位可以覆寫它。`spine-loop-state.sh record` 寫完輪次
+就呼叫 `archive-delivered-issues.sh`，把 `converged` 的搬進 `archive/`，把還沒收斂卻躺在
+`archive/` 的搬回來。
 
-```bash
-.claude/skills/visual-regression/scripts/archive-spec.sh {EPIC_KEY}
-```
-
-產品 specs 的 archive 刻意不是自動化 closeout 的一部分；執行者需確認該
-Epic / Bug / Task container 已完成或已放棄，且短期不需要作為 active work 入口。
-
-需要批次整理既有完成或放棄 specs 時，先產 dry-run report，再 apply：
+想看位置與狀態對不對得上，跑：
 
 ```bash
-.claude/skills/visual-regression/scripts/archive-spec.sh --sweep --dry-run
-.claude/skills/visual-regression/scripts/archive-spec.sh --sweep --apply
+bash .claude/skills/verify-ac/scripts/archive-delivered-issues.sh --check
 ```
 
-Sweep 規則：
-
-- company container 優先讀 `refinement.md` frontmatter `status`，沒有時讀 `plan.md`
-- `IMPLEMENTED` / `ABANDONED` 會搬到 archive
-- `SEEDED` / `DISCUSSION` / `LOCKED` / missing status 只會保留在 active namespace
-- destination 已存在時 fail loud，避免 active/archive duplicate
+`--check` 是用來讓落差被看見，不是用來讓人選一邊。手動 `git mv` 一張單，下一次 `record`
+會把它搬回它該在的地方——這是對的。想讓一張單離開待辦清單，讓它收斂，不要搬它。
 - sweep 後 docs-manager 會直接讀 canonical specs；framework 只更新文件與 route metadata，不自動啟動或重啟 viewer。需要 static/search 驗證時，先由使用者啟動 preview viewer，再執行 `.claude/skills/visual-regression/scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview`
 
 ## Bootstrap（新 Epic）

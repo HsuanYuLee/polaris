@@ -37,12 +37,11 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 3. 計算 `YDY_DATE`、`PRESENT_DATE`、`TDT_PLAN_DATE`；使用者指定日期時以使用者為準。
 4. 收集 YDY sources：git commits、JIRA updates、Calendar meetings。
 5. Merge and deduplicate YDY，並做 plan vs actual comparison。
-6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR、Polaris backlog、
-   DP closeout drift。closeout drift 用 `mise run closeout-drift`（呼叫
-   `.claude/skills/standup/scripts/detect-closeout-drift.sh --dry-run --json`，report-only，不變更 specs）取得：把
-   `delivered-drift-high`（已交付未 archive，可排入 closeout）與 `stranded`（LOCKED 過期無交付
-   證據，需 review）併入 TDT candidate；`delivered-drift-low` 列為待確認。`gh` 不可用時 report
-   會標 PR 證據未檢，轉述該註記、不視為失敗。
+6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR，以及
+   `issues/` 底下還沒收斂的單。後者用
+   `bash .claude/skills/verify-ac/scripts/archive-delivered-issues.sh --check`（report-only，
+   不搬任何東西）：位置與輪次狀態對不上的會被列出來，併入 TDT candidate。沒有輪次狀態的
+   目錄不參與判定，但數量會印出來——轉述那個數字，不要當成已檢查過。
 7. 收集 BOS：JIRA discuss status、前幾天持續 blocker、使用者口述。
 8. 依 `standup-template.md` 組裝四區塊並呈現給使用者確認。
 9. 使用者確認後，寫 local markdown。

@@ -157,7 +157,7 @@ assert_pass "legacy artifacts are allowed to exist, just not to be required" \
 write_inventory "$WORK/spine-own-state.json" '{
   "kind": "docs",
   "artifacts": [
-    {"path": "sources/DP-999-x/.spine/measurement-ledger.json", "forced": true, "reason": "judge 不承認沒登錄過的量測命令"}
+    {"path": "issues/DP-999-x/.spine/measurement-ledger.json", "forced": true, "reason": "judge 不承認沒登錄過的量測命令"}
   ]
 }'
 assert_pass "the spine's own measurement ledger is not a legacy layer" \

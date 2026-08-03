@@ -1267,7 +1267,7 @@ elif command in {"validate", "scan"}:
             diagnostic = (
                 f"✗✗ HARD FAIL (exit 2) — task.md completion invariant violated in {path}:\n"
                 "   frontmatter 'status: IMPLEMENTED' but file is NOT in tasks/pr-release/.\n"
-                "   Fix: run 'scripts/mark-spec-implemented.sh' (move-first: mv tasks/T.md tasks/pr-release/T.md → update frontmatter).\n"
+                "   Fix: move first, then edit — mv tasks/T.md tasks/pr-release/T.md, then set the frontmatter.\n"
                 "   Reference: skills/references/task-md-schema.md § 5.5 + DP-033 D6"
             )
             if emit:

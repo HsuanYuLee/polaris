@@ -46,8 +46,8 @@ new_repo() {
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name selftest
 
-  source="$repo/sources/DP-000-selftest"
-  mkdir -p "$source"
+  issue="$repo/issues/ns/DP-000-selftest"
+  mkdir -p "$issue"
   {
     echo "---"
     echo "title: selftest source"
@@ -57,9 +57,9 @@ new_repo() {
     echo "<!-- POLARIS-FROZEN-A-BEGIN -->"
     echo "- A-P1 the thing holds."
     echo "<!-- POLARIS-FROZEN-A-END -->"
-  } > "$source/index.md"
+  } > "$issue/index.md"
 
-  bash "$VERIFY_AC/frozen-assertion-fence.sh" seal "$source/index.md" --by selftest >/dev/null
+  bash "$VERIFY_AC/frozen-assertion-fence.sh" seal "$issue/index.md" --by selftest >/dev/null
   echo "scripts" > "$repo/.gitignore"
   git -C "$repo" add -A
   git -C "$repo" commit -qm base
@@ -74,16 +74,16 @@ record() {
   # Args: $1 = repo, $2 = version bump
   (cd "$1" && bash "$VERIFY_AC/run-hardened-oracle.sh" \
     --command 'echo MEASURED' --expect-evidence MEASURED \
-    --evidence-out "$1/sources/DP-000-selftest/.spine/evidence/A-P1.json" >/dev/null)
+    --evidence-out "$1/issues/ns/DP-000-selftest/.spine/evidence/A-P1.json" >/dev/null)
   (cd "$1" && bash "$VERIFY_AC/record-delivery-intent.sh" \
-    --source sources/DP-000-selftest --version-bump "$2" --summary 'a line' >/dev/null)
+    --issue issues/ns/DP-000-selftest --version-bump "$2" --summary 'a line' >/dev/null)
 }
 
 release() {
   # Description: run the release tail in preview mode inside a fixture repo.
   # Args: $1 = repo
   (cd "$1" && bash "$ROOT_DIR/scripts/spine-release.sh" \
-    --repo "$1" --source sources/DP-000-selftest 2>&1)
+    --repo "$1" --issue issues/ns/DP-000-selftest 2>&1)
 }
 
 echo "spine-release selftest"
@@ -104,7 +104,7 @@ p = sys.argv[1]
 d = json.load(open(p))
 d["destination"] = "somewhere-else"
 json.dump(d, open(p, "w"))
-' "$repo/sources/DP-000-selftest/.spine/delivery.json"
+' "$repo/issues/ns/DP-000-selftest/.spine/delivery.json"
 if release "$repo" >/dev/null 2>&1; then
   fail "an unknown destination should refuse to release"
 fi
@@ -115,8 +115,8 @@ echo "  ok  unknown destination refuses"
 # from whenever the record was written.
 repo="$(new_repo tampered template)"
 record "$repo" minor
-sed -i.bak 's/the thing holds/the thing does not hold/' "$repo/sources/DP-000-selftest/index.md"
-rm -f "$repo/sources/DP-000-selftest/index.md.bak"
+sed -i.bak 's/the thing holds/the thing does not hold/' "$repo/issues/ns/DP-000-selftest/index.md"
+rm -f "$repo/issues/ns/DP-000-selftest/index.md.bak"
 if release "$repo" >/dev/null 2>&1; then
   fail "altered assertions should refuse to release"
 fi
@@ -127,11 +127,11 @@ echo "  ok  altered assertions refuse"
 repo="$(new_repo stale template)"
 # The record has to sit on a commit origin does not already have, otherwise it
 # reads as shipped rather than stale and this case proves nothing.
-echo "the work" >> "$repo/sources/DP-000-selftest/notes.md"
+echo "the work" >> "$repo/issues/ns/DP-000-selftest/notes.md"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "the work being delivered"
 record "$repo" minor
-echo "later work" >> "$repo/sources/DP-000-selftest/notes.md"
+echo "later work" >> "$repo/issues/ns/DP-000-selftest/notes.md"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "work after recording"
 if release "$repo" >/dev/null 2>&1; then

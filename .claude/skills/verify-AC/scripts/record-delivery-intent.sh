@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Purpose: Record what judge decided to hand downstream, once its checks pass.
-# Inputs:  --source <dir>, --version-bump patch|minor|major, --summary <text>,
+# Inputs:  --issue <dir>, --version-bump patch|minor|major, --summary <text>,
 #          optional --head <sha> (defaults to HEAD).
-# Outputs: writes {source}/.spine/delivery.json; exit 1 if the source is not in
+# Outputs: writes {issue}/.spine/delivery.json; exit 1 if the source is not in
 #          a deliverable state.
 #
 # This is the seam between the second gate and whatever ships the result. It
@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-SOURCE_DIR=""
+ISSUE_DIR=""
 VERSION_BUMP=""
 SUMMARY=""
 HEAD_SHA=""
@@ -36,19 +36,19 @@ die() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --source)       SOURCE_DIR="${2:-}"; shift 2 ;;
+    --issue)       ISSUE_DIR="${2:-}"; shift 2 ;;
     --version-bump) VERSION_BUMP="${2:-}"; shift 2 ;;
     --summary)      SUMMARY="${2:-}"; shift 2 ;;
     --head)         HEAD_SHA="${2:-}"; shift 2 ;;
     -h|--help)
-      echo "Usage: record-delivery-intent.sh --source <dir> --version-bump patch|minor|major --summary <text> [--head <sha>]" >&2
+      echo "Usage: record-delivery-intent.sh --issue <dir> --version-bump patch|minor|major --summary <text> [--head <sha>]" >&2
       exit 2
       ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
 
-[[ -n "$SOURCE_DIR" ]] || die "POLARIS_DELIVERY_INTENT_USAGE" "--source is required"
+[[ -n "$ISSUE_DIR" ]] || die "POLARIS_DELIVERY_INTENT_USAGE" "--issue is required"
 [[ -n "$SUMMARY" ]] || die "POLARIS_DELIVERY_INTENT_USAGE" \
   "--summary is required; it becomes the changelog entry a human will read"
 
@@ -59,8 +59,8 @@ case "$VERSION_BUMP" in
 esac
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-INDEX="$SOURCE_DIR/index.md"
-[[ -f "$INDEX" ]] || die "POLARIS_DELIVERY_INTENT_NO_INDEX" "no index.md under $SOURCE_DIR"
+INDEX="$ISSUE_DIR/index.md"
+[[ -f "$INDEX" ]] || die "POLARIS_DELIVERY_INTENT_NO_INDEX" "no index.md under $ISSUE_DIR"
 
 # A source that cannot prove its assertions are the ones that were signed has
 # nothing to deliver against.
@@ -88,11 +88,11 @@ destination="$(awk '
 # Two repositories, two heads, and they are not interchangeable. What ships is the
 # checkout this is invoked from — not the one this script happens to sit in, which
 # differs inside a worktree. What was judged is the source's own repository, which
-# sources/ is: the documents belong to whoever uses the framework, so they are
+# issues/ is: the documents belong to whoever uses the framework, so they are
 # versioned separately. Recording only one of these would leave the release tail
 # pinned to a commit from the wrong history.
 DELIVERING_REPO="$(git rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
-SOURCE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$DELIVERING_REPO")"
+ISSUE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$DELIVERING_REPO")"
 if [[ -z "$HEAD_SHA" ]]; then
   HEAD_SHA="$(git -C "$DELIVERING_REPO" rev-parse HEAD 2>/dev/null || true)"
 fi
@@ -101,7 +101,7 @@ fi
 
 # Empty when the source has no history of its own — the fence verifier already
 # refuses that case, so this records the absence rather than inventing a value.
-SOURCE_HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
+ISSUE_HEAD_SHA="$(git -C "$ISSUE_REPO" rev-parse HEAD 2>/dev/null || true)"
 
 # Every assertion the fence declares has to have been measured, at this head, by
 # the oracle. Before this check nothing anywhere required evidence to exist
@@ -118,7 +118,7 @@ SOURCE_HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
 # The producer has to be the oracle because a hand-written PASS is
 # self-certification. The oracle pins tools before trusting them and keeps the
 # exit code; a JSON file is whoever typed it.
-python3 - "$INDEX" "$SOURCE_DIR/.spine/evidence" "$HEAD_SHA" <<'PY' || exit 1
+python3 - "$INDEX" "$ISSUE_DIR/.spine/evidence" "$HEAD_SHA" <<'PY' || exit 1
 import json
 import os
 import re
@@ -181,12 +181,12 @@ PY
 judged_by="$(git -C "$DELIVERING_REPO" config user.name 2>/dev/null || echo unknown)"
 judged_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-OUT_DIR="$SOURCE_DIR/.spine"
+OUT_DIR="$ISSUE_DIR/.spine"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
-python3 - "$OUT" "$SOURCE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
-  "$SUMMARY" "$judged_by" "$judged_at" "$SOURCE_HEAD_SHA" <<'PY'
+python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
+  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
 import json
 import sys
 
@@ -197,7 +197,7 @@ payload = {
     "source": source,
     "destination": destination,
     "head_sha": head,
-    "source_head_sha": source_head,
+    "issue_head_sha": source_head,
     "version_bump": bump,
     "changelog_summary": summary,
     "judged_by": by,
@@ -209,4 +209,5 @@ with open(out, "w", encoding="utf-8") as handle:
 PY
 
 echo "RECORDED: $OUT"
-echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${SOURCE_HEAD_SHA:0:12} bump=$VERSION_BUMP"
+echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${ISSUE_HEAD_SHA:0:12} bump=$VERSION_BUMP"
+

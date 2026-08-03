@@ -2,10 +2,10 @@
 name: refinement
 description: 有人帶著一件要做的事出現時的第一站。先判斷這件事要不要立案並說出依據；要立案的，把「怎麼算成功」談成人簽得下去的斷言，凍結起來。任何會改變程式碼或行為的請求都從這裡進，使用者不需要記得這個名字。
 when_to_use: |
-  使用者說出一件想做的事、而現場還沒有對應的 source 時。例如「幫我做 X」「我要改 Y」
+  使用者說出一件想做的事、而現場還沒有對應的單時。例如「幫我做 X」「我要改 Y」
   「這個需求…」「X 壞了要修」「想重構 Z」——不論有沒有指令名稱。
 
-  也用於：既有 source 的成功定義本身錯了，要回來重簽（第四類流轉）。
+  也用於：既有單的成功定義本身錯了，要回來重簽（第四類流轉）。
 
   不用於：唯讀的查詢與說明（「這支腳本在幹嘛」「查一下 X」）。那些沒有「怎麼算成功」
   要簽，直接回答即可。
@@ -38,29 +38,37 @@ version: 2.0.0
 
 不立案的，到此為止，直接把事情做完。立案的，往下走。
 
-## source 的形狀
+## 單的形狀
 
-一個 source 是一個目錄：
+一張單是一個目錄：
 
 ```
-sources/                         你自己的 git repo，框架 repo 忽略它
-  {source}/
-    index.md                     正文含凍結塊 fence，其餘是活文件
-    .spine/loop-state.json       輪次
-    .spine/measurement-ledger.json 量測命令登錄
+issues/                              你自己的 git repo，框架 repo 忽略它
+  {命名空間}/                        自己的框架工作、某家公司、某個專案——你決定怎麼分
+    {單號}/
+      index.md                       正文含凍結塊 fence，其餘是活文件
+      .spine/loop-state.json         輪次
+      .spine/measurement-ledger.json 量測命令登錄
+    archive/
+      {單號}/                        收斂完的搬到這裡，流程自己搬
 ```
 
-**`sources/` 不歸框架版控。** 它記的是你在做什麼、為什麼這樣定義成功；換一個人用同一套
-框架，這裡的內容完全不一樣。框架只提供空殼（`_template/sources/`）。第一次使用時：
+命名空間叫什麼**不影響任何判定**——流程逐個走過去，不從名字推導行為。開一張新的單時，
+放進它該屬於的命名空間；不確定放哪就開一個新的，命名空間本身沒有註冊表要維護。
+
+**`issues/` 不歸框架版控。** 它記的是你在做什麼、為什麼這樣定義成功；換一個人用同一套
+框架，這裡的內容完全不一樣。框架只提供空殼（`_template/issues/`）。第一次使用時：
 
 ```bash
-cp _template/sources/README.md sources/README.md
-cp _template/sources/gitignore.example sources/.gitignore
-cd sources && git init && git add . && git commit -m "sources: 開始"
+mkdir -p issues
+cp _template/issues/README.md issues/README.md
+cp _template/issues/gitignore.example issues/.gitignore
+git -C issues init
+git -C issues add . && git -C issues commit -m "issues: 開始"
 ```
 
 它仍然必須是一個 git repo——理由見下方〈凍結 ＝ commit〉。`verify` 從檔案自己的路徑解析
-repo，會自動跟著 `sources/` 進它自己的歷史，不需要告訴它。
+repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 
 凍結塊與活文件同檔。這是成本地板：一個工作被迫產生的檔案不超過兩個（這份與 code），
 純文件類的工作只有一份。
@@ -90,16 +98,16 @@ repo，會自動跟著 `sources/` 進它自己的歷史，不需要告訴它。
 
 ```bash
 # 1. 蓋封條（算的是 fence 內文，寫封條本身不會讓它失效）
-bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh seal {source}/index.md --by {簽的人}
+bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh seal {issue}/index.md --by {簽的人}
 
 # 2. commit —— 這一步才是凍結
-git add {source}/index.md && git commit -m "freeze: {source} 斷言"
+git add {issue}/index.md && git commit -m "freeze: {issue} 斷言"
 
 # 3. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
-bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {source}/index.md
+bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/index.md
 
 # 4. 開輪次
-bash .claude/skills/refinement/scripts/spine-loop-state.sh init --state {source}/.spine/loop-state.json
+bash .claude/skills/refinement/scripts/spine-loop-state.sh init --state {issue}/.spine/loop-state.json
 ```
 
 **凍結 ＝ commit，不是 ＝ 蓋封條。** 封條只證明 fence 內文與 frontmatter 自洽——改了 fence
@@ -107,7 +115,7 @@ bash .claude/skills/refinement/scripts/spine-loop-state.sh init --state {source}
 git 歷史：`verify` 預設把 fence 內文與該檔在 HEAD 的版本比，不同就 fail-closed，重簽不構成
 授權。所以人的確認不是那個參數，是那個會出現在 diff 裡、有人看得到的 commit。
 
-沒 commit 的斷言等於還沒凍結。source 若不在 git 裡，`verify` 直接回
+沒 commit 的斷言等於還沒凍結。單若不在 git 裡，`verify` 直接回
 `POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE`——不讓「放在未追蹤的位置」買回豁免。
 
 ## 這裡不做的事
@@ -124,7 +132,7 @@ seal 完成、`verify` PASS、loop state 建好，就轉 `engineering`——**�
 的東西。
 
 ```bash
-bash .claude/skills/refinement/scripts/spine-loop-state.sh where --state {source}/.spine/loop-state.json
+bash .claude/skills/refinement/scripts/spine-loop-state.sh where --state {issue}/.spine/loop-state.json
 ```
 
 它會說出站別、有沒有停、還剩幾輪。**任何時候不確定現在在哪，就跑它，不要問人**——問人
@@ -141,8 +149,8 @@ bash .claude/skills/refinement/scripts/spine-loop-state.sh where --state {source
 
 ```bash
 bash .claude/skills/refinement/scripts/spine-loop-state.sh stop \
-  --state {source}/.spine/loop-state.json --kind surfaced_concern --note '<一句話>'
+  --state {issue}/.spine/loop-state.json --kind surfaced_concern --note '<一句話>'
 ```
 
 這四種以外的字串會被拒絕。停了就要留下紀錄再開口——**停在紀錄外等於沒停**，回來的人只看得到
-一個不動的 source，看不到它為什麼不動。
+一張不動的單，看不到它為什麼不動。

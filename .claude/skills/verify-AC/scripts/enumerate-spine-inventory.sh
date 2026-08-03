@@ -2,8 +2,8 @@
 # Purpose: Produce the inventory check-spine-cost-floor.sh consumes, by looking at
 #          what a delivery actually left behind rather than by asking someone to
 #          list it.
-# Inputs:  --source <dir>, optional --base <ref> (default origin/main),
-#          optional --out <path> (default {source}/.spine/inventory.json).
+# Inputs:  --issue <dir>, optional --base <ref> (default origin/main),
+#          optional --out <path> (default {issue}/.spine/inventory.json).
 # Outputs: the inventory JSON at --out; a one-line summary on stderr.
 #          Exit 2 on usage or a missing source.
 #
@@ -21,7 +21,7 @@
 # question about the flow, not about effort, so the rule is stated here rather than
 # left to the caller:
 #
-#   {source}/index.md               refinement seals it, verify-ac verifies it
+#   {issue}/index.md               refinement seals it, verify-ac verifies it
 #   .spine/loop-state.json          engineering cannot record a round without it
 #   .spine/measurement-ledger.json  judge refuses a command it has not sanctioned
 #   .spine/delivery.json            the release tail has nothing to read without it
@@ -40,7 +40,7 @@
 
 set -euo pipefail
 
-SOURCE_DIR=""
+ISSUE_DIR=""
 BASE_REF="origin/main"
 OUT=""
 
@@ -54,14 +54,14 @@ die() {
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  enumerate-spine-inventory.sh --source <dir> [--base <ref>] [--out <path>]
+  enumerate-spine-inventory.sh --issue <dir> [--base <ref>] [--out <path>]
 EOF
   exit 2
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --source) SOURCE_DIR="${2:-}"; shift 2 ;;
+    --issue) ISSUE_DIR="${2:-}"; shift 2 ;;
     --base)   BASE_REF="${2:-}"; shift 2 ;;
     --out)    OUT="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
@@ -69,15 +69,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$SOURCE_DIR" ]] || usage
-SOURCE_DIR="${SOURCE_DIR%/}"
+[[ -n "$ISSUE_DIR" ]] || usage
+ISSUE_DIR="${ISSUE_DIR%/}"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [[ -n "$REPO_ROOT" ]] || die "POLARIS_SPINE_INVENTORY_NO_REPO" "not inside a git repository"
-[[ -d "$REPO_ROOT/$SOURCE_DIR" ]] || die "POLARIS_SPINE_INVENTORY_SOURCE_MISSING" \
-  "no source directory at $SOURCE_DIR"
+[[ -d "$REPO_ROOT/$ISSUE_DIR" ]] || die "POLARIS_SPINE_INVENTORY_SOURCE_MISSING" \
+  "no source directory at $ISSUE_DIR"
 
-[[ -n "$OUT" ]] || OUT="$REPO_ROOT/$SOURCE_DIR/.spine/inventory.json"
+[[ -n "$OUT" ]] || OUT="$REPO_ROOT/$ISSUE_DIR/.spine/inventory.json"
 
 # A base that does not resolve would silently produce an empty diff, and an empty
 # diff reads as "this delivery forced nothing" — the most flattering possible lie.
@@ -87,7 +87,7 @@ git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1 \
 
 CHANGED="$(git -C "$REPO_ROOT" diff --name-only "$BASE_REF"...HEAD 2>/dev/null || true)"
 
-python3 - "$REPO_ROOT" "$SOURCE_DIR" "$OUT" "$CHANGED" <<'PY'
+python3 - "$REPO_ROOT" "$ISSUE_DIR" "$OUT" "$CHANGED" <<'PY'
 import json
 import os
 import sys

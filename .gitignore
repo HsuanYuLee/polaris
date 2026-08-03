@@ -1,177 +1,59 @@
-# ============================================
-# Workspace .gitignore — whitelist mode
-# Default: ignore everything, then explicitly allow workspace files
-# ============================================
-
-# Ignore everything
-*
-
-# ── Workspace base files (L1) ──
-!.gitignore
-!.gitmodules
-!CLAUDE.md
-!README.md
-!README.zh-TW.md
-!LICENSE
-!VERSION
-!CHANGELOG.md
-!package.json
-!pnpm-workspace.yaml
-!pnpm-lock.yaml
-!.changeset/
-!.changeset/**
-!tests/
-!tests/**
-!AGENTS.md
-!workspace-config.yaml.example
-!polaris-toolchain.yaml
-
-# ── Framework project config (tracked allowlist) ──
-!/polaris-config/
-/polaris-config/*
-!/polaris-config/polaris-framework/
-/polaris-config/polaris-framework/*
-!/polaris-config/polaris-framework/handbook/
-!/polaris-config/polaris-framework/handbook/**
-
-# ── docs/ documentation ──
-!docs/
-!docs/**
-
-# ── docs-manager/ specs browser (Starlight app) ──
-!docs-manager/
-!docs-manager/**
-# Generated/runtime docs-manager artifacts
-docs-manager/_sidebar.md
-docs-manager/.astro/
-docs-manager/dist/
-docs-manager/public/evidence/
-docs-manager/src/content/docs/specs/
-
-# ── sources/ (frozen assertions + living documents) ──
-# Not the framework's to version. A source records what *this* user is doing and
-# why they defined success that way; the next person running the same framework
-# has entirely different contents here. So sources/ is its own git repository,
-# owned by whoever uses the framework, and this repository ignores it. The
-# template ships an empty shell (_template/sources/) and nothing else.
+# Polaris workspace .gitignore
 #
-# It still has to be a git repository, because freezing is committing: the seal
-# only proves the fence is self-consistent, and history is the only tamper
-# evidence a writer inside the file cannot rewrite in place. The fence verifier
-# resolves the repository from the file's own path, so it follows sources/ into
-# its own history without being told.
-sources/
+# 這個檔案不只是排除清單，它同時是**分類宣告**。repo 裡沒有被版控的東西只有三類：
+# 在別的 repo 裡被版控的、可以重新產生的、只屬於這台機器的。每一條規則都住在它那一類的
+# 標頭底下，`gate-ignore-classes.sh` 會檢查兩件事——沒有規則指向不存在的東西，也沒有
+# 存在的忽略路徑落在任何一類之外。
+#
+# 不用 whitelist 模式（`*` 之後逐條 `!`）。那個模式下每一條排除規則都被 `*` 遮住，
+# 你沒辦法機械地分辨哪一條還活著、哪一條在防一個已經不存在的機制——2026-08-03 實測
+# 89 條規則裡有 34 條拿掉之後判定完全不變。看不出死活的規則會一直累積。
 
-# ── scripts/ framework utilities ──
-!scripts/
-!scripts/**
+# === class: versioned-elsewhere ===
+# 有自己的 git repo。內容不歸這個 repo 管，但它們是被版控的，不是殘留。
 
-# ── tools/ framework runtime packages ──
-!tools/
-!tools/**
+# 每張單記的是這個人在做什麼、為什麼這樣定義成功；換一個人用同一套框架，這裡完全不一樣。
+# 框架只提供空殼（_template/issues/）。它仍然必須是 git repo——凍結 ＝ commit，歷史是唯一
+# 一個寫在檔案裡的人改不掉的竄改證據。
+/issues/
 
-# ── _template/ scaffold directory ──
-!_template/
-!_template/**
+# 舊交付層的 spec 容器，自己是一個 repo（194 MB / 7291 檔）。DP-462 之後沒有人往裡面寫，
+# 但它不是無主的散檔。
+/docs-manager/src/content/docs/specs/
 
-# Company directories are local workspace context only.
-# They contain company repos, company handbooks, generated scripts, local secrets,
-# and Polaris-managed company config. They are read by framework tooling with
-# --no-ignore where needed, but must not enter workspace/template tracking.
+# === class: machine-local ===
+# 只存在於這台機器：公司內容、本機設定、跨 session 的本機狀態。
+# 它們不進版控是對的，不是殘留。
 
-# ── .claude/ directory (rules, hooks, settings) ──
-!.claude/
-!.claude/instructions/
-!.claude/instructions/**
-!.claude/hooks/
-!.claude/hooks/**
-!.claude/rules/
-!.claude/rules/**
-!.claude/skills/
-!.claude/skills/**
-!.claude/handbook/
-!.claude/handbook/**
-!.claude/settings.json
-!.claude/settings.local.json.example
-!.claude/settings.local.json.sub-repo-example
+# 公司目錄按名字逐個列，不用 `*/polaris-config/` 這種形狀規則。「頂層任何一個資料夾都算
+# 公司」是用位置判斷身分，多一個資料夾就多一個看不見的豁免；名字寫出來才會出現在 diff 裡。
+/kkday/
+/user/
+/workspace-config.yaml
+/.vscode/
+/.daily-triage.json
+/.claude/settings.local.json
+/.claude/active-thread.md
+/.claude/checkpoints/
+/.claude/projects/
 
-# ── CI baseline (DP-032 D12-c) ──
-!.github/
-!.github/**
-!.pre-commit-config.yaml
+# === class: regenerable ===
+# 刪掉之後跑一次就會回來的執行期產物。
 
-# ── .agents/ directory (Codex skills compatibility) ──
-!.agents/
-!.agents/skills
-!.agents/skills/**
+/.polaris/
+/.pnpm-store/
+/.pytest_cache/
+/.ruff_cache/
+/docs-manager/.astro/
+/docs-manager/dist/
+/docs-manager/public/evidence/
 
-# ── .codex/ directory (Codex runtime compatibility target) ──
-!.codex/
-!.codex/**
+# === class: recurring ===
+# 不綁特定路徑的一類東西，會在任何地方反覆長出來。這一類豁免「目標必須存在」的檢查，
+# 因為它們防的是還沒發生的那一次。
 
-# ============================================
-# Never track (even if manually staged)
-# ============================================
-
-# Personal settings
-.claude/settings.local.json
-
-# Cross-session active-thread anchor (DP-290) — local session state, not source.
-# Written by scripts/update-active-thread.sh, cat'd by the SessionStart hook.
-.claude/active-thread.md
-
-# Local-only user workspace surface. This is intentionally peer-level with
-# company folders, but it is not a company and is never runtime-discovered.
-user/
-
-# Polaris repo-local runtime tools and asset cache.
-.polaris/toolchain/
-.polaris/toolchain/**
-.polaris/runtime/external-writes/
-.polaris/runtime/external-writes/**
-
-# Old runtime cache paths. Direct migration only: durable drafts belong in the
-# owning ticket or DP source container before closeout.
-.codex/external-writes/
-.codex/tmp/
-
-# Spec folders — root specs contains design plans and company-scoped ticket specs.
-/specs/
-
-# User-specific learning data (scanner delivers via Slack; archive is local dedup only)
-.claude/skills/references/learning-queue.md
-.claude/skills/references/learning-archive.md
-
-# Root workspace config (company-specific, not for template)
-workspace-config.yaml
-
-# Company configs (each company's workspace-config.yaml is local-only)
-# /init creates these — they contain company-specific JIRA, GitHub, Slack config
-*/workspace-config.yaml
-
-# Company-specific skills (not pushed to template)
-# After /init, add your company here: .claude/skills/{company}/
-# .claude/skills/acme/
-
-# ── Company polaris-config: workspace-owned local config ──
-# Polaris controls these files in the local workspace, but they are
-# company/project-specific runtime config and must not enter workspace PRs or
-# the Polaris template. Validators read them from disk with --no-ignore.
-*/polaris-config/
-
-# Framework tool runtime (node_modules + outputs)
-.claude/skills/*/scripts/e2e/node_modules/
-scripts/e2e/e2e-results/
-scripts/e2e/e2e-results.json
-scripts/e2e/test-results/
-.claude/skills/*/scripts/mockoon/node_modules/
-tools/polaris-toolchain/node_modules/
-
-# System / IDE
-.DS_Store
 node_modules/
-.vite/
-
-# Python bytecode
 __pycache__/
 *.pyc
+.DS_Store
+.vite/

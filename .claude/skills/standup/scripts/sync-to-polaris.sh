@@ -607,10 +607,10 @@ if [[ -d "$INSTANCE_DIR/docs-manager" ]]; then
     "$INSTANCE_DIR/docs-manager/public/evidence/*" \
     "$INSTANCE_DIR/docs-manager/src/content/docs/specs/*"
 fi
-# sources/ needs no exclusion here on two counts: every sync step copies an
-# explicitly named path, so nothing sweeps the repo root, and sources/ is the
+# issues/ needs no exclusion here on two counts: every sync step copies an
+# explicitly named path, so nothing sweeps the repo root, and issues/ is the
 # user's own repository which this one ignores. What the template does ship is the
-# empty shell at _template/sources/, carried by Step 6 with the rest of _template.
+# empty shell at _template/issues/, carried by Step 6 with the rest of _template.
 
 # ── Step 8: Sync top-level files ──────────────────────────────────
 

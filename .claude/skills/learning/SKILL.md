@@ -63,7 +63,7 @@ Quick path 不可走 Route A；需 Standard / Deep 才能 seed。
 
 研究產出的是**證據與判斷**，不是成功的定義。兩者的分界就是 Route A 的全部規則：
 
-- **source 已存在**：把 research 寫進該 source 的活區（`sources/{source}/index.md` 活區段落），
+- **source 已存在**：把 research 寫進該 source 的活區（`issues/{source}/index.md` 活區段落），
   或放在旁邊的檔案並在活區指過去。**不要碰凍結塊**——那是已經簽過的成功定義，改它要回 `refinement`。
 - **source 不存在**：不要自己建。研究到一個值得立案的題目時，把題目與依據講出來，
   由人在 `refinement` 決定要不要簽。learning 產出的是 `refinement` 的輸入，不是它的替代品。

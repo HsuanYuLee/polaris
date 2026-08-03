@@ -23,7 +23,7 @@ fail() {
 echo "enumerate-spine-inventory selftest"
 
 REPO="$WORK/repo"
-SRC="sources/DP-000-example"
+SRC="issues/DP-000-example"
 mkdir -p "$REPO/$SRC/.spine" "$REPO/scripts" "$REPO/.changeset"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email selftest@example.com
@@ -41,7 +41,7 @@ printf -- '---\nnote\n' > "$REPO/.changeset/example.md"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm work
 
-( cd "$REPO" && bash "$ENUM" --source "$SRC" --base "$BASE" >/dev/null 2>&1 ) \
+( cd "$REPO" && bash "$ENUM" --issue "$SRC" --base "$BASE" >/dev/null 2>&1 ) \
   || fail "the enumerator refused a well-formed delivery"
 
 python3 - "$REPO/$SRC/.spine/inventory.json" "$SRC" <<'PY'
@@ -93,7 +93,7 @@ DOCS_BASE="$(git -C "$DOCS_REPO" rev-parse HEAD)"
 printf 'living document\n' > "$DOCS_REPO/$SRC/index.md"
 git -C "$DOCS_REPO" add -A
 git -C "$DOCS_REPO" commit -qm docs
-( cd "$DOCS_REPO" && bash "$ENUM" --source "$SRC" --base "$DOCS_BASE" >/dev/null 2>&1 ) \
+( cd "$DOCS_REPO" && bash "$ENUM" --issue "$SRC" --base "$DOCS_BASE" >/dev/null 2>&1 ) \
   || fail "the enumerator refused a docs-only delivery"
 python3 - "$DOCS_REPO/$SRC/.spine/inventory.json" <<'PY'
 import json, sys
@@ -103,12 +103,12 @@ echo "  ok  docs-only work is enumerated as docs"
 
 # An unresolvable base would produce an empty diff, and an empty diff reads as
 # "this delivery forced nothing" — the most flattering possible failure.
-if ( cd "$REPO" && bash "$ENUM" --source "$SRC" --base refs/heads/does-not-exist >/dev/null 2>&1 ); then
+if ( cd "$REPO" && bash "$ENUM" --issue "$SRC" --base refs/heads/does-not-exist >/dev/null 2>&1 ); then
   fail "an unresolvable base should fail, not report an empty delivery"
 fi
 echo "  ok  an unresolvable base fails loudly"
 
-if ( cd "$REPO" && bash "$ENUM" --source sources/DP-999-absent >/dev/null 2>&1 ); then
+if ( cd "$REPO" && bash "$ENUM" --issue issues/DP-999-absent >/dev/null 2>&1 ); then
   fail "a missing source should fail, not pass vacuously"
 fi
 echo "  ok  a missing source fails loudly"
