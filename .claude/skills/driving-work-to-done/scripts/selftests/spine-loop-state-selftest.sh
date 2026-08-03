@@ -462,7 +462,8 @@ echo "  ok  身分求不出值時輪次不開，也沒留下 state"
 printf 'lane-A\n' > "$WORK/whoami"
 bash "$LOOP13" init --state "$WORK/w1.json" --pack idpack >/dev/null 2>&1 \
   || fail "身分求得出值卻沒開輪次"
-grep -q '"value": "lane-A"' "$WORK/w1.json" || fail "開輪次沒把身分記進 state"
+grep -q '"lane-A"' "$WORK/w1.json" || fail "開輪次沒把身分記進 state"
+grep -q '"values"' "$WORK/w1.json" || fail "身分沒被記成集合"
 echo "  ok  身分在開輪次那一刻被記下來"
 
 bash "$LOOP13" where --state "$WORK/w1.json" 2>&1 | grep -q '^workspace=ok  lane-A$' \
@@ -501,5 +502,100 @@ grep -q '"kind": "undeclared"' "$WORK/w3.json" || fail "沒宣告身分沒被記
 bash "$LOOP13" where --state "$WORK/w3.json" 2>&1 | grep -q 'workspace=' \
   && fail "沒宣告身分的 pack 卻施加了比對"
 echo "  ok  領域沒宣告身分時不記也不比"
+
+# Case 14：一個地方同時只交付一張單，而身分是一組不是一個。
+#
+# 2026-08-03 三張單疊在同一段歷史上、三份交付紀錄釘在同一個 head、最後一起出去——那個
+# 局面不是誤操作，是 init 只看得到它自己那一張單，所以開得出來。這一段量的是它現在開不
+# 出來了，而且拒絕的訊息說得出是哪一張、交集在哪、怎麼往下走。
+#
+# 一樣用假的 pack：核心不知道那些字串是什麼意思，它只算交集。
+TREE="$WORK/tree14"
+mkdir -p "$TREE/ns/older/.spine" "$TREE/ns/newer/.spine" "$TREE/ns/archive/settled/.spine"
+git -C "$TREE" init -q
+export WORK14="$WORK"
+cat > "$S13/idpack/scripts/who14.sh" <<'EOF'
+#!/usr/bin/env bash
+[[ -f "$WORK14/whoami14" ]] || { echo "求不出身分" >&2; exit 2; }
+cat "$WORK14/whoami14"
+EOF
+chmod +x "$S13/idpack/scripts/who14.sh"
+mkdir -p "$S13/setpack"
+printf '%s\n' '---' 'name: setpack' '---' \
+  "<!-- FAKE-WORKSPACE-IDENTITY: bash $S13/idpack/scripts/who14.sh -->" > "$S13/setpack/SKILL.md"
+
+# 身分是一組：宣告的命令印幾行就記幾個，不是只留第一行。
+printf 'repo-A:lane-1\nrepo-B:lane-2\n' > "$WORK/whoami14"
+bash "$LOOP13" init --state "$TREE/ns/older/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+  || fail "多個身分卻沒開成輪次"
+python3 -c '
+import json, sys
+v = json.load(open(sys.argv[1]))["workspace_identity"]["values"]
+assert v == ["repo-A:lane-1", "repo-B:lane-2"], v
+' "$TREE/ns/older/.spine/loop-state.json" || fail "印了兩個身分卻沒有兩個都被記下來"
+echo "  ok  身分印幾行就記幾個"
+
+# 那張單還沒到終局站別，所以這道閘不參與——它擋的是「已經要出去的那張還佔著這裡」，
+# 不是「這裡有另一張單」。
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+  || fail "同一個地方有一張還在施工的單，卻擋住了新輪次"
+rm -f "$TREE/ns/newer/.spine/loop-state.json"
+echo "  ok  還沒到終局站別的單不參與這道閘"
+
+# 走到終局站別之後，同一個地方開不出第二輪。
+bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to verify-ac >/dev/null 2>&1 \
+  || fail "推不到 verify-ac"
+bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to delivered >/dev/null 2>&1 \
+  || fail "推不到終局站別"
+taken="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack 2>&1)" \
+  && fail "已交付的單還佔著同一個地方，卻開出了新輪次"
+grep -q 'POLARIS_SPINE_WORKSPACE_TAKEN' <<<"$taken" || fail "拒絕沒有帶 marker：$taken"
+grep -q 'ns/older' <<<"$taken" || fail "拒絕沒有指名是哪一張單：$taken"
+grep -q 'repo-A:lane-1' <<<"$taken" || fail "拒絕沒有說出交集落在哪：$taken"
+[[ ! -f "$TREE/ns/newer/.spine/loop-state.json" ]] || fail "被拒的 init 還是留下了 state"
+echo "  ok  同一個地方已有交付中的單時，新輪次開不出來"
+
+# 拒絕要說得出往下走的路。只說不行的閘，下一次就會被繞過去。
+grep -q '釋出尾段' <<<"$taken" || fail "拒絕沒說出修法：$taken"
+grep -q '換一個工作區' <<<"$taken" || fail "拒絕沒說出另一條路：$taken"
+echo "  ok  拒絕帶著修法"
+
+# 交集為空就不擋：這道閘不會因為「這個地方交付過東西」就永久封鎖它。
+printf 'repo-A:lane-9\nrepo-B:lane-9\n' > "$WORK/whoami14"
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+  || fail "交集為空卻擋住了新輪次"
+echo "  ok  交集為空時照常開輪次"
+
+# 只共用其中一個也算疊上去——比的是交集非空，不是相等。
+rm -f "$TREE/ns/newer/.spine/loop-state.json"
+printf 'repo-A:lane-1\nrepo-B:lane-9\n' > "$WORK/whoami14"
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+  && fail "只共用一個地方卻沒被擋"
+echo "  ok  只共用其中一個也算佔著"
+
+# 舊的形狀（單一個 value）仍然比對得動，也仍然擋得住。
+python3 - "$TREE/ns/archive/settled/.spine/loop-state.json" <<'PY'
+import json, sys
+json.dump({"schema_version": 2, "producer": "selftest", "max_rounds": 3, "rounds": [],
+           "status": "open", "station": "delivered", "stop": None, "stops": [],
+           "knowledge_pack": {"pack": "setpack"},
+           "workspace_identity": {"kind": "ok", "value": "repo-A:lane-1"}},
+          open(sys.argv[1], "w"))
+PY
+old="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack 2>&1)" \
+  && fail "以單一值記下的舊單沒有參與判定"
+grep -q 'ns/archive/settled' <<<"$old" || fail "archive 那一層深度沒被掃到：$old"
+echo "  ok  以單一值記下的舊單讀成單成員集合，照樣參與"
+
+# 施工期間的比對是集合相等，而且要說出少了哪些、多了哪些。
+printf 'repo-A:lane-1\n' > "$WORK/whoami14"
+shrunk="$(bash "$LOOP13" where --state "$TREE/ns/older/.spine/loop-state.json" 2>&1)"
+grep -q 'workspace=DRIFTED' <<<"$shrunk" || fail "少了一個成員卻沒說漂掉：$shrunk"
+grep -q '少了：repo-B:lane-2' <<<"$shrunk" || fail "沒說出少了哪一個：$shrunk"
+printf 'repo-A:lane-1\nrepo-B:lane-2\nrepo-C:lane-3\n' > "$WORK/whoami14"
+grown="$(bash "$LOOP13" where --state "$TREE/ns/older/.spine/loop-state.json" 2>&1)"
+grep -q 'workspace=DRIFTED' <<<"$grown" || fail "多了一個成員卻沒說漂掉：$grown"
+grep -q '多了：repo-C:lane-3' <<<"$grown" || fail "沒說出多了哪一個：$grown"
+echo "  ok  比對是集合相等，少了多了都說得出來"
 
 echo "PASS: spine-loop-state-selftest.sh"

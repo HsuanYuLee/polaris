@@ -245,28 +245,45 @@ run_pack_precondition() {
 跳過要有理由，一個沒有理由的跳過不存在。"
 }
 
-# Description: 求一次「這個工作區現在是誰」。
+# Description: 求一次「這個工作區現在是哪些」。
 # Args: $1 = pack 名字
-# Prints: 一行 `<狀態>\t<值或理由>`，狀態是 none|undeclared|ok|unmeasurable
+# Prints: 一行 `<狀態>\t<值>\t<值>…`，狀態是 none|undeclared|ok|unmeasurable；
+#         unmeasurable 的第二欄是理由而不是值。
 #
-# 核心把那個值當**不透明字串**看待：它只會拿它跟先前記下的那一個比相不相等。所以換一個
-# 領域只要換那個領域印什麼，這裡一行都不用動；而「求不出來」有自己的狀態，永遠不會跟
+# 核心把每個值當**不透明字串**看待：它只會拿這一組跟先前記下的那一組比。所以換一個領域
+# 只要換那個領域印什麼，這裡一行都不用動；而「求不出來」有自己的狀態，永遠不會跟
 # 「求出來而且相等」走到同一個分支。
+#
+# **印幾行就是幾個身分。** 第一版在這裡 `head -1`，等於把「一件工作只落在一個地方」寫死
+# 成核心的前提——而這條開發鏈從一開始就不是那樣：交付紀錄同時釘兩個 repo 的 head，
+# assertions_hash 也早就是一個 map。窄口在這一行，不在設計裡。
 pack_identity() {
-  local pack="$1" doc declared value rc=0
-  [[ -n "$pack" && "$pack" != "none" ]] || { printf 'none\t\n'; return 0; }
+  local pack="$1" doc declared value rc=0 joined
+  [[ -n "$pack" && "$pack" != "none" ]] || { printf 'none\n'; return 0; }
   # 這裡解不到 pack 是「量不到」而不是「拒絕」：開輪次那一刻的拒絕由 run_pack_precondition
   # 負責，而事後比對時 pack 不在了，能說的只有「這一行沒有比對到任何東西」。
   doc="$(pack_doc "$pack")" || { printf 'unmeasurable\t解析不到領域知識「%s」\n' "$pack"; return 0; }
   declared="$(pack_declaration "$doc" WORKSPACE-IDENTITY)"
-  [[ -n "$declared" ]] || { printf 'undeclared\t\n'; return 0; }
+  [[ -n "$declared" ]] || { printf 'undeclared\n'; return 0; }
   value="$(run_declared "$declared" 2>/dev/null)" || rc=$?
-  value="$(printf '%s' "$value" | head -1)"
-  if [[ "$rc" -ne 0 || -z "$value" ]]; then
+  # 去尾空白、去空行、去重、排序。集合沒有順序，而一個順序會變的集合每次比對都會漂——
+  # 那種漂看起來跟真的漂掉一模一樣。
+  joined="$(printf '%s\n' "$value" | sed 's/[[:space:]]*$//' | grep -v '^$' | sort -u \
+            | tr '\n' '\t' | sed 's/\t$//')"
+  if [[ "$rc" -ne 0 || -z "$joined" ]]; then
     printf 'unmeasurable\t%s\n' "$declared"
     return 0
   fi
-  printf 'ok\t%s\n' "$value"
+  printf 'ok\t%s\n' "$joined"
+}
+
+# Description: 把 pack_identity 那一行拆成一行一個值。
+# Args: $1 = pack_identity 印出來的那一行
+# Prints: 每個值一行；沒有值時什麼都不印。
+identity_values() {
+  local line="$1"
+  [[ "$line" == *$'\t'* ]] || return 0
+  printf '%s' "${line#*$'\t'}" | tr '\t' '\n'
 }
 
 # Description: 把「當初記下的工作區」與「現在的工作區」比一次，結果印出來。
@@ -276,14 +293,11 @@ pack_identity() {
 # 三種結果各自有自己的字首，`ok` 以外的都不得被讀成一致——特別是 `unmeasurable`，
 # 一個求不出值來的比對什麼都沒比。
 report_workspace_identity() {
-  local state="$1" recorded_kind recorded now_line now_kind now
-  read -r recorded_kind recorded <<<"$(python3 - "$state" <<'PY'
+  local state="$1" recorded_kind now_line now_kind pack
+  recorded_kind="$(python3 - "$state" <<'PY'
 import json, sys
 w = json.load(open(sys.argv[1], encoding="utf-8")).get("workspace_identity")
-if not w:
-    print("unrecorded")           # 這張單開輪次時還沒有這個欄位
-else:
-    print(w.get("kind", "unrecorded"), w.get("value", ""))
+print("unrecorded" if not w else w.get("kind", "unrecorded"))
 PY
 )"
   case "$recorded_kind" in
@@ -293,23 +307,117 @@ PY
       return 0 ;;
   esac
 
-  local pack; pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$state")"
+  pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$state")"
   now_line="$(pack_identity "$pack")"
   now_kind="${now_line%%$'\t'*}"
-  now="${now_line#*$'\t'}"
 
   if [[ "$now_kind" != "ok" ]]; then
-    echo "workspace=unmeasurable  當初記的是「${recorded}」，現在求不出值來（${now_kind}）。"
-    echo "  量不到不等於還在原地——這一行沒有比對到任何東西。"
+    python3 - "$state" "$now_kind" <<'PY'
+import json, sys
+w = json.load(open(sys.argv[1], encoding="utf-8")).get("workspace_identity") or {}
+recorded = w.get("values") or ([w["value"]] if w.get("value") else [])
+print(f"workspace=unmeasurable  當初記的是「{'、'.join(recorded)}」，現在求不出值來（{sys.argv[2]}）。")
+print("  量不到不等於還在原地——這一行沒有比對到任何東西。")
+PY
     return 0
   fi
-  if [[ "$now" == "$recorded" ]]; then
-    echo "workspace=ok  ${now}"
-    return 0
-  fi
-  echo "workspace=DRIFTED  當初記的是「${recorded}」，現在是「${now}」。"
-  echo "  這張單的改動預期落在前者。可能是有人在這個工作區切走了，也可能是另一個 session"
-  echo "  正在共用同一份 checkout——先確認要落在哪一邊，再繼續動手。"
+
+  # 比的是集合相等，不是「有沒有交集」。少一個成員代表這張單原本涵蓋的某個地方現在不在
+  # 手上了，那跟多一個一樣是漂——只要交集非空就當一致的話，涵蓋範圍會靜默縮小。
+  local value
+  local -a vals=()
+  while IFS= read -r value || [[ -n "$value" ]]; do
+    [[ -n "$value" ]] && vals+=("$value")
+  done < <(identity_values "$now_line")
+
+  python3 - "$state" "${vals[@]}" <<'PY'
+import json, sys
+w = json.load(open(sys.argv[1], encoding="utf-8")).get("workspace_identity") or {}
+# 舊的形狀是單一個值。讀成只有一個成員的集合，比對照常進行——一張在這之前開的單
+# 不會因為欄位換了形狀就變成量不到。
+recorded = set(w.get("values") or ([w["value"]] if w.get("value") else []))
+now = set(sys.argv[2:])
+show = lambda s: "、".join(sorted(s)) if s else "（空）"
+if now == recorded:
+    print(f"workspace=ok  {show(now)}")
+    sys.exit(0)
+print(f"workspace=DRIFTED  當初記的是「{show(recorded)}」，現在是「{show(now)}」。")
+missing, extra = recorded - now, now - recorded
+if missing:
+    print(f"  少了：{show(missing)}")
+if extra:
+    print(f"  多了：{show(extra)}")
+print("  這張單的改動預期落在當初記下的那一組。可能是有人在這個工作區切走了，也可能是")
+print("  另一個 session 正在共用同一份 checkout——先確認要落在哪一邊，再繼續動手。")
+PY
+}
+
+# Description: 同一棵單樹裡，有沒有一張已走到終局站別的單正佔著現在這一組身分；有就 die。
+# Args: $1 = 這張新單的 state 檔路徑, $2 = pack_identity 印出來的那一行
+#
+# 比法是**交集非空**，不是相等——共用其中任何一個地方，新的一輪就疊在別人的歷史上了。
+# 這跟 report_workspace_identity 的相等比法問的不是同一件事，所以刻意不共用一支。
+#
+# 2026-08-03 這一天三張單就是這樣疊起來的：三份交付紀錄釘在同一個 head，最後一起出去，
+# 而中間沒有任何一步說過話——init 只看得到它自己那一張單。
+refuse_if_workspace_taken() {
+  local state="$1" line="$2" terminal report value rc=0
+  local -a vals=()
+  terminal="${STATIONS##* }"
+  # 值走 argv，不走 stdin：`python3 -` 的程式本身就是 stdin，heredoc 會把管線蓋掉，
+  # 於是要比對的那一組靜默變成空集合——一道永遠比不到東西的閘，看起來跟一道通過的閘一樣。
+  while IFS= read -r value || [[ -n "$value" ]]; do
+    [[ -n "$value" ]] && vals+=("$value")
+  done < <(identity_values "$line")
+  [[ ${#vals[@]} -gt 0 ]] || return 0
+
+  # 單樹的根用 repo 根解，不從路徑往上數層數——單在活躍區是三層、在 archive/ 裡是四層，
+  # 數死的那一版會在收斂後的單上算出錯的根。這支已經有一個解得對的：issues_root_of。
+  local root; root="$(issues_root_of "$state")"
+  [[ -n "$root" ]] || return 0   # 解不出樹就沒有別張單可以比，不是「通過」也不是「拒絕」
+
+  report="$(python3 - "$state" "$terminal" "$root" "${vals[@]}" <<'PY'
+import glob
+import json
+import os
+import sys
+
+state, terminal, root = os.path.abspath(sys.argv[1]), sys.argv[2], sys.argv[3]
+now = set(sys.argv[4:])
+
+# 兩種深度，跟 next --across-issues 掃的是同一棵樹：活躍的單在 {命名空間}/{單}/，
+# 收斂後被流程搬進 {命名空間}/archive/{單}/。
+paths = sorted(glob.glob(os.path.join(root, "*", "*", ".spine", "loop-state.json"))
+               + glob.glob(os.path.join(root, "*", "*", "*", ".spine", "loop-state.json")))
+
+hits = []
+for path in paths:
+    if os.path.abspath(path) == state:
+        continue
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        continue
+    if data.get("station") != terminal:
+        continue
+    w = data.get("workspace_identity") or {}
+    theirs = set(w.get("values") or ([w["value"]] if w.get("value") else []))
+    shared = theirs & now
+    if shared:
+        name = os.path.relpath(os.path.dirname(os.path.dirname(path)), root)
+        hits.append((name, shared))
+
+if not hits:
+    sys.exit(0)
+for name, shared in hits:
+    print(f"{name} 已經走到終局站別，而它落在「{'、'.join(sorted(shared))}」——跟現在這裡同一個。")
+print("在同一個地方再開一輪，兩張單就疊在同一段歷史上，最後只能一起出去。")
+print("往下走的路有兩條：把那張單的釋出尾段走完（走完之後這裡就不再是它的了），")
+print("或是換一個工作區再開這一輪。")
+sys.exit(3)
+PY
+)" || rc=$?
+  [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_WORKSPACE_TAKEN" "$report"
 }
 
 cmd_init() {
@@ -334,35 +442,48 @@ cmd_init() {
 
   # 「這張單落在哪個工作區」跟開輪次是同一個動作。事後補記的話，補記的時候讀到的已經是
   # 漂掉之後的值，那個欄位就永遠自洽而永遠沒有用。
-  local identity_line identity_kind identity
+  local identity_line identity_kind
+  require_python3
   identity_line="$(pack_identity "$PACK")"
   identity_kind="${identity_line%%$'\t'*}"
-  identity="${identity_line#*$'\t'}"
   if [[ "$identity_kind" == "unmeasurable" ]]; then
     die "POLARIS_SPINE_IDENTITY_UNMEASURABLE" \
-      "${PACK} 宣告了工作區身分（${identity}），但現在求不出值來，輪次不開。
+      "${PACK} 宣告了工作區身分（${identity_line#*$'\t'}），但現在求不出值來，輪次不開。
 記不到值的話，之後每一次比對都只能回「量不到」——那跟沒有這道檢查是同一件事。
 上面那幾行說了缺什麼。"
   fi
-  [[ "$identity_kind" == "ok" ]] || identity=""
 
-  require_python3
-  python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" "$identity_kind" "$identity" <<'PY'
+  # 求得出值來才有東西可以比。求不出來的情形上面已經拒絕過了，所以這裡不會有
+  # 「比不到就當沒事」的分支——那個分支是這道閘唯一有意義的失效方式。
+  [[ "$identity_kind" != "ok" ]] || refuse_if_workspace_taken "$STATE" "$identity_line"
+
+  # 一個一個讀進陣列，不靠展開時的斷詞。核心把每個值當不透明字串，而不透明的字串裡
+  # 可以有空白——靠斷詞的話，一個帶空白的身分會靜默變成兩個。
+  local value
+  local -a identities=()
+  while IFS= read -r value || [[ -n "$value" ]]; do
+    [[ -n "$value" ]] && identities+=("$value")
+  done < <(identity_values "$identity_line")
+
+  python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" "$identity_kind" \
+    ${identities+"${identities[@]}"} <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 state, max_rounds, pack, why = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-identity_kind, identity = sys.argv[5], sys.argv[6]
+identity_kind, identities = sys.argv[5], sys.argv[6:]
 knowledge_pack = {"pack": pack}
 if why:
     knowledge_pack["why"] = why
 # 「這個領域沒有宣告身分」與「有宣告、值是 X」在檔案裡長得不一樣。欄位空著跟被記為
 # 沒有，是同一個安靜的第三態，而那正是這張單要拆掉的形狀。
+#
+# 存成陣列，即使只有一個成員。一張單牽涉幾個地方由領域決定，核心不預設是一個。
 workspace = {"kind": identity_kind}
-if identity:
-    workspace["value"] = identity
+if identities:
+    workspace["values"] = identities
 payload = {
     "workspace_identity": workspace,
     # 領域的決定跟輪次同時落地。分成兩個檔案／兩個動作的那一版，「有沒有記」變成一個
