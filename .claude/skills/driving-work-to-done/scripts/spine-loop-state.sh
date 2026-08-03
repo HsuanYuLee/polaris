@@ -228,8 +228,13 @@ run_declared() {
 run_pack_precondition() {
   local pack="$1" doc declared rc
   [[ "$pack" != "none" ]] || return 0
+  # 拒絕要說得出怎麼往下走。只說「它不在」的話，下一步只剩兩條路：亂猜一個名字，或者
+  # 把這件工作記成沒有領域——而後者買到的是一個永遠不會被檢查的完成條件。
   doc="$(pack_doc "$pack")" || die "POLARIS_SPINE_PACK_UNRESOLVED" \
-    "解析不到領域知識「${pack}」——找不到它的 SKILL.md。指名一個不存在的 pack 是安靜的失敗。"
+    "解析不到領域知識「${pack}」——找不到它的 SKILL.md。指名一個不存在的 pack 是安靜的失敗。
+這個工作區還沒有這一份的話，現在就是凝聚它的時機：回閘一，照那一站〈有些答案每張單都
+一樣〉問出這一類工作在這裡怎麼算 done，寫成那份知識自己的宣告行。做完再跑一次這個命令。
+真的不適用的話用 --pack none --why '<理由>'——但那是一個要說出口的選擇，不是繞道。"
   declared="$(pack_declaration "$doc" PRECONDITION)"
   if [[ -z "$declared" ]]; then
     echo "[spine-loop-state] ${pack} 沒有宣告開工條件，直接開輪次。" >&2

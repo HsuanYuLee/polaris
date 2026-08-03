@@ -55,6 +55,78 @@ repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 設計意圖，不是一個被量的門檻：那幾個檔案是流程自己寫的，數量恆定，對常數設門檻只會是儀式。
 交付時被真的判定的是「舊層還撐著沒有」，見 `verify-ac`。
 
+## 問出只有人知道的事
+
+斷言簽的是「怎麼算成功」。但有幾件事同樣只有人回答得出來，而且它們決定**斷言本身寫得對
+不對**：這一版到底要做什麼、什麼時候要、提出的人真正想解決什麼、拿什麼測。
+
+**沒問的那一刻不會停下來，會自己填一個。** 那比空著糟：空著看得出來，填過的看不出來。
+而判定那一站只驗實作有沒有達成那份斷言——斷言若照著一個編出來的意圖寫，整條流程會全綠地
+交付錯的東西。
+
+### 怎麼問
+
+- **一次一題，等回覆再問下一題。** 一次丟四題會讓人不知所措，而不知所措的回答是隨便回的。
+- **每題附上你建議的答案。** 問「你想怎麼做」是把判斷推回去；問「我建議 X，因為 Y，對嗎」
+  才是可以被一句話推翻的東西。
+- **查得到的事實自己查，只有決策才問。** `git log` 查得到誰動過這塊、`package.json` 查得到
+  用什麼跑測試——把這些做成問題，這一站就退化成問卷。
+- **先推一版再拿去確認。** 「這一版要做什麼」是提案不是提問；推不出來的才是問題。
+
+### 答案寫在哪
+
+寫進 `index.md` 的 frontmatter，跟 `destination` 同一個地方：
+
+```yaml
+plan:
+  what: { answer: "…", source: inferred_confirmed }   # 推一版、人點頭
+  when: { answer: "…", source: human }                # 什麼時候要
+  why:  { answer: "…", source: human }                # 想解決什麼
+  how:  { answer: "…", source: human }                # 拿什麼測
+```
+
+`source` 三種：`human`、`environment`（查出來的）、`inferred_confirmed`。
+**這張單真的不需要某一項時，明講並說為什麼**——空著與不適用是兩件事：
+
+```yaml
+  when: { not_applicable: "框架自用，一單一版隨時釋出，沒有外部時程" }
+```
+
+```bash
+bash .claude/skills/refinement/scripts/check-plan-answers.sh {issue}/index.md
+```
+
+**這一步在 seal 之前跑。** 凍結的那個 commit 落下去之後才發現缺，那個 commit 已經在那裡了。
+
+### 有些答案每張單都一樣
+
+「測試環境怎麼起」「owner 是誰」「推不出來時去哪裡問」「部署到哪裡測」——這些對同一個
+repo 的每一張單答案都相同。**它們不進單，進那個 repo 的領域知識。** 塞進每一張單等於每次
+重問一次同樣的東西，而重複的儀式會被學會跳過。
+
+`init` 指名的領域知識不存在時，殼會拒絕開輪次。那個拒絕就是凝聚一份的時機：用上面同一套
+問法問出這一類工作在這裡怎麼算 done，寫成那份知識自己的宣告行（`<!-- {鍵}: {命令} -->`）。
+核心不認得鍵名，所以鍵名由那份知識自己定。
+
+## 問到這條流程以外去
+
+推不出來的困難總會出現，唯一的解法是去問一個人。**訊息送出去是不可逆的**，所以順序是
+擬稿 → 人看過 → 才送：
+
+```bash
+bash .claude/skills/refinement/scripts/record-outreach.sh draft \
+  --issue {issue} --id <slug> --to '<哪裡>' --body '<擬稿全文>'
+bash .claude/skills/refinement/scripts/record-outreach.sh confirm \
+  --issue {issue} --id <slug> --by <人> --quote '<那個人自己說的話>'
+# 送出（用你手上的工具），然後：
+bash .claude/skills/refinement/scripts/record-outreach.sh sent --issue {issue} --id <slug> --link <URL>
+bash .claude/skills/refinement/scripts/record-outreach.sh reply --issue {issue} --id <slug> --body '<回覆>'
+```
+
+**送出動作本身腳本攔不到**——那是別的工具做的。它攔得住的是紀錄：沒有人的原話就記不下
+送出，而一個留不下紀錄的動作，事後看起來就是沒發生。回覆寫回來之後它是活文件的一部分，
+下一個人不用再問一次同樣的問題。
+
 ## 斷言長什麼樣
 
 **陳述句，不是要求句。**「當 X 時，Y 發生」可以被注入情境驗證；「應該要有 X」不行。
@@ -79,16 +151,20 @@ repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 ## 步驟
 
 ```bash
-# 1. 蓋封條（算的是 fence 內文，寫封條本身不會讓它失效）
+# 1. 只有人知道的那幾項都有答案了（見〈問出只有人知道的事〉）。缺項就不要往下蓋封條——
+#    凍結的那個 commit 落下去之後才發現缺，那個 commit 已經在那裡了。
+bash .claude/skills/refinement/scripts/check-plan-answers.sh {issue}/index.md
+
+# 2. 蓋封條（算的是 fence 內文，寫封條本身不會讓它失效）
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh seal {issue}/index.md --by {簽的人}
 
-# 2. commit —— 這一步才是凍結
+# 3. commit —— 這一步才是凍結
 git add {issue}/index.md && git commit -m "freeze: {issue} 斷言"
 
-# 3. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
+# 4. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/index.md
 
-# 4. 開輪次。領域的決定是這一步的一部分，不是之後補的欄位——「這件工作屬於哪個領域」
+# 5. 開輪次。領域的決定是這一步的一部分，不是之後補的欄位——「這件工作屬於哪個領域」
 #    沒被回答就往下走，等於流程不知道它要滿足什麼條件。
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
   --state {issue}/.spine/loop-state.json --pack swe-knowledge
@@ -101,7 +177,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
 那個領域自己的知識裡，寫在這裡就是第二份。拒絕的訊息會說出缺的是哪一條、怎麼修，照著做
 再跑一次就是了。
 
-所以第 1 步之前先跑一次 `init` 是划算的：條件沒滿足的話，凍結的那個 commit 會落在一個
+所以第 2 步之前先跑一次 `init` 是划算的：條件沒滿足的話，凍結的那個 commit 會落在一個
 不該落的地方，而那時候它已經在那裡了。
 
 **凍結 ＝ commit，不是 ＝ 蓋封條。** 封條只證明 fence 內文與 frontmatter 自洽——改了 fence
