@@ -4,6 +4,7 @@ description: "learning Queue mode 的 Slack daily queue 處理、condensed summa
 ---
 
 # Queue Mode Flow
+<!-- PROSE-EXTERNAL-PATHS: learning-archive.md — 跑起來才長出來的去重紀錄，住在 learnings repo -->
 
 這份 reference 是 `learning/SKILL.md` Queue mode 的延後載入流程。用於處理 daily
 learning scanner 發到 Slack 的文章 queue。

@@ -46,7 +46,9 @@ import os
 import re
 import sys
 
-repo_root, prefix = sys.argv[1], sys.argv[2]
+# 一律轉絕對路徑。skill_dir_of 拿 abspath 跟 skills_root 比前綴，`--repo .` 進來時那個比較
+# 永遠不成立，於是每一個 skill 相對的起點都靜靜消失，整批裸檔名變成假的紅。
+repo_root, prefix = os.path.abspath(sys.argv[1]), sys.argv[2]
 skills_root = os.path.join(repo_root, ".claude", "skills")
 
 # 只看 fenced bash block 與 inline code 裡的東西。散文行文提到一個名字不算指名——
@@ -54,7 +56,10 @@ skills_root = os.path.join(repo_root, ".claude", "skills")
 FENCE = re.compile(r"^```(?:bash|sh)\s*$")
 FENCE_END = re.compile(r"^```\s*$")
 # `bash <path>` 起頭的一行命令，後面可能接子命令與旗標。續行的反斜線要接起來。
-INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n]*)")
+# rest 停在 `|`、`&&`、`;`、`>`。不停的話，一條 pipeline 裡下一段命令的旗標會被算到
+# 這一支頭上——memory-hygiene 的 apply-flow 就是這樣被誣告了一次：`--memory-dir` 是給管線
+# 另一端那支 .py 的，而這道閘說 validate-memory-hygiene-plan.sh 不認得它。
+INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n|;&>]*)")
 # 行文裡的「前置必讀：`x/y.md`」這類指路。副檔名限定成文件，免得把命令當路徑。
 #
 # 一定要有 `/`：一個光禿禿的 `shared-defaults.md` 解不出唯一位置，把它當指路只會製造
@@ -62,7 +67,9 @@ INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n]*)")
 # 讓出去多少，跑完會印出來。
 DOC_POINTER = re.compile(r"`([\w.-]+(?:/[\w.-]+)+\.(?:md|json|yaml|yml))`")
 BARE_DOC = re.compile(r"`([\w.-]+\.(?:md|json|yaml|yml))`")
-SUBCOMMAND = re.compile(r"^\s+([a-z][a-z0-9-]*)\b")
+# 子命令是一個完整的字，後面接空白或結束。`path/to/file.md` 是位置參數不是子命令——
+# 只用 \b 收尾的話 `path` 會被當成子命令，然後永遠找不到。
+SUBCOMMAND = re.compile(r"^\s+([a-z][a-z0-9-]*)(?=\s|$)")
 FLAG = re.compile(r"(--[a-z][a-z0-9-]*)")
 # 散文的第二種寫法：`$SKILL_DIR/scripts/x.sh`。這一整類原本一個都沒被檢查——
 # gate-skill-script-references 只看腳本引用腳本，看不到 SKILL.md 怎麼寫。
@@ -70,9 +77,25 @@ SKILL_DIR_REF = re.compile(
     r"\$\{?(?:SKILL_DIR|SKILLS_DIR|SKILL_ROOT)\}?/((?:scripts/|references/|env/)?[\w.-]+\.(?:sh|py|mjs|md|json|yaml|yml))"
 )
 
+# 有些散文講的是**這個 repo 以外**的東西：使用者自己的 memory 目錄、跑起來才生出的
+# 產物、別的 repo 的樹——`resources/cypress/fixtures/…` 在 be2-product，
+# `{company}-web/codecov.yml` 在那支產品 repo。它們在這裡當然找不到，而「找不到」跟「死掉」
+# 是兩件事。
+#
+# 處理不是讓它安靜——安靜的排除跟沒有排除，在出事的時候長得一樣。處理是**讓那份排除自己被
+# 寫出來、被讀到、被數**：那份散文自己在檔案裡宣告哪一段前綴住在別處、為什麼。
+#
+#   <!-- PROSE-EXTERNAL-PATHS: resources/cypress/ — 住在那支產品 repo，不在這個 repo -->
+#
+# 宣告只對宣告它的那一份散文生效，而且**一條沒對上任何東西的宣告是紅的**：一個沒有人在用
+# 的豁免會一直留著，然後在某一天悄悄接住一個真的死掉的指標。
+EXTERNAL_DECL = re.compile(r"<!--\s*PROSE-EXTERNAL-PATHS:\s*(\S+)\s*(?:—|--)\s*([^>]*?)\s*-->")
+
 problems = []
 # 不被判定的第三態要有數字。一個安靜的豁免，下一次就會有人以為那些也被檢查過了。
 unjudged = set()
+external_hits = []      # (檔, 路徑, 前綴, 理由)
+stale_declarations = [] # 宣告了卻沒對上任何東西的前綴
 
 
 def read(path):
@@ -94,43 +117,152 @@ def script_vocabulary(script_path):
             if part and part not in ("*", "esac"):
                 words.add(part)
     words.update(re.findall(r"--[a-z][a-z0-9-]*", text))
+
+    # 一支 `exec python3 "$SCRIPT_DIR/lib/x.py" "$@"` 的殼，它認得的字全在被 exec 的那一支
+    # 裡面。只讀殼會得到一份空詞表，然後把散文裡每一個對的旗標都判紅——
+    # validate-learning-seed-contract.sh 就是這個形狀。跟一層就夠，殼不會疊殼。
+    for delegate in re.findall(r"\$\{?SCRIPT_DIR\}?/([\w./-]+\.(?:py|sh|mjs))", text):
+        target = os.path.join(os.path.dirname(script_path), delegate)
+        if os.path.exists(target):
+            words.update(re.findall(r"--[a-z][a-z0-9-]*", read(target)))
     return words
+
+
+def declared_elsewhere(declared, quoted):
+    """這條路徑有沒有被它所在的那份散文宣告成住在別的 repo。
+
+    回 (前綴, 理由) 或 None。
+    """
+    for prefix, reason in declared:
+        if quoted.startswith(prefix):
+            return prefix, reason
+    return None
+
+
+def skill_dir_of(doc_path):
+    """這份散文住在哪一支 skill 底下。解不出來就回 None（例如它根本不在 skills 樹裡）。"""
+    current = os.path.dirname(os.path.abspath(doc_path))
+    while current.startswith(skills_root) and current != skills_root:
+        if os.path.dirname(current) == skills_root:
+            return current
+        current = os.path.dirname(current)
+    return None
 
 
 def resolve(doc_path, quoted):
     """把散文裡的路徑解成磁碟位置。
 
-    兩種寫法都收：從 repo 根寫起的（`.claude/skills/x/scripts/y.sh`），以及相對於這份
-    文件自己的。先試 repo 根，因為這個 repo 的 SKILL.md 幾乎都那樣寫。
+    一份住在 skill 裡的散文，講的是它自己那一棵樹。所以四個起點都試，都是「這份文件的
+    人會怎麼寫」而不是為了讓紅變綠：
+
+      repo 根        `.claude/skills/x/scripts/y.sh` —— SKILL.md 幾乎都這樣寫
+      文件自己       同目錄的鄰居
+      skill 目錄     `references/foo.md`、`scripts/bar.sh` —— reference 講自家東西的寫法
+      skill 自己的 scripts/   `bash polaris-timeline.sh` —— 命令列裡的裸腳本名
+      skill 自己的 references/ `memory-write-contract.md` —— Reference Loading 表整張都這樣寫
+      skills 根      `learning/SKILL.md` —— 一支 skill 指名另一支
+
+    這幾個起點不會把一個真的死掉的指標變活：一個不存在的東西在四個起點底下一樣不存在。
     """
-    from_root = os.path.join(repo_root, quoted)
-    if os.path.exists(from_root):
-        return from_root
-    from_doc = os.path.join(os.path.dirname(doc_path), quoted)
-    if os.path.exists(from_doc):
-        return from_doc
+    skill_dir = skill_dir_of(doc_path)
+    bases = [repo_root, os.path.dirname(doc_path)]
+    if skill_dir:
+        bases += [skill_dir,
+                  os.path.join(skill_dir, "scripts"),
+                  os.path.join(skill_dir, "references")]
+    bases.append(skills_root)
+    for base in bases:
+        candidate = os.path.join(base, quoted)
+        if os.path.exists(candidate):
+            return candidate
     return None
 
 
-for dirpath, dirnames, filenames in os.walk(skills_root):
-    dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules")]
+# 掃哪些散文：SKILL.md 與每支 skill 自己的 references/。
+#
+# 以前只掃 SKILL.md。references/ 是 SKILL.md 明文叫人去讀的東西，所以它指錯路的後果一模
+# 一樣——而它整整一層沒有被看過：memory-hygiene 的一份 reference 指著七個在框架換層時就
+# 消失的位置（一整個 `rules/` 層與 `specs/design-plans/`），而這道閘每一次都回綠。
+#
+# 一個掃不到的東西與一個掃過了沒問題的東西，在輸出上長得一樣。所以掃到的份數會被印出來，
+# 而讓出去的精度（沒有目錄的檔名）本來就已經印出來了。
+#
+# `.claude/rules/` 也掃。它是這個 repo 的第二個散文面，而它一路沒有被看過——DP-479 那支
+# 一次性掃描的路徑正則只認五個前綴，`rules/` 不在裡面，所以「132/132 全綠」是在一個看不到
+# 這一層的鏡頭底下拍的。
+#
+# `_template/` **不掃**，而這句話就是那份宣告：那底下的散文講的是「將來某個人的 repo 會長成
+# 什麼樣」，它指名的路徑在這裡本來就不存在，掃它只會製造一批永遠紅的雜訊。不掃了幾份會被
+# 印出來——一個沒有數字的豁免，下一次就會被當成看過了。
+rules_root = os.path.join(repo_root, ".claude", "rules")
+template_root = os.path.join(repo_root, "_template")
+
+scanned_skill_md = 0
+scanned_reference = 0
+scanned_rule = 0
+skipped_template = 0
+for dirpath, _, filenames in os.walk(template_root):
+    skipped_template += sum(1 for name in filenames if name.endswith(".md"))
+
+walk_targets = [(skills_root, "skill"), (rules_root, "rule")]
+for root, kind in walk_targets:
+  for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", "__pycache__")]
+    in_references = os.path.basename(dirpath) == "references" or (
+        os.sep + "references" + os.sep in dirpath + os.sep)
     for name in filenames:
-        if name != "SKILL.md":
+        if kind == "rule":
+            if not name.endswith(".md"):
+                continue
+            scanned_rule += 1
+        elif name == "SKILL.md":
+            scanned_skill_md += 1
+        elif in_references and name.endswith(".md"):
+            scanned_reference += 1
+        else:
             continue
         doc = os.path.join(dirpath, name)
         rel_doc = os.path.relpath(doc, repo_root)
         text = read(doc)
+
+        declared = EXTERNAL_DECL.findall(text)
+        used = set()
 
         # 1. 指路到不存在的文件。
         for quoted in DOC_POINTER.findall(text):
             # 佔位符不是指路：`{issue}/index.md` 是一個要被代換的樣板。
             if "{" in quoted or quoted.startswith("<"):
                 continue
-            if resolve(doc, quoted) is None:
-                problems.append(f"{rel_doc}: 指向不存在的 `{quoted}`")
+            elsewhere = declared_elsewhere(declared, quoted)
+            if elsewhere:
+                used.add(elsewhere[0])
+                external_hits.append((rel_doc, quoted) + elsewhere)
+                continue
+            if resolve(doc, quoted) is not None:
+                continue
+            problems.append(f"{rel_doc}: 指向不存在的 `{quoted}`")
 
+        # 沒有目錄的檔名：以前整批讓出去。但一份住在 skill 裡的散文寫 `foo.md`，在它自己
+        # 那一棵樹底下解得出唯一位置——SKILL.md 的 Reference Loading 表整張都是這個寫法，
+        # 而那正是最不能斷的一種指路。所以解得出來的就判，解不出來的才讓。
+        #
+        # 讓出去的那些是別的 repo 的根檔（`package.json`、`CLAUDE.md`）。它們照樣被數、被印。
         for quoted in BARE_DOC.findall(text):
             if "/" in quoted or "{" in quoted:
+                continue
+            elsewhere = declared_elsewhere(declared, quoted)
+            if elsewhere:
+                used.add(elsewhere[0])
+                external_hits.append((rel_doc, quoted) + elsewhere)
+                continue
+            if resolve(doc, quoted) is not None:
+                continue
+            # 裸的 `.md` 判，裸的設定檔讓。分界不是憑感覺：一份散文提到的 `.md` 幾乎都是
+            # 它自家 references/ 的鄰居——那正是最不能斷的一種指路，而它整批躲在「解不出
+            # 唯一位置」底下沒有人看。`workspace-config.yaml`、`package.json` 這類是使用者
+            # 自己的檔或別的 repo 的根檔，這個 repo 裡本來就不會有。
+            if quoted.endswith(".md"):
+                problems.append(f"{rel_doc}: 指向不存在的 `{quoted}`")
                 continue
             unjudged.add(f"{rel_doc}: `{quoted}`")
 
@@ -164,6 +296,28 @@ for dirpath, dirnames, filenames in os.walk(skills_root):
                         f"——那支腳本不認得這個旗標"
                     )
 
+        for declared_prefix, reason in declared:
+            if declared_prefix not in used:
+                stale_declarations.append(
+                    f"{rel_doc}: `{declared_prefix}`（{reason}）沒有對上任何一條路徑")
+
+# 掃了多少一律說出來，紅綠都說。一個什麼都沒掃到的執行與一個掃過了沒問題的執行，
+# 在只印結論的輸出上分不出來。
+COVERAGE = (f"掃過 {scanned_skill_md} 份 SKILL.md ＋ {scanned_reference} 份 reference"
+            f" ＋ {scanned_rule} 份 rules（_template/ 的 {skipped_template} 份不掃，"
+            f"它講的是別人將來的 repo）")
+if scanned_skill_md == 0:
+    print(f"{prefix} 空掃：一份 SKILL.md 都沒掃到，這不是「都對得上」", file=sys.stderr)
+    sys.exit(2)
+
+if external_hits:
+    print(f"{prefix} {len(external_hits)} 條路徑被宣告成住在這個 repo 以外，這道閘沒有驗它們：",
+          file=sys.stderr)
+    for doc_rel, quoted, matched, reason in sorted(external_hits):
+        print(f"{prefix}   {doc_rel}: `{quoted}` ← `{matched}`（{reason}）", file=sys.stderr)
+
+problems.extend(stale_declarations)
+
 if unjudged:
     print(f"{prefix} 沒有目錄的檔名 {len(unjudged)} 個，不在管轄內（解不出唯一位置）：",
           file=sys.stderr)
@@ -173,11 +327,12 @@ if unjudged:
 if problems:
     for problem in sorted(set(problems)):
         print(f"{prefix} {problem}", file=sys.stderr)
-    print(f"{prefix} {len(set(problems))} 處散文與實際行為對不上。", file=sys.stderr)
+    print(f"{prefix} {COVERAGE}，其中 {len(set(problems))} 處與實際行為對不上。",
+          file=sys.stderr)
     print(f"{prefix} 文字有問題就改文字；只有在描述是對的而行為錯了的時候才改腳本。",
           file=sys.stderr)
     sys.exit(1)
 
-print("PROSE-MATCHES-BEHAVIOUR 掃過的 SKILL.md 裡，指名的檔案、子命令與旗標都對得上"
+print(f"PROSE-MATCHES-BEHAVIOUR {COVERAGE}，指名的檔案、子命令與旗標都對得上"
       f"（另有 {len(unjudged)} 個沒有目錄的檔名不在管轄內）。")
 PY

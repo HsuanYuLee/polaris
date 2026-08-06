@@ -21,11 +21,14 @@ description: "standup 的 config/defaults、auto-triage guard、日期計算、g
 Config 不存在時使用 `workspace-config.yaml` 的 `defaults` 區塊 fallback。GitHub username 動態取得。Timezone 預設
 Asia/Taipei。
 
-## Auto-triage Guard
+## Triage State：有就用，沒有就說
 
-收集 standup 資料前，檢查 `{company}/.daily-triage.json`。若存在且 `date` 是今天，直接繼續。
-若 missing 或 stale，讀取並執行 `my-triage/SKILL.md`，產生今日 triage state，並讓使用者檢視
-與調整後再繼續。
+收集 standup 資料前，檢查 `{company}/.daily-triage.json`。存在且 `date` 是今天就拿它當排序
+依據；missing 或 stale 就照常收集，並在報告裡寫明「今日沒有 triage state」。
+
+以前這裡寫的是「missing 就去執行 my-triage 產生一份」。那支 skill 已經不在了，而一句指向
+不存在的東西的指示，讀的人只會照做然後自己撞上。**沒有 triage state 是一個要被說出來的
+狀態，不是一個要被自動補上的洞**——排序的判斷本來就不屬於 standup。
 
 ## Date Semantics
 

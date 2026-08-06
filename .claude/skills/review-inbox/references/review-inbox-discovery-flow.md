@@ -4,6 +4,7 @@ description: "review-inbox 的 Label、Slack、Thread discovery、bundled script
 ---
 
 # Discovery Contract
+<!-- PROSE-EXTERNAL-PATHS: contract-design.md — handbook 那個 repo 的設計文件 -->
 
 這份 reference 負責找出需要自己 review 的 PR candidates。
 

@@ -73,6 +73,18 @@ bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 
 
 它只會動自己裝的那些（檔案裡有 `[polaris-git-hooks]` 標記），別人手寫的 hook 不碰。
 
+## 從哪裡跑
+
+**從主 checkout 跑，不要從 linked worktree。** 兩個理由疊在一起：交付紀錄住在 `issues/`，
+而那是版控在別處的目錄，worktree 裡不存在；而且尾段的閘要看只屬於這台機器的目錄（公司
+的 repo、快取），worktree 裡也沒有——它們會對一整批忽略規則回「現在沒有排除到任何東西」
+而擋下 push。施工可以在 worktree 裡，尾段不行。
+
+**壓完版要再量一次。** 壓版會產生一個新的 commit，而交付紀錄要求每條斷言的證據綁**交付
+的那個 head**。這一步的 re-pin 只重寫紀錄、不重跑量測，所以第一次一定會被自己的檢查擋
+下來。撞到的時候順序是：在新 head 上重跑量測 → 重寫交付紀錄 → 再跑一次 `--execute`
+（這時已經沒有待消化的 changeset，不會再壓一次版）。
+
 ## 卡住的時候
 
 **沒有交付紀錄** —— 回 `verify-ac` 跑它的交付步驟。這支不會替你寫一份。

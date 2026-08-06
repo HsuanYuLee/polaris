@@ -13,8 +13,8 @@ metadata:
 
 ## Contract
 
-`standup` 是 daily standup 與 EOD summary 的單一入口。它可以自動觸發當日 triage guard，
-但不取代 `my-triage` 的排序判斷，也不捏造資料來源沒有的活動。
+`standup` 是 daily standup 與 EOD summary 的單一入口。它讀當日的 triage state 當排序依據，
+但**不自己做排序判斷**，也不捏造資料來源沒有的活動。沒有 triage state 就照常收集並說出來。
 它可以轉述 PR / JIRA / planning / blocker 現況，但不得自行把這些訊號升格成 workflow
 authority；例如「PR 狀態良好」不等於 `mergeable_ready`，release page / standup 內容也不等於
 release eligibility 或 release completed。
@@ -33,7 +33,7 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 ## Flow
 
 1. 讀 workspace config，取得 JIRA、Confluence、GitHub、projects、teams。
-2. Auto-triage guard：若今日 triage state 缺漏或過期，先執行 `my-triage`，讓使用者確認。
+2. 讀今日 triage state；缺漏或過期就照常往下走，並在報告裡寫明沒有它。
 3. 計算 `YDY_DATE`、`PRESENT_DATE`、`TDT_PLAN_DATE`；使用者指定日期時以使用者為準。
 4. 收集 YDY sources：git commits、JIRA updates、Calendar meetings。
 5. Merge and deduplicate YDY，並做 plan vs actual comparison。

@@ -93,4 +93,4 @@ This supplements git log and JIRA data with skill-level activity that doesn't ap
 
 ## Integration with /checkpoint
 
-The `/checkpoint` skill writes `checkpoint` events to the timeline and reads them back for resume. See `skills/checkpoint/SKILL.md`.
+The `/checkpoint` skill writes `checkpoint` events to the timeline and reads them back for resume. See `.claude/skills/checkpoint/SKILL.md`.

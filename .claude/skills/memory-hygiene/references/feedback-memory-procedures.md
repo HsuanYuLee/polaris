@@ -1,6 +1,8 @@
 # Feedback & Memory Procedures
 
-> **When to load**: when writing feedback memories, running memory hygiene, promoting feedback to rules, or executing the backlog classification workflow. Contains detailed procedures extracted from `rules/feedback-and-memory.md`. Loaded on-demand.
+> **When to load**: when writing feedback memories, running memory hygiene, promoting feedback to durable knowledge, or deciding whether a framework gap deserves its own ticket. Loaded on-demand.
+>
+> This file **is** the procedure — it used to say it was "extracted from rules/feedback-and-memory.md", and that file stopped existing when the shared rules layer was dismantled. A pointer to a place that no longer exists reads exactly like a pointer to an authority, which is why it is stated here instead: the owner of these procedures is this skill. (A dead name is written bare, not in backticks: backticks mean somewhere you can go and look.)
 
 ## Cross-Session Carry-Forward Check
 
@@ -33,58 +35,62 @@ Before creating a new feedback memory, scan existing feedback memories for seman
 
 This check prevents duplicate feedback accumulation.
 
-## Automatic Polaris Backlog Writes — Detailed Procedures
+## Framework-gap signals become their own ticket — detailed procedures
 
-Signals about improving the framework itself become their own issue under `issues/`.
+Signals about improving the framework itself become their own issue under `issues/`. There used
+to be a single shared backlog file (.claude/polaris-backlog.md); it no longer exists, and a
+list that lives beside the work is not a substitute for a ticket that carries a definition of
+success. Routing a gap is `driving-work-to-done`'s question, not this file's — what belongs here
+is only what the memory side owes the ticket.
 
-### Instant — Feedback → Backlog Entry Format
+### Instant — feedback → ticket
 
-When a feedback memory is classified as FRAMEWORK_GAP (see the classification table), write a backlog entry in this format (must include context block):
+When a feedback memory is classified as FRAMEWORK_GAP (see the classification table), the ticket
+opened for it carries the same context block, so that the two sides stay traceable:
 
 ```markdown
-- [ ] **{title}** (YYYY-MM-DD)
-  > **Why:** {motivation}
-  > **Without it:** {consequence}
-  > **Source:** feedback ({feedback_filename}) / session / user request
+> **Why:** {motivation}
+> **Without it:** {consequence}
+> **Source:** feedback ({feedback_filename}) / session / user request
 ```
 
-The `Source:` cross-reference lets both sides stay traceable. When the backlog item is implemented, the feedback memory can be retired.
+When the ticket converges, the feedback memory can be retired.
 
 ### Instant — Other Signals
 
 | Signal | Condition | Write Location |
 |--------|-----------|----------------|
-| Hook block / permission denied | Same class of pattern blocked >= 2 times | Backlog High |
-| `/learning` external mode recommendation | Recommendation marked "worth tracking" by user but not acted on immediately | Backlog Medium or Low |
-| User mentions "Polaris should..." / "the framework could be improved..." | Write directly | Backlog by severity |
-| Gap found during skill execution (broken flow, manual steps required) | Record the missing automation | Backlog Medium |
-| Framework-experience memories >= 3 for same pattern | Validated pattern candidate — surface during organize-memory | See `rules/framework-iteration.md` § Validated Pattern Promotion |
+| Hook block / permission denied | Same class of pattern blocked >= 2 times | Open a ticket |
+| `/learning` external mode recommendation | Recommendation marked "worth tracking" by user but not acted on immediately | Memory only, until it recurs |
+| User mentions "Polaris should..." / "the framework could be improved..." | Write directly | Open a ticket |
+| Gap found during skill execution (broken flow, manual steps required) | Record the missing automation | Open a ticket |
+| Framework-experience memories >= 3 for same pattern | Validated pattern candidate | Promote it to durable knowledge — see § Promoting a confirmed feedback memory |
 
 ### Instant — Project Memory Action Items
 
-`type: project` memories often contain action items ("待實施", "下一步", "需要解決的問題") that represent framework or tooling gaps. These must also flow into the backlog.
+`type: project` memories often contain action items ("待實施", "下一步", "需要解決的問題") that represent framework or tooling gaps. These must also become tickets.
 
 **When writing a `type: project` memory that contains action items:**
 
 1. Scan the content for action item signals: 「待實施」「下一步」「需要解決」「待 debug」「暫 skip」or English equivalents ("TODO", "next step", "pending", "needs fix")
 2. For each action item, apply the same FRAMEWORK_GAP vs BEHAVIORAL classification
 3. FRAMEWORK_GAP items → open an issue under `issues/` immediately, with `source: project ({memory_filename})`
-4. BEHAVIORAL items → leave in the memory only (no backlog)
+4. BEHAVIORAL items → leave in the memory only (no ticket)
 
-**Why this matters:** Without this rule, project memories become dead letter boxes — improvements get recorded but never become actionable. The Feedback→Backlog pipeline only covers `type: feedback`, so project-level action items fall through the cracks.
+**Why this matters:** Without this rule, project memories become dead letter boxes — improvements get recorded but never become actionable. The feedback→ticket path only covers `type: feedback`, so project-level action items fall through the cracks.
 
-### Batch — Feedback + Project → Backlog Scan
+### Batch — feedback + project → ticket scan
 
 During `organize memory` / `clean up memory` runs, scan ALL feedback **and project** memories for uncaptured framework gaps:
 
 1. For each `type: feedback` or `type: project` entry, apply the FRAMEWORK_GAP vs BEHAVIORAL classification
 2. For FRAMEWORK_GAP entries, check if a corresponding issue already exists (search `issues/` for the memory filename)
-3. Missing → propose new backlog entry to user
+3. Missing → propose opening a ticket to the user
 4. Already tracked → skip
 
 This catches memories created before the classification mechanism existed, or where the instant classification was missed.
 
-**Do not write to backlog:** company-specific processes (JIRA fields, PR conventions), project-specific rules, one-off bug fixes.
+**Do not open a ticket for:** company-specific processes (JIRA fields, PR conventions), project-specific rules, one-off bug fixes.
 
 ## Feedback Memory Frontmatter Spec
 
@@ -118,7 +124,7 @@ reference 的 feedback。
 3. It has a **"How to apply"** section that references specific skills or references
 4. The process was **validated in practice** (e.g., tried on a real ticket)
 
-**Promotion target**: `skills/references/` (not `rules/`) — process decisions become shared references that skills import.
+**Promotion target**: the owning skill's own `references/` directory — process decisions belong to the skill that performs them. Ask one question to find the owner: *can this be done by one skill alone?* If yes it goes in that skill's directory; if it is only true inside this repo it goes in `.claude/rules/`; there is no third shelf.
 
 **When detected** (during post-task reflection, memory hygiene, or cross-session recovery):
 1. Identify the target reference file (existing or new)
@@ -132,15 +138,17 @@ When a feedback memory is confirmed correct (user validated the correction, or t
 
 #### Step 1: Identify the Target Rule File
 
-Based on the semantic content of the feedback, find the most appropriate file in `.claude/rules/`:
+Ask **can this be done by one skill alone?** — the same question the workspace uses for every
+other document. There is no per-topic rule-file registry any more; the shared `rules/` layer it
+named was dismantled, and a table of files that do not exist reads exactly like a table of files
+that do.
 
-| Feedback Topic | Target File |
-|----------------|-------------|
-| Sub-agent delegation behavior | `rules/sub-agent-delegation.md` (or `rules/{company}/` if company-scoped) |
-| PR / Review workflow | `rules/{company}/pr-and-review.md` |
-| JIRA conventions | `rules/{company}/jira-conventions.md` |
-| Skill usage | `rules/skill-routing.md` |
-| Other | Determine by semantics, or suggest creating a new rule file |
+| Feedback is about | Target |
+|---|---|
+| How one skill operates (its flow, its scripts, its gotchas) | That skill's `SKILL.md` or its own `references/` |
+| Something spanning skills that is only true inside this repo | `.claude/rules/` (today: `.claude/rules/style-and-language.md`, `.claude/rules/document-flow.md`) |
+| A company's own conventions (PR, JIRA, repo facts) | That company's own skill pack |
+| One ticket's history | That ticket's `{issue}/index.md`, not a rule |
 
 #### Step 2: Draft the Rule Text
 
@@ -156,7 +164,7 @@ Feedback → Rule Proposal
 
 "{feedback name}" is a confirmed correction, promoting to rule:
 
-Target: {rules/company/xxx.md} § {section}
+Target: {target file} § {section}
 Content to add:
   {drafted rule text}
 
@@ -237,8 +245,13 @@ The `[company]` prefix in the index enables quick visual scanning without openin
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
 7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers
 8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding issue under `issues/` → propose one
-9. **Stale design plans** — scan `specs/design-plans/DP-*/plan.md` frontmatter:
-   - `status: DISCUSSION` + `created` > 30 days ago → suggest ABANDONED (discussion died) or ask user to resume
-   - `status: LOCKED` + `locked_at` > 14 days ago without `implemented_at` → remind user "LOCKED 14+ 天未實作，要繼續嗎？"
-   - `status: IMPLEMENTED` → leave as-is (decision record)
-   - `status: ABANDONED` → leave as-is (negative decision record has value)
+9. **Stalled tickets** — memory hygiene does not judge them and does not scan for them. Which
+   ticket is stuck, and what to do about it, is answered in one place:
+
+   ```bash
+   bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --across-issues issues
+   ```
+
+   This used to scan `specs/design-plans/DP-*/plan.md` frontmatter for stale `status:` values.
+   That directory and that status field are both gone, and re-deriving "where is this work" from
+   file mtimes would be a second answer to a question that already has an authority.

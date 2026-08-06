@@ -4,6 +4,8 @@ description: "memory-hygiene apply mode 的 safety checks、dry-run plan reuse�
 ---
 
 # Memory Hygiene Apply Contract
+<!-- PROSE-EXTERNAL-PATHS: .migration-log.md — 搬完才寫出來的紀錄，落在使用者的 memory 目錄 -->
+<!-- PROSE-EXTERNAL-PATHS: MEMORY.md — 使用者自己的 memory 目錄，不在這個 repo -->
 
 這份 reference 負責 memory-hygiene apply mode。
 

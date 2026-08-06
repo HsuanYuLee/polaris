@@ -4,6 +4,7 @@ description: "High-volume skill 的 main-session context budget、raw evidence r
 ---
 
 # Contract
+<!-- PROSE-EXTERNAL-PATHS: verify-report.md — 舊層的證據留在 specs 那個 repo，不搬進來 -->
 
 Context Budget Contract 適用於會批次讀取大量 diff、logs、Slack messages、JIRA comments、
 CI rollup、test output 或其他 raw evidence 的 high-volume skill。
@@ -60,7 +61,7 @@ Concrete instance PASS 條件：
 | `reference_compilation` | Review packet 只注入 `review-inbox/dispatch-context-bundle.md` inline bundle 與 verified handbook paths；不得要求 reviewer 重讀完整 review-inbox / review-pr skill stack。Bundle size target 沿用 DP-094；本 DP 不重算 bundle size。 |
 | `runtime_plan` | `build-review-runtime-plan.py` 產生 `review-inbox-runtime-plan.v1`。預設 `main_session_sequential`；`--auto-adapter` 只有在 T7 dual-run evidence PASS 後，且 candidate count / cluster size / raw diff lines 達 threshold 時，才可選 `constrained_code_reviewer`。Fallback 必須記錄原因。 |
 | `telemetry` | Completion 後以 line-count proxy 產生 run metrics，並透過 `polaris-learnings.sh add --type telemetry --tag review-inbox --metadata '{"review_inbox_run": ...}'` 寫入。Required keys：`run_id`, `candidate_count`, `reviewed_count`, `main_session_input_tokens`, `main_session_output_tokens`, `sub_agent_tokens`, `runtime_plan_kind`, `duration_seconds`, `estimator_kind`。 |
-| `verify_report` | Pilot 完成後產生 `docs-manager/src/content/docs/specs/design-plans/DP-113-review-inbox-main-session-token-budget/verify-report.md`，至少包含 token、raw evidence routing、artifact sufficiency、quality、telemetry、runtime plan、rollout candidate list。 |
+| `verify_report` | Pilot 完成後產生 `docs-manager/src/content/docs/specs/design-plans/DP-113-review-inbox-main-session-token-budget/verify-report.md`（<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 舊層的證據留在 specs 那個 repo，不搬進來 -->），（見上方 external-paths 宣告）至少包含 token、raw evidence routing、artifact sufficiency、quality、telemetry、runtime plan、rollout candidate list。 |
 
 `type=telemetry` 不是 technical learning，不應進入一般 preamble learning。`polaris-learnings.sh`
 預設 query 會排除 telemetry；只有明確傳入 `--type telemetry` 或 `--tag review-inbox` 時才查詢

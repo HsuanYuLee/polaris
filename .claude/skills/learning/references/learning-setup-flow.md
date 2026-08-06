@@ -4,6 +4,8 @@ description: "learning Setup mode 的 daily learning scanner 設定、RemoteTrig
 ---
 
 # Setup Mode Flow
+<!-- PROSE-EXTERNAL-PATHS: learning-archive.md — 跑起來才長出來的去重紀錄，住在 learnings repo -->
+<!-- PROSE-EXTERNAL-PATHS: daily-learning-scan-spec.md — 那份 template spec 住在 learnings repo -->
 
 這份 reference 是 `learning/SKILL.md` Setup mode 的延後載入流程。當使用者要求
 設定、更新、測試或停用 daily learning scanner 時讀取。

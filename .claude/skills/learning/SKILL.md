@@ -7,6 +7,7 @@ metadata:
 ---
 
 # learning
+<!-- PROSE-EXTERNAL-PATHS: learning-archive.md — 跑起來才長出來的去重紀錄，住在 learnings repo -->
 
 `learning` 把外部資料、文章 queue、PR review lessons、daily scanner setup
 轉成可落地的 workspace knowledge。`SKILL.md` 只保留 mode routing、邊界與

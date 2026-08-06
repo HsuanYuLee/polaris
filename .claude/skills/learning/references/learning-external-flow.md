@@ -4,6 +4,9 @@ description: "learning External mode 的外部研究、baseline comparison、syn
 ---
 
 # External Mode Flow
+<!-- PROSE-EXTERNAL-PATHS: CLAUDE.md — 講的是那個產品 repo 自己的 CLAUDE.md，不是這個 repo 的；這個 repo 剛好也有一份，所以不宣告的話會是一個純靠巧合的綠 -->
+<!-- PROSE-EXTERNAL-PATHS: knowledge-compilation-protocol.md — handbook 那個 repo 的協定文件 -->
+<!-- PROSE-EXTERNAL-PATHS: mechanism-registry.md — handbook 那個 repo 的登錄表 -->
 
 這份 reference 是 `learning/SKILL.md` External mode 的延後載入流程。用於研究
 外部 URL、repo、文章、local file 或使用者貼上的研究題材，並把發現轉成
@@ -175,7 +178,7 @@ Route A DP seeding：
 2. Existing SEEDED / DISCUSSION：詢問 append 或新開。
 3. Existing LOCKED / IMPLEMENTED：新開，Background 加 see also。
 4. Existing ABANDONED：詢問 revive 或新開。
-5. 新的一張單只建 research snapshot；不得由 learning producer 建那張單的 `index.md`——研究產出的是證據，不是成功的定義，而成功的定義只有人簽得下去（見 `refinement`）。
+5. 新的一張單只建 research snapshot；不得由 learning producer 建那張單的 `{issue}/index.md`——研究產出的是證據，不是成功的定義，而成功的定義只有人簽得下去（見 `refinement`）。
 6. 不自動 invoke refinement；只提示 `refinement DP-NNN`。
 7. Route A 不寫 backlog，但仍寫 `polaris-learnings`。
 
@@ -188,7 +191,7 @@ bash .claude/skills/learning/scripts/validate-learning-seed-contract.sh \
 ```
 
 `--producer learning` 必須提供 diff range；若 diff 觸及
-任何一張單的 `index.md`，必須
+任何一張單的 `{issue}/index.md`，必須
 fail-stop。Refinement 的 structural-only audit 由 refinement 階段用
 `--producer refinement --source-container <DP-folder>` 執行；partial container 是合法
 in-progress state。

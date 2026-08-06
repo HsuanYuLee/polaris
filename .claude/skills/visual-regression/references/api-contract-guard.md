@@ -1,4 +1,5 @@
 # API Contract Guard
+<!-- PROSE-EXTERNAL-PATHS: feedback_mockoon_fixture_value.md — 那是使用者 memory 目錄裡的一篇，不在這個 repo -->
 
 Detects schema drift between Mockoon fixtures and live API responses. Prevents stale fixtures from masking real API changes that affect the UI.
 

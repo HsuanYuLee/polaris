@@ -28,6 +28,10 @@ Code symbols、error messages、quoted author text、suggestion blocks 可保留
 Review summary 要短而具體。`REQUEST_CHANGES` summary 列 must-fix bullets；
 `COMMENT` summary 說明不擋 merge；`APPROVE` 不寫冗長稱讚。
 
+**findings 不進 review body。** 每一條 finding 都要有 inline comment 指向具體 file + line；
+把整批 findings 寫成 markdown 清單塞進 review body 當總結報告，讀的人就得自己在 diff 裡找那
+幾行。body 只放一兩句總結，例如「整體架構清晰，2 項待確認（見 inline comments）」。
+
 ## Inline Comments
 
 每個 comment 要自然描述問題、影響、規範來源或具體建議。可精準修改 diff range 時優先用

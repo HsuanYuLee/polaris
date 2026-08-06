@@ -195,41 +195,128 @@ def frontmatter_status(path: Path) -> Optional[str]:
     return status.upper() if isinstance(status, str) and status else None
 
 
-def source_status(source_id: str) -> Optional[str]:
-    specs_env = os.environ.get("POLARIS_SPECS_ROOT")
-    if specs_env:
-        specs = Path(specs_env)
-    else:
-        root = repo_root()
-        if root is None:
-            return None
-        specs = root / "docs-manager" / "src" / "content" / "docs" / "specs"
-    if re.match(r"^DP-[0-9]{3}$", source_id):
-        for parent in [specs / "design-plans", specs / "design-plans" / "archive"]:
-            for container in parent.glob(f"{source_id}-*"):
-                for name in ("index.md", "plan.md", "refinement.md"):
-                    status = frontmatter_status(container / name)
-                    if status:
-                        return status
-        return None
-    for candidate in specs.glob(f"companies/**/{source_id}/**/*.md"):
-        status = frontmatter_status(candidate)
-        if status:
-            return status
-    return None
+# 一份 memory 指名的那件工作，收斂了沒。
+#
+# 這裡以前讀 `docs-manager/.../specs/design-plans/`——那一層在 DP-462 之後只留證據，知識搬進
+# 了 `issues/`。於是這支查詢對每一個單都回 None，而回 None 的意思是「不退休」：整條退休路徑
+# 安靜地死了幾個月，沒有人看得出來，因為「查不到」與「還在進行中」在輸出上長得一樣。
+#
+# 判定分三種，**三種都會被數出來**：
+#
+#   loop-state         單自己的 `.spine/loop-state.json` 的 `status`。這是唯一的權威。
+#   archive-placement  沒有 loop-state、而容器躺在 `archive/` 底下。那是脊椎之前的舊層——
+#                      它沒有 status 欄位可以讀，所以位置是那一層僅有的證據，不是在跟權威
+#                      競爭。463 個歸檔容器裡只有 13 個有 loop-state，只認權威等於什麼都不
+#                      退休。這一類會被分開計數，因為它的依據比較弱。
+#   not-found          找不到那個容器。**不退休**，而且要被數出來——一個查不到的東西被當成
+#                      「做完了」，退休的就是還在用的東西。
+TICKET_CONVERGED = "converged"
+TICKET_ACTIVE = "active"
+
+# 單號長什麼樣由命名空間自己決定，這裡只認「字母 + 數字」這個共同形狀。中間的分隔符可有可無
+# ——檔名寫的是 `project_dp417_…`，而 `snapshot_of` 寫的是 `DP-417`，同一張單兩種寫法。
+TICKET_ID_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9}?)-?(\d{2,6})\b")
+
+
+def parse_ticket_id(text: str) -> Optional[str]:
+    """從一段文字裡取出**最左邊**那個單號，正規化成 `ABC-123`。
+
+    最左邊而不是全部：一份 handoff 的檔名可能帶兩三個單號（`dp228_229_230_231`），而
+    `snapshot_of` 欄位裡出現過 `DP-229 THESIS PIVOT SESSION` 這種整句話。取最左邊那個，
+    取不到就回 None——回 None 的下場是「留著」，猜錯的下場是退休掉還在用的東西。
+    """
+    match = TICKET_ID_RE.search(text.upper().replace("_", "-"))
+    return f"{match.group(1)}-{match.group(2)}" if match else None
+
+
+def issues_root() -> Optional[Path]:
+    override = os.environ.get("POLARIS_ISSUES_ROOT")
+    if override:
+        return Path(override)
+    root = repo_root()
+    return (root / "issues") if root else None
+
+
+def ticket_status(source_id: str) -> tuple[Optional[str], str]:
+    """那張單收斂了沒。回 (verdict, basis)，verdict 是 None 表示量不到。"""
+    root = issues_root()
+    if root is None or not root.is_dir():
+        return None, "not-found"
+    for namespace in sorted(root.iterdir()):
+        if not namespace.is_dir():
+            continue
+        for parent, basis in ((namespace, "loop-state"),
+                              (namespace / "archive", "archive-placement")):
+            if not parent.is_dir():
+                continue
+            for container in sorted(parent.glob(f"{source_id}-*")) + \
+                    sorted(parent.glob(source_id)):
+                state = container / ".spine" / "loop-state.json"
+                if state.is_file():
+                    try:
+                        status = json.loads(state.read_text(encoding="utf-8")).get("status")
+                    except (json.JSONDecodeError, OSError):
+                        continue
+                    verdict = (TICKET_CONVERGED if status == "converged"
+                               else TICKET_ACTIVE)
+                    return verdict, "loop-state"
+                if basis == "archive-placement":
+                    return TICKET_CONVERGED, "archive-placement"
+                return TICKET_ACTIVE, "no-state-active-namespace"
+    return None, "not-found"
+
+
+def retirement_source(fm: "Frontmatter", filename: str) -> Optional[str]:
+    """這份 memory 記的是哪一件工作的進度。
+
+    只認兩個地方：明寫的 `snapshot_of`，以及檔名裡的單號。**不掃內文**——一份 handoff 會
+    順帶提到十幾張單，拿內文去判會把一份還在用的錨點記錄，判成某張早就收斂的單的殘骸。
+    """
+    return parse_ticket_id(fm.snapshot_of or "") or parse_ticket_id(filename)
 
 
 def snapshot_is_stale(fm: Frontmatter, today: date) -> tuple[bool, str]:
     if not fm.snapshot_of:
         return False, ""
-    status = source_status(fm.snapshot_of)
-    if status in {"IMPLEMENTED", "SUPERSEDED", "ABANDONED"}:
-        return True, f"snapshot_of={fm.snapshot_of} status={status}"
-    if fm.snapshot_taken:
-        age = (today - fm.snapshot_taken).days
-        if age > 14:
-            return True, f"snapshot_taken {age}d ago"
-    return False, f"snapshot_of={fm.snapshot_of} status={status or 'unknown'}"
+    if fm.snapshot_taken and (today - fm.snapshot_taken).days > 14:
+        return True, f"snapshot_taken {(today - fm.snapshot_taken).days}d ago"
+    return False, f"snapshot_of={fm.snapshot_of}"
+
+
+# 一份記進度的 memory 會落到哪一堆。四種，而且只有這四種。
+RETIRE, KEEP_ACTIVE, KEEP_UNMEASURABLE, NOT_A_PROGRESS_NOTE = (
+    "retire", "active", "unmeasurable", "no_ticket")
+
+
+def retirement_verdict(fm: Frontmatter, filename: str) -> tuple[str, str]:
+    """這份 memory 該不該退休。回 (判定, 理由)。
+
+    **判斷只有這一份實作。** 分層那條路徑與 `retire` 那條路徑都從這裡問——各寫一次的話，
+    兩邊遲早對同一份檔案給出不同答案，而先撞到的人會以為是資料壞了。
+
+    `type: project` 記的是「現在做到哪」，它的價值在那件工作還沒完的時候。`type: feedback`
+    記的是行為規則，跟任何一張單都無關——對它問這個問題會把一條還成立的規矩退休掉。
+    """
+    if fm.type.strip().lower() != "project":
+        return NOT_A_PROGRESS_NOTE, ""
+    source = retirement_source(fm, filename)
+    if source is None:
+        return NOT_A_PROGRESS_NOTE, "檔名與 snapshot_of 都沒有單號"
+    if fm.pinned:
+        # pinned 承載的是人的判斷。機械規則不得蓋過它。
+        return KEEP_ACTIVE, f"{source} pinned=true——人說了不要動"
+    verdict, basis = ticket_status(source)
+    if verdict == TICKET_CONVERGED:
+        return RETIRE, f"{source} converged（依據：{basis}）"
+    if verdict is None:
+        return KEEP_UNMEASURABLE, f"{source} 找不到那個容器"
+    return KEEP_ACTIVE, f"{source} 還在進行（依據：{basis}）"
+
+
+def work_has_converged(fm: Frontmatter, filename: str) -> tuple[bool, str]:
+    """分層那條路徑的問法。判斷本身在 `retirement_verdict`。"""
+    verdict, why = retirement_verdict(fm, filename)
+    return verdict == RETIRE, why
 
 
 def grace_baseline(fm: Frontmatter, mtime: date) -> tuple[date, str, Optional[str]]:
@@ -301,6 +388,7 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
     archived = path.name in archived_set
     baseline, baseline_source, created_backfill = grace_baseline(fm, mtime)
     stale_snapshot, stale_reason = snapshot_is_stale(fm, today)
+    converged, converged_reason = work_has_converged(fm, path.name)
     flags = {
         "stale_snapshot": stale_snapshot,
         "graduated_feedback": bool(fm.graduated_to),
@@ -332,6 +420,19 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
         return Classification(
             path=path, tier="cold", topic=None,
             reason=f"graduated_to={fm.graduated_to}", frontmatter=fm,
+            mtime=mtime, flags=flags, created_backfill=created_backfill,
+        )
+
+    # 記進度的 memory，在它記的那件工作收斂之後就不再是「現在做到哪」了。它不會被刪——
+    # 進 Cold（`archive/`），那一區不進索引。理由裡帶著依據（loop-state 還是 archive 位置），
+    # 因為兩者的強度不一樣，而看報告的人有權知道是哪一種。
+    if not converged and converged_reason.endswith(")") and "unmeasurable" in converged_reason:
+        flags["ticket_unmeasurable"] = converged_reason
+    if converged:
+        flags["retired_converged_work"] = converged_reason
+        return Classification(
+            path=path, tier="cold", topic=None,
+            reason=f"work converged — {converged_reason}", frontmatter=fm,
             mtime=mtime, flags=flags, created_backfill=created_backfill,
         )
 
@@ -1074,18 +1175,10 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
         new_lines.append(format_entry(c))
     new_lines.append("")
 
-    if warm_topics:
-        new_lines.append(f"## Warm — per-topic folders ({len(warm_topics)} topics, "
-                         f"{sum(len(v) for v in warm_topics.values())} files)")
-        new_lines.append("")
-        new_lines.append("Topic folders contain memory loaded on-demand. "
-                         "Main session only pulls when relevant. "
-                         "Click through to each folder's index.")
-        new_lines.append("")
-        for topic in sorted(warm_topics.keys()):
-            count = len(warm_topics[topic])
-            new_lines.append(f"- [{topic}/]({topic}/index.md) — {count} entries")
-        new_lines.append("")
+    # 磁碟是權威。以前這裡只看 warm_topics（＝這一次掃到的東西），於是沒有人要搬進去的
+    # 資料夾在重寫索引時消失。渲染邏輯只有 render_topic_section 一份。
+    new_lines.extend(render_topic_section(memory_dir, {
+        topic: entries for topic, entries in warm_topics.items()}))
 
     if warm_flat:
         new_lines.append(f"## Warm — flat ({len(warm_flat)}) — no topic match yet")
@@ -1232,6 +1325,44 @@ def enumerate_topic_folder(memory_dir: Path, topic: str) -> list[dict]:
 
 def count_topic_folder_entries(memory_dir: Path, topic: str) -> int:
     return len(enumerate_topic_folder(memory_dir, topic))
+
+
+def render_topic_section(memory_dir: Path, warm_topics: dict) -> list[str]:
+    """把〈Warm — per-topic folders〉整段算出來，**磁碟是權威**。
+
+    Args:
+        memory_dir: memory 根目錄。
+        warm_topics: 這一次分類產生的 {topic: [條目…]}，只用來補磁碟上還沒有的資料夾。
+    Returns:
+        markdown 行的 list；一個資料夾都沒有時回空 list。
+
+    這一段以前有兩份：`emit-index` 那一份看磁碟（DP-277 T1 AC2），`apply` 那一份只看
+    「自己這次掃到的東西」。2026-08-06 那次 apply 於是把 24 個沒有人要搬進去的資料夾從
+    索引上抹掉——檔案沒掉，掉的是每個 session 唯一會被載入的那一份。
+
+    兩份會漂，所以現在只有這一份。合併而不是重寫：磁碟上的資料夾一律出現，這一輪新造的
+    也出現，沒有人掃到不代表它不存在。
+    """
+    all_topics = sorted(set(warm_topics) | set(discover_topic_folders(memory_dir)))
+    if not all_topics:
+        return []
+    counts = {
+        topic: (count_topic_folder_entries(memory_dir, topic)
+                or len(warm_topics.get(topic, [])))
+        for topic in all_topics
+    }
+    lines = [
+        f"## Warm — per-topic folders ({len(all_topics)} topics, "
+        f"{sum(counts.values())} files)",
+        "",
+        "Topic folders contain memory loaded on-demand. Main session only "
+        "pulls when relevant. Click through to each folder's index.",
+        "",
+    ]
+    lines += [f"- [{topic}/]({topic}/index.md) — {counts[topic]} entries"
+              for topic in all_topics]
+    lines.append("")
+    return lines
 
 
 def render_emit_index_block(
@@ -1381,11 +1512,210 @@ def run_emit_index(memory_dir: Path, today: date, dry_run: bool) -> int:
 
 # --- Entry point ----------------------------------------------------------
 
+# --- Retirement -----------------------------------------------------------
+
+def walk_all_memories(memory_dir: Path) -> list[Path]:
+    """整棵樹的 memory 檔，含 topic 資料夾。
+
+    分層那條路徑只走扁平層——那是刻意的，topic 資料夾裡的東西按定義就是 Warm，不需要每次
+    重新問它多熱。但**退休問的是另一個問題**：這份東西記的工作還活著嗎。那個問題對每一份
+    都成立，所以這裡走整棵樹。
+    """
+    found = []
+    for path in sorted(memory_dir.rglob("*.md")):
+        if path.name in ("MEMORY.md", "index.md") or path.name.startswith("."):
+            continue
+        if RESERVED_MEMORY_SUBDIRS & set(path.relative_to(memory_dir).parts[:-1]):
+            continue
+        found.append(path)
+    return found
+
+
+def survey_retirement(memory_dir: Path) -> dict:
+    """整棵樹掃一次，把每一份記進度的 memory 分成四堆，四堆都有數字。"""
+    buckets = {RETIRE: [], KEEP_ACTIVE: [], KEEP_UNMEASURABLE: [],
+               NOT_A_PROGRESS_NOTE: []}
+    progress_notes = 0
+    for path in walk_all_memories(memory_dir):
+        try:
+            fm = parse_frontmatter(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if fm.type.strip().lower() != "project":
+            continue
+        progress_notes += 1
+        verdict, why = retirement_verdict(fm, path.name)
+        buckets[verdict].append((path, why))
+    buckets["_progress_notes"] = progress_notes
+    return buckets
+
+
+def render_retirement_report(memory_dir: Path, buckets: dict) -> str:
+    lines = ["# Memory Retirement — 記進度的 memory，它記的工作還活著嗎", ""]
+    lines.append(f"- 記進度的 memory（`type: project`）共 {buckets['_progress_notes']} 份")
+    for key, label in (("retire", "可以退休（它記的工作已收斂）"),
+                       ("active", "留著（工作還活著，或人 pin 住了）"),
+                       ("unmeasurable", "**量不到**——找不到那張單的容器，一律留著"),
+                       ("no_ticket", "沒有指名任何一張單，不在這條規則的管轄內")):
+        lines.append(f"- {label}：{len(buckets[key])} 份")
+    lines.append("")
+    for key, heading in (("retire", "## 可以退休"),
+                         ("unmeasurable", "## 量不到（留著，但要被看見）"),
+                         ("no_ticket", "## 沒有指名單號（留著）")):
+        if not buckets[key]:
+            continue
+        lines += [heading, ""]
+        lines += [f"- `{path.name}` — {why}" for path, why in sorted(buckets[key])]
+        lines.append("")
+    return "\n".join(lines)
+
+
+def run_retire(memory_dir: Path, execute: bool) -> int:
+    buckets = survey_retirement(memory_dir)
+    if buckets["_progress_notes"] == 0:
+        print("量不到：一份記進度的 memory 都沒有掃到", file=sys.stderr)
+        return 2
+    print(render_retirement_report(memory_dir, buckets))
+    if not execute:
+        print("（預覽，什麼都沒有動。要真的搬用 `retire --execute`。）")
+        return 0
+
+    destination = memory_dir / "archive"
+    destination.mkdir(exist_ok=True)
+    moved = []
+    for path, why in buckets["retire"]:
+        target = destination / path.name
+        if target.exists():
+            print(f"跳過 {path.name}：archive/ 裡已經有同名的", file=sys.stderr)
+            continue
+        path.rename(target)
+        moved.append((path, target, why))
+    retired_names = [source.name for source, _, _ in moved]
+    rebased = rebase_outbound_links(memory_dir, moved)
+    repointed = repoint_inbound_links(memory_dir, retired_names)
+    drop_index_pointers(memory_dir, retired_names)
+    print(f"\n搬進 archive/ 的 {len(moved)} 份（沒有刪掉任何東西）；"
+          f"另外把 {repointed} 份 memory 裡指向它們的連結改指到 archive/，"
+          f"並把 {rebased} 份搬走的檔案自己的相對連結重新算過：")
+    for source, _, why in moved:
+        print(f"  {source.relative_to(memory_dir)} — {why}")
+    return 0
+
+
+def repoint_inbound_links(memory_dir: Path, filenames: list[str]) -> int:
+    """別的 memory 指向被退休那幾份的連結，改指到 `archive/`。
+
+    退休不是消失。一份 memory 引用另一份是常見的（`[[name]]` 與 markdown 連結都有），
+    把被引用的那份搬走而不改指標，等於用退休製造死指標——那是 M-P2 要防的，而且它會在
+    退休的當下就發生。
+    """
+    targets = set(filenames)
+    repointed = 0
+    for path in sorted(memory_dir.rglob("*.md")):
+        if path.name in targets and path.parent.name == "archive":
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        updated = text
+        depth = len(path.relative_to(memory_dir).parts) - 1
+        prefix = "../" * depth + "archive/"
+        for name in targets:
+            updated = updated.replace(f"]({name})", f"]({prefix}{name})")
+        if updated != text:
+            path.write_text(updated, encoding="utf-8")
+            repointed += 1
+    return repointed
+
+
+MARKDOWN_LINK_RE = re.compile(r"\]\(([^)]+\.md)\)")
+
+
+def rebase_outbound_links(memory_dir: Path, moved: list[tuple[Path, Path, str]]) -> int:
+    """被搬走那幾份**自己**的相對連結，改成從新位置算得對。
+
+    `repoint_inbound_links` 管的是別人指向它；這一支管的是它指向別人。兩件事都會壞，而且
+    壞法是對稱的：檔案換了目錄，相對路徑的起點就換了。真的跑一次之後留下的那一條死指標
+    就是這一種——一份從 `polaris-framework/` 搬到 `archive/` 的 memory，它指向同資料夾鄰居
+    的連結在新家指不到任何東西。
+    """
+    rebased = 0
+    for source, target, _ in moved:
+        old_dir, new_dir = source.parent, target.parent
+        if old_dir == new_dir:
+            continue
+        try:
+            text = target.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+        def relocate(match):
+            link = match.group(1)
+            if link.startswith(("http", "#", "/")):
+                return match.group(0)
+            # normpath 而不是 resolve()：resolve() 會跟 symlink（macOS 的 /var → /private/var），
+            # 而 new_dir 沒跟，兩邊基準不同就會算出一條爬到檔案系統根目錄的路徑。
+            resolved = os.path.normpath(os.path.join(str(old_dir), link))
+            return f"]({os.path.relpath(resolved, os.path.normpath(str(new_dir)))})"
+
+        updated = MARKDOWN_LINK_RE.sub(relocate, text)
+        if updated != text:
+            target.write_text(updated, encoding="utf-8")
+            rebased += 1
+    return rebased
+
+
+def drop_index_pointers(memory_dir: Path, filenames: list[str]) -> None:
+    """把退休掉的那幾份從每一份索引裡拿掉，然後**把計數重算**。
+
+    只拿掉指標而不重算計數，索引就會開始說謊——這正是 M-P1 在管的那件事，而它第一次真的
+    跑在 269 份上時，26 個資料夾裡有 14 個的數字對不上。計數由 `render_topic_section()`
+    從磁碟重算，那是唯一一份渲染邏輯。
+    """
+    if not filenames:
+        return
+    targets = set(filenames)
+    for index_path in [memory_dir / "MEMORY.md"] + sorted(memory_dir.glob("*/index.md")):
+        if not index_path.is_file():
+            continue
+        lines = index_path.read_text(encoding="utf-8").split("\n")
+        kept = [line for line in lines
+                if not (line.lstrip().startswith("- [")
+                        and any(name in line for name in targets))]
+        if len(kept) != len(lines):
+            index_path.write_text("\n".join(kept), encoding="utf-8")
+    refresh_index_counts(memory_dir)
+
+
+def refresh_index_counts(memory_dir: Path) -> None:
+    """MEMORY.md 的 Hot 條數與 topic 區塊，一律從磁碟重算。"""
+    index_path = memory_dir / "MEMORY.md"
+    if not index_path.is_file():
+        return
+    text = index_path.read_text(encoding="utf-8")
+
+    hot_section = text.split("## Hot", 1)
+    if len(hot_section) == 2:
+        tail = hot_section[1]
+        body = tail.split("\n## ", 1)[0]
+        count = len([l for l in body.split("\n") if l.lstrip().startswith("- [")])
+        text = re.sub(r"## Hot \([0-9]+\)", f"## Hot ({count})", text, count=1)
+
+    rendered = render_topic_section(memory_dir, {})
+    if rendered:
+        pattern = re.compile(
+            r"## Warm — per-topic folders \([^)]*\).*?(?=\n## |\Z)", re.DOTALL)
+        if pattern.search(text):
+            text = pattern.sub("\n".join(rendered).rstrip() + "\n", text, count=1)
+    index_path.write_text(text, encoding="utf-8")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Memory Hot/Warm/Cold tiering helper (DP-015 Part B).")
     parser.add_argument("mode", nargs="?",
-                        choices=["dry-run", "apply", "decay-scan"],
+                        choices=["dry-run", "apply", "decay-scan", "retire"],
                         default=None,
                         help="legacy positional modes; use --emit-index for the round 3 producer")
     parser.add_argument("--emit-index", action="store_true",
@@ -1397,6 +1727,8 @@ def main(argv: list[str]) -> int:
                         help="(dry-run) emit machine-readable JSON instead of markdown report")
     parser.add_argument("--dry-run", action="store_true",
                         help="(--emit-index) print unified diff to stdout; do not write")
+    parser.add_argument("--execute", action="store_true",
+                        help="(retire) 真的搬檔；不給就只是預覽")
     parser.add_argument("--today", type=str, default=None,
                         help="Override today's date (YYYY-MM-DD) for testing")
     args = parser.parse_args(argv)
@@ -1418,6 +1750,8 @@ def main(argv: list[str]) -> int:
         parser.error("--dry-run is only valid with --emit-index")
     if args.mode == "dry-run":
         return run_dry_run(args.memory_dir, today, args.json)
+    if args.mode == "retire":
+        return run_retire(args.memory_dir, args.execute)
     if args.mode == "decay-scan":
         return run_decay_scan(args.memory_dir, today)
     if args.mode == "apply":

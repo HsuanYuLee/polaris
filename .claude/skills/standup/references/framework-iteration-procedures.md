@@ -1,16 +1,24 @@
 # Framework Iteration Procedures
 
-> **When to load**: when executing the version bump chain, backlog hygiene, or validated pattern promotion. Contains detailed procedures extracted from `rules/framework-iteration.md`. Loaded on-demand.
+> **When to load**: when executing the version bump chain, backlog hygiene, or validated pattern promotion. Loaded on-demand.
+>
+> 這份檔案自己就是那份程序。它以前說內容摘自 rules/framework-iteration.md，而那一層在 DP-462
+> 被拆掉之後就不存在了——指向一個不存在的地方，讀起來跟指向一個權威一模一樣。
 
 ## Iteration Cadence Map
 
 | Cadence | When | Mechanism | Source |
 |---------|------|-----------|--------|
-| Micro | After every task | Post-task reflection → feedback memory / backlog | `rules/feedback-and-memory.md` |
+| Micro | After every task | Post-task reflection → feedback memory / 開一張單 | `.claude/skills/memory-hygiene/references/feedback-memory-procedures.md` |
 | Meso | After every PR | PR review → handbook direct write | 那家公司自己的 repo-notes skill（company handbook 的主人） |
-| Macro | Pre-release only | Challenger Audit → polaris-backlog | `rules/framework-iteration.md` § Challenger Audit |
+| Macro | — | **沒有了** | 見下 |
 
 Daily iteration is driven by **real usage** (Micro + Meso), not simulated review.
+
+Macro 那一格以前是 Challenger Audit：開六個人格 sub-agent 從外部使用者角度審框架，發現寫進
+polaris-backlog。那套東西連同它的散文與那份 backlog 在 DP-462／DP-479 一起被拆掉了，**而且沒有
+替代品**。這一格留著寫「沒有了」，不留空白：一個空格看起來像還沒填，一句「沒有了」看得出來是
+一個決定。
 
 ## Framework Experience Frontmatter Template
 

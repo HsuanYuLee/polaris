@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.9.0] - 2026-08-07
+
+### Changed
+
+- efbcf04: 梳理 memory 這一層：索引不再被 apply 寫壞、散文的鏡頭看得到 references 與 rules、
+  記進度的 memory 在它記的那張單收斂之後自動退休（`memory-hygiene retire`，搬進 archive
+  不刪檔）、全域指令檔只留指名這個人自己的東西。
+
 ## [4.8.0] - 2026-08-06
 
 ### Changed
