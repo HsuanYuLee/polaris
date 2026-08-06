@@ -50,7 +50,7 @@ NO-JIRA 項目用一行摘要帶過。
 ## Language Gate
 
 Confluence 是 external write。推送前對 local markdown 執行
-`workspace-language-policy.md` 指定的 blocking artifact gate。Gate fail 時修正自然語言並重跑；
+`scripts/validate-language-policy.sh` 指定的 blocking artifact gate。Gate fail 時修正自然語言並重跑；
 不可把未通過 gate 的 standup 寫到 Confluence。
 
 ## Confluence Append

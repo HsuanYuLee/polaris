@@ -79,7 +79,6 @@ Framework target 加讀：
 
 | Source | Extract |
 |---|---|
-| `polaris-backlog.md` | unchecked open improvement items |
 | `mechanism-registry.md` | `Drift: High` mechanisms |
 | recent feedback memories | last 14 days `type: feedback` pain points |
 
@@ -176,7 +175,7 @@ Route A DP seeding：
 2. Existing SEEDED / DISCUSSION：詢問 append 或新開。
 3. Existing LOCKED / IMPLEMENTED：新開，Background 加 see also。
 4. Existing ABANDONED：詢問 revive 或新開。
-5. 新 DP 只建 `artifacts/research-report.md` 或 `artifacts/research/*.md` static snapshot；不得由 learning producer 建 `index.md`、`plan.md`、`refinement.md` 或 `refinement.json`。
+5. 新的一張單只建 research snapshot；不得由 learning producer 建那張單的 `index.md`——研究產出的是證據，不是成功的定義，而成功的定義只有人簽得下去（見 `refinement`）。
 6. 不自動 invoke refinement；只提示 `refinement DP-NNN`。
 7. Route A 不寫 backlog，但仍寫 `polaris-learnings`。
 
@@ -189,7 +188,7 @@ bash .claude/skills/learning/scripts/validate-learning-seed-contract.sh \
 ```
 
 `--producer learning` 必須提供 diff range；若 diff 觸及
-`design-plans/DP-*/index.md`、`plan.md`、`refinement.md` 或 `refinement.json`，必須
+任何一張單的 `index.md`，必須
 fail-stop。Refinement 的 structural-only audit 由 refinement 階段用
 `--producer refinement --source-container <DP-folder>` 執行；partial container 是合法
 in-progress state。
@@ -205,7 +204,7 @@ Snapshot 寫到：
 `imported_from`、`consumed_by_refinement: false`。Body 使用 Summary / Findings /
 Source Notes / Relevance To Refinement / Open Questions。
 
-Route B 寫 `.claude/polaris-backlog.md` 或 project backlog / issue tracker。
+Route B 寫 project backlog / issue tracker。
 Route C 只寫 `polaris-learnings`。
 
 若使用者要求 immediate edits，依 landing zone 執行；framework skill 變更使用

@@ -198,7 +198,7 @@ if [[ -z "$COMMENTS_JSON" && -n "$resolver_pr_number" ]] && declare -F polaris_g
   fi
 fi
 
-python3 - "$REPO" "$SCRIPT_DIR/parse-task-md.sh" "$TMP_RESOLVER" "${PR_JSON:-__NULL__}" "${CHECKS_JSON:-__NULL__}" \
+python3 - "$REPO" "__NULL__" "$TMP_RESOLVER" "${PR_JSON:-__NULL__}" "${CHECKS_JSON:-__NULL__}" \
   "${THREADS_JSON:-__NULL__}" "${COMMENTS_JSON:-__NULL__}" "${DISPOSITION_JSON:-__NULL__}" "$FORMAT" "${FIELD:-__NULL__}" <<'PY'
 import json
 import re
@@ -514,10 +514,6 @@ stats = review_stats(threads, dispositions)
 comment_stats = unaddressed_comment_stats(comments)
 
 deliverable_head = None
-task_md = resolver.get("task_md")
-if task_md:
-    task_json = json.loads(subprocess.check_output(["bash", parse_task_md, task_md, "--no-resolve"], text=True))
-    deliverable_head = (((task_json.get("frontmatter") or {}).get("deliverable") or {}).get("head_sha"))
 
 pr_head = maybe_null(pr.get("headRefOid")) or maybe_null(resolver.get("head_sha"))
 evidence_match = None

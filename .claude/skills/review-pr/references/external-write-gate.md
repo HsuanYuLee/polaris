@@ -18,7 +18,7 @@
 
 - 真的呼叫 MCP 或 GitHub CLI。helper 不做外部 side effect。
 - Commit message。commit message 使用 commit language gate。
-- specs pipeline artifact schema。`refinement.json`、`task.md` 等仍由既有 validators 負責。
+- 單的凍結塊與活文件。那些由 `refinement` 與 `verify-ac` 自己的閘負責。
 
 ## Command
 

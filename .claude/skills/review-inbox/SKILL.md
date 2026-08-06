@@ -34,9 +34,9 @@ Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awa
 
 | Situation | Load |
 |---|---|
-| Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `shared-defaults.md`, `stale-approval-detection.md`, `workspace-config-reader.md` |
+| Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `stale-approval-detection.md`, `workspace-config.yaml` |
 | Batch review execution | `review-inbox-batch-review-flow.md`, `.claude/skills/review-inbox/dispatch-context-bundle.md` |
-| Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `workspace-language-policy.md` |
+| Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `scripts/validate-language-policy.sh` |
 
 Slack channel scan 可以派 read-only sub-agent。Per-PR review 不得使用 Claude Code
 general-purpose sub-agent；只有 runtime 提供 constrained code-reviewer adapter 時才可平行
@@ -79,7 +79,7 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
 ## Write And Notification Rules
 
 - Review body 與 inline comments 由 `review-pr` 流程負責。
-- Slack message 送出前必須通過 `workspace-language-policy.md` language gate。
+- Slack message 送出前必須通過 `scripts/validate-language-policy.sh`。
 - Slack mode 不發 channel-wide summary；只回覆原始 PR threads。
 - Label mode 發一則 channel summary。
 - Thread mode 回覆指定 thread。
@@ -96,6 +96,3 @@ POLARIS_WORKSPACE_ROOT={workspace_root} .claude/skills/review-inbox/scripts/pola
 
 查到 `metadata.review_inbox_run.main_session_input_tokens`。
 
-## Post-Task Reflection (required)
-
-Execute `post-task-reflection-checkpoint.md` before reporting completion.

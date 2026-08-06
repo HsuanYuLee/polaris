@@ -36,7 +36,7 @@ If found and enabled:
 
 ### 2a. Slack Channel
 
-依 `workspace-config-reader.md` 讀取 company `workspace-config.yaml`，取得
+讀取 company `workspace-config.yaml`，取得
 `slack.channels.ai_notifications`。
 
 若找到 channel，顯示並確認。若找不到，詢問 channel ID 或名稱；使用者提供名稱時，
@@ -114,7 +114,7 @@ Prompt 必須：
 - 不 commit、不 push。
 - 包含完整 search queries，不能只寫「read the spec」。
 - Slack 發送前先跑 workspace language policy gate。見
-  `workspace-language-policy.md`；將 final digest 寫入 temp markdown 後執行
+  `scripts/validate-language-policy.sh`；將 final digest 寫入 temp markdown 後執行
   `bash .claude/skills/learning/scripts/validate-language-policy.sh --blocking --mode artifact <learning-digest.md>`.
 
 ## Step S4: Create RemoteTrigger

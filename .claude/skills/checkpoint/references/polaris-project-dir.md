@@ -17,7 +17,7 @@ The slug identifies a workspace uniquely on this machine.
 └── projects/
     └── $SLUG/
         ├── learnings.jsonl      # Cross-session knowledge (see cross-session-learnings.md)
-        └── timeline.jsonl       # Session event log (see session-timeline.md)
+        └── timeline.jsonl       # Session event log
 ```
 
 ## Ensure-Dir Convention
@@ -34,4 +34,4 @@ The `POLARIS_WORKSPACE_ROOT` is passed by the caller (the Strategist or skill) �
 
 ## When Scripts Are Called
 
-Scripts are invoked by the Strategist or sub-agents during conversation. They are **not** hooks — they run on-demand via Bash tool calls. The Strategist decides when to write learnings or timeline events based on the rules in `feedback-and-memory.md` and `session-timeline.md`.
+Scripts are invoked by the Strategist or sub-agents during conversation. They are **not** hooks — they run on-demand via Bash tool calls. The Strategist decides when to write learnings or timeline events based on this skill's own references.

@@ -25,6 +25,13 @@
 # a convention for humans reading a PR list, and belongs in repo knowledge next to
 # every other naming convention — not in a gate.
 #
+# It also does not own records belonging to other repositories. `issues/` is one
+# directory shared by every repository its owner works in, so a delivery recorded
+# from a product repo sits next to the framework's own records with a head that
+# correctly does not exist here. Those are skipped by their declared
+# `delivering_repo`, and the skipped ones are printed with their repository: a
+# gate that silently drops what it cannot judge reads like one that judged it.
+#
 # Known limit, stated rather than hidden: this checks staleness, not existence. A
 # source pushed with no delivery.json at all passes here, because judge may simply
 # not have run yet and a work-in-progress push is legitimate. Absence surfaces
@@ -55,6 +62,26 @@ done
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 [[ -n "$HEAD_SHA" ]] || exit 0
 
+# This repository's own identity, read with the same command the record was
+# written with. `issues/` is shared across every repository its owner works in,
+# so the records sitting next to each other do not all describe commits that live
+# here — and a head that lives elsewhere is not a stale head.
+THIS_REPO="$(git -C "$REPO_ROOT" config --get remote.origin.url 2>/dev/null || true)"
+[[ -n "$THIS_REPO" ]] || THIS_REPO="$REPO_ROOT"
+
+# Records skipped because they name another repository, kept so the skip can be
+# said out loud. A gate that silently drops what it cannot judge reads exactly
+# like a gate that judged it and found nothing wrong.
+FOREIGN=()
+
+record_field() {
+  # Description: read one field out of a delivery record.
+  # Args: $1 = record path, $2 = field name
+  # Output: the field value, or empty when absent or unreadable.
+  python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get(sys.argv[2],"") or "")' \
+    "$1" "$2" 2>/dev/null || true
+}
+
 # Description: echo the source dirs whose delivery record concerns this push.
 # Args:   none (reads REPO_ROOT / HEAD_SHA)
 # Output: repo-relative issue dirs, e.g. issues/framework/DP-462-spine-cutover
@@ -71,7 +98,7 @@ HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 # in the range about to leave the machine. A record whose head is already in
 # origin/main describes work that shipped, and is none of this push's business.
 relevant_records() {
-  local record issue head destination
+  local record issue head destination declared_repo
   # 兩層都要掃。交付紀錄只有在單收斂之後才寫得出來，而收斂那一刻歸檔器就把單搬進
   # {命名空間}/archive/——所以「活躍區那一層」這個範圍，結構上永遠一份紀錄都看不到。
   # 只掃 issues/*/*/ 的版本讓這道閘對每一次真實交付都回「這不是脊椎推送」。
@@ -80,11 +107,17 @@ relevant_records() {
     [[ -f "$record" ]] || continue
     issue="${record#"$REPO_ROOT/"}"
     issue="${issue%/.spine/delivery.json}"
-    head="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
-      "$record" 2>/dev/null || true)"
+    head="$(record_field "$record" head_sha)"
     [[ -n "$head" ]] || continue
-    destination="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("destination",""))' \
-      "$record" 2>/dev/null || true)"
+    destination="$(record_field "$record" destination)"
+
+    # A record that names another repository is not this push's business, whatever
+    # its head says. Emitted rather than dropped so the skip is printed.
+    declared_repo="$(record_field "$record" delivering_repo)"
+    if [[ -n "$declared_repo" && "$declared_repo" != "$THIS_REPO" ]]; then
+      printf '%s\t%s\t%s\t%s\n' "$issue" foreign "$destination" "$declared_repo"
+      continue
+    fi
 
     if [[ "$head" == "$HEAD_SHA" ]]; then
       printf '%s\t%s\t%s\n' "$issue" current "$destination"
@@ -115,8 +148,23 @@ relevant_records() {
 # machine that runs the pre-push hook.
 RECORDS=()
 while IFS= read -r line; do
-  [[ -n "$line" ]] && RECORDS+=("$line")
+  [[ -n "$line" ]] || continue
+  case "$line" in
+    *$'\t'foreign$'\t'*) FOREIGN+=("$line") ;;
+    *) RECORDS+=("$line") ;;
+  esac
 done < <(relevant_records)
+
+# Said before any verdict, and said whether or not anything else happens. The
+# count is the point: a reader who sees "2 skipped" and expected 0 has found
+# something, and a reader who sees nothing has been told nothing.
+if [[ ${#FOREIGN[@]} -gt 0 ]]; then
+  echo "$PREFIX ${#FOREIGN[@]} record(s) name another repository and are not judged here (this repo: $THIS_REPO):" >&2
+  for entry in "${FOREIGN[@]}"; do
+    IFS=$'\t' read -r f_issue _f_state _f_destination f_repo <<<"$entry"
+    echo "$PREFIX   - ${f_issue} → ${f_repo}" >&2
+  done
+fi
 
 # Introspection: which records concern this push, as issue \t state \t destination.
 # Added for the leak gate, which no longer needs it; kept because "which record
@@ -158,7 +206,8 @@ for entry in "${RECORDS[@]}"; do
   if [[ "$state" == "unknown_head" ]]; then
     echo "$PREFIX BLOCKED: ${issue} recorded its delivery intent at ${recorded:0:12}, which this repository does not contain." >&2
     echo "$PREFIX A record pinned to a commit that is not here describes work this push cannot be." >&2
-    echo "$PREFIX Re-run judge's handoff step from the checkout that is shipping:" >&2
+    echo "$PREFIX If that commit belongs to another repository, the record predates the delivering_repo" >&2
+    echo "$PREFIX field and cannot say so; re-record it from that repository. Otherwise:" >&2
     echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
     failures=$((failures + 1))
     continue

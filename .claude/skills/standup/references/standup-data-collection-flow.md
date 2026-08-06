@@ -18,7 +18,7 @@ description: "standup 的 config/defaults、auto-triage guard、日期計算、g
 - `projects[].path`
 - `teams`
 
-Config 不存在時使用 `shared-defaults.md` fallback。GitHub username 動態取得。Timezone 預設
+Config 不存在時使用 `workspace-config.yaml` 的 `defaults` 區塊 fallback。GitHub username 動態取得。Timezone 預設
 Asia/Taipei。
 
 ## Auto-triage Guard

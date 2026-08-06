@@ -201,4 +201,3 @@ slack_send_message({
 
 > **Non-optional.** Execute before reporting task completion.
 
-Run the checklist in [post-task-reflection-checkpoint.md].

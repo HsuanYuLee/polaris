@@ -10,7 +10,7 @@ description: "review-pr 的 language gate、GitHub review action、inline commen
 ## Language Gate
 
 Review body、inline comments、Slack notification 都是 user-visible external writes。送出前
-依 `workspace-language-policy.md` 判斷 PR/thread primary language；無法判斷時 fallback root
+依 `scripts/validate-language-policy.sh` 判斷 PR/thread primary language；無法判斷時 fallback root
 workspace language。
 
 將 final text 寫成 temp artifact，透過 external write gate 或 language policy validator 檢查。
@@ -40,7 +40,7 @@ block。
 
 ## Submit
 
-一律呼叫 `.claude/skills/review-pr/scripts/submit-pr-review.sh`，由 wrapper 固定 writer token、canonical
+一律呼叫 `scripts/submit-pr-review.sh`，由 wrapper 固定 writer token、canonical
 `github.pull_request_review.submit` tool identity 與 GitHub review JSON shape；不得由 LLM
 手拼 MCP tool 名稱或 root payload。單行 comment 用 `line`；多行 comment 用
 `start_line` + `line`。wrapper 的 `--submit` lane 一次提交 review body 與 inline comments。
@@ -55,8 +55,8 @@ block。
 ## Handbook Calibration
 
 提交後分析自己留下的 comments。符合 repo-specific、company-level、或 framework-level 可重用
-pattern 時，依 `repo-handbook.md` standard-first flow 寫入 handbook 或 route 到 framework
-memory。
+pattern 時，依那家公司自己的 repo-notes skill 的 standard-first flow 寫入 handbook 或 route 到
+framework memory。
 
 不寫入 typo、missing import、copy-paste error、單次 business logic、純 nit。
 

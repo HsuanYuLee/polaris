@@ -25,10 +25,10 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 
 | Situation | Load |
 |---|---|
-| Any run | `standup-data-collection-flow.md`, `workspace-config-reader.md`, `shared-defaults.md` |
+| Any run | `standup-data-collection-flow.md`, `workspace-config.yaml` |
 | TDT / planning | `standup-planning-flow.md`, `session-timeline.md` when useful |
-| Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `confluence-page-update.md`, `workspace-language-policy.md` |
-| Monthly framework hygiene | `framework-iteration-procedures.md`, `repo-handbook.md` if first monthly standup needs framework follow-up |
+| Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `confluence-page-update.md`, `scripts/validate-language-policy.sh` |
+| Monthly framework hygiene | `framework-iteration-procedures.md` |
 
 ## Flow
 
@@ -59,7 +59,7 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 
 - Local markdown 是 Confluence push 前的備份，確認後無條件寫入。
 - Confluence page update 依 `confluence-page-update.md` 做 search、version check、append。
-- Confluence body 是 external write；送出前必須通過 `workspace-language-policy.md`。
+- Confluence body 是 external write；送出前必須通過 `scripts/validate-language-policy.sh`。
 - 更新完成後回報 Confluence page link 與 local file path。
 - standup 內對 PR / release / planning 的描述只能轉述來源系統或 shared state；不得在 standup prose
   中自行宣告「已完成 / 可 release / 可 merge」。
@@ -69,6 +69,3 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 輸出 standup date、YDY/TDT/BOS counts、local file、Confluence status、任何 skipped sources
 與原因。
 
-## Post-Task Reflection (required)
-
-Execute `post-task-reflection-checkpoint.md` before reporting completion.

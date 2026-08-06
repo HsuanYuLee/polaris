@@ -61,7 +61,7 @@ The Strategist logs timeline events at natural boundaries — not for every tool
 
 ## Script Interface
 
-See `.claude/skills/checkpoint/scripts/polaris-timeline.sh` for the CLI:
+See `scripts/polaris-timeline.sh` for the CLI:
 
 ```bash
 # Append an event

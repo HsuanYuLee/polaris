@@ -35,11 +35,11 @@ This check prevents duplicate feedback accumulation.
 
 ## Automatic Polaris Backlog Writes — Detailed Procedures
 
-Signals about improving the framework itself should flow into `.claude/polaris-backlog.md`.
+Signals about improving the framework itself become their own issue under `issues/`.
 
 ### Instant — Feedback → Backlog Entry Format
 
-When a feedback memory is classified as FRAMEWORK_GAP (see `rules/feedback-and-memory.md` § Automatic Polaris Backlog Writes for the classification table), write a backlog entry in this format (must include context block — see `polaris-backlog.md` § Item Format):
+When a feedback memory is classified as FRAMEWORK_GAP (see the classification table), write a backlog entry in this format (must include context block):
 
 ```markdown
 - [ ] **{title}** (YYYY-MM-DD)
@@ -68,7 +68,7 @@ The `Source:` cross-reference lets both sides stay traceable. When the backlog i
 
 1. Scan the content for action item signals: 「待實施」「下一步」「需要解決」「待 debug」「暫 skip」or English equivalents ("TODO", "next step", "pending", "needs fix")
 2. For each action item, apply the same FRAMEWORK_GAP vs BEHAVIORAL classification
-3. FRAMEWORK_GAP items → write to `polaris-backlog.md` immediately, with `source: project ({memory_filename})`
+3. FRAMEWORK_GAP items → open an issue under `issues/` immediately, with `source: project ({memory_filename})`
 4. BEHAVIORAL items → leave in the memory only (no backlog)
 
 **Why this matters:** Without this rule, project memories become dead letter boxes — improvements get recorded but never become actionable. The Feedback→Backlog pipeline only covers `type: feedback`, so project-level action items fall through the cracks.
@@ -78,7 +78,7 @@ The `Source:` cross-reference lets both sides stay traceable. When the backlog i
 During `organize memory` / `clean up memory` runs, scan ALL feedback **and project** memories for uncaptured framework gaps:
 
 1. For each `type: feedback` or `type: project` entry, apply the FRAMEWORK_GAP vs BEHAVIORAL classification
-2. For FRAMEWORK_GAP entries, check if a corresponding backlog item already exists (search `polaris-backlog.md` for the memory filename)
+2. For FRAMEWORK_GAP entries, check if a corresponding issue already exists (search `issues/` for the memory filename)
 3. Missing → propose new backlog entry to user
 4. Already tracked → skip
 
@@ -99,7 +99,7 @@ company: acme              # Company scope (omit for workspace-wide memories)
 trigger_count: 1          # Number of times referenced/applied (= 1 when first created)
 last_triggered: 2026-03-29  # Date last referenced
 expires_at: 2026-06-30      # Optional; workaround/review-by date
-absorbed_into: .claude/rules/example.md  # Optional; set when promoted to rule/reference
+absorbed_into: <rule file>  # Optional; set when promoted to rule/reference
 ---
 ```
 
@@ -236,7 +236,7 @@ The `[company]` prefix in the index enables quick visual scanning without openin
 5. **Frontmatter quality** — missing `trigger_count` / `last_triggered` → fill in (`trigger_count: 1`, `last_triggered` from file modification date)
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
 7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers
-8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding `polaris-backlog.md` item → propose backlog entry
+8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding issue under `issues/` → propose one
 9. **Stale design plans** — scan `specs/design-plans/DP-*/plan.md` frontmatter:
    - `status: DISCUSSION` + `created` > 30 days ago → suggest ABANDONED (discussion died) or ask user to resume
    - `status: LOCKED` + `locked_at` > 14 days ago without `implemented_at` → remind user "LOCKED 14+ 天未實作，要繼續嗎？"

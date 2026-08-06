@@ -75,7 +75,7 @@ runtime metrics。
 |---|---|---|
 | 1 | `review-pr` | Large PR diff、existing comments、handbook stack。 |
 | 2 | `learning` | External article / repo raw content、merged PR history。 |
-| 3 | `verify-AC` | Browser evidence、logs、screenshots metadata、AC run output。 |
+| 3 | `verify-ac` | Browser evidence、logs、screenshots metadata、AC run output。 |
 | 4 | `intake-triage` | Batch ticket descriptions、JIRA comments、priority evidence。 |
 | 5 | `converge` | Multi-ticket status scan、PR review comments、CI summaries。 |
 | 6 | `refinement Bug source mode` | Logs、stack traces、multi-file debugging evidence。 |

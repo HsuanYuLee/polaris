@@ -37,7 +37,7 @@ Ambiguous input defaults to save.
 
 | Situation | Load |
 |---|---|
-| Any run | `polaris-project-dir.md`, `session-timeline.md`, `shared-defaults.md` |
+| Any run | `polaris-project-dir.md`, `session-timeline.md` |
 | Save | `checkpoint-save-flow.md`, `checkpoint-carry-forward-flow.md` |
 | Resume / list | `checkpoint-resume-list-flow.md` |
 
@@ -61,6 +61,3 @@ rows。
 Save mode 的 carry-forward gate 由 `checkpoint-carry-forward-flow.md` 執行；必須呼叫
 `.claude/skills/checkpoint/scripts/check-carry-forward.sh`，通過後才可回報 checkpoint saved。
 
-## Post-Task Reflection (required)
-
-Execute `post-task-reflection-checkpoint.md` before reporting completion.

@@ -67,7 +67,7 @@ Before writing any pattern, classify it into one of three layers:
 | **Company-level** | Applies across multiple repos in the same company | `rules/{company}/handbook/` |
 | **Framework-level** | Applies across all companies and repos | Mark `[framework]`, write as feedback memory instead |
 
-Reference `repo-handbook.md` Step 3b for the full three-layer classification logic. When in doubt, default to repo-specific — it is always safe to start narrow and promote later.
+Reference that company's own repo-notes skill for the full three-layer classification logic. When in doubt, default to repo-specific — it is always safe to start narrow and promote later.
 
 ## Deduplication Logic
 
@@ -86,7 +86,7 @@ For each extracted pattern, compare against existing lessons and rules:
 
 Write extracted patterns directly to `{company}/polaris-config/{project}/handbook/`:
 
-**File naming**: Topic-based, kebab-case `.md` files (e.g., `typescript-type-safety.md`, `error-handling.md`). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
+**File naming**: Topic-based, kebab-case `.md` files (e.g. typescript-type-safety.md, error-handling.md). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
 
 **Entry format** (each top-level `- ` counts as 1 entry):
 

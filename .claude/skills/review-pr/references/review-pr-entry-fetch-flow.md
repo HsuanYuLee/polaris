@@ -9,19 +9,19 @@ description: "review-pr 的 workspace config、Slack PR input、PR resolver、re
 
 ## Workspace Config
 
-先讀 `workspace-config-reader.md`，取得：
+先讀 `workspace-config.yaml`，取得：
 
 - GitHub org。
 - Slack notification channel when invoked from Slack。
 - Company base directory。
 - Workspace language fallback。
 
-Config 不存在時，讀 `shared-defaults.md` fallback。
+Config 不存在時，用 `workspace-config.yaml` 的 `defaults` 區塊 fallback。
 
 ## Input Source
 
 使用者直接提供 PR URL 或 PR number 時，解析成單一 PR。若輸入來自 Slack message，
-依 `slack-pr-input.md` 擷取 PR URL，並保留 `slack_channel_id`、`slack_thread_ts`、
+依 `pr-pickup` skill 擷取 PR URL，並保留 `slack_channel_id`、`slack_thread_ts`、
 `slack_source` 供 submit 後通知。
 
 若找到多個 PR，不在本 skill 批次處理，轉 `review-inbox`。

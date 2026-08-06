@@ -9,7 +9,7 @@ description: "review-inbox 的 Label、Slack、Thread discovery、bundled script
 
 ## Defaults
 
-從 workspace config 與 `shared-defaults.md` 取得：
+從 `workspace-config.yaml`（含 `defaults` 區塊）取得：
 
 | Value | Use |
 |---|---|

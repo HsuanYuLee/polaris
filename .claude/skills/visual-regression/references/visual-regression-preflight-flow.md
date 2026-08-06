@@ -17,7 +17,7 @@ description: "visual-regression 執行前的 domain resolution、config inherita
 3. JIRA ticket 或 DP task context，特別是 engineering 觸發時。
 
 若無法判斷，詢問使用者要對哪個 domain 跑 VR。讀 config 時遵守
-`workspace-config-reader.md`。
+`workspace-config.yaml`。
 
 ## Config Availability
 

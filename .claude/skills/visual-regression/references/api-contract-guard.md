@@ -36,7 +36,7 @@ If Docker is not running, the check should **warn and skip** (not block). The ca
 ## Script Interface
 
 ```bash
-# Check all fixtures for an epic (path per references/epic-folder-structure.md)
+# Check all fixtures for a ticket (path per references/vr-artifact-location.md)
 contract-check.sh --env-dir {company_specs_dir}/EPIC-500/tests/mockoon
 
 # Check specific environment file

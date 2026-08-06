@@ -64,7 +64,7 @@ Report rules：
 - FAIL pages 附 diff image，以及必要時 before / after。
 - SKIP pages 說明原因與解除條件。
 - 圖片使用 `!filename.png|thumbnail!`。
-- 發送前先通過 `workspace-language-policy.md` 或 external write gate。
+- 發送前先確認語言符合 `workspace-config.yaml` 的 `language`。
 
 Upload 失敗時 fallback text-only summary，並附 HTML report 檢視方式。
 

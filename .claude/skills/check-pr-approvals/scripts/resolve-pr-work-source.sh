@@ -2,8 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
-RESOLVE_TASK_MD_BY_BRANCH="${SCRIPT_DIR}/resolve-task-md-by-branch.sh"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 
 if [[ -f "$GITHUB_REST_LIB" ]]; then
@@ -79,7 +77,6 @@ FIELD=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO="${2:-}"; shift 2 ;;
-    --task-md) TASK_MD="${2:-}"; shift 2 ;;
     --pr-json) PR_JSON="${2:-}"; shift 2 ;;
     --pr) PR_INPUT="${2:-}"; shift 2 ;;
     --intent) INTENT="${2:-}"; shift 2 ;;
@@ -164,19 +161,6 @@ CURRENT_BRANCH="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || true
 PR_HEAD_BRANCH=""
 if [[ -n "$PR_JSON" ]]; then
   PR_HEAD_BRANCH="$(json_field "$PR_JSON" "headRefName" 2>/dev/null || true)"
-fi
-
-if [[ -z "$TASK_MD" ]]; then
-  lookup_branch="${PR_HEAD_BRANCH:-$CURRENT_BRANCH}"
-  if [[ -n "$lookup_branch" && -f "$RESOLVE_TASK_MD_BY_BRANCH" ]]; then
-    TASK_MD="$(bash "$RESOLVE_TASK_MD_BY_BRANCH" --scan-root "$REPO" "$lookup_branch" 2>/dev/null | head -n 1 || true)"
-  fi
-fi
-
-if [[ -n "$TASK_MD" ]]; then
-  TASK_MD="$(abs_path "$TASK_MD")"
-  TMP_TASK_JSON="$(mktemp -t polaris-pr-work-source-task.XXXXXX.json)"
-  bash "$PARSE_TASK_MD" "$TASK_MD" >"$TMP_TASK_JSON"
 fi
 
 python3 - "$REPO" "${TASK_MD:-__NULL__}" "${TMP_TASK_JSON:-__NULL__}" \

@@ -74,8 +74,8 @@ gh api repos/{owner}/{repo}/contents/.claude/rules --jq '.[].name'
 若後續 consumer 需要 shared PR state，接著執行：
 
 ```bash
-bash .claude/skills/converge/scripts/resolve-pr-work-source.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
-bash .claude/skills/converge/scripts/pr-state-snapshot.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
+bash .claude/skills/review-pr/scripts/resolve-pr-work-source.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
+bash .claude/skills/review-pr/scripts/pr-state-snapshot.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
 ```
 
 這兩步會補上：

@@ -197,21 +197,39 @@ PY
 judged_by="$(git -C "$DELIVERING_REPO" config user.name 2>/dev/null || echo unknown)"
 judged_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# Which repository the head belongs to. Without it a record is a bare sha, and a
+# bare sha cannot be told apart from a stale one by anybody reading it later:
+# issues/ is shared across every repository this person works in, so a delivery
+# recorded from a product repo lands next to the framework's own records and its
+# head is — correctly — absent from the framework. gate-spine-delivery.sh read
+# that absence as "unusable, refuse", which blocked every framework push from the
+# moment the first product-repo delivery was recorded.
+#
+# Recorded verbatim rather than normalised. The gate compares it against the same
+# command run in its own repository, so two runs on the same clone agree exactly;
+# a mismatch that is really the same repository under a different remote URL shows
+# up in the gate's enumerated skip list with both strings printed, which is a
+# reader's problem to judge and not a silent pass.
+delivering_repo="$(git -C "$DELIVERING_REPO" config --get remote.origin.url 2>/dev/null || true)"
+[[ -n "$delivering_repo" ]] || delivering_repo="$DELIVERING_REPO"
+
 OUT_DIR="$ISSUE_DIR/.spine"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
-  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
+  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$delivering_repo" <<'PY'
 import json
 import sys
 
-out, source, destination, head, bump, summary, by, at, source_head = sys.argv[1:10]
+(out, source, destination, head, bump, summary, by, at, source_head,
+ delivering_repo) = sys.argv[1:11]
 payload = {
     "schema_version": 1,
     "producer": "record-delivery-intent.sh",
     "source": source,
     "destination": destination,
+    "delivering_repo": delivering_repo,
     "head_sha": head,
     "issue_head_sha": source_head,
     "version_bump": bump,

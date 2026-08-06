@@ -14,10 +14,9 @@ metadata:
 
 ## Mandatory Contracts
 
-- 任何 sub-agent dispatch 前，先讀 `sub-agent-roles.md` 並注入 Completion Envelope；
   完整分析寫入 `/tmp/polaris-agent-{timestamp}.md`。
 - 任何 Slack / JIRA / GitHub / Confluence 或其他 external write 前，遵守
-  `workspace-language-policy.md` 或 external write gate。
+  `scripts/validate-language-policy.sh` 或 external write gate。
 - 任何 specs Markdown 產出或匯入，遵守 `starlight-authoring-contract.md`。
 - Learning 可以 seed / import research evidence，但不得自動 invoke `refinement`，
   也不得替任何已凍結的斷言改寫成功的定義。
@@ -101,4 +100,3 @@ dedup，以及 Slack 發送前的 language gate。Setup 過程不得 commit 或 
 
 > Non-optional. Execute before reporting task completion after any write.
 
-Run the checklist in `post-task-reflection-checkpoint.md`.

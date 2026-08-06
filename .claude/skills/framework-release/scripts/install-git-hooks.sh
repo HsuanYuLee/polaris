@@ -62,7 +62,8 @@ cat > "$HOOK_DIR/pre-commit" <<'EOF'
 # [polaris-git-hooks]
 # 由 .claude/skills/framework-release/scripts/install-git-hooks.sh 產生，不要直接改。
 set -euo pipefail
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# 見 pre-push 的同一行：hook 環境裡有 GIT_DIR，`--show-toplevel` 會回工作目錄而不是 repo 根。
+REPO_ROOT="$(env -u GIT_DIR -u GIT_WORK_TREE git rev-parse --show-toplevel)"
 
 # 資料夾模式的 company skill 需要深度一的 symlink 才叫得到。加了 skill 的人不需要
 # 知道這件事，這裡替他補上並 stage；撐不住 symlink 的環境會明講，不會靜默放行。
@@ -84,14 +85,16 @@ cat > "$HOOK_DIR/pre-push" <<'EOF'
 # [polaris-git-hooks]
 # 由 .claude/skills/framework-release/scripts/install-git-hooks.sh 產生，不要直接改。
 set -euo pipefail
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# git 跑 hook 時環境裡已經有 GIT_DIR，而 `rev-parse --show-toplevel` 在那個情況下回的是
+# 當下的工作目錄。這裡拿掉它再問，並且把答案往下傳——被呼叫的那支不該自己再解一次根。
+REPO_ROOT="$(env -u GIT_DIR -u GIT_WORK_TREE git rev-parse --show-toplevel)"
 
 # 刪 branch 與推 tag 不帶內容，不必過內容閘。
 while read -r _local_ref local_sha _remote_ref _remote_sha; do
   [[ "$local_sha" == 0000000000000000000000000000000000000000 ]] && exit 0
 done || true
 
-bash "$REPO_ROOT/.claude/skills/framework-release/scripts/pre-push-quality-gate.sh"
+bash "$REPO_ROOT/.claude/skills/framework-release/scripts/pre-push-quality-gate.sh" --repo "$REPO_ROOT"
 EOF
 
 chmod +x "$HOOK_DIR/pre-commit" "$HOOK_DIR/pre-push"

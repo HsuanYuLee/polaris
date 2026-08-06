@@ -57,3 +57,6 @@ __pycache__/
 *.pyc
 .DS_Store
 .vite/
+# 排程任務跑的時候才長出來的鎖檔。它綁的是那一次執行，不是一個必須存在的位置——
+# 放在 machine-local 底下的話，這道閘在「現在沒有排程在跑」的每一台機器上都是紅的。
+/.claude/scheduled_tasks.lock

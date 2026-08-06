@@ -30,13 +30,13 @@ VR 在 quality chain 中回答：「既有頁面是否仍 visually intact？」�
 
 | Situation | Load |
 |---|---|
-| Any VR run | `visual-regression-principles.md`, `visual-regression-preflight-flow.md`, `visual-regression-config.md`, `workspace-config-reader.md` |
+| Any VR run | `visual-regression-principles.md`, `visual-regression-preflight-flow.md`, `visual-regression-config.md`, `workspace-config.yaml` |
 | Screenshot execution | `visual-regression-capture-flow.md`, `dependency-consent.md` |
-| Fixtures enabled | `api-contract-guard.md`, `visual-regression-fixture-flow.md`, `epic-folder-structure.md` |
-| Analysis or JIRA report | `visual-regression-analysis-reporting.md`, `vr-jira-report-template.md`, `workspace-language-policy.md` |
+| Fixtures enabled | `api-contract-guard.md`, `visual-regression-fixture-flow.md`, `vr-artifact-location.md` |
+| Analysis or JIRA report | `visual-regression-analysis-reporting.md`, `vr-jira-report-template.md` |
 
 JIRA report、Slack summary，或任何 external write body 送出前，必須依
-`workspace-language-policy.md` 或 external write gate 驗證語言。
+`workspace-config.yaml` 的 `language` 驗證語言。
 
 ## Flow
 
@@ -68,4 +68,3 @@ cleanup status。
 ## Post-Task Reflection (required)
 
 若本次修改 config、fixtures、JIRA report、或 framework references，final response 前執行
-`post-task-reflection-checkpoint.md`。

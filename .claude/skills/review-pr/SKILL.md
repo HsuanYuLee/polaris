@@ -38,12 +38,12 @@ workflow state，而不是 reviewer prose。
 
 | Situation | Load |
 |---|---|
-| Any run | `review-pr-entry-fetch-flow.md`, `pr-input-resolver.md`, `workspace-config-reader.md`, `shared-defaults.md` |
-| Analysis | `review-pr-analysis-flow.md`, `repo-handbook.md`, `library-change-protocol.md` as needed |
-| Submit and notify | `review-pr-submit-flow.md`, `workspace-language-policy.md`, `external-write-gate.md`, `github-slack-user-mapping.md` |
-| Re-review | `review-pr-rereview-learning-flow.md`, `review-lesson-extraction.md`, `repo-handbook.md` |
+| Any run | `review-pr-entry-fetch-flow.md`, `pr-input-resolver.md`, `workspace-config.yaml` |
+| Analysis | `review-pr-analysis-flow.md`, `library-change-protocol.md` as needed |
+| Submit and notify | `review-pr-submit-flow.md`, `scripts/validate-language-policy.sh`, `external-write-gate.md`, `github-slack-user-mapping.md` |
+| Re-review | `review-pr-rereview-learning-flow.md`, `review-lesson-extraction.md` |
 
-Large PR 分批 review 可派 sub-agent；所有 dispatch 必須注入 `sub-agent-roles.md` 的
+Large PR 分批 review 可派 sub-agent。
 Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔。
 
 ## Flow
@@ -71,7 +71,7 @@ Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔�
 ## Write Rules
 
 - GitHub review、inline comments、Slack replies 都是 external write。
-- 使用 `workspace-language-policy.md` 或 external write gate 驗證 final text。
+- 使用 `scripts/validate-language-policy.sh` 或 external write gate 驗證 final text。
 - 不重複留言已由其他 reviewer 指出的同語意問題。
 - Suggested change 只在能精準替換 diff range 時使用。
 
@@ -80,6 +80,3 @@ Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔�
 輸出 PR、review result、must-fix / should-fix / nit counts、approve status、Slack
 notification status，以及 handbook updates if any。
 
-## Post-Task Reflection (required)
-
-Execute `post-task-reflection-checkpoint.md` before reporting completion.

@@ -65,6 +65,3 @@ Plan artifact authority lives in `bash .claude/skills/memory-hygiene/scripts/val
 Return mode, memory dir, Hot/Warm/Cold counts when available, candidate summary, apply status,
 files moved, migration log path, and any anomalies.
 
-## Post-Task Reflection (required)
-
-Execute `post-task-reflection-checkpoint.md` before reporting completion.

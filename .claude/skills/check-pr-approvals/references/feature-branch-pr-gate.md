@@ -14,7 +14,7 @@
 |--------------|---------|------|
 | `converge` Epic mode | 掃描完所有子單狀態 | 差距分析自然發現 |
 | `check-pr-approvals` | 偵測到 task PR 被 merge | merge 是最關鍵的狀態變化 |
-| `engineering` | 完成 task 的完整開發流程 | 直接由 task.md delivery flow 帶入 |
+| `engineering` | 完成一張單的完整開發流程 | 由那張單的活文件帶入 |
 | `engineering` revision mode | push 修正後 PR 被 merge | 同 check-pr-approvals |
 
 ## 偵測邏輯
@@ -40,7 +40,7 @@ task PR 的 baseRefName 不是 develop/main
 ### Step 2–4: 查詢狀態（使用共用腳本）
 
 ```bash
-references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base develop
+.claude/skills/check-pr-approvals/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base develop
 ```
 
 腳本一次完成三件事：

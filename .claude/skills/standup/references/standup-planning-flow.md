@@ -66,7 +66,7 @@ Review-requested PRs 有結果時，加入 TDT 的 PR Review 區塊。
 
 ## Polaris Backlog
 
-讀取 `{base_dir}/.claude/polaris-backlog.md` 的 High priority unfinished items。最多列 top 3，
+讀取 `issues/` 底下還沒收斂的單。最多列 top 3，
 放入「AI 工具改善（NO-JIRA）」區塊。
 
 若 framework skills/rules 有 uncommitted changes，提醒有框架改動未 commit。

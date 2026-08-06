@@ -5,7 +5,7 @@ visual-regression skill 的 config 結構說明。測試對象是 **domain**（�
 **比對模式：Before/After + Per-Epic Baseline**
 - 每次執行抓兩組截圖（before + after），diff 完即刪
 - 利用 Playwright `--update-snapshots` 建暫時 baseline，正常 run 比對
-- VR baseline 永久存 `{source_container}/tests/vr/baseline/`（見 `references/epic-folder-structure.md`）
+- VR baseline 永久存單自己的 `tests/vr/baseline/`（見 `references/vr-artifact-location.md`）
 - Mockoon fixtures 存 `{source_container}/tests/mockoon/`（per-epic 隔離）
 
 ## 兩層繼承
@@ -85,7 +85,7 @@ polaris-config/{company}/visual-regression/
       └── playwright-report/    # HTML report（保留供檢視，不 commit）
 ```
 
-### Data（per-epic，見 `references/epic-folder-structure.md`）
+### Data（per-單，見 `references/vr-artifact-location.md`）
 ```
 {source_container}/tests/
   ├── mockoon/                  # Mockoon environment JSONs（per-epic 隔離）
@@ -137,7 +137,7 @@ polaris-config/{company}/visual-regression/
 | `stop_command` | string | 是（如果有 fixtures block） | 停止 fixture server 的指令 |
 | `health_ports` | number[] | 否 | 健康檢查端口列表 |
 | `ready_signal` | string | 是（如果有 fixtures block） | 同 server.ready_signal 邏輯 |
-| `shared_config_dir` | string | 否 | 跨 Epic 共用 config 目錄（proxy-config.yaml 等）。見 `references/epic-folder-structure.md` |
+| `shared_config_dir` | string | 否 | 跨單共用 config 目錄（proxy-config.yaml 等）。見 `references/vr-artifact-location.md` |
 
 整個 fixtures block 是 optional。打 SIT 時通常不需要 fixtures（SIT 有自己的資料）。
 

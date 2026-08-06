@@ -121,7 +121,6 @@ Starlight 會用 frontmatter `title` 呈現頁面標題，所以 body 的第一�
 
 過渡期例外：
 
-- 若既有 `task.md` schema 暫時要求 body H1，producer 可以讓 frontmatter `title` 與 body H1 不完全相同，例如 `title: "DP-067-T1: shared Starlight authoring contract reference"` 搭配 `# T1: shared Starlight authoring contract reference`。
 - 此例外只為了支援 schema migration；validator 與 template 完成後，producer 應回到目標態。
 
 ## Markdown Body
