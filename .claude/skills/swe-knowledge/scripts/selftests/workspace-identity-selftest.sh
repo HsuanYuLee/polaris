@@ -66,4 +66,17 @@ out="$(bash "$SCRIPT" --repo "$alpha" 2>/dev/null)" && fail "detached HEAD 卻�
 [[ -z "$out" ]] || fail "detached HEAD 卻印了東西；得到：$out"
 echo "  ok  detached HEAD 求不出來，stdout 保持空的"
 
+# DP-482：要量哪些地方是被告知的。沒被指名時量 pwd 的那一版，對「單住在 A、程式碼落在 B」
+# 的單永遠記下 A，而之後每一次比對都拿 A 跟 A 比、永遠自洽。
+beta_only="$(new_repo gamma feat/three)"
+out="$(cd "$beta_only" && bash "$SCRIPT" 2>/dev/null)" && fail "一個地方都沒被指名卻回了 0"
+[[ -z "$out" ]] || fail "沒被指名卻量了 cwd；得到：$out"
+echo "  ok  一個地方都沒被指名就不量，也不從 cwd 猜"
+
+# 核心把宣告的那一組原樣接在宣告的命令後面，所以位置參數要跟 --repo 等價——核心不認得
+# 這支腳本用什麼旗標收，它只是把當初被告知的那一組還回去。
+out="$(cd / && bash "$SCRIPT" "$beta_only")" || fail "位置參數求不出身分"
+[[ "$out" == "gamma:feat/three" ]] || fail "位置參數的結果跟 --repo 不一致；得到：$out"
+echo "  ok  位置參數與 --repo 等價，而且結果不受 cwd 影響"
+
 echo "PASS: workspace-identity"

@@ -126,7 +126,9 @@ if ! bash "$VERIFY_AC/frozen-assertion-fence.sh" verify "$REPO_PATH/$ISSUE_DIR/i
     "$ISSUE_DIR/index.md no longer matches what was signed; refusing to ship." \
     "  bash .claude/skills/verify-ac/scripts/frozen-assertion-fence.sh verify $ISSUE_DIR/index.md"
 fi
-if ! bash "$SCRIPTS/gate-spine-delivery.sh" --repo "$REPO_PATH" >/dev/null 2>&1; then
+# 這裡知道自己在釋出哪一張單（--issue 是必填），所以直接說。讓閘自己去掃全部紀錄、
+# 再判斷哪些是這個 repo 的事，是別張單的紀錄擋住這次釋出的唯一途徑（DP-482）。
+if ! bash "$SCRIPTS/gate-spine-delivery.sh" --repo "$REPO_PATH" --issue "$ISSUE_DIR" >/dev/null 2>&1; then
   die "POLARIS_SPINE_RELEASE_RECORD_STALE" \
     "the delivery record describes a different commit than HEAD; re-run verify-ac's handoff step."
 fi
@@ -242,7 +244,41 @@ land_locally() {
   fi
 }
 
+# Description: 把「這張單真的出去了」記在單自己身上。
+# Args: $1 = 版本字串（workspace-bound 的沒有壓版，記的是當下的 VERSION）
+#
+# 為什麼不是交付紀錄：`delivery.json` 是第二個閘在釋出**之前**寫的交付意向，它的 `judged_at`
+# 是判定日。在這一行執行之前，「這張單出去了沒有、哪一天出去的」在本機沒有任何地方回答得
+# 出來——DP-481 要把收斂完的單按釋出日分開放，才發現這個訊號從來不存在，而拿判定日冒充
+# 釋出日會把一張還沒上線的單放進 released/。
+write_release_record() {
+  local version="$1" record="$REPO_PATH/$ISSUE_DIR/.spine/release.json" today
+  today="$(date -u +%Y-%m-%d)"
+  mkdir -p "$(dirname "$record")"
+  python3 - "$record" "$version" "$DESTINATION" "$HEAD_SHA" <<'RELEASE_RECORD'
+import json
+import sys
+from datetime import datetime, timezone
+
+record, version, destination, head = sys.argv[1:5]
+now = datetime.now(timezone.utc)
+with open(record, "w", encoding="utf-8") as handle:
+    json.dump({
+        "schema_version": 1,
+        "producer": "spine-release.sh",
+        "released_on": now.strftime("%Y-%m-%d"),
+        "released_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "version": version,
+        "destination": destination,
+        "head_sha": head,
+    }, handle, ensure_ascii=False, indent=1)
+    handle.write("\n")
+RELEASE_RECORD
+  note "釋出紀錄：$ISSUE_DIR/.spine/release.json（released_on=$today version=$version）"
+}
+
 if [[ "$DESTINATION" != "template" ]]; then
+  write_release_record "$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
   land_locally
   step "done"
   note "workspace-bound source promoted; nothing syncs outward."
@@ -275,6 +311,7 @@ else
   note "released $tag"
 fi
 
+write_release_record "$version"
 land_locally
 
 step "done"

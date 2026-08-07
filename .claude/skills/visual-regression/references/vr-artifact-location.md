@@ -39,11 +39,11 @@ issues/{命名空間}/{單號}/
 ## 換位置由流程做，不由這支 skill 做
 
 一張單換不換位置，由 `issues/{命名空間}/{單號}/.spine/loop-state.json` 的 `status` 決定，
-沒有第二個開關。`spine-loop-state.sh record` 寫完輪次就呼叫 `archive-delivered-issues.sh`，
-把 `converged` 的搬進同命名空間的 `archive/`，把還沒收斂卻躺在 `archive/` 的搬回來。
+沒有第二個開關。`spine-loop-state.sh record` 寫完輪次就呼叫 `place-issues-by-state.sh`，
+把每一張單重算到它的狀態說的那一格。
 
 ```bash
-bash .claude/skills/driving-work-to-done/scripts/archive-delivered-issues.sh --check
+bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check
 ```
 
 `--check` 是用來讓「位置與狀態對不上」被看見，不是用來讓人選一邊。手動 `git mv` 一張單，

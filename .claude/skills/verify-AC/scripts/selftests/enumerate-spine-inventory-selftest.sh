@@ -113,4 +113,82 @@ if ( cd "$REPO" && bash "$ENUM" --issue issues/DP-999-absent >/dev/null 2>&1 ); 
 fi
 echo "  ok  a missing source fails loudly"
 
+# DP-482. A ticket lives in issues/ — the user's own repository — while its code
+# lands in whatever product repo the work is for. Those are two trees, and this
+# enumerator used to ask the one the caller happened to be standing in. It then
+# answered "what did this delivery leave behind" from a history that contains
+# none of the delivery, and the legacy-layer check reads that answer.
+PAPERS="$WORK/papers"
+CODE="$WORK/code"
+mkdir -p "$PAPERS/issues/DP-001-elsewhere/.spine"
+for tree in "$PAPERS" "$CODE"; do
+  git -C "$tree" init -q 2>/dev/null || git init -q "$tree"
+  git -C "$tree" config user.email selftest@example.com
+  git -C "$tree" config user.name selftest
+done
+printf 'living document\n' > "$PAPERS/issues/DP-001-elsewhere/index.md"
+printf '{}\n' > "$PAPERS/issues/DP-001-elsewhere/.spine/loop-state.json"
+git -C "$PAPERS" add -A
+git -C "$PAPERS" commit -qm "the paperwork, and nothing else"
+printf 'seed\n' > "$CODE/seed"
+git -C "$CODE" add -A
+git -C "$CODE" commit -qm seed
+CODE_BASE="$(git -C "$CODE" rev-parse HEAD)"
+mkdir -p "$CODE/src"
+printf 'echo the actual delivery\n' > "$CODE/src/feature.sh"
+git -C "$CODE" add -A
+git -C "$CODE" commit -qm "the work this ticket is for"
+
+( cd "$PAPERS" && bash "$ENUM" --issue issues/DP-001-elsewhere --repo "$CODE" \
+    --base "$CODE_BASE" >/dev/null 2>&1 ) \
+  || fail "a ticket whose code landed in another tree should still enumerate"
+python3 -c '
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+listed = {a["path"] for a in data["artifacts"]}
+forced = {a["path"] for a in data["artifacts"] if a["forced"]}
+assert "src/feature.sh" in listed, f"the delivery in the other tree was not seen: {listed}"
+assert data["kind"] == "code", f"code landing elsewhere is still code: {data}"
+assert "issues/DP-001-elsewhere/index.md" in forced, f"the ticket itself is still charged: {forced}"
+' "$PAPERS/issues/DP-001-elsewhere/.spine/inventory.json" \
+  || fail "the inventory must come from the tree the delivery landed in"
+echo "  ok  單住在一棵樹、改動落在另一棵，清單看的是改動那一棵"
+
+# Falling back is a guess, and a silent guess reads exactly like a known fact.
+note="$( (cd "$PAPERS" && bash "$ENUM" --issue issues/DP-001-elsewhere \
+  --base HEAD 2>&1 >/dev/null) )"
+grep -Fq 'NOTE: --repo 沒有給' <<<"$note" \
+  || fail "退回用單自己住的 repo 的時候要說出來；got: $note"
+echo "  ok  沒有給 --repo 就說出它退回去問了哪一棵樹"
+
+# DP-482. The default base was the literal string origin/main, so this refused
+# every repository whose default branch is called something else — and the first
+# real cross-repo delivery landed in one whose branch is master. That is not the
+# ticket being wrong; it is this script assuming every repository in the world is
+# shaped like the framework's own.
+MASTERISH="$WORK/masterish"
+mkdir -p "$MASTERISH/issues/DP-002-master/.spine"
+git init -q "$MASTERISH"
+git -C "$MASTERISH" config user.email selftest@example.com
+git -C "$MASTERISH" config user.name selftest
+printf 'living document\n' > "$MASTERISH/issues/DP-002-master/index.md"
+git -C "$MASTERISH" add -A
+git -C "$MASTERISH" commit -qm seed
+git -C "$MASTERISH" update-ref refs/remotes/origin/master HEAD
+printf 'echo work\n' > "$MASTERISH/tool.sh"
+git -C "$MASTERISH" add -A
+git -C "$MASTERISH" commit -qm work
+note="$( (cd "$MASTERISH" && bash "$ENUM" --issue issues/DP-002-master 2>&1 >/dev/null) )" \
+  || fail "a repository whose default branch is master should still enumerate: $note"
+grep -Fq 'origin/master' <<<"$note" \
+  || fail "退回去找預設分支的時候要說出它找到哪一個；got: $note"
+python3 -c '
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+listed = {a["path"] for a in data["artifacts"]}
+assert "tool.sh" in listed, f"the diff against origin/master saw nothing: {listed}"
+' "$MASTERISH/issues/DP-002-master/.spine/inventory.json" \
+  || fail "預設分支不叫 main 的 repo 量出來是一份空的交付"
+echo "  ok  預設分支不叫 main 的 repo 也量得到"
+
 echo "PASS: enumerate-spine-inventory"

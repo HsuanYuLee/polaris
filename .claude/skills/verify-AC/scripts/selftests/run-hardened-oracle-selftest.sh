@@ -206,6 +206,28 @@ assert "diagnostic detail on stderr" in data["stderr"], "stderr missing from the
 PY
 echo "  ok  stderr and exit code survive the runner"
 
+# DP-482: the record has to name the tree the command actually ran in. Reading HEAD from
+# this process's cwd instead of --cwd names a commit the command never saw, and the record
+# still looks well-formed — so the delivery gate compares evidence against the wrong tree.
+measured_repo="$WORK/measured-tree"
+git init -q "$measured_repo"
+git -C "$measured_repo" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "the measured tree"
+measured_head="$(git -C "$measured_repo" rev-parse HEAD)"
+here_head="$(git rev-parse HEAD 2>/dev/null || true)"
+[[ "$measured_head" != "$here_head" ]] \
+  || fail "fixture repo shares HEAD with the caller; this case would pass either way"
+bash "$ORACLE" --command 'echo MEASURED' --expect-evidence MEASURED \
+  --cwd "$measured_repo" --evidence-out "$WORK/cwd-evidence.json" >/dev/null 2>&1 \
+  || fail "measuring inside --cwd should still pass"
+python3 - "$WORK/cwd-evidence.json" "$measured_head" <<'PY_CWD'
+import json
+import sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["head_sha"] == sys.argv[2], (
+    f"evidence named {data['head_sha']}, but the command ran in the tree at {sys.argv[2]}")
+PY_CWD
+echo "  ok  the record names the tree the command ran in, not the caller's cwd"
+
 [[ "$PASS_COUNT" -ge 1 ]] \
   || fail "no positive case ran; a suite of negatives alone cannot prove the verdict is two-way"
 

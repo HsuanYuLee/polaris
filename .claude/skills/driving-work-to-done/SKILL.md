@@ -107,7 +107,8 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --stat
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --across-issues issues
 ```
 
-單張回 `continue` 就繼續，回 `stop:<kind>` 才停。跨單回 `next:{命名空間}/{單號}`，並且把停住
+單張回 `continue` 就繼續，回 `stop:<kind>` 才停。跨單回 `next:{那張單相對於樹根的位置}`——
+它是拿去開檔案用的，**不是身分**：一張單的身分是它的名字，位置會隨狀態改變。並且把停住
 的逐張列出來、把已收斂與已交付的算成數字——**不列成清單但要有數字**，一個安靜的第三態下一次
 就會被當成看過了。
 
@@ -137,13 +138,34 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --acro
 | 會改到程式碼、要進版控 | `swe-knowledge` |
 | 不會改程式碼（報告、調查、文件、資料分析） | 沒有適用的領域 |
 
-領域的決定**就在開輪次那一步**，不是之後補的欄位：
+領域的決定**就在開輪次那一步**，不是之後補的欄位。**這張單的改動會落在哪些地方也是**：
 
 ```bash
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
-  --state {issue}/.spine/loop-state.json --pack swe-knowledge
+  --state {issue}/.spine/loop-state.json --pack swe-knowledge \
+  --where <工作區路徑> [--where <另一個>]...
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
   --state {issue}/.spine/loop-state.json --pack none --why '<為什麼這件工作沒有領域完成條件>'
+```
+
+`--where` 給幾次就是幾個地方，值是不透明字串——核心把它記下來，之後每次問路原樣交還給
+領域的腳本去求值。**它不是「我現在站在哪」，是「這張單的改動會落在哪」**：一張單住在
+`issues/` 而程式碼落在某個產品 repo 是常態，兩者不是同一個地方。宣告不出來就不開輪次，
+因為從當下位置推出來的那一份對這種單永遠是錯的那一邊，而它之後每次比對都自洽。
+
+需要知道這張單落在哪裡的時候讀這一支，**不要自己再推一次**：
+
+```bash
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh landing \
+  --state {issue}/.spine/loop-state.json
+```
+
+DP-482 之前開的單狀態裡沒有這份宣告，問路會回 `unlanded`。補記（或在落腳處真的變了的時候
+改記，改要帶人的原話）：
+
+```bash
+bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh land \
+  --state {issue}/.spine/loop-state.json --where <工作區路徑> [--authorization '<人的原話>']
 ```
 
 `init` 還會跑那個領域宣告的**開工條件**——條件寫在 pack 自己的知識裡，核心只負責找到它、

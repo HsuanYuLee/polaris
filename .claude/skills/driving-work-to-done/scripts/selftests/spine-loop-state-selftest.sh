@@ -287,30 +287,49 @@ PY
 grep -q 'predates stations' <<<"$(bash "$LOOP" where --state "$S9")" \
   || fail "a pre-stations state was reported as though its station were known"
 
-# --- Case 10: 已歸檔的單再記一輪，不可以把整棵樹搬歪 ------------------------
-# record 完會叫歸檔器，而歸檔器要知道 issues 根在哪。第一版從 state 往上數固定三層——
-# 對活躍區的單剛好，對 archive/ 裡的單就少數一層，算出來的「根」其實是某個命名空間。
-# 於是 archive 看起來像一個命名空間，它底下每一張單都被搬進 archive/archive/。
+# --- Case 10: 住在格子裡的單再記一輪，不可以把整棵樹搬歪 --------------------
+# record 完會叫重算，而重算要知道 issues 根在哪。第一版從 state 往上數固定三層——
+# 對活躍區的單剛好，對格子裡的單就少數一層，算出來的「根」其實是某個命名空間。
+# 於是那個格子看起來像一個命名空間，它底下每一張單都被搬進 {格子}/{格子}/。
 # 2026-08-03 真的發生了，103 個檔案，而且呼叫端接了 `|| true`，全程沒有一個字。
+#
+# 六格之後這個案例更該在：單本來就住在格子裡，往上數幾層永遠是錯的答案。
 S10_ROOT="$WORK/issues10"
-mkdir -p "$S10_ROOT/ns/archive/T/.spine" "$S10_ROOT/ns/archive/OTHER/.spine"
+mkdir -p "$S10_ROOT/ns/backlog/T/.spine" "$S10_ROOT/ns/done/OTHER/.spine"
 git -C "$S10_ROOT" init -q
 git -C "$S10_ROOT" config user.email t@t
 git -C "$S10_ROOT" config user.name t
-bash "$LOOP" init --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
-bash "$LOOP" record --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --outcome converged >/dev/null
-printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/archive/OTHER/.spine/loop-state.json"
+bash "$LOOP" init --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
+printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/done/OTHER/.spine/loop-state.json"
 git -C "$S10_ROOT" add -A
 git -C "$S10_ROOT" commit -qm seed
-# T 沒收斂了，它該回到活躍區；OTHER 收斂著，該原地不動。
-bash "$LOOP" record --state "$S10_ROOT/ns/archive/T/.spine/loop-state.json" --outcome unconverged >/dev/null
-[[ ! -d "$S10_ROOT/ns/archive/archive" ]] \
-  || fail "歸檔器把命名空間當成了整棵樹：$S10_ROOT/ns/archive/archive 被建出來"
-[[ -d "$S10_ROOT/ns/T" ]] \
-  || fail "沒收斂的單沒有從 archive/ 回到活躍區"
-[[ -d "$S10_ROOT/ns/archive/OTHER" ]] \
+# T 收斂了：它身上沒有釋出紀錄，所以該落 done/，不是 released/。
+bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --outcome converged >/dev/null
+[[ -d "$S10_ROOT/ns/done/T" ]] \
+  || fail "收斂的單沒有落到 done/：$(find "$S10_ROOT/ns" -maxdepth 2 -type d | tr '\n' ' ')"
+[[ ! -d "$S10_ROOT/ns/backlog/backlog" && ! -d "$S10_ROOT/ns/done/done" ]] \
+  || fail "重算把某一個格子當成了整棵樹"
+# 又沒收斂了：它該離開 done/，回到還在做的那一格。OTHER 收斂著，原地不動。
+bash "$LOOP" record --state "$S10_ROOT/ns/done/T/.spine/loop-state.json" --outcome unconverged >/dev/null
+[[ -d "$S10_ROOT/ns/in-progress/T" ]] \
+  || fail "沒收斂的單沒有離開 done/"
+[[ -d "$S10_ROOT/ns/done/OTHER" ]] \
   || fail "收斂著的單被動到了"
 
+# 換站別也是換狀態，位置一樣要跟著換。只掛在 record 上的話，一張被推回 refinement 的單
+# 會留在 in-progress/——而那正是「位置是狀態的投影」要消除的漂移。
+#
+# 這裡刻意不用「推到 verify-ac」當例子：T 是 `--pack none` 開的，不會動到 code 的工作
+# 沒有 review 這一格，所以它走到 verify-ac 仍然落 in-progress——那是對的行為，拿它當
+# 斷言會量到一個永遠不動的東西。
+bash "$LOOP" advance --state "$S10_ROOT/ns/in-progress/T/.spine/loop-state.json" --to refinement >/dev/null
+[[ -d "$S10_ROOT/ns/backlog/T" ]] \
+  || fail "advance 把單推回 refinement，位置卻沒跟著換：$(find "$S10_ROOT/ns" -maxdepth 2 -type d -name T)"
+echo "  ok  換站別之後位置跟著換"
+
+
+# 單會被重算搬走，所以 fixture 裡的路徑不能寫死——照單名去問它現在住哪。
+state_of() { find "$1" -path "*/$2/.spine/loop-state.json" | head -1; }
 
 # Case 11：跨單。「手上有六張單，接下來做哪一張」原本只有人回答得出來，而每一次問人
 # 就是連續退化成單步的那一刻。
@@ -327,49 +346,50 @@ git -C "$S11" add -A && git -C "$S11" commit -qm seed
 # EARLY 先動、LATE 後動：同一站時該推薦最近動過的那一張。
 # 時間直接寫死，不用 sleep：兩次 record 落在同一秒的話這個 case 什麼都沒驗到，
 # 而它剛好就是這樣第一次跑出假訊號的。
-bash "$LOOP" record --state "$S11/nsA/EARLY/.spine/loop-state.json" --outcome unconverged >/dev/null
-bash "$LOOP" record --state "$S11/nsB/LATE/.spine/loop-state.json" --outcome unconverged >/dev/null
+bash "$LOOP" record --state "$(state_of "$S11" EARLY)" --outcome unconverged >/dev/null
+bash "$LOOP" record --state "$(state_of "$S11" LATE)" --outcome unconverged >/dev/null
 python3 - "$S11" <<'PYSTAMP'
-import json, sys
+import glob, json, sys
 for name, stamp in (("nsA/EARLY", "2020-01-01T00:00:00Z"), ("nsB/LATE", "2030-01-01T00:00:00Z")):
-    path = f"{sys.argv[1]}/{name}/.spine/loop-state.json"
+    path = glob.glob(f"{sys.argv[1]}/**/{name.split('/')[-1]}/.spine/loop-state.json",
+                     recursive=True)[0]
     data = json.load(open(path, encoding="utf-8"))
     data["rounds"][-1]["recorded_at"] = stamp
     json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 PYSTAMP
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -q 'next:nsB/LATE' \
+printf '%s' "$out" | grep -qE 'next:nsB/[a-z-]+/LATE' \
   || fail "同一站時沒有推薦最近動過的那一張：$out"
 echo "  ok  跨單推薦最近動過的那一張"
 
 # 往後站的先做：在製品不該堆高。名字排序會選 EARLY，站別排序該選 LATE。
-bash "$LOOP" advance --state "$S11/nsA/EARLY/.spine/loop-state.json" --to verify-ac >/dev/null
+bash "$LOOP" advance --state "$(state_of "$S11" EARLY)" --to verify-ac >/dev/null
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -q 'next:nsA/EARLY' \
+printf '%s' "$out" | grep -qE 'next:nsA/[a-z-]+/EARLY' \
   || fail "站別沒有壓過最近動過的：$out"
 echo "  ok  最靠近交付的先做"
 
 # 停住的要逐張列名，不能混進「可以做」裡，也不能安靜消失。
-bash "$LOOP" stop --state "$S11/nsB/STOPPED/.spine/loop-state.json" --kind surfaced_concern --note x >/dev/null
+bash "$LOOP" stop --state "$(state_of "$S11" STOPPED)" --kind surfaced_concern --note x >/dev/null
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -q 'blocked:nsB/STOPPED .*stop=surfaced_concern' \
+printf '%s' "$out" | grep -qE 'blocked:nsB/[a-z-]+/STOPPED .*stop=surfaced_concern' \
   || fail "停住的單沒有被列出來：$out"
-printf '%s' "$out" | grep -q 'next:nsB/STOPPED' \
+printf '%s' "$out" | grep -qE 'next:nsB/[a-z-]+/STOPPED' \
   && fail "停住的單被推薦了：$out"
 echo "  ok  停住的逐張列名，不會被推薦"
 
-# 收斂完的算成數字，不列成清單——但那個數字必須在。收斂那一刻歸檔器會把它搬進
-# archive/，所以這同時證明跨單掃描看得到兩層，不是只掃活躍區那一層。
-bash "$LOOP" record --state "$S11/nsA/DONE/.spine/loop-state.json" --outcome converged >/dev/null
-[[ -d "$S11/nsA/archive/DONE" ]] || fail "收斂之後沒有被歸檔"
+# 收斂完的算成數字，不列成清單——但那個數字必須在。收斂那一刻重算會把它搬進
+# done/，所以這同時證明跨單掃描看得到格子底下那一層，不是只掃命名空間正下方。
+bash "$LOOP" record --state "$(state_of "$S11" DONE)" --outcome converged >/dev/null
+[[ -d "$S11/nsA/done/DONE" ]] || fail "收斂之後沒有落到 done/"
 out="$(bash "$LOOP" next --across-issues "$S11")"
 printf '%s' "$out" | grep -qE 'counted: .*settled=[1-9]' \
   || fail "收斂完的沒有被算進 settled：$out"
 echo "  ok  收斂完的算成數字而不是安靜消失"
 
 # 全部停住時要說 none，不可以硬挑一張停住的出來。
-bash "$LOOP" stop --state "$S11/nsA/EARLY/.spine/loop-state.json" --kind assertion_wrong --note x >/dev/null
-bash "$LOOP" stop --state "$S11/nsB/LATE/.spine/loop-state.json" --kind assertion_wrong --note x >/dev/null
+bash "$LOOP" stop --state "$(state_of "$S11" EARLY)" --kind assertion_wrong --note x >/dev/null
+bash "$LOOP" stop --state "$(state_of "$S11" LATE)" --kind assertion_wrong --note x >/dev/null
 out="$(bash "$LOOP" next --across-issues "$S11")"
 printf '%s' "$out" | grep -q 'next:none' \
   || fail "全部停住時沒有回 none：$out"
@@ -454,13 +474,13 @@ printf '%s\n' '---' 'name: idpack' '---' \
 export WORK13="$WORK"
 
 # 求不出值就不開輪次：記不到值的話，之後每次比對都只能回「量不到」，那跟沒有這道檢查一樣。
-bash "$LOOP13" init --state "$WORK/w0.json" --pack idpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$WORK/w0.json" --pack idpack --where anywhere >/dev/null 2>&1 \
   && fail "身分求不出值卻開了輪次"
 [[ ! -f "$WORK/w0.json" ]] || fail "被拒的 init 還是留下了 state"
 echo "  ok  身分求不出值時輪次不開，也沒留下 state"
 
 printf 'lane-A\n' > "$WORK/whoami"
-bash "$LOOP13" init --state "$WORK/w1.json" --pack idpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$WORK/w1.json" --pack idpack --where anywhere >/dev/null 2>&1 \
   || fail "身分求得出值卻沒開輪次"
 grep -q '"lane-A"' "$WORK/w1.json" || fail "開輪次沒把身分記進 state"
 grep -q '"values"' "$WORK/w1.json" || fail "身分沒被記成集合"
@@ -526,7 +546,7 @@ printf '%s\n' '---' 'name: setpack' '---' \
 
 # 身分是一組：宣告的命令印幾行就記幾個，不是只留第一行。
 printf 'repo-A:lane-1\nrepo-B:lane-2\n' > "$WORK/whoami14"
-bash "$LOOP13" init --state "$TREE/ns/older/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$TREE/ns/older/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   || fail "多個身分卻沒開成輪次"
 python3 -c '
 import json, sys
@@ -537,7 +557,7 @@ echo "  ok  身分印幾行就記幾個"
 
 # 那張單還沒到終局站別，所以這道閘不參與——它擋的是「已經要出去的那張還佔著這裡」，
 # 不是「這裡有另一張單」。
-bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   || fail "同一個地方有一張還在施工的單，卻擋住了新輪次"
 rm -f "$TREE/ns/newer/.spine/loop-state.json"
 echo "  ok  還沒到終局站別的單不參與這道閘"
@@ -547,7 +567,7 @@ bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to veri
   || fail "推不到 verify-ac"
 bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to delivered >/dev/null 2>&1 \
   || fail "推不到終局站別"
-taken="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack 2>&1)" \
+taken="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere 2>&1)" \
   && fail "已交付的單還佔著同一個地方，卻開出了新輪次"
 grep -q 'POLARIS_SPINE_WORKSPACE_TAKEN' <<<"$taken" || fail "拒絕沒有帶 marker：$taken"
 grep -q 'ns/older' <<<"$taken" || fail "拒絕沒有指名是哪一張單：$taken"
@@ -562,14 +582,14 @@ echo "  ok  拒絕帶著修法"
 
 # 交集為空就不擋：這道閘不會因為「這個地方交付過東西」就永久封鎖它。
 printf 'repo-A:lane-9\nrepo-B:lane-9\n' > "$WORK/whoami14"
-bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   || fail "交集為空卻擋住了新輪次"
 echo "  ok  交集為空時照常開輪次"
 
 # 只共用其中一個也算疊上去——比的是交集非空，不是相等。
 rm -f "$TREE/ns/newer/.spine/loop-state.json"
 printf 'repo-A:lane-1\nrepo-B:lane-9\n' > "$WORK/whoami14"
-bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack >/dev/null 2>&1 \
+bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   && fail "只共用一個地方卻沒被擋"
 echo "  ok  只共用其中一個也算佔著"
 
@@ -582,7 +602,7 @@ json.dump({"schema_version": 2, "producer": "selftest", "max_rounds": 3, "rounds
            "workspace_identity": {"kind": "ok", "value": "repo-A:lane-1"}},
           open(sys.argv[1], "w"))
 PY
-old="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack 2>&1)" \
+old="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere 2>&1)" \
   && fail "以單一值記下的舊單沒有參與判定"
 grep -q 'ns/archive/settled' <<<"$old" || fail "archive 那一層深度沒被掃到：$old"
 echo "  ok  以單一值記下的舊單讀成單成員集合，照樣參與"
@@ -597,5 +617,77 @@ grown="$(bash "$LOOP13" where --state "$TREE/ns/older/.spine/loop-state.json" 2>
 grep -q 'workspace=DRIFTED' <<<"$grown" || fail "多了一個成員卻沒說漂掉：$grown"
 grep -q '多了：repo-C:lane-3' <<<"$grown" || fail "沒說出多了哪一個：$grown"
 echo "  ok  比對是集合相等，少了多了都說得出來"
+
+# Case 15（DP-482）：落腳處是宣告的，不是從當下位置推的。
+#
+# 之前這裡不傳任何東西給領域的命令，於是那支命令只能量自己站的地方。對一張「單住在 A、
+# 程式碼落在 B」的單，記下的永遠是 A——之後每次比對都拿 A 跟 A 比、永遠自洽，而 B 被別的
+# session 切走時完全安靜。這一段量的是宣告真的被原樣送到、被記下來、之後拿它重求。
+mkdir -p "$S13/echopack/scripts"
+cat > "$S13/echopack/scripts/echo-where.sh" <<'EOF'
+#!/usr/bin/env bash
+# 把被告知的那一組原樣印回去，一個一行。核心不認得這些字串是什麼，這裡也不認得。
+printf '%s\n' "$@"
+EOF
+chmod +x "$S13/echopack/scripts/echo-where.sh"
+printf '%s\n' '---' 'name: echopack' '---' \
+  "<!-- FAKE-WORKSPACE-IDENTITY: bash $S13/echopack/scripts/echo-where.sh -->" \
+  > "$S13/echopack/SKILL.md"
+
+unlanded="$(bash "$LOOP13" init --state "$WORK/w15.json" --pack echopack 2>&1)" \
+  && fail "pack 宣告了身分、單卻沒說落在哪，輪次還是開了"
+grep -q 'POLARIS_SPINE_LANDING_UNDECLARED' <<<"$unlanded" || fail "拒絕沒有帶 marker：$unlanded"
+grep -q -- '--where' <<<"$unlanded" || fail "拒絕沒說出修法：$unlanded"
+[[ ! -f "$WORK/w15.json" ]] || fail "被拒的 init 還是留下了 state"
+echo "  ok  沒宣告落腳處就不開輪次，也沒留下 state"
+
+# 值是不透明字串，帶空白的不得被斷成兩個——斷詞的那一版會把一個地方變成兩個。
+bash "$LOOP13" init --state "$WORK/w15.json" --pack echopack \
+  --where 'place one' --where 'place two' >/dev/null 2>&1 \
+  || fail "宣告了落腳處卻沒開成輪次"
+python3 -c '
+import json, sys
+w = json.load(open(sys.argv[1]))["workspace_identity"]
+assert w["declared_landing"] == ["place one", "place two"], w
+assert w["values"] == ["place one", "place two"], w
+' "$WORK/w15.json" || fail "宣告沒有原樣被記下來、或沒有拿它求值"
+echo "  ok  宣告原樣記下並拿它求值，帶空白的值不被斷成兩個"
+
+bash "$LOOP13" landing --state "$WORK/w15.json" | tr '\n' '|' \
+  | grep -q '^place one|place two|$' || fail "landing 沒有印出宣告的那一組"
+echo "  ok  landing 是唯一的解析器，下游讀它就好"
+
+# DP-482 之前開的單：狀態裡沒有宣告，比對要說 unlanded，不得靜默拿當下的位置去比。
+python3 - "$WORK/w16.json" <<'PY_OLD'
+import json, sys
+json.dump({"schema_version": 2, "producer": "selftest", "max_rounds": 3, "rounds": [],
+           "status": "open", "station": "engineering", "stop": None, "stops": [],
+           "knowledge_pack": {"pack": "echopack"},
+           "workspace_identity": {"kind": "ok", "values": ["place one"]}},
+          open(sys.argv[1], "w"))
+PY_OLD
+stale="$(bash "$LOOP13" where --state "$WORK/w16.json" 2>&1)"
+grep -q 'workspace=unlanded' <<<"$stale" || fail "沒有宣告的舊單卻比對了：$stale"
+grep -q 'workspace=ok' <<<"$stale" && fail "沒有宣告的舊單回了 ok"
+echo "  ok  沒有宣告的舊單回 unlanded，不假裝比過"
+
+bash "$LOOP13" land --state "$WORK/w16.json" --where 'place three' >/dev/null 2>&1 \
+  || fail "補記落腳處失敗"
+bash "$LOOP13" where --state "$WORK/w16.json" 2>&1 | grep -q '^workspace=ok  place three$' \
+  || fail "補記之後沒有立刻有基準可以比"
+echo "  ok  補記當場立起基準，不留一個永遠喊漂的空集合"
+
+relanded="$(bash "$LOOP13" land --state "$WORK/w16.json" --where 'place four' 2>&1)" \
+  && fail "已宣告過的落腳處被無聲改掉"
+grep -q 'POLARIS_SPINE_LANDING_ALREADY_DECLARED' <<<"$relanded" || fail "拒絕沒有帶 marker：$relanded"
+bash "$LOOP13" land --state "$WORK/w16.json" --where 'place four' --authorization '就改' >/dev/null 2>&1 \
+  || fail "帶了原話卻改不動"
+python3 -c '
+import json, sys
+entries = json.load(open(sys.argv[1]))["landings"]
+assert entries[-1]["previous"] == ["place three"], entries
+assert entries[-1]["authorization"] == "就改", entries
+' "$WORK/w16.json" || fail "改記沒有把舊值與原話留在檔案裡"
+echo "  ok  改記要帶人的原話，舊值與原話都留在檔案裡"
 
 echo "PASS: spine-loop-state-selftest.sh"

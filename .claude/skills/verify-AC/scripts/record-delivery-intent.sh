@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: Record what judge decided to hand downstream, once its checks pass.
 # Inputs:  --issue <dir>, --version-bump patch|minor|major, --summary <text>,
-#          optional --head <sha> (defaults to HEAD).
+#          optional --head <sha> (defaults to the head the evidence was measured at).
 # Outputs: writes {issue}/.spine/delivery.json; exit 1 if the source is not in
 #          a deliverable state.
 #
@@ -71,22 +71,6 @@ if ! bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$INDEX" >/dev/nu
     "  bash .claude/skills/verify-ac/scripts/frozen-assertion-fence.sh verify $INDEX"
 fi
 
-# 舊層還撐著的話，這張單交付不出去。這道檢查以前只寫在散文裡，於是它對每一張真單都紅了
-# 幾個月而沒有人知道——一道沒有人呼叫的檢查跟沒有那道檢查，在出事的時候長得一樣。所以
-# 它接在這裡：清單由枚舉器產生（手寫的清單由寫的人決定漏掉什麼），寫紀錄之前跑，非 0 就
-# 不寫。枚舉器跑不起來也不放行，那是量不到，不是通過。
-INVENTORY="$ISSUE_DIR/.spine/inventory.json"
-if ! bash "$ROOT_DIR/scripts/enumerate-spine-inventory.sh" --issue "$ISSUE_DIR" >/dev/null 2>&1; then
-  die "POLARIS_DELIVERY_INTENT_INVENTORY_UNBUILDABLE" \
-    "無法枚舉這張單逼出了哪些檔案，交付紀錄不寫。直接跑它看原因：" \
-    "  bash .claude/skills/verify-ac/scripts/enumerate-spine-inventory.sh --issue $ISSUE_DIR"
-fi
-if ! legacy_out="$(bash "$ROOT_DIR/scripts/check-spine-legacy-layers.sh" --inventory "$INVENTORY" 2>&1)"; then
-  die "POLARIS_DELIVERY_INTENT_LEGACY_LAYER_FORCED" \
-    "這張單的流程還撐在脊椎要取代的舊層上，交付紀錄不寫：" "$legacy_out"
-fi
-echo "$legacy_out"
-
 destination="$(awk '
   NR == 1 && $0 == "---" { inside = 1; next }
   inside && $0 == "---"   { exit }
@@ -101,23 +85,31 @@ destination="$(awk '
 [[ -n "$destination" ]] || die "POLARIS_DELIVERY_INTENT_NO_DESTINATION" \
   "$INDEX declares no destination; run check-source-destination.sh for the contract"
 
-# Two repositories, two heads, and they are not interchangeable. What ships is the
-# checkout this is invoked from — not the one this script happens to sit in, which
-# differs inside a worktree. What was judged is the source's own repository, which
-# issues/ is: the documents belong to whoever uses the framework, so they are
-# versioned separately. Recording only one of these would leave the release tail
-# pinned to a commit from the wrong history.
-DELIVERING_REPO="$(git rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
-ISSUE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$DELIVERING_REPO")"
-if [[ -z "$HEAD_SHA" ]]; then
-  HEAD_SHA="$(git -C "$DELIVERING_REPO" rev-parse HEAD 2>/dev/null || true)"
-fi
-[[ -n "$HEAD_SHA" ]] || die "POLARIS_DELIVERY_INTENT_NO_HEAD" \
-  "could not resolve a head sha; pass --head explicitly"
+# Two repositories, two heads, and they are not interchangeable. What was judged
+# is the source's own repository, which issues/ is: the documents belong to
+# whoever uses the framework, so they are versioned separately. What ships is a
+# different tree, and this script does not go looking for it — see below.
+ISSUE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
 
 # Empty when the source has no history of its own — the fence verifier already
 # refuses that case, so this records the absence rather than inventing a value.
 ISSUE_HEAD_SHA="$(git -C "$ISSUE_REPO" rev-parse HEAD 2>/dev/null || true)"
+
+# DP-482: the delivered head used to come from `git rev-parse HEAD` in whatever
+# directory this was invoked from, and the record then carried a `delivering_repo`
+# field derived the same way — a second answer to "where does this ticket land",
+# produced by the one writer that stands furthest from the declaration. On the
+# first ticket that really landed in another repository it disagreed with that
+# ticket's own declaration, and the release gate believed the wrong one.
+#
+# The head now comes from the evidence, which is the only artifact that knows
+# which tree was actually measured. That is not a substitute authority: a delivery
+# record says "this tree was proven green", and the evidence is what proved it.
+# Deriving the head from anywhere else lets the two disagree, which is exactly the
+# failure the head check below exists to catch.
+HEAD_FROM_EVIDENCE="$(mktemp)"
+TREE_FROM_EVIDENCE="$(mktemp)"
+trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE"' EXIT
 
 # Every assertion the fence declares has to have been measured, at this head, by
 # the oracle. Before this check nothing anywhere required evidence to exist
@@ -134,13 +126,15 @@ ISSUE_HEAD_SHA="$(git -C "$ISSUE_REPO" rev-parse HEAD 2>/dev/null || true)"
 # The producer has to be the oracle because a hand-written PASS is
 # self-certification. The oracle pins tools before trusting them and keeps the
 # exit code; a JSON file is whoever typed it.
-python3 - "$INDEX" "$ISSUE_DIR/.spine/evidence" "$HEAD_SHA" <<'PY' || exit 1
+python3 - "$INDEX" "$ISSUE_DIR/.spine/evidence" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
+  "$TREE_FROM_EVIDENCE" <<'PY' || exit 1
 import json
 import os
 import re
+import subprocess
 import sys
 
-index_path, evidence_dir, head = sys.argv[1:4]
+index_path, evidence_dir, head, head_out, tree_out = sys.argv[1:6]
 
 fences = re.findall(
     r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
@@ -161,6 +155,8 @@ if not ids:
     sys.exit(1)
 
 problems = []
+measured = {}
+measured_in = {}
 for aid in ids:
     path = os.path.join(evidence_dir, f"{aid}.json")
     if not os.path.exists(path):
@@ -176,9 +172,48 @@ for aid in ids:
             f"  {aid}: producer is {ev.get('producer')!r}, not run-hardened-oracle.sh")
     if ev.get("verdict") != "PASS":
         problems.append(f"  {aid}: verdict is {ev.get('verdict')!r}, not PASS")
-    elif ev.get("head_sha") != head:
+    elif not ev.get("head_sha"):
+        problems.append(f"  {aid}: evidence names no head_sha")
+    elif head and ev.get("head_sha") != head:
         problems.append(
             f"  {aid}: measured at {str(ev.get('head_sha'))[:12]}, delivering {head[:12]}")
+    else:
+        measured.setdefault(ev["head_sha"], []).append(aid)
+        measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
+
+# 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條斷言
+# 量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的東西。
+if not problems and not head:
+    if len(measured) > 1:
+        problems.append("  證據指向不只一棵樹，說不出要交付哪一個 head：")
+        for sha, aids in sorted(measured.items()):
+            problems.append(f"    {sha[:12]}: {', '.join(aids)}")
+    else:
+        head = next(iter(measured))
+
+# 證據說得出自己是在哪一棵樹上量的，所以「那棵樹現在還在不在那個 commit」問得到它本人。
+# 這一條原本問的是呼叫者當下站的目錄——量完之後又推了幾個 commit 的時候它確實會紅，但
+# 它紅的理由是「你站的地方變了」，而站的地方跟量的地方在 --cwd 之下根本是兩棵樹。
+if not problems:
+    trees = [d for d in measured_in if d]
+    if len(trees) > 1:
+        problems.append("  證據來自不只一棵樹，說不出要交付哪一個工作區：")
+        for tree in sorted(trees):
+            problems.append(f"    {tree}: {', '.join(measured_in[tree])}")
+    elif not trees:
+        # 揭露而不是放行：舊的證據沒有這個欄位，這一條就量不到。量不到跟量到沒問題是
+        # 兩件事，安靜跳過會讓下一個讀的人以為它查過了。
+        print("NOTE: 證據沒有記下它在哪一棵樹上量的（DP-482 之前產生的），"
+              "「量完之後還有沒有新 commit」這一條沒有被檢查。")
+    else:
+        tip = subprocess.run(["git", "-C", trees[0], "rev-parse", "HEAD"],
+                             capture_output=True, text=True).stdout.strip()
+        if not tip:
+            problems.append(f"  量測用的工作區問不出 HEAD：{trees[0]}")
+        elif tip != head:
+            problems.append(
+                f"  證據量的是 {head[:12]}，但 {trees[0]} 現在在 {tip[:12]}——"
+                "量完之後又有 commit 落下去了")
 
 if problems:
     print("POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE", file=sys.stderr)
@@ -189,47 +224,77 @@ if problems:
           "--evidence-out, then record again.", file=sys.stderr)
     sys.exit(1)
 
+open(head_out, "w", encoding="utf-8").write(head)
+open(tree_out, "w", encoding="utf-8").write(next(iter(d for d in measured_in if d), ""))
 print(f"EVIDENCE: {len(ids)} assertions measured at {head[:12]} ({', '.join(ids)})")
 PY
 
+HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"
+DELIVERED_IN="$(cat "$TREE_FROM_EVIDENCE")"
+
+# DP-482 之前產生的證據沒有記下它在哪一棵樹上量的。那時候退回去問「呼叫者站在哪」，
+# 而那正是這張單要拆掉的形狀——所以退回去問那張單自己的宣告，它只有一個產生者。
+if [[ -z "$DELIVERED_IN" ]]; then
+  LANDING_RESOLVER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
+  if [[ -f "$LANDING_RESOLVER" && -f "$ISSUE_DIR/.spine/loop-state.json" ]]; then
+    DELIVERED_IN="$(bash "$LANDING_RESOLVER" landing --state "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null | head -n 1 || true)"
+    [[ -n "$DELIVERED_IN" ]] \
+      && echo "NOTE: 證據沒記下量的是哪一棵樹，改動落在哪改讀這張單的宣告：$DELIVERED_IN"
+  fi
+fi
+
+# 舊層還撐著的話，這張單交付不出去。這道檢查以前只寫在散文裡，於是它對每一張真單都紅了
+# 幾個月而沒有人知道——一道沒有人呼叫的檢查跟沒有那道檢查，在出事的時候長得一樣。所以
+# 它接在這裡：清單由枚舉器產生（手寫的清單由寫的人決定漏掉什麼），寫紀錄之前跑，非 0 就
+# 不寫。枚舉器跑不起來也不放行，那是量不到，不是通過。
+#
+# 它排在證據之後而不是之前，因為「這次交付留下了什麼」要對著改動真的落下去的那棵樹問，
+# 而說得出那是哪一棵的只有證據。排在前面的那一版是對著呼叫者站的地方問的（DP-482）。
+INVENTORY="$ISSUE_DIR/.spine/inventory.json"
+ENUMERATE=("$ROOT_DIR/scripts/enumerate-spine-inventory.sh" --issue "$ISSUE_DIR")
+[[ -n "$DELIVERED_IN" ]] && ENUMERATE+=(--repo "$DELIVERED_IN")
+if ! bash "${ENUMERATE[@]}" >/dev/null 2>&1; then
+  die "POLARIS_DELIVERY_INTENT_INVENTORY_UNBUILDABLE" \
+    "無法枚舉這張單逼出了哪些檔案，交付紀錄不寫。直接跑它看原因：" \
+    "  bash ${ENUMERATE[*]}"
+fi
+if ! legacy_out="$(bash "$ROOT_DIR/scripts/check-spine-legacy-layers.sh" --inventory "$INVENTORY" 2>&1)"; then
+  die "POLARIS_DELIVERY_INTENT_LEGACY_LAYER_FORCED" \
+    "這張單的流程還撐在脊椎要取代的舊層上，交付紀錄不寫：" "$legacy_out"
+fi
+echo "$legacy_out"
+
+
 # Whoever runs this is the one accountable for the summary, same as the fence
 # signer. Recording it makes the handoff traceable to a person, not a process.
-judged_by="$(git -C "$DELIVERING_REPO" config user.name 2>/dev/null || echo unknown)"
+judged_by="$(git -C "$ISSUE_REPO" config user.name 2>/dev/null || echo unknown)"
 judged_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-# Which repository the head belongs to. Without it a record is a bare sha, and a
-# bare sha cannot be told apart from a stale one by anybody reading it later:
-# issues/ is shared across every repository this person works in, so a delivery
-# recorded from a product repo lands next to the framework's own records and its
-# head is — correctly — absent from the framework. gate-spine-delivery.sh read
-# that absence as "unusable, refuse", which blocked every framework push from the
-# moment the first product-repo delivery was recorded.
+# DP-482 removed a `delivering_repo` field from this payload. It existed so a
+# reader could tell "this head belongs to another repository" apart from "this
+# head is stale", and it answered that by asking git, here, for the remote url of
+# wherever this script was invoked — a second producer of the fact the ticket
+# already declares once, and the one standing furthest from the declaration.
 #
-# Recorded verbatim rather than normalised. The gate compares it against the same
-# command run in its own repository, so two runs on the same clone agree exactly;
-# a mismatch that is really the same repository under a different remote URL shows
-# up in the gate's enumerated skip list with both strings printed, which is a
-# reader's problem to judge and not a silent pass.
-delivering_repo="$(git -C "$DELIVERING_REPO" config --get remote.origin.url 2>/dev/null || true)"
-[[ -n "$delivering_repo" ]] || delivering_repo="$DELIVERING_REPO"
-
+# Nobody needs it. Whether a head lives in a given repository is answerable in
+# that repository without a field (`git cat-file -e`), and where it *does* live is
+# the ticket's declaration, which has one producer. A field that restates a fact
+# two other places already own is a field that will eventually disagree with them.
 OUT_DIR="$ISSUE_DIR/.spine"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
-  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$delivering_repo" <<'PY'
+  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
 import json
 import sys
 
-(out, source, destination, head, bump, summary, by, at, source_head,
- delivering_repo) = sys.argv[1:11]
+(out, source, destination, head, bump, summary, by, at, source_head) = sys.argv[1:10]
 payload = {
     "schema_version": 1,
     "producer": "record-delivery-intent.sh",
     "source": source,
     "destination": destination,
-    "delivering_repo": delivering_repo,
     "head_sha": head,
     "issue_head_sha": source_head,
     "version_bump": bump,

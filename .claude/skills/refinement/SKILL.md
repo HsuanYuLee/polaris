@@ -170,6 +170,18 @@ bash .claude/skills/refinement/scripts/record-outreach.sh reply --issue {issue} 
 **只寫意圖，不寫儀器。** 斷言承載意圖鎖死，量測是斷言的代理放開。把「用哪支腳本、閾值
 多少」寫進凍結區是分層錯誤——那些東西在活區，會換。
 
+**指名一個會吃輸入的東西時，要說出那組輸入。**「當 X 時，Y 發生」裡的 X 常常不是一個值，
+是一整組——而漏掉的那幾種不會被量到，因為量測只做斷言叫它做的事。所以斷言裡要出現「哪幾
+種」，不是留給施工的人自己挑一個最順的。
+
+這不是在寫儀器：「排序欄位被清空時送出什麼」是意圖，「用哪支測試框架填空字串」才是儀器。
+判準是**列不出三種通常就是還沒想過**——一個吃使用者輸入的東西至少有「空的、超出範圍的、
+型別不對的」，一個吃回應的東西至少有「缺欄位的、空集合的、錯誤碼的」。
+
+2026-08-07 的標本：一條斷言寫「送出的排序與內容跟畫面一致」，而「一致」只在一個合法值上
+被量過。清空輸入欄位那一種從來沒進過斷言，於是十六條斷言全綠、交付紀錄寫成、流程判定
+通過，而送出去的是一個空字串。**沒有任何一站做錯自己的事**——那正是這條要擋的形狀。
+
 寫進 fence 之間：
 
 ```markdown
@@ -199,12 +211,18 @@ bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/
 
 # 5. 開輪次。領域的決定是這一步的一部分，不是之後補的欄位——「這件工作屬於哪個領域」
 #    沒被回答就往下走，等於流程不知道它要滿足什麼條件。
+#    --where 是「這張單的改動會落在哪些地方」，一個地方給一次；它不是「我現在站在哪」。
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
-  --state {issue}/.spine/loop-state.json --pack swe-knowledge
+  --state {issue}/.spine/loop-state.json --pack swe-knowledge \
+  --where <工作區路徑> [--where <另一個>]...
 #    不改程式碼的工作（報告、調查、文件、資料分析）要說出理由：
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
   --state {issue}/.spine/loop-state.json --pack none --why '<為什麼這件工作沒有領域完成條件>'
 ```
+
+**落腳處要在這一站問出來。** 一張單住在 `issues/` 而程式碼落在某個產品 repo 是常態，而
+「落在哪」只有提單與施工的人知道——它跟計劃那四格一樣，是別人回答不了的東西。細節（怎麼
+記、怎麼比、下游怎麼讀）寫在 `driving-work-to-done`〈載入領域知識〉，這裡不抄第二份。
 
 **`init` 會跑該領域宣告的開工條件，不成立就不開輪次。** 條件是什麼**這裡不說**——它寫在
 那個領域自己的知識裡，寫在這裡就是第二份。拒絕的訊息會說出缺的是哪一條、怎麼修，照著做

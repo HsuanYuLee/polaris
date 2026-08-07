@@ -108,13 +108,18 @@ bash .claude/skills/verify-ac/scripts/record-delivery-intent.sh \
 出貨，比不出貨糟。
 
 接著它逐條檢查 fence 宣告的每個斷言 ID：要有 `{issue}/.spine/evidence/{ID}.json`、
-`verdict` 是 `PASS`、`producer` 是 `run-hardened-oracle.sh`、而且 `head_sha` **等於要交付的
-那個 head**。缺一條、手寫一條、或量測比交付的 head 舊，都寫不下去，而且它會逐條告訴你是哪
-一條、差在哪。
+`verdict` 是 `PASS`、`producer` 是 `run-hardened-oracle.sh`、而且每一條證據 **量的是同一棵
+樹的同一個 commit**。缺一條、手寫一條、或幾條證據指向不同的樹，都寫不下去，而且它會逐條
+告訴你是哪一條、差在哪。
 
 三件事各有理由。**要有**，是因為在這之前沒有任何東西要求交付前得有證據，「verify-ac 說 PASS」
 一路是靠散文帶著走的。**要是 oracle 產的**，是因為手寫的 PASS 是自己給自己蓋章。
-**head 要對上**，是因為證據證的是一棵樹綠了；量完之後又推的 commit，證據沒看過。
+**證據要一致**，是因為證據證的是一棵樹綠了，而交付的就是那一棵。
+
+**交付的 head 從證據來，不從你站的地方來。** 一張單住在 `issues/`、程式碼落在某個產品
+repo 是常態，兩棵樹的 head 不一樣；問當下的位置只有在兩者剛好重合時才對，而它答錯的時候
+長得跟答對一模一樣。量完之後那棵樹又有新 commit 落下去的話它會擋——那一條是回頭問證據
+自己記下的那棵樹現在在哪，不是問你在哪。真的要指定就用 `--head`。
 
 `destination` 決定去哪：`workspace` 留在本地，`template` 才進 Polaris template repo。那是
 閘一由人宣告的，這裡只讀不改。

@@ -28,9 +28,14 @@
 # It also does not own records belonging to other repositories. `issues/` is one
 # directory shared by every repository its owner works in, so a delivery recorded
 # from a product repo sits next to the framework's own records with a head that
-# correctly does not exist here. Those are skipped by their declared
-# `delivering_repo`, and the skipped ones are printed with their repository: a
-# gate that silently drops what it cannot judge reads like one that judged it.
+# correctly does not exist here. Those are skipped because the commit is not in
+# this repository — a fact, not a field — and each skip is printed together with
+# the landing that ticket declared: a gate that silently drops what it cannot
+# judge reads like one that judged it.
+#
+# Callers that already know which ticket they are releasing say so with --issue.
+# Scanning every record and then working out which ones are this repo's business
+# was the only reason a second "where does this land" answer had to exist here.
 #
 # Known limit, stated rather than hidden: this checks staleness, not existence. A
 # source pushed with no delivery.json at all passes here, because judge may simply
@@ -41,16 +46,18 @@ set -euo pipefail
 
 PREFIX="[polaris gate-spine-delivery]"
 REPO_ROOT=""
+ONLY_ISSUE=""
 IS_SPINE_PUSH_QUERY=0
 PRINT_RECORDS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)           REPO_ROOT="${2:-}"; shift 2 ;;
+    --issue)          ONLY_ISSUE="${2:-}"; shift 2 ;;
     --is-spine-push)  IS_SPINE_PUSH_QUERY=1; shift ;;
     --print-records)  PRINT_RECORDS=1; shift ;;
     -h|--help)
-      echo "Usage: gate-spine-delivery.sh [--repo <path>] [--is-spine-push] [--print-records]" >&2
+      echo "Usage: gate-spine-delivery.sh [--repo <path>] [--issue <dir>] [--is-spine-push] [--print-records]" >&2
       exit 0
       ;;
     *) shift ;;
@@ -62,17 +69,35 @@ done
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 [[ -n "$HEAD_SHA" ]] || exit 0
 
-# This repository's own identity, read with the same command the record was
-# written with. `issues/` is shared across every repository its owner works in,
-# so the records sitting next to each other do not all describe commits that live
-# here — and a head that lives elsewhere is not a stale head.
-THIS_REPO="$(git -C "$REPO_ROOT" config --get remote.origin.url 2>/dev/null || true)"
-[[ -n "$THIS_REPO" ]] || THIS_REPO="$REPO_ROOT"
+# 每一行紀錄的欄位用 US（\x1f）隔開，不用 tab。tab 是 IFS whitespace，`read` 會把連續
+# 的 tab 併成一個分隔符——所以只要中間有一欄是空的（destination 常常是），後面每一欄都
+# 往前挪一格，而挪過的那一行看起來仍然是一行合法的紀錄。
+FS=$'\x1f'
 
-# Records skipped because they name another repository, kept so the skip can be
-# said out loud. A gate that silently drops what it cannot judge reads exactly
-# like a gate that judged it and found nothing wrong.
+# Records skipped because the commit they name does not live here, kept so the
+# skip can be said out loud. A gate that silently drops what it cannot judge
+# reads exactly like a gate that judged it and found nothing wrong.
+#
+# DP-482: this used to compare a `delivering_repo` field against this repo's
+# remote url — a second answer to "where does this ticket land", derived here at
+# read time from wherever the caller happened to be standing. It disagreed with
+# the ticket's own declaration the first time a ticket really landed in another
+# repository, and this gate then blocked every framework release on a product
+# repository's record. Ownership is now a fact rather than a derivation: a commit is either in
+# this repository or it is not. Where it *does* belong is read from the ticket's
+# declaration, which has exactly one producer.
 FOREIGN=()
+
+# Description: say where a ticket declared its work would land.
+# Args: $1 = repo-relative issue dir
+# Output: the declared landing values joined by 、, or empty when none was declared.
+declared_landing() {
+  local state="$REPO_ROOT/$1/.spine/loop-state.json"
+  local resolver
+  resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
+  [[ -f "$state" && -f "$resolver" ]] || return 0
+  bash "$resolver" landing --state "$state" 2>/dev/null | paste -sd'、' - || true
+}
 
 record_field() {
   # Description: read one field out of a delivery record.
@@ -97,50 +122,73 @@ record_field() {
 # A record is about this push when its head is the commit being pushed, or sits
 # in the range about to leave the machine. A record whose head is already in
 # origin/main describes work that shipped, and is none of this push's business.
+judge_record() {
+  # Description: classify one delivery record against the commit being pushed.
+  # Args: $1 = repo-relative issue dir
+  # Output: one tab-separated line, or nothing when the record has shipped already.
+  local issue="$1" record head destination
+  record="$REPO_ROOT/$issue/.spine/delivery.json"
+  [[ -f "$record" ]] || return 0
+  head="$(record_field "$record" head_sha)"
+  [[ -n "$head" ]] || return 0
+  destination="$(record_field "$record" destination)"
+
+  # Ownership first, and it is a fact: a commit is either in this repository or it
+  # is not. `issues/` is one directory shared by every repository its owner works
+  # in, so records sitting next to each other do not all describe commits that
+  # live here — and a commit that lives elsewhere is not a stale commit. Where it
+  # does belong is answered by the ticket's own declaration, not by anything
+  # derived here.
+  if ! git -C "$REPO_ROOT" cat-file -e "${head}^{commit}" 2>/dev/null; then
+    local landing
+    landing="$(declared_landing "$issue")"
+    # 宣告說得出它落在哪，就是「不是這裡的事」，跳過並把跳過的那一份印出來。
+    # 說不出來的話這道閘什麼都判不動——那不是通過，是拒絕。一個判不動又安靜的紀錄，
+    # 之後看起來就跟一個判過而且沒問題的紀錄一模一樣。
+    if [[ -n "$landing" ]]; then
+      printf '%s%s%s%s%s%s%s\n' "$issue" "$FS" foreign "$FS" "$destination" "$FS" "$landing"
+    else
+      printf '%s%s%s%s%s\n' "$issue" "$FS" unjudgeable "$FS" "$destination"
+    fi
+
+    return 0
+  fi
+
+  if [[ "$head" == "$HEAD_SHA" ]]; then
+    printf '%s%s%s%s%s\n' "$issue" "$FS" current "$FS" "$destination"
+
+    return 0
+  fi
+  # Already contained in what the remote has: shipped, not stale.
+  if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" origin/main 2>/dev/null; then
+    return 0
+  fi
+  # In the range being pushed but not at its tip: work continued after the
+  # second gate signed off, and the record no longer describes what ships.
+  if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" "$HEAD_SHA" 2>/dev/null; then
+    printf '%s%s%s%s%s\n' "$issue" "$FS" stale "$FS" "$destination"
+  fi
+}
+
 relevant_records() {
-  local record issue head destination declared_repo
-  # 兩層都要掃。交付紀錄只有在單收斂之後才寫得出來，而收斂那一刻歸檔器就把單搬進
-  # {命名空間}/archive/——所以「活躍區那一層」這個範圍，結構上永遠一份紀錄都看不到。
-  # 只掃 issues/*/*/ 的版本讓這道閘對每一次真實交付都回「這不是脊椎推送」。
-  for record in "$REPO_ROOT"/issues/*/*/.spine/delivery.json \
-                "$REPO_ROOT"/issues/*/archive/*/.spine/delivery.json; do
+  local record issue
+  # 呼叫者知道自己在釋出哪一張單的時候就直接說——掃全部紀錄再自行判斷歸屬，是 DP-482 之前
+  # 才需要的動作，而那套歸屬判斷正是第二個權威的來源。spine-release.sh 從一開始就收 --issue。
+  if [[ -n "$ONLY_ISSUE" ]]; then
+    judge_record "${ONLY_ISSUE%/}"
+
+    return 0
+  fi
+  # 不預設交付紀錄埋在第幾層。以前這裡寫死兩種深度（活躍區那一層與 {命名空間}/archive/），
+  # 只掃第一種的那一版對每一次真實交付都回「這不是脊椎推送」。多開一格資料夾就要回來再補
+  # 一條，而漏掉的那一條不會爆炸——掃不到只是找不到紀錄，看起來跟「這次推送與脊椎無關」
+  # 一模一樣。DP-481 把六格開出來之後，released/{日期}/ 又多了一層。
+  while IFS= read -r record; do
     [[ -f "$record" ]] || continue
     issue="${record#"$REPO_ROOT/"}"
-    issue="${issue%/.spine/delivery.json}"
-    head="$(record_field "$record" head_sha)"
-    [[ -n "$head" ]] || continue
-    destination="$(record_field "$record" destination)"
-
-    # A record that names another repository is not this push's business, whatever
-    # its head says. Emitted rather than dropped so the skip is printed.
-    declared_repo="$(record_field "$record" delivering_repo)"
-    if [[ -n "$declared_repo" && "$declared_repo" != "$THIS_REPO" ]]; then
-      printf '%s\t%s\t%s\t%s\n' "$issue" foreign "$destination" "$declared_repo"
-      continue
-    fi
-
-    if [[ "$head" == "$HEAD_SHA" ]]; then
-      printf '%s\t%s\t%s\n' "$issue" current "$destination"
-      continue
-    fi
-    # A head this repository does not contain cannot be reasoned about at all —
-    # the ancestry tests below would both answer "no" and the record would drop
-    # out silently, leaving the release tail to announce "record current" from an
-    # empty check. It is unusable, which is a refusal, not an absence of opinion.
-    if ! git -C "$REPO_ROOT" cat-file -e "${head}^{commit}" 2>/dev/null; then
-      printf '%s\t%s\t%s\n' "$issue" unknown_head "$destination"
-      continue
-    fi
-    # Already contained in what the remote has: shipped, not stale.
-    if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" origin/main 2>/dev/null; then
-      continue
-    fi
-    # In the range being pushed but not at its tip: work continued after the
-    # second gate signed off, and the record no longer describes what ships.
-    if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" "$HEAD_SHA" 2>/dev/null; then
-      printf '%s\t%s\t%s\n' "$issue" stale "$destination"
-    fi
-  done
+    judge_record "${issue%/.spine/delivery.json}"
+  done < <(find "$REPO_ROOT/issues" -type d -name .git -prune -o \
+             -type f -path '*/.spine/delivery.json' -print 2>/dev/null | sort)
 }
 
 # Collected with a read loop rather than mapfile: the stock macOS bash is 3.2 and
@@ -150,7 +198,11 @@ RECORDS=()
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   case "$line" in
-    *$'\t'foreign$'\t'*) FOREIGN+=("$line") ;;
+    # 掃描的時候，落在別處的紀錄是「不是這裡的事」——印出來、不判。被指名的時候不是：
+    # 呼叫者說「我要釋出這一張」，而它的產出不在這個 repo，那是叫錯了地方，要擋。
+    *"${FS}foreign${FS}"*)
+      if [[ -n "$ONLY_ISSUE" ]]; then RECORDS+=("$line"); else FOREIGN+=("$line"); fi
+      ;;
     *) RECORDS+=("$line") ;;
   esac
 done < <(relevant_records)
@@ -159,10 +211,10 @@ done < <(relevant_records)
 # count is the point: a reader who sees "2 skipped" and expected 0 has found
 # something, and a reader who sees nothing has been told nothing.
 if [[ ${#FOREIGN[@]} -gt 0 ]]; then
-  echo "$PREFIX ${#FOREIGN[@]} record(s) name another repository and are not judged here (this repo: $THIS_REPO):" >&2
+  echo "$PREFIX ${#FOREIGN[@]} record(s) name a commit this repository does not contain, and are not judged here:" >&2
   for entry in "${FOREIGN[@]}"; do
-    IFS=$'\t' read -r f_issue _f_state _f_destination f_repo <<<"$entry"
-    echo "$PREFIX   - ${f_issue} → ${f_repo}" >&2
+    IFS="$FS" read -r f_issue _f_state _f_destination f_landing <<<"$entry"
+    echo "$PREFIX   - ${f_issue} → ${f_landing:-（這張單沒有宣告落腳處；spine-loop-state.sh land 可以補記）}" >&2
   done
 fi
 
@@ -191,10 +243,10 @@ fi
 
 failures=0
 for entry in "${RECORDS[@]}"; do
-  # Fields are issue \t state \t destination; read them positionally rather than
-  # by trimming from the ends, which silently picked up the wrong field the moment
-  # a third column arrived.
-  IFS=$'\t' read -r issue state _destination <<<"$entry"
+  # Fields are issue, state, destination; read them positionally rather than by
+  # trimming from the ends, which silently picked up the wrong field the moment a
+  # third column arrived.
+  IFS="$FS" read -r issue state _destination <<<"$entry"
 
   if [[ "$state" == "current" ]]; then
     echo "$PREFIX ✅ ${issue}: delivery intent current @ ${HEAD_SHA:0:12}." >&2
@@ -203,11 +255,18 @@ for entry in "${RECORDS[@]}"; do
 
   recorded="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
     "$REPO_ROOT/$issue/.spine/delivery.json" 2>/dev/null || true)"
-  if [[ "$state" == "unknown_head" ]]; then
+  # 只有被指名的那一張單走得到這裡帶著 foreign：掃描模式已經把它歸進 FOREIGN 印掉了。
+  # 指名了一張單、而它的產出不在這個 repo，那不是「別人的事」，是叫錯了地方——所以擋。
+  if [[ "$state" == "foreign" || "$state" == "unjudgeable" ]]; then
     echo "$PREFIX BLOCKED: ${issue} recorded its delivery intent at ${recorded:0:12}, which this repository does not contain." >&2
-    echo "$PREFIX A record pinned to a commit that is not here describes work this push cannot be." >&2
-    echo "$PREFIX If that commit belongs to another repository, the record predates the delivering_repo" >&2
-    echo "$PREFIX field and cannot say so; re-record it from that repository. Otherwise:" >&2
+    if [[ "$state" == "foreign" ]]; then
+      echo "$PREFIX 這張單宣告的落腳處是：$(declared_landing "$issue")" >&2
+      echo "$PREFIX 要嘛在那個地方釋出，要嘛那份紀錄記錯了 head——重錄一次：" >&2
+    else
+      echo "$PREFIX 而這張單沒有宣告過改動會落在哪，所以說不出它是不是別的地方的事。" >&2
+      echo "$PREFIX 判不動就不放行。先補記落腳處，再重錄一次：" >&2
+      echo "$PREFIX   bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh land --state ${issue}/.spine/loop-state.json --where <工作區路徑>" >&2
+    fi
     echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
     failures=$((failures + 1))
     continue

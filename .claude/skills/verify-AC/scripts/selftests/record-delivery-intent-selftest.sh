@@ -200,9 +200,43 @@ git -C "$repo" add -A
 git -C "$repo" commit -qm "moved on after the measurement"
 out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
   --version-bump patch --summary 'x' 2>&1) )" && fail "stale evidence should refuse to record"
-grep -Fq "A-P1: measured at" <<<"$out" \
-  || fail "the refusal must say which head was measured; got: $out"
+grep -Fq "$repo 現在在" <<<"$out" \
+  || fail "the refusal must name the tree that moved on; got: $out"
+grep -Fq "量完之後又有 commit 落下去了" <<<"$out" \
+  || fail "the refusal must say the measurement was overtaken; got: $out"
 echo "  ok  evidence from an earlier head refuses to record"
+
+# DP-482. The delivered head used to be `git rev-parse HEAD` wherever this was
+# invoked from. That is a different tree from the measured one the moment the
+# oracle is pointed elsewhere with --cwd — a ticket living in issues/ while its
+# code lands in a product repo is the ordinary case, not the exotic one — and the
+# record then named a commit no measurement had ever seen.
+issue="$(new_sealed_issue elsewhere template)"
+repo="$WORK/elsewhere"
+caller="$WORK/caller-not-the-measured-tree"
+mkdir -p "$caller"
+git init -q "$caller"
+git -C "$caller" config user.email selftest@example.com
+git -C "$caller" config user.name selftest
+echo unrelated > "$caller/unrelated.txt"
+git -C "$caller" add -A
+git -C "$caller" commit -qm "a history that has nothing to do with the delivery"
+(cd "$caller" && bash "$ORACLE" --command 'echo MEASURED' --cwd "$repo" \
+   --expect-evidence MEASURED \
+   --evidence-out "$issue/.spine/evidence/A-P1.json" >/dev/null)
+(cd "$caller" && bash "$RECORD" --issue "$issue" \
+  --version-bump patch --summary 'measured over there' >/dev/null) \
+  || fail "a delivery measured in another tree should still record"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["head_sha"] == sys.argv[2], f"head must come from the measured tree: {d}"
+assert d["head_sha"] != sys.argv[3], "the head came from the caller, not the measurement"
+assert "delivering_repo" not in d, f"delivering_repo is a second answer, and it is gone: {d}"
+' "$issue/.spine/delivery.json" \
+  "$(git -C "$repo" rev-parse HEAD)" "$(git -C "$caller" rev-parse HEAD)" \
+  || fail "the delivered head must be the tree the oracle measured"
+echo "  ok  交付的 head 來自量測的那棵樹，不是呼叫者站的地方"
 
 # A hand-written PASS is self-certification. The oracle pins its tools before
 # trusting them and keeps the exit code; a JSON file is whoever typed it.

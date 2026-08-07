@@ -204,10 +204,10 @@ def frontmatter_status(path: Path) -> Optional[str]:
 # 判定分三種，**三種都會被數出來**：
 #
 #   loop-state         單自己的 `.spine/loop-state.json` 的 `status`。這是唯一的權威。
-#   archive-placement  沒有 loop-state、而容器躺在 `archive/` 底下。那是脊椎之前的舊層——
-#                      它沒有 status 欄位可以讀，所以位置是那一層僅有的證據，不是在跟權威
-#                      競爭。463 個歸檔容器裡只有 13 個有 loop-state，只認權威等於什麼都不
-#                      退休。這一類會被分開計數，因為它的依據比較弱。
+#   placement          沒有 loop-state，但單身上有 `placement.json`——那是重算把推導結果
+#                      寫回去的東西（DP-481）。以前這一格是「容器躺在 archive/ 底下」，
+#                      **看位置**：那條路徑一旦多一格資料夾就會靜靜地失效，而且它讓資料夾
+#                      名變成第二個權威。現在讀的是狀態檔，位置改了不影響判定。
 #   not-found          找不到那個容器。**不退休**，而且要被數出來——一個查不到的東西被當成
 #                      「做完了」，退休的就是還在用的東西。
 TICKET_CONVERGED = "converged"
@@ -237,32 +237,52 @@ def issues_root() -> Optional[Path]:
     return (root / "issues") if root else None
 
 
+# 收斂完的單會落在哪幾格。`triage` 不在裡面——推導不出來不是做完了。
+TERMINAL_SLOTS = ("done", "released")
+
+
+def find_ticket_containers(root: Path, source_id: str):
+    """整棵單樹底下叫 `{單號}` 或 `{單號}-*` 的目錄，**不預設它埋在第幾層**。
+
+    以前這裡只看命名空間那一層與 `{命名空間}/archive/`。單樹的版面一改（DP-481 把兩格
+    變成六格，`released/` 底下還多一層日期），那兩條路徑就什麼都找不到了——而找不到會被
+    判成「查不到」，於是什麼都不退休。安靜地什麼都不做，正是這條路徑上一次死掉的樣子。
+    """
+    if not root.is_dir():
+        return []
+    found = []
+    for path in sorted(root.rglob(source_id + "*")):
+        if not path.is_dir():
+            continue
+        name = path.name
+        if name == source_id or name.startswith(source_id + "-"):
+            found.append(path)
+    return found
+
+
 def ticket_status(source_id: str) -> tuple[Optional[str], str]:
     """那張單收斂了沒。回 (verdict, basis)，verdict 是 None 表示量不到。"""
     root = issues_root()
     if root is None or not root.is_dir():
         return None, "not-found"
-    for namespace in sorted(root.iterdir()):
-        if not namespace.is_dir():
-            continue
-        for parent, basis in ((namespace, "loop-state"),
-                              (namespace / "archive", "archive-placement")):
-            if not parent.is_dir():
+    for container in find_ticket_containers(root, source_id):
+        state = container / ".spine" / "loop-state.json"
+        if state.is_file():
+            try:
+                status = json.loads(state.read_text(encoding="utf-8")).get("status")
+            except (json.JSONDecodeError, OSError):
                 continue
-            for container in sorted(parent.glob(f"{source_id}-*")) + \
-                    sorted(parent.glob(source_id)):
-                state = container / ".spine" / "loop-state.json"
-                if state.is_file():
-                    try:
-                        status = json.loads(state.read_text(encoding="utf-8")).get("status")
-                    except (json.JSONDecodeError, OSError):
-                        continue
-                    verdict = (TICKET_CONVERGED if status == "converged"
-                               else TICKET_ACTIVE)
-                    return verdict, "loop-state"
-                if basis == "archive-placement":
-                    return TICKET_CONVERGED, "archive-placement"
-                return TICKET_ACTIVE, "no-state-active-namespace"
+            return (TICKET_CONVERGED if status == "converged" else TICKET_ACTIVE), "loop-state"
+        placement = container / ".spine" / "placement.json"
+        if placement.is_file():
+            try:
+                slot = json.loads(placement.read_text(encoding="utf-8")).get("slot")
+            except (json.JSONDecodeError, OSError):
+                continue
+            if slot in TERMINAL_SLOTS:
+                return TICKET_CONVERGED, "placement"
+            if slot:
+                return TICKET_ACTIVE, "placement"
     return None, "not-found"
 
 

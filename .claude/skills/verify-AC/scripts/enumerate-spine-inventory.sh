@@ -2,7 +2,8 @@
 # Purpose: Produce the inventory check-spine-legacy-layers.sh consumes, by looking at
 #          what a delivery actually left behind rather than by asking someone to
 #          list it.
-# Inputs:  --issue <dir>, optional --base <ref> (default origin/main),
+# Inputs:  --issue <dir>, optional --repo <dir> (the tree the delivery landed in),
+#          optional --base <ref> (default: that repo's own default branch),
 #          optional --out <path> (default {issue}/.spine/inventory.json).
 # Outputs: the inventory JSON at --out; a one-line summary on stderr.
 #          Exit 2 on usage or a missing source.
@@ -41,7 +42,8 @@
 set -euo pipefail
 
 ISSUE_DIR=""
-BASE_REF="origin/main"
+REPO_ROOT=""
+BASE_REF=""
 OUT=""
 
 die() {
@@ -54,7 +56,10 @@ die() {
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  enumerate-spine-inventory.sh --issue <dir> [--base <ref>] [--out <path>]
+  enumerate-spine-inventory.sh --issue <dir> [--repo <dir>] [--base <ref>] [--out <path>]
+
+  --repo  改動落在哪棵樹（預設：單自己住的那個 repo）
+  --base  拿什麼當 diff 的起點（預設：那個 repo 自己的預設分支）
 EOF
   exit 2
 }
@@ -62,6 +67,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --issue) ISSUE_DIR="${2:-}"; shift 2 ;;
+    --repo)   REPO_ROOT="${2:-}"; shift 2 ;;
     --base)   BASE_REF="${2:-}"; shift 2 ;;
     --out)    OUT="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
@@ -72,12 +78,45 @@ done
 [[ -n "$ISSUE_DIR" ]] || usage
 ISSUE_DIR="${ISSUE_DIR%/}"
 
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-[[ -n "$REPO_ROOT" ]] || die "POLARIS_SPINE_INVENTORY_NO_REPO" "not inside a git repository"
-[[ -d "$REPO_ROOT/$ISSUE_DIR" ]] || die "POLARIS_SPINE_INVENTORY_SOURCE_MISSING" \
+# 一張單住在哪、它的改動落在哪，是兩棵樹。單住在 issues/（使用者自己的 repo），改動可能
+# 落在任何一個產品 repo——那是常態，不是特例。所以這裡收兩個路徑，不從當下站的位置推。
+#
+# DP-482：這一行原本是 `git rev-parse --show-toplevel`，量的是呼叫者站的地方。對一張單
+# 住在 A、改動落在 B 的單，它拿 A 的 diff 去回答「這次交付留下了什麼」，而舊層偵測就是
+# 拿這份清單判的——B 裡真的還撐著一層舊的，這份清單永遠看不到它，而且看起來很完整。
+ISSUE_ABS="$(cd "$ISSUE_DIR" 2>/dev/null && pwd || true)"
+[[ -n "$ISSUE_ABS" ]] || die "POLARIS_SPINE_INVENTORY_SOURCE_MISSING" \
   "no source directory at $ISSUE_DIR"
 
-[[ -n "$OUT" ]] || OUT="$REPO_ROOT/$ISSUE_DIR/.spine/inventory.json"
+if [[ -z "$REPO_ROOT" ]]; then
+  # 呼叫者沒說改動落在哪的時候，退回單自己住的那個 repo，並且說出來。退回是猜的，一個
+  # 安靜的猜測跟一個被告知的事實在輸出上長得一樣。
+  REPO_ROOT="$(git -C "$ISSUE_ABS" rev-parse --show-toplevel 2>/dev/null || true)"
+  [[ -n "$REPO_ROOT" ]] || die "POLARIS_SPINE_INVENTORY_NO_REPO" \
+    "$ISSUE_DIR is not inside a git repository, and --repo was not given"
+  echo "NOTE: --repo 沒有給，改動落在哪退回用單自己住的 repo：$REPO_ROOT" >&2
+fi
+
+[[ -n "$OUT" ]] || OUT="$ISSUE_ABS/.spine/inventory.json"
+
+# 預設的 base 是那個 repo 自己說的預設分支，不是一個硬編的名字。硬編 `origin/main` 的
+# 那一版對每一個預設分支叫別的名字的 repo 都是紅的——而那不是「這張單有問題」，是這支
+# 腳本假設了全世界的 repo 都跟框架自己長得一樣（DP-482 撞上的是 master）。
+if [[ -z "$BASE_REF" ]]; then
+  BASE_REF="$(git -C "$REPO_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [[ -z "$BASE_REF" ]]; then
+    for candidate in origin/main origin/master main master; do
+      if git -C "$REPO_ROOT" rev-parse --verify --quiet "$candidate" >/dev/null 2>&1; then
+        BASE_REF="$candidate"
+        break
+      fi
+    done
+  fi
+  [[ -n "$BASE_REF" ]] || die "POLARIS_SPINE_INVENTORY_NO_BASE" \
+    "$REPO_ROOT 說不出它的預設分支，也找不到 origin/main、origin/master、main、master 任何一個。" \
+    "用 --base 指名一個，不指名就沒有東西可以拿來 diff——而一份空的 diff 會被讀成「這次交付什麼都沒留下」。"
+  echo "NOTE: --base 沒有給，用 $REPO_ROOT 自己的預設分支：$BASE_REF" >&2
+fi
 
 # A base that does not resolve would silently produce an empty diff, and an empty
 # diff reads as "this delivery forced nothing" — the most flattering possible lie.
@@ -90,17 +129,20 @@ git -C "$REPO_ROOT" rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1 \
 # 拆掉的單會因為它的 diff 提到那些路徑而被自己擋下來。
 CHANGED="$(git -C "$REPO_ROOT" diff --name-only --diff-filter=d "$BASE_REF"...HEAD 2>/dev/null || true)"
 
-python3 - "$REPO_ROOT" "$ISSUE_DIR" "$OUT" "$CHANGED" <<'PY'
+python3 - "$REPO_ROOT" "$ISSUE_DIR" "$OUT" "$CHANGED" "$ISSUE_ABS" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
-root, source_dir, out, changed_blob = sys.argv[1:5]
+root, source_dir, out, changed_blob, issue_abs = sys.argv[1:6]
 root = Path(root)
+# 單住的地方與改動落的地方是兩棵樹，所以掃 .spine 用單的絕對路徑，而清單裡的路徑用
+# 呼叫者叫它的那個名字——後者是下游讀的，改成絕對路徑會讓每一份清單綁死在一台機器上。
+issue_abs = Path(issue_abs)
 changed = [line.strip() for line in changed_blob.splitlines() if line.strip()]
 
-spine = root / source_dir / ".spine"
+spine = issue_abs / ".spine"
 spine_state = {
     f"{source_dir}/.spine/loop-state.json": "work 沒有它就記不了輪次",
     f"{source_dir}/.spine/measurement-ledger.json": "judge 不承認沒登錄過的量測命令",
@@ -124,7 +166,7 @@ def add(path, forced, reason=None):
 add(f"{source_dir}/index.md", True, "斷言與活文件的載體：assert 蓋封條、judge 驗它")
 
 for path, reason in spine_state.items():
-    if (root / path).exists():
+    if (spine / Path(path).name).exists():
         add(path, True, reason)
 
 for path in changed:
@@ -139,7 +181,7 @@ for path in changed:
 if spine.exists():
     for entry in sorted(spine.rglob("*")):
         if entry.is_file():
-            add(entry.relative_to(root).as_posix(), False)
+            add(f"{source_dir}/.spine/{entry.relative_to(spine).as_posix()}", False)
 
 code_paths = [p for p in changed if not p.startswith(f"{source_dir}/") and not p.endswith(".md")]
 kind = "code" if code_paths else "docs"

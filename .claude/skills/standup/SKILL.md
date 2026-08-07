@@ -39,9 +39,11 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 5. Merge and deduplicate YDY，並做 plan vs actual comparison。
 6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR，以及
    `issues/` 底下還沒收斂的單。後者用
-   `bash .claude/skills/driving-work-to-done/scripts/archive-delivered-issues.sh --check`（report-only，
-   不搬任何東西）：位置與輪次狀態對不上的會被列出來，併入 TDT candidate。沒有輪次狀態的
-   目錄不參與判定，但數量會印出來——轉述那個數字，不要當成已檢查過。
+   `bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check`
+   （report-only，不搬任何東西）：位置與狀態對不上的會被列出來，併入 TDT candidate。
+   `{單樹根}/OPEN.md` 是同一次重算產出的人看版本，非 release 的單都在那裡，帶著它在哪一格、
+   上次動過多久、是不是自己的單。沒有狀態檔又沒有解析器可問的目錄不參與判定，但數量會
+   印出來——轉述那個數字，不要當成已檢查過。
 7. 收集 BOS：JIRA discuss status、前幾天持續 blocker、使用者口述。
 8. 依 `standup-template.md` 組裝四區塊並呈現給使用者確認。
 9. 使用者確認後，寫 local markdown。

@@ -31,7 +31,7 @@
 # anything it does not recognise instead of recording a free-text reason.
 #
 # Subcommands:
-#   init  --state <path> --pack <領域名>|none [--why <理由>] [--max-rounds N]
+#   init  --state <path> --pack <領域名>|none --where <工作區路徑>... [--why <理由>] [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
 #   next  --across-issues <root>  prints which issue to work next, across the whole tree
@@ -78,7 +78,7 @@ STOP_KINDS="assertion_wrong surfaced_concern unconverged_cap unauthorized_action
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  spine-loop-state.sh init    --state <path> --pack <領域名>|none [--why <理由>] [--max-rounds N]
+  spine-loop-state.sh init    --state <path> --pack <領域名>|none --where <工作區路徑>... [--why <理由>] [--max-rounds N]
   spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
   spine-loop-state.sh next    --state <path>
   spine-loop-state.sh next    --across-issues <issues root>
@@ -87,6 +87,8 @@ Usage:
   spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
   spine-loop-state.sh reset   --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
   spine-loop-state.sh show    --state <path>
+  spine-loop-state.sh landing --state <path>
+  spine-loop-state.sh land    --state <path> --where <工作區路徑>... [--authorization <人的原話>]
 
 Stop kinds: assertion_wrong | surfaced_concern | unconverged_cap | unauthorized_action
 EOF
@@ -140,6 +142,9 @@ AUTHORIZATION=""
 ACROSS_ISSUES=""
 PACK=""
 WHY=""
+# 這張單宣告的落腳處，一個地方一個成員。核心把它們當不透明字串，只負責記下來、之後原樣
+# 交還給領域的腳本去求值。
+LANDING=()
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -155,6 +160,7 @@ parse_args() {
       --across-issues) ACROSS_ISSUES="${2:-}"; shift 2 ;;
       --pack) PACK="${2:-}"; shift 2 ;;
       --why) WHY="${2:-}"; shift 2 ;;
+      --where) LANDING+=("${2:-}"); shift 2 ;;
       *) usage; exit 2 ;;
     esac
   done
@@ -250,10 +256,10 @@ run_pack_precondition() {
 跳過要有理由，一個沒有理由的跳過不存在。"
 }
 
-# Description: 求一次「這個工作區現在是哪些」。
-# Args: $1 = pack 名字
-# Prints: 一行 `<狀態>\t<值>\t<值>…`，狀態是 none|undeclared|ok|unmeasurable；
-#         unmeasurable 的第二欄是理由而不是值。
+# Description: 求一次「這張單宣告的那幾個地方現在是誰」。
+# Args: $1 = pack 名字, $2.. = 這張單宣告的落腳處（不透明字串，原樣傳給領域的腳本）
+# Prints: 一行 `<狀態>\t<值>\t<值>…`，狀態是 none|undeclared|unlanded|ok|unmeasurable；
+#         unmeasurable 與 unlanded 的第二欄是理由而不是值。
 #
 # 核心把每個值當**不透明字串**看待：它只會拿這一組跟先前記下的那一組比。所以換一個領域
 # 只要換那個領域印什麼，這裡一行都不用動；而「求不出來」有自己的狀態，永遠不會跟
@@ -264,12 +270,23 @@ run_pack_precondition() {
 # assertions_hash 也早就是一個 map。窄口在這一行，不在設計裡。
 pack_identity() {
   local pack="$1" doc declared value rc=0 joined
+  shift
   [[ -n "$pack" && "$pack" != "none" ]] || { printf 'none\n'; return 0; }
   # 這裡解不到 pack 是「量不到」而不是「拒絕」：開輪次那一刻的拒絕由 run_pack_precondition
   # 負責，而事後比對時 pack 不在了，能說的只有「這一行沒有比對到任何東西」。
   doc="$(pack_doc "$pack")" || { printf 'unmeasurable\t解析不到領域知識「%s」\n' "$pack"; return 0; }
   declared="$(pack_declaration "$doc" WORKSPACE-IDENTITY)"
   [[ -n "$declared" ]] || { printf 'undeclared\n'; return 0; }
+  # 要量哪些地方是這張單宣告的，不是從 cwd 推的。一個地方都沒被宣告時這裡就停——
+  # DP-482 之前這一行不帶參數，於是領域的腳本只好量自己站的地方，而那對「單住在 A、
+  # 程式碼落在 B」的單永遠是 A，比對永遠自洽、永遠抓不到 B 被切走。
+  [[ $# -gt 0 ]] || { printf 'unlanded\t%s\n' "$declared"; return 0; }
+  # 值原樣傳回領域的腳本，逐個做 shell 引用。核心不認得它們是路徑、也不認得那支腳本用
+  # 什麼旗標收——它只是把當初被告知的那一組還回去。
+  local arg
+  for arg in "$@"; do
+    declared+=" $(printf '%q' "$arg")"
+  done
   value="$(run_declared "$declared" 2>/dev/null)" || rc=$?
   # 去尾空白、去空行、去重、排序。集合沒有順序，而一個順序會變的集合每次比對都會漂——
   # 那種漂看起來跟真的漂掉一模一樣。
@@ -289,6 +306,28 @@ identity_values() {
   local line="$1"
   [[ "$line" == *$'\t'* ]] || return 0
   printf '%s' "${line#*$'\t'}" | tr '\t' '\n'
+}
+
+# Description: 讀出這張單當初宣告的落腳處，一行一個。
+# Args: $1 = state 檔路徑
+# Prints: 每個宣告值一行；沒有宣告過就什麼都不印。
+#
+# 這是「這張單落在哪裡」的**唯一解析器**。下游要知道這件事的時候讀這一支，不要自己再從
+# cwd、從 remote url、或從任何當下的位置推一次——推出來的那一份就是第二個權威，而兩份
+# 會漂（DP-482 的 delivering_repo 就是這樣長出來的）。
+recorded_landing() {
+  require_python3
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(0)
+for value in (data.get("workspace_identity") or {}).get("declared_landing") or []:
+    print(value)
+PY
 }
 
 # Description: 把「當初記下的工作區」與「現在的工作區」比一次，結果印出來。
@@ -312,8 +351,24 @@ PY
       return 0 ;;
   esac
 
+  # 比對要拿當初宣告的那一組去求值，不是拿現在站在哪裡去求值。DP-482 之前這裡不傳任何
+  # 東西，於是比的是「這個 session 現在的 cwd」對「開輪次那次的 cwd」——兩邊都不是這張
+  # 單真正動手的地方，而它們相等時看起來跟真的沒漂一模一樣。
+  local landing
+  local -a landings=()
+  while IFS= read -r landing || [[ -n "$landing" ]]; do
+    [[ -n "$landing" ]] && landings+=("$landing")
+  done < <(recorded_landing "$state")
+
+  if [[ ${#landings[@]} -eq 0 ]]; then
+    echo "workspace=unlanded  這張單開輪次時沒有宣告改動會落在哪些地方，沒有東西可以求值。"
+    echo "  這是 DP-482 之前開的單才會有的狀態。要恢復比對："
+    echo "  spine-loop-state.sh land --state <這張單的 loop-state.json> --where <每一個工作區的路徑>"
+    return 0
+  fi
+
   pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$state")"
-  now_line="$(pack_identity "$pack")"
+  now_line="$(pack_identity "$pack" "${landings[@]}")"
   now_kind="${now_line%%$'\t'*}"
 
   if [[ "$now_kind" != "ok" ]]; then
@@ -382,18 +437,32 @@ refuse_if_workspace_taken() {
   [[ -n "$root" ]] || return 0   # 解不出樹就沒有別張單可以比，不是「通過」也不是「拒絕」
 
   report="$(python3 - "$state" "$terminal" "$root" "${vals[@]}" <<'PY'
-import glob
 import json
 import os
 import sys
 
+def find_states(root):
+    """這棵樹底下每一張單的 loop-state.json，**不預設它埋在第幾層**。
+
+    以前這裡寫死兩種深度（`*/*/` 與 `*/*/*/`），對應「活躍區」與「archive/」兩格。多開一格
+    資料夾就要回來各補一條，而漏掉的那一條不會爆炸——glob 掃不到只是少算，少算的方向還剛好
+    是「看起來還有比較多事沒做」，沒有人會抱怨。所以改成問一個不含深度的問題：這棵樹底下
+    哪些目錄裡有 .spine/loop-state.json。
+
+    `.git` 要跳過：單樹自己是一個 git repo，而 .git 底下的東西不是單。
+    """
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        if os.path.basename(dirpath) == ".spine" and "loop-state.json" in filenames:
+            found.append(os.path.join(dirpath, "loop-state.json"))
+    return sorted(found)
+
+
 state, terminal, root = os.path.abspath(sys.argv[1]), sys.argv[2], sys.argv[3]
 now = set(sys.argv[4:])
 
-# 兩種深度，跟 next --across-issues 掃的是同一棵樹：活躍的單在 {命名空間}/{單}/，
-# 收斂後被流程搬進 {命名空間}/archive/{單}/。
-paths = sorted(glob.glob(os.path.join(root, "*", "*", ".spine", "loop-state.json"))
-               + glob.glob(os.path.join(root, "*", "*", "*", ".spine", "loop-state.json")))
+paths = find_states(root)
 
 hits = []
 for path in paths:
@@ -449,8 +518,15 @@ cmd_init() {
   # 漂掉之後的值，那個欄位就永遠自洽而永遠沒有用。
   local identity_line identity_kind
   require_python3
-  identity_line="$(pack_identity "$PACK")"
+  identity_line="$(pack_identity "$PACK" ${LANDING+"${LANDING[@]}"})"
   identity_kind="${identity_line%%$'\t'*}"
+  if [[ "$identity_kind" == "unlanded" ]]; then
+    die "POLARIS_SPINE_LANDING_UNDECLARED" \
+      "${PACK} 宣告了工作區身分（${identity_line#*$'\t'}），但這張單沒說改動會落在哪些地方，輪次不開。
+落腳處是被宣告的，不是從現在站在哪裡推出來的：推出來的那一份對「單住在 A、程式碼落在 B」
+的單永遠是 A，於是之後每一次比對都拿 A 跟 A 比，永遠自洽而永遠抓不到 B 被切走。
+修法：--where <工作區路徑>，一個地方給一次。"
+  fi
   if [[ "$identity_kind" == "unmeasurable" ]]; then
     die "POLARIS_SPINE_IDENTITY_UNMEASURABLE" \
       "${PACK} 宣告了工作區身分（${identity_line#*$'\t'}），但現在求不出值來，輪次不開。
@@ -470,15 +546,20 @@ cmd_init() {
     [[ -n "$value" ]] && identities+=("$value")
   done < <(identity_values "$identity_line")
 
+  # 宣告與求值結果分兩個 argv 區段送進去，中間用一個不會出現在值裡的分隔字串隔開。
+  # 兩組都是不透明字串、都可以有空白，靠數量推邊界的話一個帶空白的值會把邊界推走。
   python3 - "$STATE" "$MAX_ROUNDS" "$PACK" "$WHY" "$identity_kind" \
-    ${identities+"${identities[@]}"} <<'PY'
+    ${LANDING+"${LANDING[@]}"} -- ${identities+"${identities[@]}"} <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 state, max_rounds, pack, why = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-identity_kind, identities = sys.argv[5], sys.argv[6:]
+identity_kind = sys.argv[5]
+rest = sys.argv[6:]
+split = rest.index("--")
+declared_landing, identities = rest[:split], rest[split + 1:]
 knowledge_pack = {"pack": pack}
 if why:
     knowledge_pack["why"] = why
@@ -486,7 +567,13 @@ if why:
 # 沒有，是同一個安靜的第三態，而那正是這張單要拆掉的形狀。
 #
 # 存成陣列，即使只有一個成員。一張單牽涉幾個地方由領域決定，核心不預設是一個。
+#
+# declared_landing 是**宣告**（這張單的改動會落在哪些地方），values 是那次宣告**當下求出
+# 的值**。兩者分開存，因為之後每一次比對都要拿同一份宣告重求一次——只存結果的話，重求
+# 時只能拿當下的位置去求，而那正是 DP-482 要拆掉的形狀。
 workspace = {"kind": identity_kind}
+if declared_landing:
+    workspace["declared_landing"] = declared_landing
 if identities:
     workspace["values"] = identities
 payload = {
@@ -512,6 +599,35 @@ with open(state, "w", encoding="utf-8") as handle:
     handle.write("\n")
 print(f"INIT: {state} max_rounds={max_rounds}")
 PY
+}
+
+reproject_position() {
+  # 狀態換了，位置就該跟著換。這件事是流程的，不是人要記得的——靠人記得搬，遲早會有
+  # 一張做完的單混在待辦裡。`record` 與 `advance` 都叫它：只掛在 record 上的話，一張
+  # 推進到 verify-ac 的單會留在 in-progress/，而那正是這套設計要消除的漂移。
+  local placer
+  placer="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/place-issues-by-state.sh"
+  local root
+  root="$(issues_root_of "$STATE")"
+  if [[ -f "$placer" && -n "$root" ]]; then
+    # `--spine-only`：剛動過的是一張走脊椎的單，它的答案在本機。讓記一輪去問別的命名空間
+    # 宣告的解析器，等於每寫一次輪次就打幾十趟網路，而且 JIRA 掛掉的時候記不成輪次。
+    #
+    # 不吞它的話。`|| true` 曾經把一次「根解錯了、103 個目錄被搬進 archive/archive/」
+    # 整段吃掉，record 照樣印 ROUND N 然後回 0。輪次已經寫進去了，所以重算失敗不該
+    # 反過來讓 record 失敗；但它必須被看見——位置與狀態對不上正是要被看見的那件事。
+    bash "$placer" --issues "$root" --execute --spine-only >/dev/null \
+      || echo "[spine-loop-state] 位置沒重算完，可能與狀態對不上：$placer --issues $root" >&2
+
+    # 剛剛那一步可能把這張單搬去別的格子，於是呼叫者手上的路徑當場失效——而下一個命令
+    # 會回 POLARIS_SPINE_LOOP_STATE_MISSING，讀起來像「這張單不存在」。說出它去了哪裡。
+    if [[ ! -f "$STATE" ]]; then
+      local moved
+      moved="$(find "$root" -path "*/$(basename "$(dirname "$(dirname "$STATE")")")/.spine/loop-state.json" 2>/dev/null | head -1)"
+      [[ -n "$moved" ]] && echo "MOVED: $moved"
+    fi
+  fi
+  return 0
 }
 
 cmd_record() {
@@ -600,19 +716,7 @@ PY
   # 沒寫進去就沒有新狀態可以投影，直接把原因原封不動送回去。
   [[ "$rc" -eq 0 ]] || return "$rc"
 
-  # 收斂那一刻，這張單就不再擋在路上了。位置跟著狀態走是流程的事，不是人要記得的事——
-  # 靠人記得搬，遲早會有一張做完的單混在待辦裡。
-  local archiver
-  archiver="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/archive-delivered-issues.sh"
-  local root
-  root="$(issues_root_of "$STATE")"
-  if [[ -f "$archiver" && -n "$root" ]]; then
-    # 不吞它的話。`|| true` 曾經把一次「根解錯了、103 個目錄被搬進 archive/archive/」
-    # 整段吃掉，record 照樣印 ROUND N 然後回 0。輪次已經寫進去了，所以歸檔失敗不該
-    # 反過來讓 record 失敗；但它必須被看見——位置與狀態對不上正是要被看見的那件事。
-    bash "$archiver" --issues "$root" >/dev/null \
-      || echo "[spine-loop-state] 歸檔沒跑完，位置可能與狀態對不上：$archiver --issues $root" >&2
-  fi
+  reproject_position
   return 0
 }
 
@@ -627,18 +731,34 @@ cmd_next() {
   if [[ -n "$ACROSS_ISSUES" ]]; then
     require_python3
     python3 - "$ACROSS_ISSUES" "$STATIONS" <<'PY'
-import glob
 import json
 import os
 import sys
+
+def find_states(root):
+    """這棵樹底下每一張單的 loop-state.json，**不預設它埋在第幾層**。
+
+    以前這裡寫死兩種深度（`*/*/` 與 `*/*/*/`），對應「活躍區」與「archive/」兩格。多開一格
+    資料夾就要回來各補一條，而漏掉的那一條不會爆炸——glob 掃不到只是少算，少算的方向還剛好
+    是「看起來還有比較多事沒做」，沒有人會抱怨。所以改成問一個不含深度的問題：這棵樹底下
+    哪些目錄裡有 .spine/loop-state.json。
+
+    `.git` 要跳過：單樹自己是一個 git repo，而 .git 底下的東西不是單。
+    """
+    found = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        if os.path.basename(dirpath) == ".spine" and "loop-state.json" in filenames:
+            found.append(os.path.join(dirpath, "loop-state.json"))
+    return sorted(found)
+
 
 root, stations = sys.argv[1], sys.argv[2].split()
 # 排序只靠狀態，不靠路徑：命名空間叫什麼、單號多大，都不參與判定。往後站的先做——
 # 一張已經在 verify-ac 的單離交付最近，把它放著去開新的單，就是把在製品堆高。
 rank = {name: index for index, name in enumerate(stations)}
 rows, unreadable = [], 0
-for path in sorted(glob.glob(os.path.join(root, "*", "*", ".spine", "loop-state.json"))
-                   + glob.glob(os.path.join(root, "*", "*", "*", ".spine", "loop-state.json"))):
+for path in find_states(root):
     try:
         data = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
@@ -808,6 +928,11 @@ with open(state, "w", encoding="utf-8") as handle:
     handle.write("\n")
 print(f"STATION: {previous} -> {to}")
 PY
+  # 沒換成站別就沒有新狀態可以投影，把原因原封不動送回去。少了這一行，一個被拒絕的
+  # advance 會被 reproject_position 的 0 蓋掉，於是拒絕變成了成功。
+  local rc=$?
+  [[ "$rc" -eq 0 ]] || return "$rc"
+  reproject_position
 }
 
 cmd_stop() {
@@ -921,6 +1046,84 @@ for reset in data.get("resets", []):
 PY
 }
 
+# Description: 印出這張單宣告的落腳處，一行一個。下游要知道「這張單落在哪裡」時讀這一支。
+# Args: --state <path>
+#
+# 存在的理由是「只有一個地方回答這個問題」。DP-482 之前沒有這支，於是每個需要答案的地方
+# 都自己從當下的位置推一次——交付紀錄推出 delivering_repo、閘推出 THIS_REPO，兩份互相比對，
+# 而第一次真的跨 repo 的單就把它們比爆了。
+cmd_landing() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_NO_STATE" "no loop state at $STATE"
+  recorded_landing "$STATE"
+}
+
+# Description: 補記或改記這張單的落腳處。
+# Args: --state <path> --where <值>... [--authorization <人的原話>]
+#
+# 補記是給 DP-482 之前開的單用的：它們的狀態裡沒有宣告，比對只能回 unlanded。
+# 已經有宣告的單要改，得帶人的原話——落腳處一改，之後的比對就換了對照組，而「把對照組
+# 換掉」與「漂掉了」在結果上長得一樣。簽名擋不住假話，但它讓假話留在 git 裡看得見。
+cmd_land() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_NO_STATE" "no loop state at $STATE"
+  [[ ${#LANDING[@]} -gt 0 ]] || die "POLARIS_SPINE_LANDING_UNDECLARED" \
+    "land 要 --where <工作區路徑>，一個地方給一次。"
+
+  local existing
+  existing="$(recorded_landing "$STATE")"
+  if [[ -n "$existing" && -z "$AUTHORIZATION" ]]; then
+    die "POLARIS_SPINE_LANDING_ALREADY_DECLARED" \
+      "這張單已經宣告過落腳處了：
+${existing}
+改它要帶 --authorization '<那個人自己說的話>'——換掉對照組跟漂掉在結果上長得一樣，
+所以換的理由要留在檔案裡。"
+  fi
+
+  # 補記完要當場求一次值，否則檔案裡只有宣告沒有基準，之後每一次比對都拿空集合去比——
+  # 而空集合對上任何東西都是 DRIFTED，一個永遠喊漂的比對跟沒有比對一樣沒用。
+  # 這個基準是事後才立的，這件事本身記在 landings[] 裡，看得見。
+  local pack identity_line identity_kind value
+  local -a identities=()
+  require_python3
+  pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$STATE")"
+  identity_line="$(pack_identity "$pack" "${LANDING[@]}")"
+  identity_kind="${identity_line%%$'\t'*}"
+  [[ "$identity_kind" != "unmeasurable" ]] || die "POLARIS_SPINE_IDENTITY_UNMEASURABLE" \
+    "宣告的那一組現在求不出值來（${identity_line#*$'\t'}），不補記。
+記不到基準的話，之後每一次比對都只能回「量不到」——那跟沒有這道檢查是同一件事。"
+  while IFS= read -r value || [[ -n "$value" ]]; do
+    [[ -n "$value" ]] && identities+=("$value")
+  done < <(identity_values "$identity_line")
+
+  python3 - "$STATE" "$AUTHORIZATION" "$identity_kind" \
+    "${LANDING[@]}" -- ${identities+"${identities[@]}"} <<'PY_LAND'
+import json
+import sys
+from datetime import datetime, timezone
+
+state, authorization, identity_kind = sys.argv[1], sys.argv[2], sys.argv[3]
+rest = sys.argv[4:]
+split = rest.index("--")
+landing, identities = rest[:split], rest[split + 1:]
+
+data = json.load(open(state, encoding="utf-8"))
+workspace = data.setdefault("workspace_identity", {})
+previous = workspace.get("declared_landing")
+workspace["kind"] = identity_kind
+workspace["declared_landing"] = landing
+workspace["values"] = identities
+entry = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "landing": landing}
+if previous:
+    entry["previous"] = previous
+if authorization:
+    entry["authorization"] = authorization
+data.setdefault("landings", []).append(entry)
+json.dump(data, open(state, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+print("LANDED: " + "、".join(landing) + " → " + "、".join(identities))
+PY_LAND
+}
+
 main() {
   local sub="${1:-}"
   [[ -n "$sub" ]] || { usage; exit 2; }
@@ -934,6 +1137,8 @@ main() {
     stop) cmd_stop "$@" ;;
     reset) cmd_reset "$@" ;;
     show) cmd_show "$@" ;;
+    landing) cmd_landing "$@" ;;
+    land) cmd_land "$@" ;;
     -h|--help) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac

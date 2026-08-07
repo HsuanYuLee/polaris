@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.10.0] - 2026-08-08
+
+### Changed
+
+- 0a08a74: 單的位置由狀態推導出來：六格（backlog / in-progress / in-review / done /
+  released/{日期} / triage）取代活躍與 archive 兩格，流程自己搬。脊椎的單讀自己的狀態檔，
+  其他命名空間問那個命名空間自己宣告的 resolver，兩邊都答不出來的棄權留在原地、數量每次
+  印出來。
+
 ## [4.9.0] - 2026-08-07
 
 ### Changed
