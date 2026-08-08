@@ -11,7 +11,10 @@
 #
 # Usage:
 #   open-seed-issue.sh --issues <單樹根> --namespace <命名空間> --slug <名字> --note <前因後果>
-#                      [--no-commit]
+#                      [--prefix <前綴>] [--no-commit]
+#
+# 號自己會算：`--slug the-thing` 開出來的是 `DP-488-the-thing`。號從哪裡來由那個命名空間
+# 現有的東西決定，不需要另外宣告——細節見 next-ticket-number.sh 的檔頭。
 # Exit:
 #   0 開好了，印出單的路徑 / 2 參數不對或那張單已經在了
 
@@ -20,12 +23,14 @@ set -euo pipefail
 PREFIX="[open-seed-issue]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOOP_STATE="$SCRIPT_DIR/../../driving-work-to-done/scripts/spine-loop-state.sh"
+NEXT_NUMBER="$SCRIPT_DIR/../../driving-work-to-done/scripts/next-ticket-number.sh"
 
 ISSUES=""
 NAMESPACE=""
 SLUG=""
 NOTE=""
 COMMIT=1
+PREFIX_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --slug) SLUG="${2:-}"; shift 2 ;;
     --note) NOTE="${2:-}"; shift 2 ;;
     --no-commit) COMMIT=0; shift ;;
+    --prefix) PREFIX_OVERRIDE="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "$PREFIX 不認得的參數：$1" >&2; exit 2 ;;
   esac
@@ -56,6 +62,17 @@ done
 
 [[ -d "$ISSUES" ]] || { echo "$PREFIX 單樹根不存在：$ISSUES" >&2; exit 2; }
 [[ -f "$LOOP_STATE" ]] || { echo "$PREFIX 找不到 $LOOP_STATE" >&2; exit 2; }
+[[ -f "$NEXT_NUMBER" ]] || { echo "$PREFIX 找不到 $NEXT_NUMBER" >&2; exit 2; }
+
+# 號在名字裡。沒有號的單排不進待辦、也沒有一個穩定的東西給別的單引用——而它會一直長出來，
+# 到某次盤點才被發現。2026-08-08 就這樣一次找到五個。
+number_args=(--issues "$ISSUES" --namespace "$NAMESPACE")
+[[ -n "$PREFIX_OVERRIDE" ]] && number_args+=(--prefix "$PREFIX_OVERRIDE")
+if ! NUMBER="$(bash "$NEXT_NUMBER" "${number_args[@]}")"; then
+  # 那一支已經把原因與往下走的路印在 stderr 上了，不要在這裡改寫成另一句話。
+  exit 2
+fi
+SLUG="${NUMBER}-${SLUG}"
 
 # backlog 是「立案了，還沒開工」，而一張種子單正是那個狀態。位置本來就是狀態的投影，
 # 所以之後的重算會把它放回它該在的那一格——這裡只是給它一個合理的起點。
