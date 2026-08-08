@@ -2,14 +2,18 @@
 """把每一張單放到它的狀態說的那一格，並把推導結果寫回單自己身上。
 
 位置是狀態的投影，不是第二個權威。以前投影只有兩格（活躍區／`archive/`），答得了「做完了
-沒」，答不了「在哪一站」。這支把解析度提高到六格，權威沒有換人。
+沒」，答不了「在哪一站」。這支把解析度提高到七格，權威沒有換人。
 
     backlog/            立案了，還沒開工
     in-progress/        兩個閘之間
     in-review/          送審中（只有會動到 code 的單走得到）
     done/               我這邊做完了，還沒上線
     released/{日期}/    真的出去了，日期就是那天
+    closed/{日期}/      不再執行——放棄、被取代、需求消失，日期就是決定的那天
     triage/             推導不出來——在等人歸位
+
+`closed` 與 `done` 的差別是「不做了」與「做完了」，兩者都停止打轉但結論相反。合成一格的話
+那個差別就只剩在 JSON 裡，而翻資料夾的人看到的是一堆看起來都做完了的單。
 
 **推導出來的東西要寫回單身上**（`.spine/placement.json`），不是只反映在路徑上。理由是別的
 程式要問「這張單收斂了沒」時，唯一能問的東西不該是它的路徑：memory 的退休判定以前就是看
@@ -29,10 +33,24 @@ import shutil
 import subprocess
 from datetime import datetime, timezone
 
-# 六格。順序有意義：報告按這個順序印，而它就是一張單往前走的順序。
-BACKLOG, IN_PROGRESS, IN_REVIEW, DONE, RELEASED, TRIAGE = (
-    "backlog", "in-progress", "in-review", "done", "released", "triage")
-SLOTS = (BACKLOG, IN_PROGRESS, IN_REVIEW, DONE, RELEASED, TRIAGE)
+# 七格。順序有意義：報告按這個順序印，而它就是一張單往前走的順序。`closed` 是唯一一個
+# 不在那條路上的——它是岔出去的終點，給「不再執行」用，而那跟「做完了」是兩件事。
+BACKLOG, IN_PROGRESS, IN_REVIEW, DONE, RELEASED, CLOSED, TRIAGE = (
+    "backlog", "in-progress", "in-review", "done", "released", "closed", "triage")
+SLOTS = (BACKLOG, IN_PROGRESS, IN_REVIEW, DONE, RELEASED, CLOSED, TRIAGE)
+
+# 有結論的兩格。它們不進「還沒出去的單」那份清單——不是因為它們不重要，是因為那份清單
+# 問的是「還有什麼在中間態打轉」，而這兩格都已經停止打轉了。
+SETTLED_SLOTS = (RELEASED, CLOSED)
+
+# 這兩格底下多一層日期。終局要知道時間——一張單走到終點卻說不出是哪天走到的，那份清單
+# 只能照名字翻。
+DATED_SLOTS = (RELEASED, CLOSED)
+
+# 日期查不到時 `closed/` 底下的那一層。`released/` 沒有這一格：一張單算不算釋出過看的是
+# 它自己的釋出紀錄，而那份紀錄本來就帶著日期。「不做了」不一樣——理由知道、日期不知道
+# 是舊層真實的狀態，而把記帳當天填進去會讓那個空白看不出來。
+UNDATED = "undated"
 
 # 轉場期還會遇到的舊格子。它不是一個狀態，是上一版投影留下的形狀。
 LEGACY_SLOT = "archive"
@@ -42,6 +60,10 @@ LEGACY_SLOT = "archive"
 CODE_PACK = "swe-knowledge"
 
 PLACEMENT_SCHEMA = 1
+
+# 不參與判定的目錄少到這個數以內就逐個指名。上限存在的理由跟印數量一樣：
+# 幾百筆逐個印出來等於沒印，而幾筆只給總數等於沒說。
+ABSTAINED_NAME_THRESHOLD = 20
 
 # 沒走過脊椎的單，狀態在別的地方——JIRA、某張看板、某個試算表。**核心不認得那些東西**，
 # 它只認得一行宣告：某個命名空間由哪一條命令回答「這張單在哪一格」。形狀跟 `refinement`
@@ -97,7 +119,7 @@ def namespaces(issues_root: str) -> list[str]:
 def tickets(issues_root: str) -> list[tuple[str, str]]:
     """每一張單：回 (命名空間, 單的絕對路徑)。
 
-    什麼算一張單：命名空間底下，**不是格子名**的那一層目錄。格子名這支自己認得（六格加上
+    什麼算一張單：命名空間底下，**不是格子名**的那一層目錄。格子名這支自己認得（七格加上
     轉場期的 `archive`），`released/` 底下還多一層日期。這是唯一知道版面長怎樣的地方——
     其餘每一個消費端都改成問狀態檔，不再各自猜路徑。
     """
@@ -115,10 +137,14 @@ def tickets(issues_root: str) -> list[tuple[str, str]]:
                 inner_path = os.path.join(path, inner)
                 if inner.startswith(".") or not os.path.isdir(inner_path):
                     continue
-                if name != RELEASED:
+                # released/ 與 closed/ 底下多一層日期——但**不靠深度判斷**。這一層自己
+                # 帶著 .spine/ 就是一張單（多一格日期層是分批發生的事，中間那段時間同一格
+                # 底下兩種形狀並存）。用深度猜的話，還沒分日期的那些會被當成日期層，而它們
+                # 底下沒有單，於是整批安靜地從總數裡消失——實測一次弄丟 100 張。
+                if name not in DATED_SLOTS or os.path.isdir(
+                        os.path.join(inner_path, ".spine")):
                     found.append((namespace, inner_path))
                     continue
-                # released/ 底下多一層日期。
                 for leaf in sorted(os.listdir(inner_path)):
                     leaf_path = os.path.join(inner_path, leaf)
                     if not leaf.startswith(".") and os.path.isdir(leaf_path):
@@ -210,6 +236,16 @@ def slot_from_spine(ticket_dir: str) -> tuple[str, str, dict] | None:
     state = read_json(os.path.join(ticket_dir, ".spine", "loop-state.json"))
     if state is None:
         return None
+
+    if state.get("status") == "closed":
+        # 「不再執行」不是「做完了」。兩者都停止打轉，但一張被放棄或被取代的單，下一個
+        # 讀到它的人需要知道是哪一種——擠進 done 的話那個差別就只剩在 JSON 裡。
+        return CLOSED, "loop-state", {"why": state.get("closed_reason") or "不再執行",
+                                      # 終局要知道時間。查不到就明講 undated——那不是一個
+                                      # 日期，而把記帳當天填進去會讓一個查得到的空白變成
+                                      # 一個查不出來的謊。
+                                      "closed_on": state.get("closed_on") or UNDATED,
+                                      "mine": True}
 
     if state.get("status") == "converged":
         release = release_record(ticket_dir)
@@ -315,7 +351,7 @@ def _ask_resolver(command: str, ticket_name: str) -> tuple[str, str, dict]:
         # S-P6：對照到不存在的格子名是紅的，不是「就當它 triage」。一個會被靜默吞掉的
         # 錯誤格子名，等於對照表想寫什麼都可以。
         raise ValueError(f"{MARKER_UNKNOWN_SLOT}\n{ticket_name} 的解析器回了一個不存在的"
-                         f"格子名 `{slot}`——六格是 {'／'.join(SLOTS)}")
+                         f"格子名 `{slot}`——格子只有這些：{'／'.join(SLOTS)}")
     if note:
         detail["why"] = note
     if slot == RELEASED and not detail.get("released_on"):
@@ -368,7 +404,7 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
     印天數，不排序成「逾期區」，也不改任何一張單的格子。
     """
     today = _now()[:10]
-    live = [r for r in rows if r["slot"] != RELEASED]
+    live = [r for r in rows if r["slot"] not in SETTLED_SLOTS]
     lines = [
         "# 還沒出去的單",
         "",
@@ -381,7 +417,7 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
         "|---|---|---|---|---|",
     ]
     for slot in SLOTS:
-        if slot == RELEASED:
+        if slot in SETTLED_SLOTS:
             continue
         for row in sorted((r for r in live if r["slot"] == slot),
                           key=lambda r: (r["namespace"], r["name"])):
@@ -399,7 +435,7 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
                          f"{row['basis']} | {when} | {owner} |")
 
     counts = {slot: sum(1 for r in live if r["slot"] == slot)
-              for slot in SLOTS if slot != RELEASED}
+              for slot in SLOTS if slot not in SETTLED_SLOTS}
     lines += ["", f"共 {len(live)} 張："
               + "、".join(f"{slot} {n}" for slot, n in counts.items()), ""]
 
@@ -411,11 +447,13 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
 
 def target_dir(issues_root: str, namespace: str, ticket_dir: str,
                slot: str, detail: dict) -> str:
-    """這張單該住哪。`released/` 底下多一層釋出日。"""
+    """這張單該住哪。`released/` 與 `closed/` 底下多一層日期。"""
     name = os.path.basename(ticket_dir)
     parts = [issues_root, namespace, slot]
     if slot == RELEASED:
         parts.append(detail["released_on"])
+    elif slot == CLOSED:
+        parts.append(detail.get("closed_on") or UNDATED)
     parts.append(name)
     return os.path.join(*parts)
 
@@ -529,6 +567,13 @@ def render(rows: list[dict], abstained: list[dict], moved: int, mode: str) -> st
                else "命名空間也沒有宣告解析器")
         lines.append(f"沒有狀態檔、{why}的 {len(abstained)} 個目錄留在原地，不參與判定："
                      + "、".join(f"{ns} {n}" for ns, n in sorted(by_namespace.items())))
+        # 少到看得完的時候逐個指名。數量本來就是為了不讓幾百個目錄被當成檢查過了；
+        # 但一個只有三筆的總數同樣看不出是哪三筆，而那三筆是真的可以被處理掉的。
+        if len(abstained) <= ABSTAINED_NAME_THRESHOLD:
+            for row in sorted(abstained, key=lambda r: (r["namespace"], r["name"])):
+                # 印它真正在哪，不只印它叫什麼。單名前面那一層正是「它為什麼沒被判定」
+                # 的答案（多半是 archive/），而拿掉那一層之後兩者長得一模一樣。
+                lines.append(f"  {row['current']}")
     return "\n".join(lines)
 
 

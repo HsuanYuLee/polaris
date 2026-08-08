@@ -31,6 +31,7 @@
 # anything it does not recognise instead of recording a free-text reason.
 #
 # Subcommands:
+#   seed  --state <path> --note <前因後果>   開一張還沒簽斷言的種子單的狀態
 #   init  --state <path> --pack <領域名>|none --where <工作區路徑>... [--why <理由>] [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
@@ -81,6 +82,8 @@ Usage:
   spine-loop-state.sh init    --state <path> --pack <領域名>|none --where <工作區路徑>... [--why <理由>] [--max-rounds N]
   spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
   spine-loop-state.sh next    --state <path>
+  spine-loop-state.sh seed    --state <path> --note <前因後果>
+  spine-loop-state.sh close   --state <path> --note <為什麼不做了> [--by <human>]
   spine-loop-state.sh next    --across-issues <issues root>
   spine-loop-state.sh where   --state <path>
   spine-loop-state.sh advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
@@ -371,8 +374,9 @@ PY
   done < <(recorded_landing "$state")
 
   if [[ ${#landings[@]} -eq 0 ]]; then
-    echo "workspace=unlanded  這張單開輪次時沒有宣告改動會落在哪些地方，沒有東西可以求值。"
-    echo "  這是 DP-482 之前開的單才會有的狀態。要恢復比對："
+    echo "workspace=unlanded  這張單沒有宣告改動會落在哪些地方，沒有東西可以求值。"
+    echo "  兩種來源：一張還沒開工的種子（落腳處要到 init 才知道），"
+    echo "  或是 DP-482 之前開的單。前者走 init，後者要恢復比對："
     echo "  spine-loop-state.sh land --state <這張單的 loop-state.json> --where <每一個工作區的路徑>"
     return 0
   fi
@@ -504,13 +508,124 @@ PY
   [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_WORKSPACE_TAKEN" "$report"
 }
 
+# Description: 開一張還沒簽斷言的種子單的狀態。
+#
+# 為什麼種子也要有狀態檔：問路的那一支只找得到帶著 loop-state.json 的目錄，所以一張只有
+# 前因後果的單對它完全隱形——不是「列在後面」，是連數字都不算。這件事量過：540 張單裡
+# 517 張沒有狀態檔，其中三張散在命名空間根、不在任何格子裡，而它們從來沒出現在任何一份
+# 清單上。
+#
+# 它刻意**不**帶領域與落腳處。那兩件事是開工才知道的，而種子單存在的理由正是「現在還不
+# 知道要怎麼做，但這件事不能消失」。要它們的是 init，不是這裡。
+cmd_seed() {
+  parse_args "$@"
+  [[ -e "$STATE" ]] \
+    && die "POLARIS_SPINE_LOOP_STATE_EXISTS" "state already exists at $STATE"
+  [[ -n "$NOTE" ]] || die "POLARIS_SPINE_SEED_NO_CONTEXT" \
+    "seed 要 --note '<前因後果>'。一張說不出自己為什麼存在的種子單，下一個人打開它只會刪掉它。"
+  require_python3
+  python3 - "$STATE" "$NOTE" <<'PY'
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+state, note = sys.argv[1], sys.argv[2]
+payload = {
+    # 落腳處與領域都還不知道，而「還不知道」與「沒有」在檔案裡要長得不一樣。
+    "workspace_identity": {"kind": "unlanded"},
+    "schema_version": 2,
+    "producer": "spine-loop-state.sh",
+    "rounds": [],
+    "status": "open",
+    # 種子停在第一個閘之前：斷言還沒簽，所以它還不能開工。
+    "station": "refinement",
+    "stop": None,
+    "stops": [],
+    "seeded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "seed_note": note,
+}
+os.makedirs(os.path.dirname(os.path.abspath(state)) or ".", exist_ok=True)
+with open(state, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+print(f"SEEDED: {state} station=refinement")
+PY
+}
+
+# Description: 這個狀態檔是不是一張還沒開工的種子（station=refinement、沒輪次、沒領域）。
+# Args: $1 = 狀態檔路徑
+# Returns: 0 是種子 / 1 不是（或讀不動）
+is_seed_state() {
+  local state="$1"
+  [[ -f "$state" ]] || return 1
+  python3 - "$state" <<'PY'
+import json
+import sys
+try:
+    d = json.load(open(sys.argv[1], encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(1)
+sys.exit(0 if (d.get("station") == "refinement"
+               and not d.get("rounds")
+               and not d.get("knowledge_pack")) else 1)
+PY
+}
+
+cmd_close() {
+  # 一張單有三種終點，不是兩種：做完了、出去了、以及不做了。第三種以前沒有地方放，
+  # 於是它要嘛永遠躺在待辦裡，要嘛被人手動刪掉——而刪掉的那一張，下一次有人提出同一件事
+  # 的時候沒有任何東西說得出「這個討論過，結論是不做」。
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE"
+  [[ -n "$NOTE" ]] || die "POLARIS_SPINE_CLOSE_NO_REASON" \
+    "close 要 --note '<為什麼不做了>'。一個沒有理由的關閉，跟把單刪掉的差別只有磁碟空間。"
+  require_python3
+  python3 - "$STATE" "$NOTE" "$BY" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+state, reason, by = sys.argv[1], sys.argv[2], sys.argv[3]
+data = json.load(open(state, encoding="utf-8"))
+if data.get("status") == "converged":
+    print("POLARIS_SPINE_CLOSE_ALREADY_CONVERGED", file=sys.stderr)
+    print("這張單已經收斂了——它是做完的，不是不做的。要改判就先說清楚哪一次收斂不算數。",
+          file=sys.stderr)
+    raise SystemExit(2)
+data["status"] = "closed"
+data["closed_reason"] = reason
+data["closed_by"] = by or None
+now = datetime.now(timezone.utc)
+data["closed_at"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+# 決定不做的那一天。位置底下多一層用的是這個——終局要知道時間。
+data["closed_on"] = now.strftime("%Y-%m-%d")
+data["schema_version"] = 2
+with open(state, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+print(f"CLOSED: {state}")
+print(f"  理由：{reason}")
+print("  下一次重算會把它放進 closed/。它不再出現在待辦，但它還在，而且說得出自己為什麼不做。")
+PY
+}
+
 cmd_init() {
   parse_args "$@"
+  local note_seed_upgrade=0
   [[ -n "$MAX_ROUNDS" ]] || MAX_ROUNDS="$DEFAULT_MAX_ROUNDS"
   [[ "$MAX_ROUNDS" =~ ^[1-9][0-9]*$ ]] \
     || die "POLARIS_SPINE_LOOP_BAD_CAP" "--max-rounds must be a positive integer (got '$MAX_ROUNDS')"
-  [[ -e "$STATE" ]] \
-    && die "POLARIS_SPINE_LOOP_STATE_EXISTS" "state already exists at $STATE; use reset to start a new lineage"
+  # 一張種子單被拿去開工時，它身上已經有一個狀態檔了。那不是「已經開過輪次」——它是
+  # 這張單當初為了不消失而留下的痕跡，現在正要被升級成真的輪次。擋住它等於逼人先手動
+  # 刪掉那個檔案，而那個動作沒有任何東西在看。
+  if [[ -e "$STATE" ]]; then
+    if is_seed_state "$STATE"; then
+      note_seed_upgrade=1
+    else
+      die "POLARIS_SPINE_LOOP_STATE_EXISTS" "state already exists at $STATE; use reset to start a new lineage"
+    fi
+  fi
 
   # 領域的決定跟開輪次是同一個動作。分成兩步的那一版要人記得補第二步，而「需要什麼知識」
   # 沒被回答就往下走，正是 K-N1 禁止的形狀。
@@ -609,6 +724,10 @@ with open(state, "w", encoding="utf-8") as handle:
     handle.write("\n")
 print(f"INIT: {state} max_rounds={max_rounds}")
 PY
+  # 覆蓋一個已經存在的檔案要說出來。一個安靜的覆蓋跟一個安靜的漏，事後看起來一樣。
+  [[ "$note_seed_upgrade" -eq 1 ]] \
+    && echo "[spine-loop-state] 這張單原本是一張種子（還沒簽斷言），現在升級成真的輪次。"
+  return 0
 }
 
 reproject_position() {
@@ -781,16 +900,33 @@ for path in find_states(root):
     if data.get("status") == "escalated" and not stop:
         stop = {"kind": "unconverged_cap"}
     rounds = data.get("rounds") or []
+    # 「還沒簽斷言」問單自己，不從狀態檔推：封條寫在 index.md 的 frontmatter，那是權威。
+    # 從「有沒有領域欄位」之類的東西倒推，是在狀態檔裡養第二份答案，而兩份會漂。
+    index = os.path.join(issue_dir, "index.md")
+    sealed = False
+    try:
+        with open(index, encoding="utf-8") as handle:
+            for lineno, line in enumerate(handle):
+                if lineno and line.rstrip() == "---":   # frontmatter 收尾
+                    break
+                if line.startswith("assertions_hash:"):
+                    sealed = True
+                    break
+    except OSError:
+        pass
     rows.append({
         "name": name,
         "station": station,
+        "sealed": sealed,
         "stopped": stop["kind"] if stop else None,
         "status": data.get("status"),
         # 最後一次記輪次的時間。它是「你剛剛在做哪一張」唯一寫在磁碟上的痕跡。
         "touched": rounds[-1].get("recorded_at", "") if rounds else "",
     })
 
-live = [r for r in rows if r["station"] != "delivered" and r["status"] != "converged"]
+# 「不做了」跟「做完了」一樣是有結論的，所以一樣不進待辦。差別在報告上——見 close。
+live = [r for r in rows
+        if r["station"] != "delivered" and r["status"] not in ("converged", "closed")]
 movable = [r for r in live if not r["stopped"]]
 blocked = [r for r in live if r["stopped"]]
 
@@ -802,12 +938,17 @@ movable.sort(key=lambda r: (-rank.get(r["station"], 0), r["touched"] == "",
 
 if movable:
     pick = movable[0]
-    print(f"next:{pick['name']} station={pick['station']}")
+    seed = "" if pick["sealed"] else " 還沒簽斷言——先走 refinement"
+    print(f"next:{pick['name']} station={pick['station']}{seed}")
 else:
     print("next:none")
 
 for row in blocked:
     print(f"blocked:{row['name']} station={row['station']} stop={row['stopped']}")
+# 種子逐張列出來，不只算進數字。它們的整個用途是「拿給另一個 session 開工」，而另一個
+# session 開場問的第一句就是這個——掉出這個答案的東西等於沒開。
+for row in sorted((r for r in movable if not r["sealed"]), key=lambda r: r["name"]):
+    print(f"seed:{row['name']} 還沒簽斷言——先走 refinement")
 # 已交付與收斂的不列成清單，但要有數字。不被判定的第三態如果安靜，下一次就會有人
 # 以為那些也被看過了。
 print(f"counted: live={len(live)} movable={len(movable)} blocked={len(blocked)} "
@@ -883,8 +1024,12 @@ else:
     print("stopped=no")
     nxt = stations[stations.index(station) + 1] if station in stations[:-1] else None
     print(f"next_station={nxt or 'none (terminal)'}")
-print(f"rounds={len(data['rounds'])} unconverged={unconverged} "
-      f"remaining={max(0, data['max_rounds'] - unconverged)} status={data['status']}")
+if "max_rounds" in data:
+    print(f"rounds={len(data['rounds'])} unconverged={unconverged} "
+          f"remaining={max(0, data['max_rounds'] - unconverged)} status={data['status']}")
+else:
+    # 種子還沒開輪次，所以沒有上限可以扣。印一個編出來的數字比說「還沒有」糟。
+    print(f"rounds=0 status={data['status']}（種子：還沒開輪次，沒有上限）")
 PY
   # 站別是「走到哪」，這一行是「還在不在原地」。兩件事都屬於 resume view：接手的人要知道
   # 的不只是下一步做什麼，還有他手上這個工作區是不是這張單當初落腳的那一個。
@@ -1139,6 +1284,8 @@ main() {
   [[ -n "$sub" ]] || { usage; exit 2; }
   shift
   case "$sub" in
+    seed) cmd_seed "$@" ;;
+    close) cmd_close "$@" ;;
     init) cmd_init "$@" ;;
     record) cmd_record "$@" ;;
     next) cmd_next "$@" ;;
