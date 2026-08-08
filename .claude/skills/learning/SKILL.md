@@ -101,3 +101,5 @@ dedup，以及 Slack 發送前的 language gate。Setup 過程不得 commit 或 
 
 > Non-optional. Execute before reporting task completion after any write.
 
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

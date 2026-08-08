@@ -197,6 +197,32 @@ def resolve(doc_path, quoted):
 rules_root = os.path.join(repo_root, ".claude", "rules")
 template_root = os.path.join(repo_root, "_template")
 
+_skill_body_cache: dict = {}
+
+
+def skill_body(doc):
+    """一份文件所屬的那支 skill 整個目錄的文字，宣告本身剝掉。
+
+    引用常常出現在腳本裡而宣告只能寫在 SKILL.md，所以「這行宣告有沒有用」要以整支
+    skill 為單位問——跟 gate-skill-knowledge-locality 同一個單位。
+    """
+    parts = os.path.relpath(doc, skills_root).split(os.sep)
+    # 公司 skill 多包一層，以帶得到 SKILL.md 的那一層為準。
+    depth = 2 if len(parts) > 2 and os.path.isfile(
+        os.path.join(skills_root, parts[0], parts[1], "SKILL.md")) else 1
+    root = os.path.join(skills_root, *parts[:depth])
+    if root in _skill_body_cache:
+        return _skill_body_cache[root]
+    chunks = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".git", "node_modules", "__pycache__")]
+        for name in filenames:
+            chunks.append(EXTERNAL_DECL.sub("", read(os.path.join(dirpath, name))))
+    _skill_body_cache[root] = "\n".join(chunks)
+    return _skill_body_cache[root]
+
+
 scanned_skill_md = 0
 scanned_reference = 0
 scanned_rule = 0
@@ -296,8 +322,13 @@ for root, kind in walk_targets:
                         f"——那支腳本不認得這個旗標"
                     )
 
+        # 「用到了」不等於「這份散文用 backtick 括起來」。這一行宣告同時服務兩道閘：這一道
+        # 看指路對不對，gate-skill-knowledge-locality 看它是知識還是動手對象——而後者掃的是
+        # 整支 skill（含腳本）的裸文字，宣告只能寫在 SKILL.md 裡。兩道閘對「用到了」各用
+        # 一套定義的話，同一行宣告會在一道閘是必要的、在另一道閘是多餘的，於是誰都不敢改。
+        body = skill_body(doc) if kind == "skill" else EXTERNAL_DECL.sub("", text)
         for declared_prefix, reason in declared:
-            if declared_prefix not in used:
+            if declared_prefix not in used and declared_prefix not in body:
                 stale_declarations.append(
                     f"{rel_doc}: `{declared_prefix}`（{reason}）沒有對上任何一條路徑")
 

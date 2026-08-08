@@ -161,3 +161,5 @@ shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_f
 - 不把未通過 language gate 的 Slack message 送出。
 - 不在 Slack wording 使用「催促」、「催」、「趕快」等字眼；用「麻煩大家幫忙」、「有空幫忙看一下」。
 
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

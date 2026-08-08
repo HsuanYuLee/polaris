@@ -80,3 +80,5 @@ Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔�
 輸出 PR、review result、must-fix / should-fix / nit counts、approve status、Slack
 notification status，以及 handbook updates if any。
 
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

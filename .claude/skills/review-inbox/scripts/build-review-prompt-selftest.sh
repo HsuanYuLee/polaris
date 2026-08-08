@@ -13,8 +13,28 @@ base_dir="$tmp/repos"
 out_with_handbook="$tmp/prompts-with-handbook"
 out_without_handbook="$tmp/prompts-without-handbook"
 manifest_with_handbook="$tmp/review-prompt-manifest.json"
-mkdir -p "$workspace/acme/polaris-config/acme-web/handbook" "$base_dir/acme-web" "$base_dir/acme-api"
-printf '# Handbook\n' > "$workspace/acme/polaris-config/acme-web/handbook/index.md"
+mkdir -p "$base_dir/acme-web" "$base_dir/acme-api"
+
+# 補充住在提供它的那支 skill 自己的目錄裡，由那支 skill 宣告出來（DP-484）。所以「有補充」
+# 這條路要拿真的宣告去驗——假造一個目錄驗的是一條已經不存在的路。
+#
+# 哪一家不寫死：這支 selftest 會跟著 skill 樹被帶到別的 repo，而那裡的公司叫什麼名字
+# 這裡不知道。掃宣告拿第一個；一支公司 skill 都沒有的樹（例如剛複製出去的 template）
+# 就跳過這一半，並且說出來——安靜跳過會被下一個人讀成「這條路驗過了」。
+notes_company="$(grep -rhoE '<!--[[:space:]]*[A-Za-z0-9_-]*REPO-NOTES-[a-z0-9-]+:' \
+  "$script_dir/../.." --include='SKILL.md' 2>/dev/null \
+  | sed -E 's/.*REPO-NOTES-([a-z0-9-]+):.*/\1/' | head -1 || true)"
+if [[ -z "$notes_company" ]]; then
+  echo "build-review-prompt-selftest: 這棵樹裡沒有任何公司 skill 宣告補充來源，"\
+       "「有補充」那一半不驗（另一半照跑）。"
+  exit 0
+fi
+notes_resolver="$(grep -rhoE "<!--[[:space:]]*[A-Za-z0-9_-]*REPO-NOTES-${notes_company}:[^>]+-->" \
+  "$script_dir/../.." --include='SKILL.md' 2>/dev/null \
+  | sed -E "s/.*REPO-NOTES-${notes_company}:[[:space:]]*//; s/[[:space:]]*-->$//" | head -1)"
+notes_project="$( (cd "$script_dir/../../../.." && eval "$notes_resolver" --list) \
+  | head -1 | tr -d '[:space:]')"
+notes_handbook_marker="repo-notes/references/handbook/${notes_project}/"
 
 candidates="$tmp/candidates.json"
 cat > "$candidates" <<'JSON'
@@ -63,19 +83,20 @@ JSON
   --my-user reviewer \
   --base-dir "$base_dir" \
   --workspace "$workspace" \
-  --company acme \
-  --project acme-web \
+  --company "$notes_company" \
+  --project "$notes_project" \
   --out-dir "$out_with_handbook" \
   --manifest "$manifest_with_handbook" \
   < "$candidates" >/tmp/build-review-prompt-selftest.out
 
-python3 - "$out_with_handbook" "$manifest_with_handbook" <<'PY'
+python3 - "$out_with_handbook" "$manifest_with_handbook" "$notes_handbook_marker" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 out_dir = Path(sys.argv[1])
 manifest = json.loads(Path(sys.argv[2]).read_text())
+handbook_marker = sys.argv[3]
 if len(manifest) != 2:
     raise SystemExit(f"unexpected manifest length: {len(manifest)}")
 if manifest[0]["model_tier"] != "standard_coding":
@@ -93,7 +114,7 @@ required = [
     "Submit Action",
     "Completion Envelope",
     "Verified project handbook paths:",
-    "acme/polaris-config/acme-web/handbook/index.md",
+    handbook_marker,
     "gh pr diff https://github.com/acme/acme-web/pull/101 --name-only",
     "單 PR 累積上限為 100 行",
     "FAILURE / ERROR checks",

@@ -233,6 +233,7 @@ run_declared() {
 # 合法的狀態；pack 解析不到才是拒絕，而那個由 pack_declaration 擋。
 run_pack_precondition() {
   local pack="$1" doc declared rc
+  shift
   [[ "$pack" != "none" ]] || return 0
   # 拒絕要說得出怎麼往下走。只說「它不在」的話，下一步只剩兩條路：亂猜一個名字，或者
   # 把這件工作記成沒有領域——而後者買到的是一個永遠不會被檢查的完成條件。
@@ -246,6 +247,15 @@ run_pack_precondition() {
     echo "[spine-loop-state] ${pack} 沒有宣告開工條件，直接開輪次。" >&2
     return 0
   fi
+
+  # 條件要判的是**這張單的改動會落在哪**，不是「跑這個命令的人現在站在哪」。所以宣告的
+  # 落腳處原樣接在命令後面，跟 pack_identity 同一條路——核心不認得那支腳本用什麼旗標收，
+  # 它只是把當初被告知的那一組交出去。少了這一段的話，一張改三個產品 repo 的單，開工條件
+  # 是拿 workspace 自己的分支判出來的：那個判定跟改動落在哪完全無關，綠或紅都不代表任何事。
+  local arg
+  for arg in "$@"; do
+    declared+=" $(printf '%q' "$arg")"
+  done
 
   echo "[spine-loop-state] ${pack} 宣告的開工條件：${declared}" >&2
   rc=0
@@ -512,7 +522,7 @@ cmd_init() {
     [[ -n "$WHY" ]] || die "POLARIS_KNOWLEDGE_PACK_NONE_UNJUSTIFIED" \
       "--pack none 要帶 --why。「沒有適用的領域」是一個被記下來的選擇，不是欄位空著。"
   fi
-  run_pack_precondition "$PACK"
+  run_pack_precondition "$PACK" ${LANDING+"${LANDING[@]}"}
 
   # 「這張單落在哪個工作區」跟開輪次是同一個動作。事後補記的話，補記的時候讀到的已經是
   # 漂掉之後的值，那個欄位就永遠自洽而永遠沒有用。

@@ -49,6 +49,7 @@ bash "$GATES/gate-skill-script-references.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-prose-matches-behaviour.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-ignore-classes.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-dangling-declarations.sh" --repo "$ROOT_DIR" || fail=1
+bash "$GATES/gate-skill-knowledge-locality.sh" --repo "$ROOT_DIR" || fail=1
 
 if [[ "$fail" -ne 0 ]]; then
   echo "[polaris pre-push] 上面的閘沒過，push 停下。" >&2

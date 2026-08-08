@@ -96,3 +96,5 @@ POLARIS_WORKSPACE_ROOT={workspace_root} .claude/skills/review-inbox/scripts/pola
 
 查到 `metadata.review_inbox_run.main_session_input_tokens`。
 
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

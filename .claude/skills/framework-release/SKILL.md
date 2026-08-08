@@ -62,6 +62,7 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
 | `gate-no-tracked-specs.sh` | 個人的規劃內容混進這個 repo |
 | `gate-skill-script-references.sh` | skill 腳本指向不存在的同目錄檔案——搬家留下的洞，執行期才炸 |
 | `gate-prose-matches-behaviour.sh` | SKILL.md 指名的檔案／子命令／旗標對不上實際行為——同一個洞的散文那一面 |
+| `gate-skill-knowledge-locality.sh` | 一支 skill 靠工作區底下沒有版控的東西才跑得動——在寫下它的人的機器上全綠，別人 clone 下來就是壞的 |
 
 前兩道也掛在 git 的 pre-push 上，由 `install-git-hooks.sh` 裝：
 
@@ -94,3 +95,5 @@ bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 
 
 **fence 對不上** —— 斷言在判定之後被動過。這比版本號錯嚴重：對著一份沒人簽過的成功定義
 出貨，比不出貨糟。回 `refinement` 重簽，然後整條重走。
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

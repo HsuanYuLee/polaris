@@ -131,3 +131,5 @@ repo 是常態，兩棵樹的 head 不一樣；問當下的位置只有在兩者
 **把判定結果帶回 `driving-work-to-done`**——PASS 之後要不要
 推站別、非 PASS 要回哪一站、原因是實作沒到還是斷言本身錯了該停哪一種，都在那裡回答，
 不在這裡。這一站產出的是判定，不是下一步。
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

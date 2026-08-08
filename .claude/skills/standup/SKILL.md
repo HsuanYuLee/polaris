@@ -71,3 +71,5 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 輸出 standup date、YDY/TDT/BOS counts、local file、Confluence status、任何 skipped sources
 與原因。
 
+
+<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

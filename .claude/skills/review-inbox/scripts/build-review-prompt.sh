@@ -85,18 +85,28 @@ if [[ "$SHOW_ALL_CHECKS" == "true" ]]; then
 else
   CI_ROLLUP_RULE="CI rollup: only FAILURE / ERROR checks may enter main context. PASS checks must be omitted. Use gh pr view --json statusCheckRollup with a jq filter that selects failure/error only."
 fi
+# 這一段以前指向 review-inbox 自己抄的一份 resolver，而它讀的是工作區底下沒有版控的
+# polaris-config。那份補充現在住在提供它的那支 skill 自己的目錄裡（DP-484），所以這裡改成
+# 掃宣告：核心不認得任何一家公司，也不去讀任何一支 skill 的目錄。
+#
+#   <!-- {前綴}-REPO-NOTES-{公司}: {命令} -->
+#
+# 找不到宣告就是「這家公司沒有補充」——那是一個答案，不是缺一個檔案。
 HANDBOOK_JSON="[]"
 if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
-  HANDBOOK_RESOLVER="$SCRIPT_DIR/resolve-handbook.sh"
-  if [[ ! -x "$HANDBOOK_RESOLVER" ]]; then
-    echo "Canonical handbook resolver not found: $HANDBOOK_RESOLVER" >&2
-    exit 1
+  DECLARED="$(grep -rhoE "<!--[[:space:]]*[A-Za-z0-9_-]*REPO-NOTES-${COMPANY}:[[:space:]]*[^>]+-->" \
+    "$SCRIPT_DIR/../.." --include='SKILL.md' 2>/dev/null \
+    | sed -E "s/.*REPO-NOTES-${COMPANY}:[[:space:]]*//; s/[[:space:]]*-->$//" | head -1 || true)"
+  # 沒有宣告是一個答案（這家公司沒有補充），不是失敗——pipefail 之下 grep 的 1 會讓整支停掉。
+  if [[ -n "$DECLARED" ]]; then
+    # 宣告裡的路徑是相對 repo 根的（跟其他宣告一樣），所以在那裡跑。
+    HANDBOOK_JSON="$( (cd "$ROOT_DIR" && eval "$DECLARED" "$PROJECT") 2>/dev/null \
+      | python3 -c 'import json,sys
+try:
+    print(json.dumps(json.load(sys.stdin).get("narrative_paths", [])))
+except Exception:
+    print("[]")')"
   fi
-  HANDBOOK_JSON=$("$HANDBOOK_RESOLVER" \
-    --company-dir "$WORKSPACE/$COMPANY" \
-    --project "$PROJECT" \
-    --paths-only \
-    --optional)
 fi
 
 HANDBOOK_BLOCK=$(python3 - "$HANDBOOK_JSON" <<'PY'
