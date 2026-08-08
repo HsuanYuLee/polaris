@@ -1,6 +1,14 @@
 ---
 name: check-pr-approvals
-description: "掃描使用者的 open PR，偵測 CI 狀態、未回覆 review comments、approval 數量，分類為三種狀態（可催/需修/已達標）後由使用者選擇催 review 或手動修正。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
+description: |
+  "掃描使用者的 open PR，偵測 CI 狀態、未回覆 review comments、approval 數量，分類為三種狀態（可催/需修/已達標）後由使用者選擇催 review 或手動修正。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
+
+  使用者問**自己的** PR 現在怎麼樣，或想找人來看。例如「我的 PR」「PR 狀態」
+  「催 review」「PR 被 approve 了嗎」「請同仁幫我 review」。
+
+  「請〈某人/大家〉幫我 review」主語是別人，仍然屬這裡——那是催 review，不是自己動手 review。
+
+  不用於：review 別人的 PR（走 review-pr）、掃團隊待看的 PR（走 review-inbox）。
 metadata:
   author: ""
   version: 2.1.0

@@ -1,9 +1,27 @@
 #!/usr/bin/env bash
 # Purpose: Record what judge decided to hand downstream, once its checks pass.
-# Inputs:  --issue <dir>, --version-bump patch|minor|major, --summary <text>,
+# Inputs:  --issue <dir>, --summary <text>,
 #          optional --head <sha> (defaults to the head the evidence was measured at).
 # Outputs: writes {issue}/.spine/delivery.json; exit 1 if the source is not in
 #          a deliverable state.
+#
+# Why there is no version field here (DP-467 H-P3)
+# ------------------------------------------------
+# Semantic versioning is a release model, and release tails are project-private —
+# `driving-work-to-done` and this skill's own prose both say so. Carrying the word
+# here at all, even as an optional slot, teaches every adopter a vocabulary from a
+# model they may not be on: a project whose delivery is a ticket and a deploy has
+# nothing to put in that slot, and a slot it can only leave empty is a slot that
+# says the portable layer expected something.
+#
+# The earlier round made the flag optional and wrote a long justification for
+# keeping it. That was half a move. Asking "would a stranger who downloaded only
+# this skill ever have written this field" answers itself — they would not, because
+# the field only means anything to one release tail.
+#
+# So the version lives entirely in the release tail, and its declaration source is
+# whatever that tail already reads. Here that is `.changeset/*.md`; the tail derives
+# the bump from them and checks itself against them. Nothing crosses the seam.
 #
 # This is the seam between the second gate and whatever ships the result. It
 # exists because "judge said PASS" is a sentence, and the thing that promotes a
@@ -20,7 +38,6 @@
 set -euo pipefail
 
 ISSUE_DIR=""
-VERSION_BUMP=""
 SUMMARY=""
 HEAD_SHA=""
 
@@ -37,11 +54,10 @@ die() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --issue)       ISSUE_DIR="${2:-}"; shift 2 ;;
-    --version-bump) VERSION_BUMP="${2:-}"; shift 2 ;;
     --summary)      SUMMARY="${2:-}"; shift 2 ;;
     --head)         HEAD_SHA="${2:-}"; shift 2 ;;
     -h|--help)
-      echo "Usage: record-delivery-intent.sh --issue <dir> --version-bump patch|minor|major --summary <text> [--head <sha>]" >&2
+      echo "Usage: record-delivery-intent.sh --issue <dir> --summary <text> [--head <sha>]" >&2
       exit 2
       ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -50,13 +66,7 @@ done
 
 [[ -n "$ISSUE_DIR" ]] || die "POLARIS_DELIVERY_INTENT_USAGE" "--issue is required"
 [[ -n "$SUMMARY" ]] || die "POLARIS_DELIVERY_INTENT_USAGE" \
-  "--summary is required; it becomes the changelog entry a human will read"
-
-case "$VERSION_BUMP" in
-  patch|minor|major) ;;
-  *) die "POLARIS_DELIVERY_INTENT_USAGE" \
-       "--version-bump must be patch, minor or major (got '${VERSION_BUMP:-}')" ;;
-esac
+  "--summary is required; it is the one line describing what was delivered"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 INDEX="$ISSUE_DIR/index.md"
@@ -89,7 +99,10 @@ destination="$(awk '
 # is the source's own repository, which issues/ is: the documents belong to
 # whoever uses the framework, so they are versioned separately. What ships is a
 # different tree, and this script does not go looking for it — see below.
-ISSUE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
+#
+# `env -u`: git sets GIT_DIR in a hook environment, and an explicit GIT_DIR beats
+# `-C` — `--show-toplevel` then answers for the cwd instead of the path asked about.
+ISSUE_REPO="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
 
 # Empty when the source has no history of its own — the fence verifier already
 # refuses that case, so this records the absence rather than inventing a value.
@@ -284,12 +297,12 @@ OUT_DIR="$ISSUE_DIR/.spine"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
-python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" "$VERSION_BUMP" \
+python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" \
   "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
 import json
 import sys
 
-(out, source, destination, head, bump, summary, by, at, source_head) = sys.argv[1:10]
+(out, source, destination, head, summary, by, at, source_head) = sys.argv[1:9]
 payload = {
     "schema_version": 1,
     "producer": "record-delivery-intent.sh",
@@ -297,8 +310,7 @@ payload = {
     "destination": destination,
     "head_sha": head,
     "issue_head_sha": source_head,
-    "version_bump": bump,
-    "changelog_summary": summary,
+    "summary": summary,
     "judged_by": by,
     "judged_at": at,
 }
@@ -308,5 +320,5 @@ with open(out, "w", encoding="utf-8") as handle:
 PY
 
 echo "RECORDED: $OUT"
-echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${ISSUE_HEAD_SHA:0:12} bump=$VERSION_BUMP"
+echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${ISSUE_HEAD_SHA:0:12}"
 

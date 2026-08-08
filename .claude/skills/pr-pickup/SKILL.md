@@ -1,6 +1,6 @@
 ---
 name: pr-pickup
-description: >
+description: |
   Slack collaboration layer: extracts PR URLs from Slack messages, hands the PR
   over to be fixed, then reports back to the thread. Owns the Slack half only —
   it does not read review comments and does not modify code.
@@ -8,6 +8,15 @@ description: >
   "處理 <slack_url>", "同仁貼的 <slack_url>", "接這個 PR <slack_url>").
   NOT for: reviewing others' PRs (use review-pr), or fixing your own PR when
   nobody is waiting on a Slack thread — then just fix it, no relay needed.
+
+  同仁在 Slack 貼了一個 PR 連結要人接手。例如「pickup <slack_url>」
+  「處理 <slack_url>」「接這個 PR」。
+
+  這支只管 Slack 那一半：抽出 PR、交出去修、修完回報那一串。它不讀 review comment、
+  不改程式碼。
+
+  不用於：review 別人的 PR（走 review-pr）、修自己的 PR 而且沒有人在 Slack 等
+  （那就直接修）。
 metadata:
   author: Polaris
   version: 1.0.0

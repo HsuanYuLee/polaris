@@ -1,13 +1,18 @@
 ---
 name: refinement
-description: 流程的第一站，也是第一個閘：把「怎麼算成功」談成人簽得下去的斷言，凍結起來。由 driving-work-to-done 在判定要立案之後帶進來。
-when_to_use: |
+description: |
+  流程的第一站，也是第一個閘：把「怎麼算成功」談成人簽得下去的斷言，凍結起來。由 driving-work-to-done 在判定要立案之後帶進來。
+
   driving-work-to-done 判定一件事要立案、而現場還沒有對應的單時。
 
   也用於：既有單的成功定義本身錯了，停 `assertion_wrong` 之後回來重簽。
 
   不用於：判斷「這件事要不要立案」——那在 driving-work-to-done。
-version: 3.0.0
+metadata:
+  version: 3.0.0
+  requires:
+    - skill: driving-work-to-done
+      why: 輪次狀態由它保管（spine-loop-state.sh init/advance）；沒有它，斷言簽完沒有地方記
 ---
 
 # refinement — 閘一：凍結斷言
@@ -54,12 +59,14 @@ issues/                              你自己的 git repo，框架 repo 忽略�
 放進它該屬於的命名空間；不確定放哪就開一個新的，命名空間本身沒有註冊表要維護。
 
 **`issues/` 不歸框架版控。** 它記的是你在做什麼、為什麼這樣定義成功；換一個人用同一套
-框架，這裡的內容完全不一樣。框架只提供空殼（`_template/issues/`）。第一次使用時：
+框架，這裡的內容完全不一樣。空殼由這一站自己帶著——它在這支 skill 的
+`templates/issues/` 底下，跟 skill 一起搬走。第一次使用時：
 
 ```bash
+R=.claude/skills/refinement
 mkdir -p issues
-cp _template/issues/README.md issues/README.md
-cp _template/issues/gitignore.example issues/.gitignore
+cp $R/templates/issues/README.md issues/README.md
+cp $R/templates/issues/gitignore.example issues/.gitignore
 git -C issues init
 git -C issues add . && git -C issues commit -m "issues: 開始"
 ```

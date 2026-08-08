@@ -71,12 +71,12 @@ record() {
   # Description: record delivery intent inside a fixture repo. The fence's one
   #   assertion is measured first, at the head about to be recorded, because
   #   recording refuses an assertion nobody proved.
-  # Args: $1 = repo, $2 = version bump
+  # Args: $1 = repo
   (cd "$1" && bash "$VERIFY_AC/run-hardened-oracle.sh" \
     --command 'echo MEASURED' --expect-evidence MEASURED \
     --evidence-out "$1/issues/ns/DP-000-selftest/.spine/evidence/A-P1.json" >/dev/null)
   (cd "$1" && bash "$VERIFY_AC/record-delivery-intent.sh" \
-    --issue issues/ns/DP-000-selftest --version-bump "$2" --summary 'a line' >/dev/null)
+    --issue issues/ns/DP-000-selftest --summary 'a line' >/dev/null)
 }
 
 release() {
@@ -97,7 +97,7 @@ echo "  ok  no delivery record refuses"
 
 # An unknown destination cannot be guessed into workspace or template.
 repo="$(new_repo baddest template)"
-record "$repo" minor
+record "$repo"
 python3 -c '
 import json, sys
 p = sys.argv[1]
@@ -114,7 +114,7 @@ echo "  ok  unknown destination refuses"
 # whole fence exists to prevent, so it is checked here too rather than trusted
 # from whenever the record was written.
 repo="$(new_repo tampered template)"
-record "$repo" minor
+record "$repo"
 sed -i.bak 's/the thing holds/the thing does not hold/' "$repo/issues/ns/DP-000-selftest/index.md"
 rm -f "$repo/issues/ns/DP-000-selftest/index.md.bak"
 if release "$repo" >/dev/null 2>&1; then
@@ -130,7 +130,7 @@ repo="$(new_repo stale template)"
 echo "the work" >> "$repo/issues/ns/DP-000-selftest/notes.md"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "the work being delivered"
-record "$repo" minor
+record "$repo"
 echo "later work" >> "$repo/issues/ns/DP-000-selftest/notes.md"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "work after recording"
@@ -142,7 +142,7 @@ echo "  ok  stale record refuses"
 # The destination decides how far the tail goes. Workspace-bound work must not
 # reach the template, the version, or a tag.
 repo="$(new_repo workspace workspace)"
-record "$repo" minor
+record "$repo"
 out="$(release "$repo")" || fail "a workspace-bound source should preview: $out"
 printf '%s' "$out" | grep -q 'workspace-bound' \
   || fail "the preview must say a workspace-bound source stops early"
@@ -151,7 +151,7 @@ printf '%s' "$out" | grep -qi 'sync to template' \
 echo "  ok  workspace destination stops before the template"
 
 repo="$(new_repo template template)"
-record "$repo" minor
+record "$repo"
 out="$(release "$repo")" || fail "a template-bound source should preview: $out"
 printf '%s' "$out" | grep -q 'sync to template' \
   || fail "a template-bound source must plan the full tail"

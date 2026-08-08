@@ -1,4 +1,6 @@
-"""Structured validator authority extracted from scripts/validate-language-policy.sh."""
+"""Structured validator authority for the language policy gate.
+
+Extracted from the validate-language-policy entry script that sits beside this file."""
 
 import re
 import sys

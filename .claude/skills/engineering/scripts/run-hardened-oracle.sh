@@ -230,16 +230,17 @@ fi
 
 if [[ -n "$EVIDENCE_OUT" ]]; then
   python3 - "$EVIDENCE_OUT" "$COMMAND" "$COMMAND_EXIT" "$VERDICT" "$MARKER" "$DETAIL" \
-    "$STDOUT_FILE" "$STDERR_FILE" "${TOOL_RECORDS[@]:-}" <<'PY'
+    "$STDOUT_FILE" "$STDERR_FILE" "$run_dir" "${TOOL_RECORDS[@]:-}" <<'PY'
 import json
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 
-(out, command, exit_code, verdict, marker, detail, stdout_path, stderr_path) = sys.argv[1:9]
+(out, command, exit_code, verdict, marker, detail, stdout_path, stderr_path,
+ run_dir) = sys.argv[1:10]
 tools = []
-for record in sys.argv[9:]:
+for record in sys.argv[10:]:
     if not record:
         continue
     name, resolved, probe, status = record.split("|", 3)
@@ -265,9 +266,18 @@ payload = {
     # Which tree the command was measuring. The measurement ledger keeps this
     # alongside the record so a red run can be located afterwards; leaving it out
     # made that a permanently empty field.
+    #
+    # Read from the directory the command actually ran in, not from this process's
+    # cwd. They differ whenever --cwd is used — which is exactly when the measured
+    # tree is not the one the caller is standing in — and the record then named a
+    # commit the command never saw, while looking perfectly well-formed (DP-482).
     "head_sha": subprocess.run(
-        ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+        ["git", "-C", run_dir, "rev-parse", "HEAD"], capture_output=True, text=True,
     ).stdout.strip() or None,
+    # 量的是哪一棵樹，記下來。head_sha 單獨存在的時候只說得出「那時候它在這個 commit」，
+    # 說不出「現在它還在不在」——而後者正是交付紀錄要問的問題，它原本靠呼叫者當下站的
+    # 位置去問，於是在 --cwd 之下問錯了樹（DP-482）。
+    "measured_in": os.path.abspath(run_dir),
 }
 os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
 with open(out, "w", encoding="utf-8") as handle:

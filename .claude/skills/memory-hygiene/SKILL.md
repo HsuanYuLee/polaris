@@ -1,16 +1,26 @@
 ---
 name: memory-hygiene
-description: Manual memory tiering — classify Hot/Warm/Cold, review candidates, and migrate MEMORY.md index + memory files. Use when the session-start advisory fires, MEMORY.md Hot grows past 15 entries, or you want a periodic cleanup. Trigger "memory-hygiene", "整理記憶", "memory 降級", "/memory-hygiene", "decay scan", "tier memory".
-triggers:
-  - "memory-hygiene"
-  - "/memory-hygiene"
-  - "整理記憶"
-  - "memory 降級"
-  - "memory 清理"
-  - "decay scan"
-  - "tier memory"
-  - "memory tier"
-version: 1.1.0
+description: |
+  Manual memory tiering — classify Hot/Warm/Cold, review candidates, and migrate MEMORY.md index + memory files. Use when the session-start advisory fires, MEMORY.md Hot grows past 15 entries, or you want a periodic cleanup. Trigger "memory-hygiene", "整理記憶", "memory 降級", "/memory-hygiene", "decay scan", "tier memory".
+
+  記憶要整理：MEMORY.md 的 Hot 區長太長、session 開場的提醒跳出來、或想定期清一次。
+  例如「整理記憶」「memory 降級」「decay scan」。
+
+  不用於：寫一則新記憶（那直接寫）、找一則舊記憶（那直接讀）。
+metadata:
+  triggers: |
+    - "memory-hygiene"
+    - "/memory-hygiene"
+    - "整理記憶"
+    - "memory 降級"
+    - "memory 清理"
+    - "decay scan"
+    - "tier memory"
+    - "memory tier"
+  version: 1.1.0
+  requires:
+    - skill: driving-work-to-done
+      why: 「哪張單卡住了」這一題本支明文不答，交給它的 spine-loop-state.sh next；沒有它的話那一段是一個指不到任何地方的轉介
 ---
 
 # Memory Hygiene

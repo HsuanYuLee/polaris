@@ -1,7 +1,8 @@
 ---
 name: verify-ac
-description: 施工告一段落、要判這次到底算不算達成時的站。跑硬化 oracle 給出會擋人的機械判定，另出不擋人的判斷報告，兩者分開。流程的第二個閘，也是最後一個。
-when_to_use: |
+description: |
+  施工告一段落、要判這次到底算不算達成時的站。跑硬化 oracle 給出會擋人的機械判定，另出不擋人的判斷報告，兩者分開。流程的第二個閘，也是最後一個。
+
   某張單做到一個段落，要驗收的時候。例如「驗收一下」「這樣算完了嗎」「跑一次判定」
   「可以出貨了嗎」，或剛從 engineering 交出來。
 
@@ -9,7 +10,8 @@ when_to_use: |
 
   不用於：還在做、只是想跑個測試看看（那是 engineering 的量測）、
   決定下一站是哪一站（走 driving-work-to-done）。
-version: 3.0.0
+metadata:
+  version: 3.0.0
 ---
 
 # verify-ac — 閘二：執行 oracle
@@ -95,14 +97,20 @@ dogfood 觀察的樣本通常很薄，而且觀察者往往同時是被觀察者
 
 ## 判 PASS 之後：交出去
 
-判定通過不等於交付。`framework-release` 要的是一份它讀得動的紀錄，不是一句「verify-ac 說 PASS」：
+判定通過不等於交付。釋出尾段要的是一份它讀得動的紀錄，不是一句「verify-ac 說 PASS」：
 
 ```bash
 bash .claude/skills/verify-ac/scripts/record-delivery-intent.sh \
   --issue {issue} \
-  --version-bump patch|minor|major \
-  --summary '<一句話，會變成 CHANGELOG 給人看的那行>'
+  --summary '<一句話，說出交付了什麼>'
 ```
+
+**版本不在這裡，連欄位都沒有。** 有些專案的交付是一張單與一次部署，沒有 patch / minor /
+major 可以宣告。留一個「可以不填」的格子仍然是在教一套詞彙——只下載了這一支的人不會知道
+那個格子是給誰看的，而它只對某一條釋出尾段有意義。
+
+所以版號整件事住在釋出尾段，宣告源是那條尾段本來就會讀的東西。這一站不宣告、不轉述、
+不留欄位。
 
 它會先重驗 fence 才寫。斷言被動過的單記錄不了交付意向——對著一份沒人簽過的成功定義
 出貨，比不出貨糟。

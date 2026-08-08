@@ -23,8 +23,8 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 LEDGER="$WORK/measurement-ledger.json"
-BASE_CMD='bash scripts/selftests/example-selftest.sh'
-NEW_CMD='bash scripts/selftests/example-selftest.sh --strict'
+BASE_CMD='bash fixture/example-selftest.sh'
+NEW_CMD='bash fixture/example-selftest.sh --strict'
 
 fail() {
   echo "FAIL: $*" >&2
@@ -95,13 +95,13 @@ assert_marker "environment error by exit code" POLARIS_MEASUREMENT_EVIDENCE_ENVI
   bash "$RECORDER" record --ledger "$LEDGER" --assertion-id AC-P1 \
     --new-command "$NEW_CMD" --old-command "$BASE_CMD" --red-evidence "$WORK/env-code.json"
 
-write_evidence "$WORK/env-text.json" "$NEW_CMD" 2 "bash: scripts/x.sh: No such file or directory"
+write_evidence "$WORK/env-text.json" "$NEW_CMD" 2 "bash: fixture/x.sh: No such file or directory"
 assert_marker "environment error by message" POLARIS_MEASUREMENT_EVIDENCE_ENVIRONMENT_ERROR \
   bash "$RECORDER" record --ledger "$LEDGER" --assertion-id AC-P1 \
     --new-command "$NEW_CMD" --old-command "$BASE_CMD" --red-evidence "$WORK/env-text.json"
 
 # --- Case 6: evidence for a different command is refused ---------------------
-write_evidence "$WORK/other.json" 'bash scripts/selftests/other-selftest.sh' 1 "assertion failed"
+write_evidence "$WORK/other.json" 'bash fixture/other-selftest.sh' 1 "assertion failed"
 assert_marker "evidence command mismatch" POLARIS_MEASUREMENT_EVIDENCE_COMMAND_MISMATCH \
   bash "$RECORDER" record --ledger "$LEDGER" --assertion-id AC-P1 \
     --new-command "$NEW_CMD" --old-command "$BASE_CMD" --red-evidence "$WORK/other.json"
@@ -110,7 +110,7 @@ assert_marker "evidence command mismatch" POLARIS_MEASUREMENT_EVIDENCE_COMMAND_M
 write_evidence "$WORK/red.json" "$NEW_CMD" 1 "FAIL: expected non-empty evidence, got none"
 assert_marker "broken chain" POLARIS_MEASUREMENT_CHAIN_BROKEN \
   bash "$RECORDER" record --ledger "$LEDGER" --assertion-id AC-P1 \
-    --new-command "$NEW_CMD" --old-command 'bash scripts/selftests/never-registered.sh' \
+    --new-command "$NEW_CMD" --old-command 'bash fixture/never-registered.sh' \
     --red-evidence "$WORK/red.json"
 
 # --- Case 8: a genuine red run is accepted with a complete triple ------------
@@ -145,7 +145,7 @@ assert_marker "superseded command" POLARIS_MEASUREMENT_COMMAND_UNREGISTERED \
 # --- Case 10: a second baseline for the same assertion is refused ------------
 assert_marker "duplicate baseline" POLARIS_MEASUREMENT_BASELINE_ALREADY_SET \
   bash "$RECORDER" record --ledger "$LEDGER" --assertion-id AC-P1 \
-    --new-command 'bash scripts/selftests/sneaky.sh' --baseline
+    --new-command 'bash fixture/sneaky.sh' --baseline
 
 # --- Case 11: the hash comes from the single spine implementation ------------
 expected="$(printf '%s' "$NEW_CMD" | bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" hash --stdin)"

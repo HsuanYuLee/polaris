@@ -215,7 +215,7 @@ assert_unchanged_since() {
   shift 2
 
   local repo_root rel blob key before after changed=""
-  repo_root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null)" \
+  repo_root="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null)" \
     || die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" \
       "$file is not inside a git repository; a fence with no history cannot be shown to be unchanged"
 

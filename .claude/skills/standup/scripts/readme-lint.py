@@ -11,9 +11,9 @@ Checks:
 5. Mermaid diagram nodes — node labels in flowchart blocks vs catalog
 
 Usage:
-  python3 .claude/skills/standup/scripts/readme-lint.py              # check only
-  python3 .claude/skills/standup/scripts/readme-lint.py --fix        # auto-fix skill counts
-  python3 .claude/skills/standup/scripts/readme-lint.py --verbose    # show all details
+  python3 scripts/readme-lint.py              # check only
+  python3 scripts/readme-lint.py --fix        # auto-fix skill counts
+  python3 scripts/readme-lint.py --verbose    # show all details
 
 Exit codes: 0 = clean, 1 = drift found, 2 = error
 """

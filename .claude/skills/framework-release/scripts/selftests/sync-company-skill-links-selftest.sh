@@ -8,7 +8,7 @@
 set -uo pipefail
 
 # 這支的主體是 git hook 呼叫的，住在 repo 根而不是某支 skill 底下，所以問 git。
-ROOT_DIR="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+ROOT_DIR="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/sync-company-skill-links.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

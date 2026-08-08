@@ -80,17 +80,38 @@ issue="$(new_sealed_issue happy template)"
 repo="$WORK/happy"
 measure "$repo" "$issue" A-P1
 (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-  --version-bump minor --summary 'a line a human will read' >/dev/null) \
+  --summary 'a line a human will read' >/dev/null) \
   || fail "a sealed source with a destination should record"
 python3 -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 assert d["destination"] == "template", d
-assert d["version_bump"] == "minor", d
-assert d["changelog_summary"] == "a line a human will read", d
+assert d["summary"] == "a line a human will read", d
 assert len(d["head_sha"]) >= 12, d
 ' "$issue/.spine/delivery.json" || fail "the record is missing what the release tail reads"
 echo "  ok  sealed source records destination and head"
+
+# 版本是釋出模型，可攜層連這個詞都不該認得（DP-467 H-P3）。這一條咬住的是「這裡沒有
+# 版號詞彙」——紀錄裡不長出那個欄位，而且那個旗標遞進來會被當成不認得的參數擋掉。
+# 上一輪把它做成選填並寫了一段理由，那是半套：一個只有一條釋出尾段看得懂的欄位，
+# 只下載了這一支的人永遠不會寫出來。
+issue="$(new_sealed_issue noversion template)"
+repo="$WORK/noversion"
+measure "$repo" "$issue" A-P1
+(cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
+  --summary 'delivered by ticket and deploy, no version to declare' >/dev/null) \
+  || fail "a project with no version model should still be able to record"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert "version_bump" not in d, d
+assert len(d["head_sha"]) >= 12, d
+' "$issue/.spine/delivery.json" || fail "the portable record must not carry a release model's vocabulary"
+if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
+     --summary 'x' --version-bump patch >/dev/null 2>&1); then
+  fail "--version-bump must no longer be accepted here at all"
+fi
+echo "  ok  可攜層不認得版號這個詞"
 
 # 交付到一半還在產出脊椎要取代的舊層，紀錄就寫不下去。這個 case 是接線的端到端證明：
 # 檢查是由這支腳本呼叫的（不是散文叫人記得跑），而且它真的紅得起來——清單由枚舉器產生，
@@ -102,7 +123,7 @@ echo "old layer" > "$repo/specs/design-plans/DP-999-x/tasks/T1/index.md"
 git -C "$repo" add -A && git -C "$repo" commit -qm "still running the old machine"
 measure "$repo" "$issue" A-P1
 if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+     --summary 'x' >/dev/null 2>&1); then
   fail "a delivery still producing the old layer should refuse to record"
 fi
 [[ -f "$issue/.spine/delivery.json" ]] \
@@ -115,7 +136,7 @@ sed -i.bak 's/the thing holds/the thing does not hold/' "$issue/index.md"
 rm -f "$issue/index.md.bak"
 repo="$WORK/tampered"
 if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+     --summary 'x' >/dev/null 2>&1); then
   fail "assertions altered after sealing should refuse to record"
 fi
 [[ -f "$issue/.spine/delivery.json" ]] \
@@ -127,7 +148,7 @@ echo "  ok  altered assertions refuse to record"
 issue="$(new_sealed_issue nodest "")"
 repo="$WORK/nodest"
 if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+     --summary 'x' >/dev/null 2>&1); then
   fail "a source declaring no destination should refuse to record"
 fi
 echo "  ok  missing destination refuses to record"
@@ -137,11 +158,11 @@ echo "  ok  missing destination refuses to record"
 issue="$(new_sealed_issue badargs template)"
 repo="$WORK/badargs"
 if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-     --version-bump enormous --summary 'x' >/dev/null 2>&1); then
-  fail "an invalid version bump should be rejected"
+     --summary 'x' --nonsense value >/dev/null 2>&1); then
+  fail "an unknown flag should be rejected"
 fi
 if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-     --version-bump patch >/dev/null 2>&1); then
+     >/dev/null 2>&1); then
   fail "a missing summary should be rejected"
 fi
 [[ -f "$issue/.spine/delivery.json" ]] \
@@ -161,7 +182,7 @@ git -C "$repo" add -A
 git -C "$repo" commit -qm "the work being delivered"
 measure "$repo" "$issue" A-P1
 (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-  --version-bump patch --summary 'two histories' >/dev/null) \
+  --summary 'two histories' >/dev/null) \
   || fail "a source in its own repository should still record"
 python3 -c '
 import json, sys
@@ -181,7 +202,7 @@ echo "  ok  the shipping head and the judged head come from their own repositori
 issue="$(new_sealed_issue noevidence template)"
 repo="$WORK/noevidence"
 out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-  --version-bump patch --summary 'x' 2>&1) )" && fail "an unmeasured assertion should refuse to record"
+  --summary 'x' 2>&1) )" && fail "an unmeasured assertion should refuse to record"
 grep -Fq POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE <<<"$out" \
   || fail "missing evidence did not emit its marker; got: $out"
 grep -Fq "A-P1: no evidence" <<<"$out" \
@@ -199,7 +220,7 @@ echo "one more change after measuring" >> "$repo/tool.sh"
 git -C "$repo" add -A
 git -C "$repo" commit -qm "moved on after the measurement"
 out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-  --version-bump patch --summary 'x' 2>&1) )" && fail "stale evidence should refuse to record"
+  --summary 'x' 2>&1) )" && fail "stale evidence should refuse to record"
 grep -Fq "$repo 現在在" <<<"$out" \
   || fail "the refusal must name the tree that moved on; got: $out"
 grep -Fq "量完之後又有 commit 落下去了" <<<"$out" \
@@ -225,7 +246,7 @@ git -C "$caller" commit -qm "a history that has nothing to do with the delivery"
    --expect-evidence MEASURED \
    --evidence-out "$issue/.spine/evidence/A-P1.json" >/dev/null)
 (cd "$caller" && bash "$RECORD" --issue "$issue" \
-  --version-bump patch --summary 'measured over there' >/dev/null) \
+  --summary 'measured over there' >/dev/null) \
   || fail "a delivery measured in another tree should still record"
 python3 -c '
 import json, sys
@@ -249,7 +270,7 @@ json.dump({"schema_version": 1, "producer": "me", "verdict": "PASS",
            "head_sha": sys.argv[2]}, open(sys.argv[1], "w"))
 PY
 out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
-  --version-bump patch --summary 'x' 2>&1) )" && fail "hand-written evidence should refuse to record"
+  --summary 'x' 2>&1) )" && fail "hand-written evidence should refuse to record"
 grep -Fq "not run-hardened-oracle.sh" <<<"$out" \
   || fail "the refusal must name the producer problem; got: $out"
 echo "  ok  hand-written evidence refuses to record"

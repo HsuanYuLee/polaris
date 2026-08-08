@@ -104,7 +104,7 @@ selftest() {
   cat > "$tmpdir/zh.md" <<'MD'
 # 目標
 
-這是一段繁體中文 artifact，包含 `.claude/skills/check-pr-approvals/scripts/validate-language-policy.sh`、https://example.com/path 與 `JSON` key，應該通過。
+這是一段繁體中文 artifact，包含 `scripts/validate-language-policy.sh`、https://example.com/path 與 `JSON` key，應該通過。
 MD
 
   cat > "$tmpdir/en.md" <<'MD'
@@ -113,13 +113,13 @@ MD
 
   cat > "$tmpdir/code-heavy.md" <<'MD'
 ```bash
-LANGUAGE_POLICY_SELFTEST=1 bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh
+LANGUAGE_POLICY_SELFTEST=1 bash scripts/validate-language-policy.sh
 ```
 
 - `source_type`: `dp`
 - `task/DP-050-T3-workspace-language-policy-gate-script`
 - https://example.com/docs/path
-- `.claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact`
+- `scripts/validate-language-policy.sh --blocking --mode artifact`
 MD
 
   mkdir -p "$tmpdir/root/company"

@@ -1,5 +1,108 @@
 # Changelog
 
+## [4.14.0] - 2026-08-09
+
+### Changed
+
+- 7738ec4: DP-467：24 支 skill 的 frontmatter 收進規格允許的六個鍵，依賴改用 `metadata.requires`
+  **24 支 SKILL.md，先前沒有一支打包得出去。** Agent Skills 規格對 frontmatter 是白名單——
+  `name` / `description` / `license` / `compatibility` / `metadata` / `allowed-tools`——而
+  claude.ai 上傳、Skills API、`package_skill.py` 三條路遇到別的鍵是**硬錯**，不是忽略：
+  ```
+  Unexpected key(s) in SKILL.md frontmatter: argument-hint.
+  Allowed properties are: allowed-tools, compatibility, description, license, metadata, name
+  ```
+  執行期會忽略不認得的鍵，所以這個缺陷在本機永遠不會出現，只在「真的把 skill 交給別人」
+  那一刻炸。量到六種：`when_to_use` 21 支、`version` 11、`scope` 9、`company` 8、`triggers` 6、
+  `skill_set` 5。**其中兩種是這張單前幾輪自己加的**——為了「搬得走」做的事用了會讓打包
+  失敗的欄位。
+  搬法：
+  - `when_to_use` **併進 `description`**。官方說它本來就是 "Appended to `description` in the
+    skill listing"，所以併進去行為等價。搬去 `metadata` 反而會讓內容不再進入模型視野
+    （`metadata` 是惰性的，"Claude Code doesn't act on its contents"）。
+  - 其餘自訂鍵收進 `metadata`。三個讀 `scope` 的消費者（`sync-to-polaris.sh`、
+    `scan-template-leaks.sh`、`readme-lint.py`）本來就寫著「indentation-tolerant，top level
+    或 nested under metadata 兩種都在用」，所以不用改。
+  - `skill_set: spine` 拆掉，換成 `metadata.requires`——它答的是出貨視角（我要一起出貨哪些），
+    而單獨下載一支的人問的是使用視角（這一支還需要什麼）。
+    依賴為什麼不能只用掃的：`driving-work-to-done` 對 `engineering` 與 `verify-ac` **一行程式碼
+    都沒呼叫**，但沒有它們整支就是空的——它整份 SKILL.md 在做的事就是「下一站去哪」。所以
+    `requires` 帶著 `why`，而且三種依賴都要寫（呼叫腳本／當下一站／讀它的知識）。
+    沒有採用 `compatibility`（500 字自由字串，語意是執行環境要求不是依賴）也沒有自創欄位：
+    外部查證 agentskills #100 / #90 / #95 / #210 全部開著，**skill 依賴目前沒有通用標準**，
+    #210 的 `skills.json` 已長出五種競爭實作。`metadata` 是規格內、官方明說給自己的工具讀、
+    標準落地時只是一次改名。
+    新儀器 `h-p2-frontmatter-check.py`，白名單寫死不接受參數（那不是這個 repo 的選擇，是規格
+    定的）。紅控：改之前 24/24 紅，改之後 0。
+- 6f3d40e: DP-467：每一支 skill 都說得出自己什麼時候該被叫到，搬得走的那一批也量得出來
+  三十二支 skill 全數補上 `when_to_use`——到了沒有 `CLAUDE.md`、沒有常駐規則的環境，
+  frontmatter 是模型唯一拿得到的東西。`refinement` 把 `issues/` 的空殼收進自己目錄
+  （`templates/issues/`），開 `issues/` 是那一站的活，殼跟著那一站走。`use-company` 找不到
+  `workspace-config.yaml` 時，改成說出「不在的是什麼、放哪裡、裡面要有什麼」，而不是一句
+  `failed to resolve workspace root`。
+- 28234c1: DP-467：「要一起搬哪些」是推出來的閉包，不是一份名單
+  一支 skill 沒有另一支就不能用時，那件事現在寫在它自己身上——`metadata.requires`，每一筆帶著
+  「沒有它就不能做什麼」。**判準是：指名另一支的腳本就是一個承諾**，要嘛真的需要它（宣告），
+  要嘛那句話本身是缺陷。
+  實測抓到六支只說不宣告，逐個查過都是前者：
+  | 誰 | 需要誰 | 為什麼不是誤報 |
+  |---|---|---|
+  | `framework-release` | `verify-ac` | 讀它寫的 `delivery.json`，沒有就 die |
+  | `framework-release` | `driving-work-to-done` | `gate-spine-delivery.sh` 解出路徑**直接跑**它的腳本 |
+  | `review-inbox` | `review-pr` | 輸入解析整個在那裡 |
+  | `standup` | `driving-work-to-done` | 收 TDT candidate 那一步真的跑它 |
+  | `memory-hygiene` | `driving-work-to-done` | 明文把「哪張單卡住了」交出去 |
+  | `visual-regression` | `driving-work-to-done` | 產出住在會被它依狀態搬走的目錄裡 |
+  中途版本用的是每一支自己寫一個 `skill_set: spine` 的中央分組。那是一份人要維護的第二個來源，
+  而且它答的是**出貨視角**（我要一起出貨哪些），可是單獨下載一支的人問的是**使用視角**
+  （這一支還需要什麼）。改成沿 requires 展開的閉包之後，從 `driving-work-to-done` 出發正好是
+  四支脊椎——跟那份手維護的名單一樣，但沒有人要維護它。`framework-release` 不在裡面，方向是
+  對的：脊椎不依賴釋出尾段，只有反向。
+  依賴為什麼不能只用掃的：`driving-work-to-done` 對 `engineering` 與 `verify-ac` 一行程式碼都
+  沒呼叫，但沒有它們整支是空的。所以三種依賴都要寫（呼叫腳本／當下一站／讀它的知識），而檢查
+  每次都印出「這次只量得到呼叫腳本那一種」，不靠沉默。
+- 15b4e64: DP-467：版號整個離開可攜層，宣告源是 `.changeset/`
+  `record-delivery-intent.sh` 的 `--version-bump` 本來是**必填**的：`patch|minor|major` 三選一。
+  可攜層因此在強制推銷一套釋出模型——一個交付走單與部署、沒有 semver 的專案，每一張單都得對
+  閘說一次謊才寫得下交付紀錄。
+  中途改成選填並留著欄位，理由寫成「那是跨接縫給釋出尾段讀的格子」。**那是半套。** 判準是
+  「一個只下載了這一支 skill 的人，會不會寫出這個欄位」——不會，因為它只對一條釋出尾段有
+  意義。一個可以留空的格子仍然在說「這裡本來預期有東西」，而只有一個人知道那是給誰的。
+  所以：
+  - **可攜層**（`verify-ac`）拿掉 `--version-bump` 旗標與 `version_bump` 欄位，散文不再提版號
+    怎麼宣告。它不宣告、不轉述、不留欄位。
+  - **釋出尾段**（`framework-release`）的 `assert-version-bump-applied.sh` 改讀 `--pending <n>`，
+    也就是壓版**之前** `.changeset/*.md` 的份數——那正是 `release-version.sh` 等一下會讀的同一
+    批檔案，中間不經過任何人轉述。少一次轉述就少一個對不上的機會，而 DP-464 的錯就發生在轉述
+    那一段。份數在壓版前數，因為 changeset CLI 會把用掉的刪掉。
+  - 交付紀錄的 `changelog_summary` 改名 `summary`。CHANGELOG 是釋出尾段的概念，欄位名不該把它
+    帶進可攜層。
+    四條分支都走過：有 changeset 沒壓動 → exit 1 並說出往下走的路；有且壓動 → 綠；都沒有 → 綠；
+    沒有 changeset 卻動了 → 說出來不擋（多 DP 堆疊由 `release-version.sh` 自己的閘管）。
+    `--pending` 不是數字 → exit 2。selftest 那條從「可以不宣告」改成咬「這裡不認得這個詞」。
+- 79771c2: DP-467：兩份 `run-hardened-oracle.sh` 漂掉了，其中一份缺 DP-482 的修正
+  守副本一致的那支檢查實跑抓到的：`verify-ac` 那份收過兩個 commit，`engineering` 那份沒有。
+  差異是實質的——用 `--cwd` 量測時，`engineering` 那份記的 `head_sha` 讀的是**呼叫者站的位置**
+  而不是命令真正跑的那棵樹，而且沒有 `measured_in`。
+  也就是 DP-482 修的那個 bug 只修好了一半，另一半安靜地活了幾個版本。這正是「副本本身是刻意
+  的，沒有東西維持它們一致才是病」那條斷言存在的理由。
+  同一輪的另外兩件：
+  - 一支公司 pack 的稽核腳本從沒版控的每專案設定目錄搬進那支 skill 自己的 `scripts/`。
+    散文叫人跑它，而 `.gitignore` 把那整棵樹排除——那支腳本只在寫下它的人的機器上存在。
+    `gate-prose-matches-behaviour` 在主 checkout 上一直是綠的（那個檔案在那台機器上真的在），
+    worktree 給的紅才是正確答案：**一道判定會隨本機有沒有某個沒版控的目錄而變的閘，等於沒有
+    在判定**。
+  - `driving-work-to-done` 的散文拿掉一個 `branch`。它自己宣告的 `SWE-ONLY-VOCABULARY` 就列著
+    那個詞，而那行宣告**先前一個消費者都沒有**——宣告它的段落卻寫著「量測從它讀」。儀器補上
+    之後第一次求值，抓到的第一個違規就是宣告者自己。
+- 89cca4f: DP-467：52 組同名副本現在逐位元一致，而且有東西在守著
+  DP-462 拆掉共用 `scripts/` 之後，同一支腳本在多個 skill 目錄各有一份，沒有任何東西維持
+  它們一致。實測 6 組已經漂了——而漂掉的內容全部是「這一份把自己的位置寫死在說明文字裡」，
+  其中 5 份 `validate-language-policy.sh` 的 fixture 寫著別支 skill 的路徑。把那些字串改成
+  skill 相對的 `scripts/…`，副本就一致，而且每一份印出來的路徑都指得對。
+  `standup` 帶著的 `sync-to-polaris.sh` 是舊版副本（少了命名空間形狀判定，還在用公司名比對
+  ——正是框架禁止的「用位置判斷身分」），而且沒有任何東西呼叫它。刪掉。
+
 ## [4.13.0] - 2026-08-08
 
 ### Changed

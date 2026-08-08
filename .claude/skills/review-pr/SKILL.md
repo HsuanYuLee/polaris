@@ -1,6 +1,6 @@
 ---
 name: review-pr
-description: >
+description: |
   Review someone else's PR as a code reviewer: read the PR diff, check against
   .claude/rules, leave inline comments on issues found, and submit a review with
   APPROVE or REQUEST_CHANGES. Use when the user asks the assistant to review a
@@ -11,6 +11,13 @@ description: >
   催 review, route to check-pr-approvals. NOT for "review 大家的 PR" / "掃 PR"
   (object = others' PRs) — route to review-inbox. NOT for fixing review comments
   on your own PR — that needs no relay, just fix it.
+
+  要以 reviewer 的身分看**別人的** PR：讀 diff、留 inline comment、送出
+  APPROVE 或 REQUEST_CHANGES。例如「review 這個 PR」「code review」，或丟一個 PR URL
+  過來要人看。
+
+  不用於：「請〈同仁/大家〉幫我 review」——主語是別人，那是催 review，
+  走 check-pr-approvals。
 metadata:
   author: Polaris
   version: 2.1.0

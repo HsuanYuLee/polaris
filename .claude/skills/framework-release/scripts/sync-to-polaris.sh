@@ -46,7 +46,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # 這支住在某支 skill 的 scripts/ 底下，但它同步的是整個 workspace。從自己的深度
 # 往上數會數錯——搬進 skill 之後一度算成 .claude/skills/{skill}，dry-run 顯示它
 # 打算 prune 1120 個項目。問 git 拿 repo 根。
-INSTANCE_DIR="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+INSTANCE_DIR="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 POLARIS_DIR="${HOME}/polaris"
 DRY_RUN=false
 AUTO_COMMIT=false
@@ -606,8 +606,9 @@ if [[ -d "$INSTANCE_DIR/docs-manager" ]]; then
 fi
 # issues/ needs no exclusion here on two counts: every sync step copies an
 # explicitly named path, so nothing sweeps the repo root, and issues/ is the
-# user's own repository which this one ignores. What the template does ship is the
-# empty shell at _template/issues/, carried by Step 6 with the rest of _template.
+# user's own repository which this one ignores. The empty shell ships inside the
+# refinement skill (templates/issues/), carried by the skills step — it belongs to
+# the station that bootstraps issues/, so it travels wherever that station travels.
 
 # ── Step 8: Sync top-level files ──────────────────────────────────
 

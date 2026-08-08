@@ -57,6 +57,9 @@ __pycache__/
 *.pyc
 .DS_Store
 .vite/
-# 排程任務跑的時候才長出來的鎖檔。它綁的是那一次執行，不是一個必須存在的位置——
-# 放在 machine-local 底下的話，這道閘在「現在沒有排程在跑」的每一台機器上都是紅的。
+# 排程與 routine 跑起來才長出來的執行期檔案。它們綁的是那一次執行，不是一個必須存在的
+# 位置——放在 machine-local 底下的話，這道閘在「現在沒有排程在跑」的每一台機器上都是紅的。
+# 原本只寫在 .git/info/exclude，那是機器上的第二份分類宣告，而它不在 diff 裡。
 /.claude/scheduled_tasks.lock
+/.claude/scheduled_tasks.json
+/.claude/routines/.state/

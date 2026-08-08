@@ -1,9 +1,19 @@
 ---
 name: review-inbox
-description: "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'). Key: '我的 PR' → check-pr-approvals; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
+description: |
+  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'). Key: '我的 PR' → check-pr-approvals; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
+
+  要掃出團隊裡等著自己看的 PR。例如「掃 PR」「review 大家的 PR」
+  「有哪些 PR 要我看」，或給一個 Slack thread URL 要人看那一串。
+
+  分辨：「我的 PR」→ check-pr-approvals；「大家的 PR」或 Slack URL → 這裡；
+  單一個 PR URL → review-pr。
 metadata:
   author: Polaris
   version: 2.2.0
+  requires:
+    - skill: review-pr
+      why: 本支的輸入解析（resolve-pr-work-source.sh、pr-state-snapshot.sh）整個在它那裡；沒有它就拿不到要看的那個 PR
 ---
 
 # Review Inbox — 批次 Review 待審 PR

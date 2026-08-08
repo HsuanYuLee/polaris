@@ -1,9 +1,18 @@
 ---
 name: standup
-description: "Use when the user wants to generate a daily standup report or end-of-day summary (YDY/TDT/BOS/口頭同步). Single entry point for all standup and end-of-day workflows. Trigger: 'standup', '站會', 'daily', '寫 standup', '下班', '收工', 'EOD', 'wrap up', '今天做了什麼'."
+description: |
+  "Use when the user wants to generate a daily standup report or end-of-day summary (YDY/TDT/BOS/口頭同步). Single entry point for all standup and end-of-day workflows. Trigger: 'standup', '站會', 'daily', '寫 standup', '下班', '收工', 'EOD', 'wrap up', '今天做了什麼'."
+
+  要產出每日站會報告或下班摘要。例如「站會」「daily」「下班」「收工」
+  「EOD」「今天做了什麼」。
+
+  不用於：一張單走到哪（走 driving-work-to-done）、工時補登（走該公司自己的 worklog skill）。
 metadata:
   author: Polaris
   version: 2.1.0
+  requires:
+    - skill: driving-work-to-done
+      why: 收 TDT candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
 ---
 
 # Standup — 每日站立會議報告產生器

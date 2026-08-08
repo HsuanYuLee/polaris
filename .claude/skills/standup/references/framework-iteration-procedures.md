@@ -44,7 +44,7 @@ After a VERSION bump is committed, execute these steps in order — no user conf
 1. **docs-lint** — run `python3 .claude/skills/standup/scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
 2. **docs-sync** — if docs-lint reported issues beyond count fixes (phantom skills, missing entries, stale diagrams), invoke `/docs-sync` to fix them. The skill's Step 0 uses docs-lint output + git diff to scope the sync. If changes are found, commit as a separate `docs:` commit
 3. **backlog-staleness-scan** — scan `issues/` for stale items (see § Backlog Hygiene below)
-4. **sync-to-polaris.sh --push** — sync all changes (including the docs commit) to the template repo
+4. **同步到 template repo** — 這一步屬釋出尾段，由 `framework-release` 做（它自己帶著那支腳本）。這裡只記它在鏈上的位置。
 
 This chain ensures documentation is always up-to-date and backlog stays clean at release boundaries.
 

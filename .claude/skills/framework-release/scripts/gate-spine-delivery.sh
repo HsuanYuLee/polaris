@@ -267,14 +267,14 @@ for entry in "${RECORDS[@]}"; do
       echo "$PREFIX 判不動就不放行。先補記落腳處，再重錄一次：" >&2
       echo "$PREFIX   bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh land --state ${issue}/.spine/loop-state.json --where <工作區路徑>" >&2
     fi
-    echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
+    echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --summary '<line>'" >&2
     failures=$((failures + 1))
     continue
   fi
   echo "$PREFIX BLOCKED: ${issue} recorded its delivery intent at ${recorded:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
   echo "$PREFIX The record the release tail reads describes a different commit than the one being pushed." >&2
   echo "$PREFIX Re-run judge's handoff step so the record and the commit agree:" >&2
-  echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --version-bump <bump> --summary '<line>'" >&2
+  echo "$PREFIX   bash scripts/record-delivery-intent.sh --issue ${issue} --summary '<line>'" >&2
   failures=$((failures + 1))
 done
 

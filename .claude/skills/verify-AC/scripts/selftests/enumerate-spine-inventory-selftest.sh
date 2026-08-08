@@ -36,7 +36,8 @@ BASE="$(git -C "$REPO" rev-parse HEAD)"
 printf 'living document\n' > "$REPO/$SRC/index.md"
 printf '{}\n' > "$REPO/$SRC/.spine/loop-state.json"
 printf '{}\n' > "$REPO/$SRC/.spine/delivery.json"
-printf 'echo work\n' > "$REPO/scripts/thing.sh"
+mkdir -p "$REPO/fixture"
+printf 'echo work\n' > "$REPO/fixture/thing.sh"
 printf -- '---\nnote\n' > "$REPO/.changeset/example.md"
 git -C "$REPO" add -A
 git -C "$REPO" commit -qm work
@@ -56,8 +57,8 @@ for path in (f"{src}/index.md", f"{src}/.spine/loop-state.json",
     assert path in forced, f"{path} should be charged as forced"
 
 # The work is what the delivery is for, not the toll the process charges.
-assert "scripts/thing.sh" in listed, "the changed work file should still be listed"
-assert "scripts/thing.sh" not in forced, "the work itself must not be charged"
+assert "fixture/thing.sh" in listed, "the changed work file should still be listed"
+assert "fixture/thing.sh" not in forced, "the work itself must not be charged"
 
 # Every charged file has to say why the flow cannot finish without it; the cost
 # floor check rejects a forced entry with no reason.

@@ -96,9 +96,19 @@ record_field() {
     "$RECORD" "$1"
 }
 
+# Description: 待處理的 changeset 份數——版號要壓多少的唯一宣告源。
+#   交付紀錄裡沒有這件事，而且刻意沒有：那份紀錄是可攜層寫的，而版號是這條釋出尾段
+#   自己的模型（DP-467 H-P3）。這裡直接數 release-version.sh 等一下真的會讀的那些檔案，
+#   中間不經過任何人轉述。
+# Returns: 一個非負整數印到 stdout。
+pending_changesets() {
+  local dir="$REPO_PATH/.changeset"
+  [[ -d "$dir" ]] || { echo 0; return; }
+  find "$dir" -maxdepth 1 -name '*.md' ! -name 'README.md' -type f | wc -l | tr -d ' '
+}
+
 DESTINATION="$(record_field destination)"
-VERSION_BUMP="$(record_field version_bump)"
-SUMMARY="$(record_field changelog_summary)"
+SUMMARY="$(record_field summary)"
 RECORDED_HEAD="$(record_field head_sha)"
 JUDGED_BY="$(record_field judged_by)"
 
@@ -138,7 +148,7 @@ if [[ "$EXECUTE" -ne 1 ]]; then
   step "preview only"
   note "would promote $BRANCH onto main"
   if [[ "$DESTINATION" == "template" ]]; then
-    note "would compress version (bump=$VERSION_BUMP), sync to template, tag and release"
+    note "would compress version (from $(pending_changesets) pending changeset(s)), sync to template, tag and release"
   else
     note "workspace-bound: no version, no template sync, no tag"
   fi
@@ -153,6 +163,8 @@ fi
 if [[ "$DESTINATION" == "template" ]]; then
   step "version"
   before="$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
+  # 份數要在這裡數：changeset CLI 會把用掉的那些刪掉，壓完再數永遠是 0。
+  pending="$(pending_changesets)"
   bash "$SCRIPTS/release-version.sh" --repo "$REPO_PATH" >&2
   after="$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
 
@@ -170,11 +182,15 @@ if [[ "$DESTINATION" == "template" ]]; then
     [[ "$parent" == "$HEAD_SHA" ]] || die "POLARIS_SPINE_RELEASE_UNEXPECTED_DELTA" \
       "the version commit is not sitting directly on the judged head; refusing to re-pin."
     bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_DIR" \
-      --version-bump "$VERSION_BUMP" --summary "$SUMMARY" --head "$new_head" >&2
+      --summary "$SUMMARY" --head "$new_head" >&2
     HEAD_SHA="$new_head"
-  else
-    note "no pending changeset — version unchanged at $after"
   fi
+
+  # 宣告與實際對不對得起來，由一支獨立的判斷回答。內嵌在這裡的話它只會在 execute 模式
+  # 被走到，而那條路要碰 remote 與 template checkout——一個只能在不可重播的路徑上被驗證
+  # 的判斷，等於沒有被驗證。DP-464 出貨時它就是那樣錯的。
+  bash "$SCRIPTS/assert-version-bump-applied.sh" \
+    --pending "$pending" --before "$before" --after "$after" >&2
 fi
 
 step "push"

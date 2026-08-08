@@ -1,13 +1,20 @@
 ---
 name: framework-release
-description: 判定通過之後把東西送出去的那一段：把分支併進 main、壓版號、視目的地同步到 template repo、把本機接回釋出後的狀態。它不判斷該不該出貨——那是 verify-ac 寫在交付紀錄裡的事。
-when_to_use: |
+description: |
+  判定通過之後把東西送出去的那一段：把分支併進 main、壓版號、視目的地同步到 template repo、把本機接回釋出後的狀態。它不判斷該不該出貨——那是 verify-ac 寫在交付紀錄裡的事。
+
   某張單已經judged PASS、交付紀錄寫好了，要真的出貨的時候。例如「出貨吧」
   「釋出」「壓版本」「同步到 template」，或剛從 verify-ac 交出來。
 
   也用於：只想先看它打算做什麼（預設就是預覽，不加 --execute 不會動任何東西）。
 
   不用於：還沒有交付紀錄（先走 verify-ac）、判定還沒過（那是 verify-ac 的事）。
+metadata:
+  requires:
+    - skill: verify-ac
+      why: 這支讀的那份交付紀錄是它寫的；沒有 delivery.json，第一道閘就 die，整段釋出跑不起來
+    - skill: driving-work-to-done
+      why: gate-spine-delivery.sh 直接解出它的 spine-loop-state.sh 來跑（判落腳處），不是只在訊息裡提到它
 ---
 
 # framework-release — 釋出尾段
@@ -35,8 +42,9 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
 ## 尾段做哪幾件事
 
 1. **重驗** —— fence 與交付紀錄都要還成立。任一項不成立就停，這時候還沒有任何東西被送出去。
-2. **壓版號** —— 讀 changeset 決定 patch / minor / major。**沒有 changeset 就是沒有版本變更**，
-   而交付紀錄裡宣告過 `version_bump` 的話這是矛盾，不是可以印一行 note 略過的事。
+2. **壓版號** —— 讀 changeset 決定 patch / minor / major。**`.changeset/` 就是版號唯一的
+   宣告源**，交付紀錄裡沒有這件事也不該有：那份紀錄由可攜層寫，而版號是這條尾段自己的
+   模型。有 changeset 卻沒壓動的話這是矛盾，不是可以印一行 note 略過的事。
 3. **促進 main** —— 找到這條 branch **已經開好**的 PR，過閘之後 fast-forward。不是直接推 main。
 
    **這支不開 PR。** 它 `gh pr list --state open`，找不到就 die（`POLARIS_SPINE_RELEASE_NO_PR`，

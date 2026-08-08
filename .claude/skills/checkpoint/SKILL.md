@@ -1,15 +1,24 @@
 ---
 name: checkpoint
-description: 保存、恢復、列出長 session checkpoint；記錄 branch、ticket、todo、recent activity，方便中斷或 context compression 後接續。
-triggers:
-  - "checkpoint"
-  - "存檔"
-  - "save checkpoint"
-  - "resume"
-  - "恢復"
-  - "list checkpoints"
-  - "列出存檔"
-version: 1.2.0
+description: |
+  保存、恢復、列出長 session checkpoint；記錄 branch、ticket、todo、recent activity，方便中斷或 context compression 後接續。
+
+  session 要中斷、或剛被壓縮完要接回來的時候。例如「存檔」「checkpoint」
+  「恢復」「列出存檔」。
+
+  也用於：想知道上一次做到哪、有哪些 checkpoint 可以接。
+
+  不用於：一張單走到哪一站（那寫在單自己的狀態裡，走 driving-work-to-done）。
+metadata:
+  triggers: |
+    - "checkpoint"
+    - "存檔"
+    - "save checkpoint"
+    - "resume"
+    - "恢復"
+    - "list checkpoints"
+    - "列出存檔"
+  version: 1.2.0
 ---
 
 # Checkpoint

@@ -1,12 +1,21 @@
 ---
 name: visual-regression
-description: >
+description: |
   Standalone visual regression guard using before/after screenshot comparison. Two modes: SIT (compare staging vs local dev)
   or Local (compare git-stashed base vs current changes). No long-lived baselines — captures fresh screenshots
   each run and deletes after comparison. Config-driven from workspace-config.yaml.
   Use when: "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "screenshot test",
   "畫面測試", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題", "check if pages look right",
   for standalone manual investigation.
+
+  要用截圖前後比對確認畫面沒跑版。例如「跑 visual regression」「檢查畫面」
+  「有沒有跑版」「畫面壞了嗎」。
+
+  不用於：單元測試（走 unit-test）、效能或 Core Web Vitals（走該公司自己的 CWV 調查 skill）。
+metadata:
+  requires:
+    - skill: driving-work-to-done
+      why: VR 產出住在單的目錄裡，而那個目錄會被它的 place-issues-by-state.sh 依狀態搬走；不知道這件事的人會手動擺放，下一次重算就把它們搬丟
 ---
 
 # Visual Regression

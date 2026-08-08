@@ -1,10 +1,10 @@
 ---
 name: swe-knowledge
-description: >
+description: |
   軟體工程這一類工作「怎麼算 done」的通識：改動住在一條 branch 上、有一個 PR、判定過才
   進預設分支、push 之前本機跑完跑得動的驗證。由 driving-work-to-done 在判定一件工作會改到
   程式碼時載入。很少、扁平、不含任何一家公司或一個專案特有的東西。
-when_to_use: |
+
   driving-work-to-done 判定這件工作會改到程式碼、要進版控時載入。
 
   不用於：不會產生程式碼變更的工作（報告、調查、文件、資料分析）——那些沒有這裡的
@@ -12,7 +12,8 @@ when_to_use: |
 
   不用於：某一家公司或某一個專案特有的規則（codecov 門檻、stage 部署流程、ticket 命名）。
   那些在各自的公司 pack 裡，見〈跟公司 pack 的關係〉。
-version: 1.0.0
+metadata:
+  version: 1.0.0
 ---
 
 # swe-knowledge — 軟體工程的 Definition of Done

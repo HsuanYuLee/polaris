@@ -1,14 +1,19 @@
 ---
 name: engineering
-description: 已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘。
-when_to_use: |
+description: |
+  已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘。
+
   某張單的斷言已經凍結，接下來要動手做的時候，或剛從 refinement 交出來。
 
   也用於：跨 session 接手一張做到一半的單——讀凍結塊與活文件就能接上。
 
   不用於：還沒有斷言的工作、要判這次算不算達成（走 verify-ac）、
   決定下一站是哪一站（走 driving-work-to-done）。
-version: 3.0.0
+metadata:
+  version: 3.0.0
+  requires:
+    - skill: driving-work-to-done
+      why: 輪次與停點由它保管；換站與停哪一種也只有它回答
 ---
 
 # engineering — 兩個閘之間

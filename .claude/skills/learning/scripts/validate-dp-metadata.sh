@@ -10,7 +10,7 @@ usage: validate-dp-metadata.sh [file-or-directory...]
 Default path:
   docs-manager/src/content/docs/specs/design-plans
 
-Use .claude/skills/learning/scripts/sync-spec-sidebar-metadata.sh --apply to repair deterministic drift.
+Use scripts/sync-spec-sidebar-metadata.sh --apply to repair deterministic drift.
 EOF
   exit 2
 }

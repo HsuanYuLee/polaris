@@ -42,7 +42,8 @@ issues/{命名空間}/archive/{單}/            脊椎之前的舊層，不參�
 看的人決定，不由門檻代人搬走它。
 
 `issues/` 是使用者自己的 git repo，框架 repo 忽略它（見 `.gitignore` 的
-`versioned-elsewhere` 類）。框架只提供空殼 `_template/issues/`。
+`versioned-elsewhere` 類）。空殼由 `refinement` 自己帶著（`templates/issues/`）——
+開 `issues/` 是那一站的活，殼跟著那一站走。
 
 **命名空間叫什麼不影響任何判定。** 沒有註冊表、沒有白名單、沒有「framework 就要怎樣」的
 分支。流程逐個走過去，從 `{單}/.spine/loop-state.json` 讀狀態，不從路徑推導身分。用位置判斷身分

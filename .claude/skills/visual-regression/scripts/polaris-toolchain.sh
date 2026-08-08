@@ -27,10 +27,10 @@ find_root() {
 usage() {
   cat >&2 <<'EOF'
 usage:
-  .claude/skills/visual-regression/scripts/polaris-toolchain.sh install --required
-  .claude/skills/visual-regression/scripts/polaris-toolchain.sh doctor --required [--json]
-  .claude/skills/visual-regression/scripts/polaris-toolchain.sh run <capability.command>
-  .claude/skills/visual-regression/scripts/polaris-toolchain.sh manifest [--required] [--json]
+  scripts/polaris-toolchain.sh install --required
+  scripts/polaris-toolchain.sh doctor --required [--json]
+  scripts/polaris-toolchain.sh run <capability.command>
+  scripts/polaris-toolchain.sh manifest [--required] [--json]
 EOF
 }
 

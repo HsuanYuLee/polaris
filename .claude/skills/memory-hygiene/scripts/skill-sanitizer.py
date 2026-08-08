@@ -14,11 +14,11 @@ Features:
   - Zero dependencies: stdlib only
 
 Usage:
-  python3 .claude/skills/memory-hygiene/scripts/skill-sanitizer.py scan skill-name < SKILL.md
-  python3 .claude/skills/memory-hygiene/scripts/skill-sanitizer.py scan skill-name /path/to/SKILL.md
-  python3 .claude/skills/memory-hygiene/scripts/skill-sanitizer.py scan-dir /path/to/skills/
-  python3 .claude/skills/memory-hygiene/scripts/skill-sanitizer.py scan-memory /path/to/memory/
-  python3 .claude/skills/memory-hygiene/scripts/skill-sanitizer.py test
+  python3 scripts/skill-sanitizer.py scan skill-name < SKILL.md
+  python3 scripts/skill-sanitizer.py scan skill-name /path/to/SKILL.md
+  python3 scripts/skill-sanitizer.py scan-dir /path/to/skills/
+  python3 scripts/skill-sanitizer.py scan-memory /path/to/memory/
+  python3 scripts/skill-sanitizer.py test
 """
 
 import re

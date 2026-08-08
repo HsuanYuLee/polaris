@@ -1,6 +1,12 @@
 ---
 name: learning
-description: "Use when the user wants to learn from external resources (URLs, repos, articles), extract patterns from merged PRs, process a learning queue, configure the daily learning scanner, or backfill review lessons. Trigger: '學習', 'learn', '研究', 'deep dive', '學習 PR', '每日學習', 'daily learning', '設定學習', '批次學習', '掃歷史 PR', or when user shares a URL to analyze."
+description: |
+  "Use when the user wants to learn from external resources (URLs, repos, articles), extract patterns from merged PRs, process a learning queue, configure the daily learning scanner, or backfill review lessons. Trigger: '學習', 'learn', '研究', 'deep dive', '學習 PR', '每日學習', 'daily learning', '設定學習', '批次學習', '掃歷史 PR', or when user shares a URL to analyze."
+
+  要從外部資源學東西：一則 URL、一個 repo、一篇文章，或從已 merge 的 PR 萃取模式。
+  例如「學習」「研究」「deep dive」「掃歷史 PR」，或使用者直接丟一個連結要人看。
+
+  不用於：查這個 workspace 自己的既有知識（直接讀就好）。
 metadata:
   author: Polaris
   version: 3.1.0
