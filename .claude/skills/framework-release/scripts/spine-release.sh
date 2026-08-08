@@ -274,7 +274,9 @@ with open(record, "w", encoding="utf-8") as handle:
     }, handle, ensure_ascii=False, indent=1)
     handle.write("\n")
 RELEASE_RECORD
-  note "釋出紀錄：$ISSUE_DIR/.spine/release.json（released_on=$today version=$version）"
+  # 大括號不是風格：全形括號的位元組會被 bash 收進變數名，`set -u` 之下整個尾段就死在
+  # 這一行——而它跑在 tag 與 release 都送出去之後，壞掉的樣子是「釋出成功但沒收尾」。
+  note "釋出紀錄：$ISSUE_DIR/.spine/release.json（released_on=${today} version=${version}）"
 }
 
 if [[ "$DESTINATION" != "template" ]]; then
