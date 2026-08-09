@@ -1,5 +1,32 @@
 # Changelog
 
+## [4.20.0] - 2026-08-10
+
+### Changed
+
+- f4ba6bd: DP-439 B 組：一份資料完整的 dump，不得被說成拿不到資料
+  review-inbox 的 Slack channel 掃描每一次都踩到同一件事。這個 runtime 的 MCP detailed 回的是
+  單行 escaped-JSON——真換行被 escape 成字面的 `\n`，header 好端端地藏在字串裡。而
+  `review-inbox-discovery-probe.sh` 用 line-anchored 的 `grep -c '^=== Message from '` 找 header，
+  命中 0，於是回 `POLARIS_DISCOVERY_SOURCE_UNAVAILABLE`：**資料是完整的，而排查的人被指去看
+  token 與網路。**
+  更糟的是這支腳本檔頭的 Markers 清單裡本來就有 `POLARIS_DISCOVERY_FORMAT_MISMATCH`——
+  但它的判定排在那段無條件 `exit 2` 後面，所以**對它真正該守的那個輸入永遠到不了**。一個看
+  起來在守的標記，實際上不可達。而這支探針在此之前**一支 selftest 都沒有**。
+  修法分三件：
+  - 判準改成「那些 header 在不在文字裡」，不是「在不在行首」。在的話資料是好的，回新的
+    `POLARIS_DISCOVERY_NOT_NORMALIZED` 並把 normalize 的命令印出來；不在才是真的拿不到。
+  - 新標記不跟 `FORMAT_MISMATCH` 共用，因為兩者的下一步相反：一個是「先把它轉過來」，另一個
+    是「轉過來了但解析器跟這份文字對不上」。
+  - `review-inbox-discovery-flow.md` 的 pipeline 把 normalize 寫成獨立的第 2 步並產出一個檔，
+    第 3 步明確餵那個檔。契約以前自相矛盾——同一份文件一邊說兩個 consumer 要看同一份格式，
+    一邊叫人餵 raw dump。
+    新增 `review-inbox-discovery-probe-format-selftest.sh`，七條 case 覆蓋五種輸入（還沒轉換的、
+    轉換過而解析器空手的、轉換過而有產出的、沒有 header 的、空的），紅控過兩條。
+    **這張單的其餘五塊沒有動。** T1／T2／T4／T5 卡在 D6 訂的 dual-run 硬前置——要一批真實 PR
+    各跑兩輪，並由人判讀哪一邊的 review 比較好；T3 的做法所在那一層（`.claude/rules/skill-routing.md`）
+    已經不存在，意圖要回 `refinement` 重談。理由逐塊寫在單裡。
+
 ## [4.19.0] - 2026-08-10
 
 ### Changed

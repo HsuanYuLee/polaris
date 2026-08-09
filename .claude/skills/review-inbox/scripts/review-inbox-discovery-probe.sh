@@ -13,15 +13,21 @@
 #          exit 2  format-mismatch / stale / source-unavailable (fail-closed)
 #          exit 1  usage / argument error
 # Markers: POLARIS_DISCOVERY_SOURCE_UNAVAILABLE
+#          POLARIS_DISCOVERY_NOT_NORMALIZED
 #          POLARIS_DISCOVERY_FORMAT_MISMATCH
 #          POLARIS_DISCOVERY_STALE
 #          POLARIS_DISCOVERY_LEGITIMATE_EMPTY (exit 0, informational)
 #          POLARIS_DISCOVERY_OK (exit 0, candidates present)
 #
 # Decision order is load-bearing (AC5 adversarial enforce + AC-NEG1): rule out
-# SOURCE_UNAVAILABLE and FORMAT_MISMATCH first, then STALE, and only a successfully
-# parsed + fresh + genuinely empty channel reaches legitimate-empty (exit 0). This keeps
-# a real empty inbox from being misclassified as a degraded state.
+# SOURCE_UNAVAILABLE, NOT_NORMALIZED and FORMAT_MISMATCH first, then STALE, and only a
+# successfully parsed + fresh + genuinely empty channel reaches legitimate-empty (exit 0).
+# This keeps a real empty inbox from being misclassified as a degraded state.
+#
+# 順序本身會讓一個判定變得不可達，而不可達的判定跟不存在的判定在出事的時候長得一樣。
+# 2026-08-09 之前，`escaped 但完整` 這個輸入撞到的是上面那段無條件 `exit 2`，於是底下的
+# FORMAT_MISMATCH 對它永遠到不了——它寫在這張清單上，看起來在守。所以這五個狀態各有一支
+# selftest 餵已知輸入，見 selftests/review-inbox-discovery-probe-format-selftest.sh。
 
 set -euo pipefail
 
@@ -38,8 +44,9 @@ Usage: review-inbox-discovery-probe.sh --raw-dump <file> --candidates <file>
                                        [--stale-seconds <int>] [--now-epoch <int>]
                                        [--source-available 0|1]
 
-Classifies a review-inbox Slack discovery result into four states:
+Classifies a review-inbox Slack discovery result into these states:
   - source-unavailable  (exit 2, POLARIS_DISCOVERY_SOURCE_UNAVAILABLE)
+  - not-normalized      (exit 2, POLARIS_DISCOVERY_NOT_NORMALIZED)
   - format-mismatch     (exit 2, POLARIS_DISCOVERY_FORMAT_MISMATCH)
   - stale               (exit 2, POLARIS_DISCOVERY_STALE)
   - legitimate-empty    (exit 0, POLARIS_DISCOVERY_LEGITIMATE_EMPTY)
@@ -126,8 +133,30 @@ ts_line_count="$(grep -c '^Message TS: ' "$RAW_DUMP" 2>/dev/null || true)"
 ts_line_count="${ts_line_count:-0}"
 
 if [[ "$message_header_count" -eq 0 && "$ts_line_count" -eq 0 ]]; then
+  # 沒有 line-anchored header 有兩種原因，而它們的下一步完全相反。分開之前，這裡對兩種
+  # 都回 SOURCE_UNAVAILABLE——於是一份**內容完整**的 dump 被說成「上游拿不到」，而排查
+  # 的人被指去看 token 與網路。這個 runtime 的 MCP detailed 回的就是那一種：真換行被
+  # escape 成字面的 `\n`，整份擠在一行裡，header 好端端地藏在字串內。
+  #
+  # 判準是**那些 header 在不在文字裡**，不是它們在不在行首。在的話這是格式問題，資料
+  # 是好的，下一步是先 normalize；不在的話才是真的沒有東西可讀。
+  #
+  # 為什麼不能等到底下那段 FORMAT_MISMATCH：那一段排在這裡後面，而這裡 `exit 2`。一個
+  # 排在無條件 exit 之後的判定，對這個形狀永遠到不了——它寫在檔頭的 Markers 清單裡，
+  # 看起來在守，實際上不可達。
+  if grep -q '=== Message from \|Message TS: ' "$RAW_DUMP" 2>/dev/null; then
+    # 自己一個標記，不跟 FORMAT_MISMATCH 共用：兩者的下一步相反。這一個是「先把它轉過來」
+    # （資料是好的），那一個是「轉過來了，但解析器跟這份文字對不上」（要去看解析器）。
+    # 共用一個標記等於把兩條不同的排查路徑指向同一個方向。
+    printf 'POLARIS_DISCOVERY_NOT_NORMALIZED\n'
+    printf 'raw dump carries detailed headers but not on their own lines: it is still escaped (literal \\n), not normalized.\n'
+    printf 'the data is intact — normalize it first, then probe the normalized file:\n'
+    printf '  python3 %s/extract-pr-urls.py --emit-normalized <normalized_out> ... < %s\n' \
+      "$(dirname "$0")" "$RAW_DUMP"
+    exit 2
+  fi
   printf 'POLARIS_DISCOVERY_SOURCE_UNAVAILABLE\n'
-  printf 'discovery source unavailable: raw dump has no detailed headers (=== Message from / Message TS:); cannot parse channel\n'
+  printf 'discovery source unavailable: raw dump has no detailed headers (=== Message from / Message TS:) anywhere in the text; cannot parse channel\n'
   exit 2
 fi
 

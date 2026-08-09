@@ -128,13 +128,25 @@ deterministic enforcement（`contract-design.md` Heuristic 1 — Deterministic-F
 ### Sub-agent pipeline
 
 1. 讀 channel messages（detailed format，newest-first；不傳 oldest）。
-2. 把 channel dump 餵給 `extract-pr-urls.py` 產出 PR URLs 與 mapping——若輸入是單行
-   escaped-JSON，由其共用 decoder 先確定性 normalize 成真換行 detailed dump（見上方
-   § MCP detailed 輸出格式）。
-3. **跑 fail-closed discovery probe**（見下方 § Discovery Fail-Closed Probe）：把 raw detailed
-   channel dump 與 parser 產出的 candidate URL list 餵給 `review-inbox-discovery-probe.sh`，
-   probe `exit 0` 後才往下走；probe `exit 2`（source-unavailable / format-mismatch / stale）
-   時**早報並 fail loud**，不得靜默 fallback 到 label scan。
+2. **把 dump normalize 成真換行的 detailed 格式，寫成一個檔。** 這一步是獨立的，因為
+   下游有兩個 consumer（parser 與 probe），而它們必須看到**同一份**文字：
+
+   ```bash
+   python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py \
+     --emit-normalized <normalized_dump_file> ...
+   ```
+
+   這個 runtime 的 MCP detailed 回的是單行 escaped-JSON——真換行被 escape 成字面的 `\n`，
+   header 藏在字串裡（見上方 § MCP detailed 輸出格式）。
+3. **跑 fail-closed discovery probe**（見下方 § Discovery Fail-Closed Probe）：把**上一步
+   產出的 normalized dump**與 parser 產出的 candidate URL list 餵給
+   `review-inbox-discovery-probe.sh`，probe `exit 0` 後才往下走；`exit 2` 時**早報並 fail
+   loud**，不得靜默 fallback 到 label scan。
+
+   餵還沒 normalize 的那一份會拿到 `POLARIS_DISCOVERY_NOT_NORMALIZED`，訊息裡帶著上面那條
+   命令。那不是錯誤處理，是這一步被跳過時的說法——2026-08-09 之前它回的是
+   `POLARIS_DISCOVERY_SOURCE_UNAVAILABLE`，於是每一次 Slack mode 都把一份完整的資料讀成
+   「上游拿不到」。
 4. 用 `fetch-prs-by-url.sh` 取得 metadata 並排除自己的 PR。
 5. 用 `check-my-review-status.sh` 判定 review status。
 6. 用 `annotate-review-candidates.py --mapping <mapping.json>` 補 `cluster_role`,
@@ -162,8 +174,9 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
   --source-available 0|1
 ```
 
-- `--raw-dump`：sub-agent 取得的 raw detailed channel text（含 `=== Message from ===` /
-  `Message TS:`），**必填**。
+- `--raw-dump`：**上一步產出的 normalized detailed dump**（`=== Message from ===` /
+  `Message TS:` 各自佔一行），**必填**。旗標名字留著沒改是因為它已經被別處引用；它要的
+  是 normalize 過的那一份，不是 MCP 直接吐出來的那一份。
 - `--candidates`：`extract-pr-urls.py` 產出的 PR URL list（一行一個，可為空），**必填**。
 - `--stale-seconds`：staleness 閾值，預設 `86400`（24h）。低流量 channel 應由 caller 放寬，
   不要硬編；threshold 是 per-source 參數（見下方 § Staleness Threshold）。
