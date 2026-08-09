@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.21.0] - 2026-08-10
+
+### Changed
+
+- c9cc786: review 綁在它實際讀過的那一顆 commit 上（DP-459）
+  `submit-pr-review.sh` 以前不送 `commit_id`，於是 GitHub 把每一則 review 綁在送出當下
+  它認為的 head——一顆 reviewer 從來沒讀過的 commit。現在 head 只從 REST
+  `repos/{o}/{r}/pulls/{n}` 取，送出去的 `commit_id` 恆等於呼叫者用 `--reviewed-head`
+  宣告的那一顆，而 `--print-diff` 把 diff 釘在同一顆上——讀的與綁的沒有機會分岔。
+  沒有宣告就不准送；head 在 review 期間前進只在 stderr 揭露，不攔截。
+  順帶修好兩件讓這條路整段跑不起來的事：外部寫入閘讀的 writer registry 指向一支已經
+  被移除的 hook（自那時起每一次呼叫都回 REGISTRY_MISSING），而 `review-inbox` 根本沒有
+  那支閘。宣告改為跟著讀它的腳本走，閘也補進 `review-inbox`。
+
 ## [4.20.0] - 2026-08-10
 
 ### Changed

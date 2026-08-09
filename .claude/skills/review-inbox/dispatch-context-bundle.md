@@ -24,6 +24,21 @@ Run the language gate before any GitHub review or Slack reply. After submit,
 query valid approvals, stale approvals, current requested changes, and remaining
 approval count.
 
+Read and bind against the same sha — resolve it first, take the diff pinned to it,
+and hand the same value back at submit time:
+
+```bash
+REVIEWED_HEAD="$(bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N --print-head)"
+bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+  --reviewed-head "$REVIEWED_HEAD" --print-diff
+bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+  --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file BODY --submit
+```
+
+Submitting without `--reviewed-head` is refused. `POLARIS_PR_HEAD_ADVANCED` on stderr
+means the author pushed while you were reviewing: the review was submitted and is
+correctly bound to what you read. It is a message for you, not a failure.
+
 ## Completion Envelope
 
 Return exactly:

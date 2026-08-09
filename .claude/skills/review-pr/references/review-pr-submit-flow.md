@@ -49,6 +49,30 @@ block。
 手拼 MCP tool 名稱或 root payload。單行 comment 用 `line`；多行 comment 用
 `start_line` + `line`。wrapper 的 `--submit` lane 一次提交 review body 與 inline comments。
 
+**三步都要走，而且是同一顆 sha。** 一則 review 是對某一份 diff 做的意見，所以它讀的、
+綁的必須是同一版：
+
+```bash
+# 1. 這一次 review 依據哪一顆
+REVIEWED_HEAD="$(bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N --print-head)"
+
+# 2. diff 對那一顆取。不要用 gh 的 pr diff 子命令——它與 REST 之間有過 34 分鐘的落差，
+#    而讀到舊內容會讓你對作者已經修好的東西再提一次（2026-07-27 實測）。
+bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+  --reviewed-head "$REVIEWED_HEAD" --print-diff
+
+# 3. 送出時原樣傳回同一顆
+bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+  --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file BODY --comments-file COMMENTS --submit
+```
+
+沒有 `--reviewed-head` 就送出會被擋（`POLARIS_PR_REVIEW_REVIEWED_HEAD_REQUIRED`）：不宣告
+的話 GitHub 會把這則 review 綁在它認為的當下 head 上，那是一顆你從來沒讀過的 commit。
+
+送出時若 stderr 出現 `POLARIS_PR_HEAD_ADVANCED: <讀的> -> <當下>`，表示作者在你 review
+期間又 push 了。**這不是錯誤，review 已經正常送出**，而且正確地綁在你讀過的那一版上。
+要不要針對新的 head 再看一次由你判斷——這行訊息是寫給你讀的，不是 debug 雜訊。
+
 提交後查 PR reviews 與 latest push time，計算：
 
 - valid approve
