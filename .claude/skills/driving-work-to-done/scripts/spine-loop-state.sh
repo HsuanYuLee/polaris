@@ -90,6 +90,7 @@ Usage:
   spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
   spine-loop-state.sh reset   --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
   spine-loop-state.sh show    --state <path>
+  spine-loop-state.sh find    <單名> [--root <單樹根>] [--relative]
   spine-loop-state.sh landing --state <path>
   spine-loop-state.sh land    --state <path> --where <工作區路徑>... [--authorization <人的原話>]
 
@@ -132,6 +133,116 @@ issues_root_of() {
   dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd)" || return 0
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 0
   [[ -n "$top" ]] && printf '%s\n' "$top"
+}
+
+resolve_issues_root() {
+  # Description: find the issues tree when nobody handed us a path into it.
+  # Args: none. Reads --root via $FIND_ROOT when the caller set it.
+  # Returns: 一行 `<推導方式><TAB><絕對路徑>`。
+  #
+  # 為什麼把兩個值擠在一行：呼叫端是 `$(...)`，那是子 shell，設在裡面的變數傳不回來。
+  # 折進這支的第一版就是那樣寫的，於是「來源」永遠印成空的——而那正是 L-P5 要說出來的
+  # 那一半。儀器抓到了，這裡記下來，因為下一個人很可能想「順手」改回兩個變數。
+  #
+  # 這**不是** issues_root_of 的重複，兩者問的問題不同：issues_root_of 拿一條樹內的路徑
+  # 反推「這張單屬於哪棵樹」，而這一支手上只有一個名字，得先找到樹本身。合併不了，所以
+  # 它們挨著住並在這裡講清楚差別——合不掉的兩件事被寫成同一件，下一個人會挑一個錯的用。
+  #
+  # 第三種推導是關鍵：量測命令跑在框架 worktree 裡，而 `issues/` 被 gitignore 成
+  # versioned-elsewhere、在 worktree 裡不存在。git 的共用 .git 指得回主 checkout，所以
+  # 單樹的位置推得出來，不必有人把它抄進命令。
+  local d
+  if [[ -n "${FIND_ROOT:-}" ]]; then
+    printf '%s\t%s\n' "--root" "$FIND_ROOT"
+    return 0
+  fi
+  d="$(pwd -P)"
+  while [[ "$d" != "/" ]]; do
+    if [[ -d "$d/issues" ]]; then
+      printf '%s\t%s\n' "從 cwd 往上找到的 issues/" "$d/issues"
+      return 0
+    fi
+    d="$(dirname "$d")"
+  done
+  local common main_checkout
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  main_checkout="$(dirname "$common")"
+  [[ -d "$main_checkout/issues" ]] || return 1
+  printf '%s\t%s\n' "git 共用 .git 的上一層（在 worktree 裡跑）" "$main_checkout/issues"
+}
+
+cmd_find() {
+  # Description: 吃單的名字，吐它現在住在哪。位置是狀態的投影，所以沒有人存它——
+  #              要用的時候問這裡（DP-496）。
+  # Args: <單名> [--root <單樹根>] [--relative]
+  # Exit: 0 剛好一個／3 多於一個（全部印出）／4 一個都沒有／2 用法錯或推導不出單樹根。
+  #
+  # 刻意不讀 loop-state.json：位置解析只回答「這個名字的目錄在哪」，狀態判定是另一件事。
+  # 現況有 39 張單從來沒開過輪次，它們一樣是單，一樣要找得到。
+  local name="" relative=0
+  FIND_ROOT=""
+  ROOT_SOURCE=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --root) FIND_ROOT="${2:-}"; shift 2 ;;
+      --relative) relative=1; shift ;;
+      -*) usage; exit 2 ;;
+      *)
+        [[ -z "$name" ]] || { usage; exit 2; }
+        name="$1"; shift ;;
+    esac
+  done
+  [[ -n "$name" ]] || { usage; exit 2; }
+
+  local derived root
+  derived="$(resolve_issues_root)" || {
+    echo "[find] 推導不出單樹根：cwd 往上沒有 issues/，也問不到 git 的共用 .git。要嘛帶 --root，要嘛從單樹底下跑。" >&2
+    exit 2
+  }
+  ROOT_SOURCE="${derived%%$'\t'*}"
+  root="${derived#*$'\t'}"
+  [[ -d "$root" ]] || {
+    echo "[find] 單樹根不存在：${root}（來源：${ROOT_SOURCE}）" >&2
+    exit 2
+  }
+  root="$(cd "$root" && pwd -P)"
+
+  # 完整目錄名（單號＋slug）是唯一鍵，實測跨命名空間也不重複。只給單號時走前綴比對，
+  # 因為單號自己不唯一——同一個號被開過兩次、或一張單有 slug 另一張沒有，都會撞。
+  # 這不是假想：寫這一支的時候，這棵樹裡就有兩組同號的單。撞到時全部回傳並非 0 退出，
+  # 因為呼叫端多半在做命令替換，兩行路徑不能被當成一條用。
+  local match_kind pattern pattern_alt
+  if [[ "$name" =~ ^[A-Za-z][A-Za-z0-9]*-[0-9]+$ ]]; then
+    match_kind="單號前綴"; pattern="$name"; pattern_alt="${name}-*"
+  else
+    match_kind="完整目錄名"; pattern="$name"; pattern_alt="$name"
+  fi
+
+  # while-read 而不是 mapfile：macOS 原廠 /bin/bash 是 3.2，沒有 mapfile。
+  local hits=() line
+  while IFS= read -r line; do
+    hits+=("$line")
+  done < <(find "$root" -path '*/.spine' -prune -o \
+             -type d \( -name "$pattern" -o -name "$pattern_alt" \) -print 2>/dev/null | sort)
+
+  echo "[find] 單樹根 ${root}（來源：${ROOT_SOURCE}）／比對方式 ${match_kind}／命中 ${#hits[@]} 個" >&2
+
+  local p
+  case "${#hits[@]}" in
+    0)
+      echo "[find] 找不到「${name}」。它不在這棵單樹裡，或者名字打錯了。" >&2
+      exit 4 ;;
+    1)
+      p="${hits[0]}"
+      if ((relative)); then printf '%s\n' "${p#$root/}"; else printf '%s\n' "$p"; fi
+      ;;
+    *)
+      for p in "${hits[@]}"; do
+        if ((relative)); then printf '%s\n' "${p#$root/}"; else printf '%s\n' "$p"; fi
+      done
+      echo "[find]「${name}」命中 ${#hits[@]} 張，這不是一個答案。用完整目錄名（單號＋slug）再問一次。" >&2
+      exit 3 ;;
+  esac
 }
 
 STATE=""
@@ -1294,6 +1405,7 @@ main() {
     stop) cmd_stop "$@" ;;
     reset) cmd_reset "$@" ;;
     show) cmd_show "$@" ;;
+    find) cmd_find "$@" ;;
     landing) cmd_landing "$@" ;;
     land) cmd_land "$@" ;;
     -h|--help) usage; exit 0 ;;

@@ -137,16 +137,22 @@ from pathlib import Path
 
 root, source_dir, out, changed_blob, issue_abs = sys.argv[1:6]
 root = Path(root)
-# 單住的地方與改動落的地方是兩棵樹，所以掃 .spine 用單的絕對路徑，而清單裡的路徑用
-# 呼叫者叫它的那個名字——後者是下游讀的，改成絕對路徑會讓每一份清單綁死在一台機器上。
+# 單住的地方與改動落的地方是兩棵樹，所以掃 .spine 用單的絕對路徑。
 issue_abs = Path(issue_abs)
+# 清單記的是單的**身分**（名字），不是它被寫下那一刻的格位（DP-496 L-P2）。位置由
+# `spine-loop-state.sh find` 當場問得到，而存下來的位置在下一次重算之後就是死指標——
+# 實測 `.spine/` 底下存過的 19 條單路徑，19 條全部指向已經不存在的目錄。
+issue_name = issue_abs.name
 changed = [line.strip() for line in changed_blob.splitlines() if line.strip()]
 
 spine = issue_abs / ".spine"
+# 單自己的東西用**單內相對路徑**，同樣的理由。舊層偵測的 pattern 都以 `(^|/)` 開頭或不錨定，
+# 所以短路徑照樣被它們認得——這一點是查過 check-spine-legacy-layers.sh 的 LEGACY_PATTERNS
+# 才改的，不是猜的。
 spine_state = {
-    f"{source_dir}/.spine/loop-state.json": "work 沒有它就記不了輪次",
-    f"{source_dir}/.spine/measurement-ledger.json": "judge 不承認沒登錄過的量測命令",
-    f"{source_dir}/.spine/delivery.json": "釋出尾段沒有它就沒東西可讀",
+    ".spine/loop-state.json": "work 沒有它就記不了輪次",
+    ".spine/measurement-ledger.json": "judge 不承認沒登錄過的量測命令",
+    ".spine/delivery.json": "釋出尾段沒有它就沒東西可讀",
 }
 
 artifacts = []
@@ -163,7 +169,7 @@ def add(path, forced, reason=None):
     artifacts.append(entry)
 
 
-add(f"{source_dir}/index.md", True, "斷言與活文件的載體：assert 蓋封條、judge 驗它")
+add("index.md", True, "斷言與活文件的載體：assert 蓋封條、judge 驗它")
 
 for path, reason in spine_state.items():
     if (spine / Path(path).name).exists():
@@ -172,6 +178,10 @@ for path, reason in spine_state.items():
 for path in changed:
     if path.startswith(".changeset/") and path.endswith(".md"):
         add(path, True, "出貨到 template 的交付沒有它就不壓版")
+    elif path.startswith(f"{source_dir}/"):
+        # 單住在同一棵樹的時候（`issues/` 沒被 gitignore 的專案），它自己的檔案會出現在
+        # diff 裡。原樣收下就等於把格位寫進清單，而格位下一次重算就變了（DP-496 L-P2）。
+        add(path[len(source_dir) + 1:], False)
     else:
         add(path, False)
 
@@ -181,15 +191,15 @@ for path in changed:
 if spine.exists():
     for entry in sorted(spine.rglob("*")):
         if entry.is_file():
-            add(f"{source_dir}/.spine/{entry.relative_to(spine).as_posix()}", False)
+            add(f".spine/{entry.relative_to(spine).as_posix()}", False)
 
 code_paths = [p for p in changed if not p.startswith(f"{source_dir}/") and not p.endswith(".md")]
 kind = "code" if code_paths else "docs"
 
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "producer": "enumerate-spine-inventory.sh",
-    "source": source_dir,
+    "issue": issue_name,
     "kind": kind,
     "artifacts": artifacts,
 }

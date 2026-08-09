@@ -45,6 +45,7 @@ Usage:
       --new-command <cmd> --baseline
   record-measurement-change.sh record --ledger <path> --assertion-id <id> \
       --new-command <cmd> --old-command <cmd> --red-evidence <path>
+  （兩種 record 都可加 --exempt-path <字串> --exempt-why <理由>）
   record-measurement-change.sh verify --ledger <path> --assertion-id <id> --command <cmd>
   record-measurement-change.sh show --ledger <path> [--assertion-id <id>]
 EOF
@@ -66,6 +67,54 @@ require_python3() {
     echo "Repair: run mise install, then mise run doctor -- --profile runtime" >&2
     exit 2
   fi
+}
+
+reject_machine_paths() {
+  # Description: refuse a measurement command that writes down where it is
+  #              instead of asking (DP-496 L-P3). Always says what it measured.
+  # Args: $1 = command string, $2 = label for messages, $3.. = exempt substrings
+  # Exit:  非 0 並印出 POLARIS_MEASUREMENT_COMMAND_CARRIES_A_PATH 時代表擋下來了。
+  #
+  # 判準只有一條：命令字串裡不得出現這台機器的家目錄的**字面值**。它一句話蓋掉三種
+  # ——單的目錄、落腳的工作區、家目錄下的東西——因為那三種在這台機器上都以家目錄開頭。
+  # 規則本身不綁機器：每一台各自拿自己的 $HOME 比。
+  #
+  # 每一種都有一個當場問得到的來源，所以這不是「不准指過去」，是「不准把答案抄下來」：
+  #   單的目錄       → spine-loop-state.sh find
+  #   落腳的工作區   → spine-loop-state.sh landing
+  #   命令跑在哪     → 由執行者供給（run-hardened-oracle.sh --cwd），命令自己不提
+  #   家目錄下的東西 → 寫 $HOME，不要寫展開後的值
+  #
+  # 最後那一條不是 L-N3 禁止的「特殊寫法」：L-N3 擋的是為了讓 hash 穩定而發明的編碼
+  # （glob、佔位符），那些仍然在講位置。`$HOME` 不講位置，它就是在問。
+  local command_str="$1" label="$2"
+  shift 2
+  local home="${HOME:-}"
+  if [[ -z "$home" ]]; then
+    die "POLARIS_MEASUREMENT_PATH_CHECK_UNMEASURABLE" \
+      "\$HOME 是空的，這一次沒辦法判斷命令裡有沒有寫死路徑——不放行，因為量不到不是通過"
+  fi
+
+  case "$command_str" in
+    *"$home"*) ;;
+    *) echo "[measurement] ${label}：命令裡沒有寫死這台機器的路徑" >&2; return 0 ;;
+  esac
+
+  local exempt
+  for exempt in "$@"; do
+    [[ -n "$exempt" ]] || continue
+    case "$command_str" in
+      *"$exempt"*)
+        echo "[measurement] ${label}：命中豁免「${exempt}」，放行" >&2
+        return 0 ;;
+    esac
+  done
+
+  die "POLARIS_MEASUREMENT_COMMAND_CARRIES_A_PATH" \
+    "${label} 把這台機器的路徑抄進命令裡了（含 ${home}）。位置會變，抄下來的就是死指標——
+單的目錄問 spine-loop-state.sh find、落腳的工作區問 spine-loop-state.sh landing、
+命令跑在哪由執行者供給、家目錄底下的東西寫 \$HOME。
+真的三種都不是的話，用 --exempt-path 與 --exempt-why 具名寫進登錄。"
 }
 
 command_hash() {
@@ -104,6 +153,31 @@ except (json.JSONDecodeError, OSError):
 for entry in reversed(data.get("entries", [])):
     if entry.get("assertion_id") == assertion:
         print(entry.get("new_command_hash", "").removeprefix("sha256:"))
+        break
+PY
+}
+
+recorded_exemption() {
+  # Description: print the path exemption recorded for an assertion's current
+  #              command, or nothing. Judgement reads the exemption off the very
+  #              record it is judging, so a hand-added exemption is a diff.
+  # Args: $1 = ledger path, $2 = assertion id
+  require_python3
+  python3 - "$1" "$2" <<'PY'
+import json
+import os
+import sys
+
+ledger, assertion = sys.argv[1:3]
+if not os.path.exists(ledger):
+    sys.exit(0)
+try:
+    data = json.load(open(ledger, encoding="utf-8"))
+except (json.JSONDecodeError, OSError):
+    sys.exit(0)
+for entry in reversed(data.get("entries", [])):
+    if entry.get("assertion_id") == assertion:
+        print((entry.get("path_exemption") or {}).get("path", ""))
         break
 PY
 }
@@ -185,7 +259,7 @@ PY
 
 cmd_record() {
   local ledger="" assertion="" new_command="" old_command="" evidence="" baseline="no"
-  local have_new="no" have_old="no"
+  local have_new="no" have_old="no" exempt_path="" exempt_why=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --ledger) ledger="${2:-}"; shift 2 ;;
@@ -193,6 +267,8 @@ cmd_record() {
       --new-command) new_command="${2:-}"; have_new="yes"; shift 2 ;;
       --old-command) old_command="${2:-}"; have_old="yes"; shift 2 ;;
       --red-evidence) evidence="${2:-}"; shift 2 ;;
+      --exempt-path) exempt_path="${2:-}"; shift 2 ;;
+      --exempt-why) exempt_why="${2:-}"; shift 2 ;;
       --baseline) baseline="yes"; shift ;;
       *) usage; exit 2 ;;
     esac
@@ -201,6 +277,15 @@ cmd_record() {
   [[ -n "$ledger" ]] || { usage; exit 2; }
   [[ -n "$assertion" ]] || { usage; exit 2; }
   [[ "$have_new" == "yes" && -n "$new_command" ]] || { usage; exit 2; }
+
+  # 豁免要帶理由。一個沒有理由的豁免跟沒有規則的差別只有它看起來很嚴格（L-N5）。
+  if [[ -n "$exempt_path" && -z "$exempt_why" ]]; then
+    die "POLARIS_MEASUREMENT_EXEMPTION_UNJUSTIFIED" \
+      "--exempt-path 要配 --exempt-why：豁免的理由跟豁免本身一起留下來，不然下一個人看到的是一條沒有來由的例外"
+  fi
+  [[ -n "$exempt_why" && -z "$exempt_path" ]] && { usage; exit 2; }
+
+  reject_machine_paths "$new_command" "新命令" "$exempt_path"
 
   local current
   current="$(latest_new_hash "$ledger" "$assertion")" || exit 2
@@ -235,14 +320,14 @@ cmd_record() {
   fi
 
   require_python3
-  python3 - "$ledger" "$assertion" "$kind" "$new_command" "$new_hash" "$old_hash" "$evidence" "$evidence_hash" <<'PY'
+  python3 - "$ledger" "$assertion" "$kind" "$new_command" "$new_hash" "$old_hash" "$evidence" "$evidence_hash" "$exempt_path" "$exempt_why" <<'PY'
 import json
 import os
 import sys
 from datetime import datetime, timezone
 
 (ledger, assertion, kind, new_command, new_hash,
- old_hash, evidence_path, evidence_hash) = sys.argv[1:9]
+ old_hash, evidence_path, evidence_hash, exempt_path, exempt_why) = sys.argv[1:11]
 
 data = {"schema_version": 1, "entries": []}
 if os.path.exists(ledger):
@@ -261,6 +346,11 @@ entry = {
     "new_command": new_command,
     "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
 }
+
+# 豁免記在這一筆上，不記在 skill 裡：豁免的字串是機器特定的，而 skill 要出貨到公開的
+# template。理由跟它一起留下來，因為之後判定要靠這一筆決定放不放行（DP-496 L-P3 / L-N5）。
+if exempt_path:
+    entry["path_exemption"] = {"path": exempt_path, "why": exempt_why}
 
 if evidence_path:
     evidence = json.load(open(evidence_path, encoding="utf-8"))
@@ -298,6 +388,10 @@ cmd_verify() {
   done
 
   [[ -n "$ledger" && -n "$assertion" && "$have_command" == "yes" ]] || { usage; exit 2; }
+
+  # 同一條規則在兩端都要成立。只擋在登錄那一端的話，一份被手改過的 ledger 就把它繞過了
+  # ——而判定這一端本來就要讀這一筆，所以豁免從那一筆自己身上取。
+  reject_machine_paths "$command_str" "送審的命令" "$(recorded_exemption "$ledger" "$assertion")"
 
   local current
   current="$(latest_new_hash "$ledger" "$assertion")" || exit 2

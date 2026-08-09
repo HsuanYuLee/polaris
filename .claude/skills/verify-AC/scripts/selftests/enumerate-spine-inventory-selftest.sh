@@ -52,9 +52,15 @@ src = sys.argv[2]
 forced = {a["path"] for a in data["artifacts"] if a["forced"]}
 listed = {a["path"] for a in data["artifacts"]}
 
-for path in (f"{src}/index.md", f"{src}/.spine/loop-state.json",
-             f"{src}/.spine/delivery.json", ".changeset/example.md"):
+# DP-496 L-P2：單自己的東西記成單內相對路徑，因為清單記的是身分不是格位。
+# 改動那一邊仍然是 repo 相對路徑——那是另一棵樹，跟單搬不搬家無關。
+for path in ("index.md", ".spine/loop-state.json",
+             ".spine/delivery.json", ".changeset/example.md"):
     assert path in forced, f"{path} should be charged as forced"
+
+assert data["issue"] == src.rsplit("/", 1)[-1], \
+    f"清單要記單的名字，不是它當下住哪：{data.get('issue')!r}"
+assert "source" not in data, "存路徑的那個欄位不該再有了（DP-496 L-P2）"
 
 # The work is what the delivery is for, not the toll the process charges.
 assert "fixture/thing.sh" in listed, "the changed work file should still be listed"
@@ -76,7 +82,7 @@ python3 - "$REPO/$SRC/.spine/inventory.json" "$SRC" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 paths = {a["path"] for a in data["artifacts"]}
-assert f"{sys.argv[2]}/.spine/measurement-ledger.json" not in paths, \
+assert ".spine/measurement-ledger.json" not in paths, \
     "an absent ledger must not be listed"
 PY
 echo "  ok  absent state is not invented"
@@ -150,7 +156,8 @@ listed = {a["path"] for a in data["artifacts"]}
 forced = {a["path"] for a in data["artifacts"] if a["forced"]}
 assert "src/feature.sh" in listed, f"the delivery in the other tree was not seen: {listed}"
 assert data["kind"] == "code", f"code landing elsewhere is still code: {data}"
-assert "issues/DP-001-elsewhere/index.md" in forced, f"the ticket itself is still charged: {forced}"
+assert "index.md" in forced, f"the ticket itself is still charged: {forced}"
+assert data["issue"] == "DP-001-elsewhere", "單的身分是它的名字，不是它住哪"
 ' "$PAPERS/issues/DP-001-elsewhere/.spine/inventory.json" \
   || fail "the inventory must come from the tree the delivery landed in"
 echo "  ok  單住在一棵樹、改動落在另一棵，清單看的是改動那一棵"

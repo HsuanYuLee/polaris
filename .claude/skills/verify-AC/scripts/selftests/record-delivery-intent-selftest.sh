@@ -88,8 +88,13 @@ d = json.load(open(sys.argv[1]))
 assert d["destination"] == "template", d
 assert d["summary"] == "a line a human will read", d
 assert len(d["head_sha"]) >= 12, d
+# DP-496 L-P2：紀錄記的是單的身分，不是它被寫下那一刻住哪。存路徑的那個欄位在真樹上
+# 已經全數變成死指標（19 條存過的，19 條都指向不存在的目錄）。
+assert d["issue"] == "DP-000-selftest", d
+assert "source" not in d, "存路徑的欄位不該再有了"
 ' "$issue/.spine/delivery.json" || fail "the record is missing what the release tail reads"
 echo "  ok  sealed source records destination and head"
+echo "  ok  紀錄記的是單的名字，不是它當下的格位"
 
 # 版本是釋出模型，可攜層連這個詞都不該認得（DP-467 H-P3）。這一條咬住的是「這裡沒有
 # 版號詞彙」——紀錄裡不長出那個欄位，而且那個旗標遞進來會被當成不認得的參數擋掉。

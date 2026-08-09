@@ -300,13 +300,19 @@ OUT="$OUT_DIR/delivery.json"
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" \
   "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
 import json
+import os
 import sys
 
 (out, source, destination, head, summary, by, at, source_head) = sys.argv[1:9]
+# 記名字，不記路徑（DP-496 L-P2）。一張單的格位由 `place-issues-by-state.sh` 依狀態重算，
+# 所以寫下來的那一條路徑在下一次重算之後就是死指標——實測 19 條存過的單路徑全部指向已經
+# 不存在的目錄。位置要用的時候問 `spine-loop-state.sh find`，而讀這份紀錄的東西（釋出尾段的
+# 閘）本來就是從紀錄自己的位置認出這是哪張單的，從來沒有讀過這個欄位。
+issue = os.path.basename(os.path.normpath(source))
 payload = {
-    "schema_version": 1,
+    "schema_version": 2,
     "producer": "record-delivery-intent.sh",
-    "source": source,
+    "issue": issue,
     "destination": destination,
     "head_sha": head,
     "issue_head_sha": source_head,
