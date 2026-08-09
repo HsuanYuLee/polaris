@@ -75,7 +75,9 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
 | `gate-layer-vocabulary.sh` | 一段話寫進錯的層——核心的散文出現領域詞、領域 pack 出現公司樣式、公司 skill 重講核心的機制 |
 | `gate-source-destination.sh` | 宣告了 `destination: workspace`，卻有檔案落在會被同步出去的位置 |
 
-前兩道也掛在 git 的 pre-push 上，由 `install-git-hooks.sh` 裝：
+上面這些掃全樹的閘合計 1.3 秒，所以它們掛在 **commit** 上，不是 push——一個過不了閘的
+commit 已經在歷史裡了，那時候修要改寫歷史。selftest 全套 68 秒，commit 只跑這次動到的
+那幾支 skill 的，全套留給 push。兩邊都由 `install-git-hooks.sh` 裝：
 
 ```bash
 bash .claude/skills/framework-release/scripts/install-git-hooks.sh            # 裝

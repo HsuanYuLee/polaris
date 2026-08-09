@@ -118,6 +118,31 @@ git -C "$repo" add -A && git -C "$repo" commit -qm init
 bash "$GATE" --repo "$repo" >/dev/null 2>&1
 assert_eq "$?" 1 "往上退之後仍然不存在的引用，還是要紅"
 
+# `--skill` 是 L-P1 的機制：這道閘量的東西有擁有者（一支 skill 的腳本指向自己目錄裡的
+# 檔案），所以那一支要能單獨叫它檢查自己。範圍收得對不對要驗兩向——只驗「單支會綠」的話，
+# 一個把範圍收成空集合的實作也會綠。
+repo="$WORK/skill_scope"
+make_repo "$repo"
+mkdir -p "$repo/.claude/skills/clean/scripts" "$repo/.claude/skills/broken/scripts"
+cat > "$repo/.claude/skills/clean/scripts/ok.sh" <<'EOF'
+here="$(dirname "${BASH_SOURCE[0]}")"
+bash "$here/there.sh"
+EOF
+touch "$repo/.claude/skills/clean/scripts/there.sh"
+cat > "$repo/.claude/skills/broken/scripts/bad.sh" <<'EOF'
+here="$(dirname "${BASH_SOURCE[0]}")"
+bash "$here/gone.sh"
+EOF
+git -C "$repo" add -A && git -C "$repo" commit -qm init
+bash "$GATE" --repo "$repo" >/dev/null 2>&1
+assert_eq "$?" 1 "全掃會看到壞掉的那一支"
+bash "$GATE" --repo "$repo" --skill clean >/dev/null 2>&1
+assert_eq "$?" 0 "--skill 只看那一支，乾淨的那支是綠的"
+bash "$GATE" --repo "$repo" --skill broken >/dev/null 2>&1
+assert_eq "$?" 1 "--skill 指到壞掉的那支要紅——範圍不是被收成空集合"
+bash "$GATE" --repo "$repo" --skill nosuch >/dev/null 2>&1
+assert_eq "$?" 2 "--skill 指到不存在的 skill 是量不到，不是綠"
+
 echo "PASS=$pass FAIL=$fail"
 [[ "$fail" -eq 0 ]] || exit 1
 echo "PASS: gate-skill-script-references-selftest.sh"

@@ -203,6 +203,47 @@ def collect_patterns(root: Path):
 
 
 patterns, companies = collect_patterns(workspace)
+
+
+def declared_no_companies(root: Path) -> bool:
+    """根目錄那份 workspace-config.yaml 有沒有明講「這裡按設計沒有公司」。
+
+    宣告放在那一份是因為**它不會被同步出去**（gitignored）。放進任何一支 skill 的話，
+    這個工作區的宣告會跟著跑到 template，而一份寫著公司名的宣告本身就是一次外洩。
+    """
+    cfg = root / "workspace-config.yaml"
+    if not cfg.exists():
+        return False
+    try:
+        data = yaml.safe_load(cfg.read_text()) or {}
+    except Exception:
+        return False
+    return data.get("companies") == "none"
+
+
+# 樣式是空的時候，這一趟什麼都沒量到。它跟「量過了、乾淨」在輸出與結束狀態上必須不一樣
+# ——2026-08-10 之前兩者都是 exit 0 加一行 `hits: 0`，而消費它的 gate-template-leaks 兩種
+# 都印 ✅。一個掃不到東西而回綠的掃描，跟一個掃過了沒問題的掃描長得一樣，是這道閘失效
+# 最安靜的方式。
+#
+# 走得完的那一條路是宣告，不是零這個數字：一個剛 clone 下來的 template 按設計就沒有公司，
+# 它在自己的 workspace-config.yaml 裡說出來。反過來，把公司目錄刪掉讓樣式變空**買不到綠**，
+# 因為這個工作區的那份設定不會憑空長出那句宣告。
+NO_COMPANIES_DECLARED = declared_no_companies(workspace)
+if companies and NO_COMPANIES_DECLARED:
+    print("scan-template-leaks: workspace-config.yaml 宣告 `companies: none`，"
+          f"但實際解出 {', '.join(companies)}。宣告與實際對不上，掃描不判定。",
+          file=sys.stderr)
+    sys.exit(2)
+if not patterns and not NO_COMPANIES_DECLARED:
+    print("POLARIS_TEMPLATE_LEAK_SCAN_VACUOUS", file=sys.stderr)
+    print("scan-template-leaks: 一個樣式都沒有——這一趟什麼都沒掃，不是掃過而且乾淨。",
+          file=sys.stderr)
+    print(f"scan-template-leaks: 修法：{workspace} 底下要有 {{公司}}/workspace-config.yaml；"
+          "這個環境按設計就沒有公司的話，在根目錄的 workspace-config.yaml 寫 `companies: none`。",
+          file=sys.stderr)
+    sys.exit(2)
+
 compiled = [(item, re.compile(item["regex"])) for item in patterns]
 ACTIVE_DP_PATH_RE = re.compile(r"docs-manager/src/content/docs/specs/design-plans/(?!archive/)(DP-[0-9]{3,}[^\\s'\"`)]*)")
 
@@ -475,6 +516,11 @@ def emit_summary():
     print(f"companies: {', '.join(companies) if companies else 'none'}")
     print(f"patterns: {', '.join(item['raw'] for item in patterns) if patterns else 'none'}")
     print(f"hits: {len(hits)}")
+    if not patterns:
+        # 這一行是這一趟與「量過了、乾淨」唯一的差別，除了它不會有 hits 之外。讀的人不需要
+        # 知道這支腳本怎麼寫也分得出來是哪一種。
+        print("note: 零樣式，由 workspace-config.yaml 的 `companies: none` 宣告放行——"
+              "這一趟沒有量任何東西。")
     if hits:
         by_pattern = {}
         by_file = {}

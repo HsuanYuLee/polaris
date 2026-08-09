@@ -13,10 +13,15 @@ set -euo pipefail
 
 PREFIX="[polaris gate-skill-script-references]"
 REPO_ROOT=""
+# 這道閘量的東西有明確的擁有者：一支 skill 的腳本指向它自己目錄裡的檔案，完全在那一支
+# 之內。所以它要能被那一支單獨叫起來檢查自己——`--skill <名字>`。共用的那一層只剩「掃過
+# 每一支」，而那件事沒有擁有者：沒有任何一支 skill 該負責別支有沒有被掃到。
+ONLY_SKILL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
+    --skill) ONLY_SKILL="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
     *) echo "$PREFIX unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -26,13 +31,14 @@ if [[ -z "$REPO_ROOT" ]]; then
   REPO_ROOT="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 fi
 
-python3 - "$REPO_ROOT" "$PREFIX" <<'PY'
+python3 - "$REPO_ROOT" "$PREFIX" "$ONLY_SKILL" <<'PY'
 import os
 import re
 import subprocess
 import sys
 
-repo_root, prefix = sys.argv[1], sys.argv[2]
+repo_root, prefix, only_skill = sys.argv[1], sys.argv[2], sys.argv[3]
+scope = f".claude/skills/{only_skill}" if only_skill else ".claude/skills"
 
 # 只看「從腳本自己的位置算起」的引用。指向 repo 根或別的 skill 的引用不在這裡管——
 # 那些變數的值不是自明的，猜錯會製造假紅。
@@ -73,10 +79,17 @@ def strip_heredocs(text):
             delimiter = None
     return "\n".join(out)
 
+# GIT_DIR 要拿掉：git 跑 hook 的時候一定會設它，而顯式的 GIT_DIR 蓋過 `-C`——這道閘會
+# 安靜地列出另一個 repo 的檔案。DP-467 對十支腳本修過同一個形狀。
 listed = subprocess.run(
-    ["git", "-C", repo_root, "ls-files", ".claude/skills"],
+    ["git", "-C", repo_root, "ls-files", scope],
     capture_output=True, text=True, check=True,
+    env={k: v for k, v in os.environ.items()
+         if k not in ("GIT_DIR", "GIT_WORK_TREE")},
 ).stdout.split()
+if only_skill and not listed:
+    print(f"{prefix} 量不到：版控裡沒有 {scope}。", file=sys.stderr)
+    sys.exit(2)
 
 problems = []
 scanned = 0

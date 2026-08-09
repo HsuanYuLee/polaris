@@ -42,6 +42,12 @@ new_repo() {
   local name="$1" destination="$2" repo="$WORK/$1" source
   mkdir -p "$repo"
   ln -s "$ROOT_DIR/scripts" "$repo/scripts"
+  # 一支最小的 skill，帶一支會過的 selftest。釋出尾段會跑全套 selftest（那是全 repo 唯一
+  # 問「沒動到的那幾支還是綠的嗎」的地方），所以 fixture 要長得像一個真的 Polaris repo；
+  # 一個沒有 .claude/skills 的樹會讓那一步回「量不到」，而那是對的。
+  mkdir -p "$repo/.claude/skills/demo/selftests"
+  echo '# demo' > "$repo/.claude/skills/demo/SKILL.md"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/.claude/skills/demo/selftests/demo-selftest.sh"
   git init -q "$repo"
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name selftest
@@ -149,6 +155,22 @@ printf '%s' "$out" | grep -q 'workspace-bound' \
 printf '%s' "$out" | grep -qi 'sync to template' \
   && fail "a workspace-bound source must not plan a template sync"
 echo "  ok  workspace destination stops before the template"
+
+# 一支紅的 selftest 不得跟著版本一起出去。這是全 repo 唯一問「沒動到的那幾支還是綠的嗎」
+# 的地方——v4.17.0 帶著一支紅的出去，就是因為當時沒有任何地方問這句話。
+repo="$(new_repo redselftest template)"
+record "$repo"
+printf '#!/usr/bin/env bash\nexit 1\n' \
+  > "$repo/.claude/skills/demo/selftests/demo-selftest.sh"
+out="$(release "$repo" 2>&1 || true)"
+if release "$repo" >/dev/null 2>&1; then
+  fail "a red selftest must stop the release"
+fi
+printf '%s' "$out" | grep -q 'POLARIS_SPINE_RELEASE_SELFTESTS_RED' \
+  || fail "the release must say which check stopped it: $out"
+printf '%s' "$out" | grep -q 'demo-selftest.sh' \
+  || fail "the release must name the red selftest: $out"
+echo "  ok  a red selftest stops the release and gets named"
 
 repo="$(new_repo template template)"
 record "$repo"

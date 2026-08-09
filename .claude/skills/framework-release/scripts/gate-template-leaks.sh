@@ -66,11 +66,20 @@ fi
 # wiring is gone rather than worked around.
 
 echo "$PREFIX scanning workspace tracked files for template leaks..." >&2
-if "$SCAN" --workspace "$REPO_ROOT" --source workspace --blocking; then
+"$SCAN" --workspace "$REPO_ROOT" --source workspace --blocking && scan_rc=0 || scan_rc=$?
+
+if [[ "$scan_rc" -eq 0 ]]; then
   echo "$PREFIX ✅ no material template leaks." >&2
   exit 0
 fi
 
+# 量不到與量到了東西是兩件事，這道閘不得把它們收斂成同一句話。以前這裡對任何非 0 都印
+# 「BLOCKED: 有外洩」——於是一次什麼都沒掃到的執行，會被讀成一次抓到東西的執行。
+if [[ "$scan_rc" -eq 2 ]]; then
+  echo "$PREFIX 量不到：掃描沒有判定（理由在上面）。這不是「有外洩」，也不是「乾淨」。" >&2
+  exit 2
+fi
+
 # scan-template-leaks already emitted POLARIS_TEMPLATE_LEAK summary to stderr.
-echo "$PREFIX BLOCKED: workspace contains template leak hits. Fix workspace source per rules/framework-iteration.md § Template-Facing Examples Must Be Generic before pushing/PR." >&2
+echo "$PREFIX BLOCKED: workspace contains template leak hits. 面向 template 的例子要寫成通用的——把 live 的公司名換成佔位符再推。" >&2
 exit 1

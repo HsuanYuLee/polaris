@@ -2,7 +2,7 @@
 # 裝 / 移除 / 檢查這個 repo 的 git hook。
 #
 # 只有兩個 hook，各擋一件「push 或 commit 出去就收不回來」的事。判準與理由寫在
-# 同目錄 pre-push-quality-gate.sh 的檔頭；這裡只負責把它接上 git。
+# 同目錄 run-gates.sh 與 run-selftests.sh 的檔頭；這裡只負責把它們接上 git。
 #
 # Usage:
 #   bash .claude/skills/framework-release/scripts/install-git-hooks.sh            # 裝
@@ -19,8 +19,9 @@ case "${1:-}" in
   *) echo "Unknown option: $1" >&2; sed -n '8,11p' "$0" >&2; exit 2 ;;
 esac
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOK_DIR="$REPO_ROOT/.git/hooks"
+# 不能寫成「工作區根目錄 ＋ `/.git/hooks`」：linked worktree 的 `.git` 是一個**檔案**，那條路徑不
+# 存在，於是從 worktree 裝 hook 會炸在寫檔那一行。hook 目錄本來就只有一份，問 git 要。
+HOOK_DIR="$(git rev-parse --path-format=absolute --git-common-dir)/hooks"
 MARKER="# [polaris-git-hooks]"
 
 # Description: 只在檔案是我們裝的（帶 marker）時才刪，別人手寫的 hook 不動。
@@ -78,6 +79,14 @@ fi
 if [[ -x "$REPO_ROOT/.claude/skills/framework-release/scripts/gate-no-tracked-specs.sh" ]]; then
   bash "$REPO_ROOT/.claude/skills/framework-release/scripts/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
 fi
+
+# 八道掃全樹的閘，合計 1.3 秒。擋在這裡的話，過不了閘的 commit 從來不存在；擋在 push
+# 的話它已經在歷史裡，修要改寫歷史。
+bash "$REPO_ROOT/.claude/skills/framework-release/scripts/run-gates.sh" --repo "$REPO_ROOT"
+
+# selftest 全套 68 秒，每個 commit 跑它會被學會跳過。所以這裡只跑這次改動動到的那幾支
+# skill 的——全套留給 push。
+bash "$REPO_ROOT/.claude/skills/framework-release/scripts/run-selftests.sh" --repo "$REPO_ROOT" --staged
 EOF
 
 cat > "$HOOK_DIR/pre-push" <<'EOF'
@@ -94,7 +103,11 @@ while read -r _local_ref local_sha _remote_ref _remote_sha; do
   [[ "$local_sha" == 0000000000000000000000000000000000000000 ]] && exit 0
 done || true
 
-bash "$REPO_ROOT/.claude/skills/framework-release/scripts/pre-push-quality-gate.sh" --repo "$REPO_ROOT"
+bash "$REPO_ROOT/.claude/skills/framework-release/scripts/run-gates.sh" --repo "$REPO_ROOT"
+
+# 這裡刻意**不**跑全套 selftest。全套 87.7 秒，掛在每次推送上會把一個很短的動作變成一個
+# 很長的，然後被關掉——而一個被關掉的檢查比沒有檢查糟，因為它看起來還在。commit 那一站
+# 已經跑過這次動到的 skill；「沒動到的那些還是綠的嗎」由釋出尾段問，那本來就是慢的一站。
 EOF
 
 chmod +x "$HOOK_DIR/pre-commit" "$HOOK_DIR/pre-push"

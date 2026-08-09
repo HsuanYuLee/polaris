@@ -15,7 +15,11 @@
 # 人不會回頭讀每一支 SKILL.md。gate-skill-script-references.sh 管的是腳本引用腳本；這一支管
 # 的是散文引用行為，兩者不重疊。
 #
-# Usage: gate-prose-matches-behaviour.sh [--repo <path>]
+# Usage: gate-prose-matches-behaviour.sh [--repo <path>] [--skill <名字>]
+#
+# `--skill` 讓一支 skill 單獨檢查自己的散文。這道閘量的東西**大部分**有擁有者
+# ——一份散文指名的檔案、子命令、旗標，多數就在它自己那一棵樹底下。剩下的那些
+# 指向別支 skill，那一部分沒有擁有者，所以共用的那一層留著，掃全樹。
 # Exit:  0 全部對得上 / 1 有對不上的
 
 set -euo pipefail
@@ -23,9 +27,11 @@ set -euo pipefail
 PREFIX="[polaris gate-prose-matches-behaviour]"
 REPO_ROOT=""
 
+ONLY_SKILL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
+    --skill) ONLY_SKILL="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "$PREFIX 不認得的參數：$1" >&2; exit 2 ;;
   esac
@@ -41,7 +47,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-python3 - "$REPO_ROOT" "$PREFIX" <<'PY'
+python3 - "$REPO_ROOT" "$PREFIX" "$ONLY_SKILL" <<'PY'
 import os
 import re
 import sys
@@ -49,6 +55,7 @@ import sys
 # 一律轉絕對路徑。skill_dir_of 拿 abspath 跟 skills_root 比前綴，`--repo .` 進來時那個比較
 # 永遠不成立，於是每一個 skill 相對的起點都靜靜消失，整批裸檔名變成假的紅。
 repo_root, prefix = os.path.abspath(sys.argv[1]), sys.argv[2]
+only_skill = sys.argv[3] if len(sys.argv) > 3 else ""
 skills_root = os.path.join(repo_root, ".claude", "skills")
 
 # 只看 fenced bash block 與 inline code 裡的東西。散文行文提到一個名字不算指名——
@@ -62,9 +69,9 @@ FENCE_END = re.compile(r"^```\s*$")
 INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n|;&>]*)")
 # 行文裡的「前置必讀：`x/y.md`」這類指路。副檔名限定成文件，免得把命令當路徑。
 #
-# 一定要有 `/`：一個光禿禿的 `shared-defaults.md` 解不出唯一位置，把它當指路只會製造
-# 一堆猜的紅。這是刻意讓出去的精度——沒有目錄的檔名不在這道閘的管轄內，而不是被判成綠。
-# 讓出去多少，跑完會印出來。
+# 帶 `/` 的一律判。沒有目錄的檔名分兩種，理由寫在下面 BARE_DOC 的用處那裡：裸的 `.md`
+# 判（它幾乎都是自家 references/ 的鄰居），裸的設定檔讓（那是別的 repo 的根檔）。
+# 讓出去多少，跑完會印出來——讓出去的精度要被數出來，不能安靜。
 DOC_POINTER = re.compile(r"`([\w.-]+(?:/[\w.-]+)+\.(?:md|json|yaml|yml))`")
 BARE_DOC = re.compile(r"`([\w.-]+\.(?:md|json|yaml|yml))`")
 # 子命令是一個完整的字，後面接空白或結束。`path/to/file.md` 是位置參數不是子命令——
@@ -230,7 +237,16 @@ skipped_template = 0
 for dirpath, _, filenames in os.walk(template_root):
     skipped_template += sum(1 for name in filenames if name.endswith(".md"))
 
-walk_targets = [(skills_root, "skill"), (rules_root, "rule")]
+# `--skill` 把範圍收成那一支自己。`.claude/rules/` 不屬於任何一支 skill，所以單支模式
+# 不掃它——那一層是共用那一條路才會問的東西。
+if only_skill:
+    only_root = os.path.join(skills_root, only_skill)
+    if not os.path.isdir(only_root):
+        print(f"{prefix} 量不到：{only_root} 不存在。", file=sys.stderr)
+        sys.exit(2)
+    walk_targets = [(only_root, "skill")]
+else:
+    walk_targets = [(skills_root, "skill"), (rules_root, "rule")]
 for root, kind in walk_targets:
   for dirpath, dirnames, filenames in os.walk(root):
     dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", "__pycache__")]

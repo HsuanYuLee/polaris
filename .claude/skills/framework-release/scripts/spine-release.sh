@@ -150,6 +150,15 @@ destination_check="$(bash "$SCRIPTS/gate-source-destination.sh" \
 }
 note "destination honoured"
 
+# 全套 selftest 只在這裡跑。commit 那一站只跑當次動到的 skill，pre-push 一支都不跑（87.7
+# 秒掛在每次推送上會被關掉）——所以「沒動到的那幾支還是綠的嗎」這句話，全 repo 只有這裡
+# 在問。v4.17.0 帶著一支紅的 selftest 出去，就是因為當時沒有任何地方問這句話：唯一會問的
+# .github/workflows/ci.yml 從來沒有被觸發過一次。
+selftest_report="$(bash "$SCRIPTS/run-selftests.sh" --repo "$REPO_PATH" --all 2>&1)" || {
+  die "POLARIS_SPINE_RELEASE_SELFTESTS_RED" "$selftest_report"
+}
+note "selftests green (${selftest_report##*，})"
+
 note "fence verified, record current"
 
 if [[ "$EXECUTE" -ne 1 ]]; then

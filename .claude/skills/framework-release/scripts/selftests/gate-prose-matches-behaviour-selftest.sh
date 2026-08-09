@@ -103,18 +103,35 @@ else
   bad "紅了但沒說出是哪個旗標：$out"
 fi
 
-# 讓出去的精度要被數出來，不能安靜。一個沒有目錄的檔名解不出唯一位置，所以不判紅——
-# 但它必須出現在「不在管轄內」那個數字裡，否則下一次有人會以為那些也檢查過了。
-repo="$(new_repo bare_name '# demo
+# 沒有目錄的檔名分兩種，而且分界要兩邊都紅得起來——只驗一邊的話，另一邊悄悄改掉沒有人知道。
+#
+# 裸的 `.md`：判。一份住在 skill 裡的散文寫 `foo.md`，在它自己那一棵樹底下解得出唯一位置，
+# 而 SKILL.md 的 Reference Loading 表整張都是這個寫法。
+repo="$(new_repo bare_md '# demo
 
 分類規則在 `shared-defaults.md`。')"
 out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
-if ! bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
-  bad "沒有目錄的檔名被判紅了，那是猜的"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "裸的 .md 指向不存在的檔案沒被擋"
 elif printf '%s' "$out" | grep -q 'shared-defaults.md'; then
-  ok "沒有目錄的檔名不判紅，但有被列進不管轄的那一堆"
+  ok "裸的 .md 解不到就判紅"
 else
-  bad "沒有目錄的檔名安靜地消失了：$out"
+  bad "紅了但沒說出是哪一個：$out"
+fi
+
+# 裸的設定檔：讓。`package.json`、`workspace-config.yaml` 是使用者自己的檔或別的 repo 的
+# 根檔，這個 repo 裡本來就不會有。但讓出去的精度要被數出來——它必須出現在「不在管轄內」
+# 那一堆裡，否則下一次有人會以為那些也檢查過了。
+repo="$(new_repo bare_config '# demo
+
+版本寫在 `package.json`。')"
+out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+if ! bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "裸的設定檔被判紅了，那是猜的"
+elif printf '%s' "$out" | grep -q 'package.json'; then
+  ok "裸的設定檔不判紅，但有被列進不管轄的那一堆"
+else
+  bad "裸的設定檔安靜地消失了：$out"
 fi
 
 # 四：`$SKILL_DIR/...` 這種寫法。變數的值是自明的（就是這支 skill 自己的目錄），
@@ -151,6 +168,24 @@ if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
 else
   bad "樣板佔位符被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
 fi
+
+# `--skill` 是 L-P1 的機制。兩向都要驗：一個把範圍收成空集合的實作，只驗「乾淨的那支會綠」
+# 是抓不到的。
+repo="$(new_repo scope_clean '# demo
+
+規範在 `references/real.md`。')"
+mkdir -p "$repo/.claude/skills/other"
+printf '# other\n\n看 `references/gone.md`。\n' > "$repo/.claude/skills/other/SKILL.md"
+# `$?` 直接接在命令後面會被 `set -e` 先殺掉，所以每一次都用 `|| rc=$?` 接住。
+scoped() {
+  local rc=0
+  bash "$GATE" --repo "$repo" "$@" >/dev/null 2>&1 || rc=$?
+  printf '%s' "$rc"
+}
+[[ "$(scoped)" == 1 ]] && ok "全掃會看到別支的斷指標" || bad "全掃應該紅"
+[[ "$(scoped --skill demo)" == 0 ]] && ok "--skill demo 只看自己，是綠的" || bad "--skill demo 應該綠"
+[[ "$(scoped --skill other)" == 1 ]] && ok "--skill other 要紅——範圍不是被收成空集合" || bad "--skill other 應該紅"
+[[ "$(scoped --skill nosuch)" == 2 ]] && ok "--skill 指到不存在的是量不到" || bad "--skill nosuch 應該 exit 2"
 
 echo "gate-prose-matches-behaviour selftest: PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -1,5 +1,33 @@
 # Changelog
 
+## [4.18.0] - 2026-08-10
+
+### Changed
+
+- 995229c: DP-470：一道閘回報的顏色要是真的
+  三組同一個判準——**一個沒有量到東西的執行，不得跟一個量過而且沒事的執行長得一樣**：
+  - **J 零樣式的外洩掃描停下來。** `scan-template-leaks.sh` 的樣式全部來自
+    `{公司}/workspace-config.yaml`；一家公司都沒有的時候它印 `hits: 0` 然後 exit 0，於是
+    「掃不到東西」與「掃過了沒問題」在輸出與結束狀態上完全相同。現在零樣式帶著
+    `POLARIS_TEMPLATE_LEAK_SCAN_VACUOUS` fail-stop，走得完的路是宣告
+    （`companies: none`）而不是零這個數字；宣告與實際對不上時兩邊都不算。消費它的閘也
+    不再把「量不到」講成「有外洩」。
+  - **K 知識歸屬閘改成只看版控，兩台機器同答案。** 它以前唯一的資訊來源是「這個位置在本機
+    存不存在」——同一個 commit 在主 checkout 上找到 25 筆引用，在乾淨的 worktree 上只找到
+    19 筆。改判之後判準只剩 `git ls-files` 與 `git check-ignore`：同一棵樹在哪裡跑都給同一份
+    輸出，環境裡有指向別棵樹的 `GIT_DIR` 也一樣（git 跑 hook 時一定會設它）。順帶拿掉
+    `--skills` 旗標，它存在的唯一理由已經消失。
+  - **L 閘與 selftest 按擁有者分層，並移到 commit 這一站。** 八道掃全樹的閘合計 1.34 秒，
+    既然是免費的就沒有理由留在 push——一個過不了閘的 commit 已經在歷史裡了。所以
+    `pre-push-quality-gate.sh` 改名 `run-gates.sh` 掛在 commit 與 push 兩邊；新的
+    `run-selftests.sh` 在 commit 只跑這次動到的那幾支 skill，釋出尾段才跑全套 35 支、紅了
+    帶著 `POLARIS_SPINE_RELEASE_SELFTESTS_RED` 停下來。兩道共用的閘各自長出 `--skill`，讓
+    說得出擁有者的檢查回到擁有者自己身上；`run-gates.sh` 的檔頭現在說得出留下來的那幾道
+    為什麼沒有擁有者。
+    量出來的兩件順帶：GitHub Actions 從來沒有跑過（`total_count=0`），所以 35 支 selftest 一路
+    零強制力，一支紅著的 `gate-prose-matches-behaviour-selftest.sh` 就是這樣跟著 v4.17.0 出去
+    的；`.pre-commit-config.yaml` 是死的，而且它一旦被啟用會蓋掉真正在跑的那個 hook——刪掉。
+
 ## [4.17.0] - 2026-08-09
 
 ### Changed
