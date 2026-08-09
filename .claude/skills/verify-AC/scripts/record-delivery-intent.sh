@@ -1,9 +1,20 @@
 #!/usr/bin/env bash
 # Purpose: Record what judge decided to hand downstream, once its checks pass.
 # Inputs:  --issue <dir>, --summary <text>,
-#          optional --head <sha> (defaults to the head the evidence was measured at).
+#          optional --head <sha> (defaults to the head the evidence was measured at),
+#          optional --delta-allows <path> (repeatable; see below).
 # Outputs: writes {issue}/.spine/delivery.json; exit 1 if the source is not in
 #          a deliverable state.
+#
+# --delta-allows: 驗證呼叫者的主張，不代它宣告
+# ------------------------------------------
+# 交付的 head 與證據量到的 head 不同時，預設拒絕——證據證的是一棵樹綠了。但有一種
+# 差異是流程自己造出來的：下游先做了一件只動它自己那幾個檔案的事（壓版之類），然後
+# 才回頭釘紀錄。那個 commit 在判定那一站根本還不存在，任何人都不可能量在它上面。
+#
+# 這種情況下呼叫者可以**指名**它動過哪些路徑，這支就去 git 驗這句話是不是真的：差集
+# 裡出現任何一個沒被指名的路徑，照舊拒絕。指名什麼由呼叫者決定，因為那是它自己的
+# 詞彙——這一層不認得「版號」「CHANGELOG」，也不該認得。沒有指名就是舊行為。
 #
 # Why there is no version field here (DP-467 H-P3)
 # ------------------------------------------------
@@ -40,6 +51,7 @@ set -euo pipefail
 ISSUE_DIR=""
 SUMMARY=""
 HEAD_SHA=""
+DELTA_ALLOWS=()
 
 die() {
   # Description: print a POLARIS marker plus context to stderr and exit 1.
@@ -56,8 +68,9 @@ while [[ $# -gt 0 ]]; do
     --issue)       ISSUE_DIR="${2:-}"; shift 2 ;;
     --summary)      SUMMARY="${2:-}"; shift 2 ;;
     --head)         HEAD_SHA="${2:-}"; shift 2 ;;
+    --delta-allows) DELTA_ALLOWS+=("${2:-}"); shift 2 ;;
     -h|--help)
-      echo "Usage: record-delivery-intent.sh --issue <dir> --summary <text> [--head <sha>]" >&2
+      echo "Usage: record-delivery-intent.sh --issue <dir> --summary <text> [--head <sha>] [--delta-allows <path>]..." >&2
       exit 2
       ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -93,7 +106,10 @@ destination="$(awk '
 ' "$INDEX")"
 
 [[ -n "$destination" ]] || die "POLARIS_DELIVERY_INTENT_NO_DESTINATION" \
-  "$INDEX declares no destination; run check-source-destination.sh for the contract"
+  "$INDEX declares no destination; it is declared once by a human at the first gate," \
+  "in the ticket's frontmatter. See this skill's SKILL.md for what the values mean." \
+  "(The message here used to name check-source-destination.sh, deleted 2026-08-03 and" \
+  "never relocated — pointing at it was telling people to run something that is gone.)"
 
 # Two repositories, two heads, and they are not interchangeable. What was judged
 # is the source's own repository, which issues/ is: the documents belong to
@@ -122,7 +138,14 @@ ISSUE_HEAD_SHA="$(git -C "$ISSUE_REPO" rev-parse HEAD 2>/dev/null || true)"
 # failure the head check below exists to catch.
 HEAD_FROM_EVIDENCE="$(mktemp)"
 TREE_FROM_EVIDENCE="$(mktemp)"
-trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE"' EXIT
+DELTA_FROM_EVIDENCE="$(mktemp)"
+trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE"' EXIT
+
+if [[ ${#DELTA_ALLOWS[@]} -gt 0 && -z "$HEAD_SHA" ]]; then
+  die "POLARIS_DELIVERY_INTENT_USAGE" \
+    "--delta-allows 只有在同時指名 --head 的時候才有意義：它描述的是「證據量到的 head" \
+    "與要交付的 head 之間」那段差異，沒有 --head 就沒有那段差異。"
+fi
 
 # Every assertion the fence declares has to have been measured, at this head, by
 # the oracle. Before this check nothing anywhere required evidence to exist
@@ -140,14 +163,15 @@ trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE"' EXIT
 # self-certification. The oracle pins tools before trusting them and keeps the
 # exit code; a JSON file is whoever typed it.
 python3 - "$INDEX" "$ISSUE_DIR/.spine/evidence" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
-  "$TREE_FROM_EVIDENCE" <<'PY' || exit 1
+  "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "${DELTA_ALLOWS[@]+${DELTA_ALLOWS[@]}}" <<'PY' || exit 1
 import json
 import os
 import re
 import subprocess
 import sys
 
-index_path, evidence_dir, head, head_out, tree_out = sys.argv[1:6]
+index_path, evidence_dir, head, head_out, tree_out, delta_out = sys.argv[1:7]
+delta_allows = sys.argv[7:]
 
 fences = re.findall(
     r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
@@ -167,9 +191,41 @@ if not ids:
           "there is nothing to have proven", file=sys.stderr)
     sys.exit(1)
 
+def delta_within_allowance(repo, frm, to):
+    """呼叫者指名的那段差異是不是真的只碰了它指名的路徑。
+
+    Args:
+        repo: 拿來問 git 的工作區；frm 與 to 兩個 commit 都要在它看得到的物件庫裡。
+        frm:  證據量到的 head。
+        to:   要交付的 head。
+    Returns:
+        (verdict, payload)。verdict 為 "ok" 時 payload 是那段差異碰到的路徑清單；
+        為 "outside" 時是沒被指名的那幾條；為 "unmeasurable" 時是一句原因。
+    """
+    if not repo or not os.path.isdir(repo):
+        return "unmeasurable", f"證據沒說出它在哪一棵樹上量的，或那棵樹已經不在：{repo!r}"
+    for sha in (frm, to):
+        probe = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
+                               capture_output=True, text=True)
+        if probe.returncode != 0:
+            return "unmeasurable", f"{repo} 看不到 commit {sha[:12]}"
+    diff = subprocess.run(["git", "-C", repo, "diff", "--name-only", frm, to],
+                          capture_output=True, text=True)
+    if diff.returncode != 0:
+        return "unmeasurable", f"git diff 問不出來：{diff.stderr.strip()}"
+    paths = [p for p in diff.stdout.splitlines() if p]
+    outside = [p for p in paths
+               if not any(p == a or p.startswith(a.rstrip("/") + "/") for a in delta_allows)]
+    if outside:
+        return "outside", outside
+    return "ok", paths
+
+
 problems = []
 measured = {}
 measured_in = {}
+# 證據量在別的 head 上，但呼叫者指名了那段差異——先收起來，等下面逐個去 git 驗。
+carried = {}
 for aid in ids:
     path = os.path.join(evidence_dir, f"{aid}.json")
     if not os.path.exists(path):
@@ -187,12 +243,34 @@ for aid in ids:
         problems.append(f"  {aid}: verdict is {ev.get('verdict')!r}, not PASS")
     elif not ev.get("head_sha"):
         problems.append(f"  {aid}: evidence names no head_sha")
-    elif head and ev.get("head_sha") != head:
+    elif head and ev.get("head_sha") != head and not delta_allows:
         problems.append(
             f"  {aid}: measured at {str(ev.get('head_sha'))[:12]}, delivering {head[:12]}")
+    elif head and ev.get("head_sha") != head:
+        carried.setdefault((ev["head_sha"], ev.get("measured_in") or ""), []).append(aid)
+        measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
     else:
         measured.setdefault(ev["head_sha"], []).append(aid)
         measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
+
+# 呼叫者指名了差異的話，逐個去 git 驗那句話。驗過了那些斷言才算數——差異裡出現一個沒被
+# 指名的路徑，或者根本問不出那段差異，都退回原本的拒絕。
+delta_record = None
+for (ev_head, tree), aids in sorted(carried.items()):
+    verdict, payload = delta_within_allowance(tree, ev_head, head)
+    if verdict == "ok":
+        measured.setdefault(ev_head, []).extend(aids)
+        delta_record = {"from": ev_head, "to": head, "paths": payload,
+                        "declared_allowed": delta_allows}
+    elif verdict == "outside":
+        problems.append(
+            f"  {', '.join(aids)}: 量在 {ev_head[:12]}，要交付 {head[:12]}，"
+            f"而中間這段差異碰到了沒被指名的檔案：")
+        problems.extend(f"    {p}" for p in payload)
+    else:
+        problems.append(
+            f"  {', '.join(aids)}: 量在 {ev_head[:12]}，要交付 {head[:12]}，"
+            f"而這段差異量不到——{payload}")
 
 # 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條斷言
 # 量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的東西。
@@ -239,11 +317,19 @@ if problems:
 
 open(head_out, "w", encoding="utf-8").write(head)
 open(tree_out, "w", encoding="utf-8").write(next(iter(d for d in measured_in if d), ""))
-print(f"EVIDENCE: {len(ids)} assertions measured at {head[:12]} ({', '.join(ids)})")
+if delta_record:
+    open(delta_out, "w", encoding="utf-8").write(json.dumps(delta_record, ensure_ascii=False))
+    print(f"EVIDENCE: {len(ids)} assertions measured at {delta_record['from'][:12]}, "
+          f"delivering {head[:12]} ({', '.join(ids)})")
+    print(f"  中間那段差異只碰了呼叫者指名的路徑，共 {len(delta_record['paths'])} 個："
+          f"{', '.join(delta_record['paths'])}")
+else:
+    print(f"EVIDENCE: {len(ids)} assertions measured at {head[:12]} ({', '.join(ids)})")
 PY
 
 HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"
 DELIVERED_IN="$(cat "$TREE_FROM_EVIDENCE")"
+HEAD_DELTA="$(cat "$DELTA_FROM_EVIDENCE")"
 
 # DP-482 之前產生的證據沒有記下它在哪一棵樹上量的。那時候退回去問「呼叫者站在哪」，
 # 而那正是這張單要拆掉的形狀——所以退回去問那張單自己的宣告，它只有一個產生者。
@@ -298,12 +384,12 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" \
-  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" <<'PY'
+  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$HEAD_DELTA" <<'PY'
 import json
 import os
 import sys
 
-(out, source, destination, head, summary, by, at, source_head) = sys.argv[1:9]
+(out, source, destination, head, summary, by, at, source_head, head_delta) = sys.argv[1:10]
 # 記名字，不記路徑（DP-496 L-P2）。一張單的格位由 `place-issues-by-state.sh` 依狀態重算，
 # 所以寫下來的那一條路徑在下一次重算之後就是死指標——實測 19 條存過的單路徑全部指向已經
 # 不存在的目錄。位置要用的時候問 `spine-loop-state.sh find`，而讀這份紀錄的東西（釋出尾段的
@@ -320,6 +406,11 @@ payload = {
     "judged_by": by,
     "judged_at": at,
 }
+# 證據不是量在交付的那個 head 上時，這份紀錄自己要說得出差在哪——量的是哪一個、交付的是
+# 哪一個、中間那段碰了哪些檔案、呼叫者當初指名的是哪幾條。一個沒被說出來的豁免，跟沒有
+# 豁免在出事的時候長得一樣。
+if head_delta:
+    payload["head_delta"] = json.loads(head_delta)
 with open(out, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2)
     handle.write("\n")

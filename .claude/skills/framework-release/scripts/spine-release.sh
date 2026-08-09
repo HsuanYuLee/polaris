@@ -181,8 +181,19 @@ if [[ "$DESTINATION" == "template" ]]; then
     parent="$(git -C "$REPO_PATH" rev-parse HEAD^)"
     [[ "$parent" == "$HEAD_SHA" ]] || die "POLARIS_SPINE_RELEASE_UNEXPECTED_DELTA" \
       "the version commit is not sitting directly on the judged head; refusing to re-pin."
+    # 壓版那個 commit 是這一步自己前一秒造出來的——判定那一站不可能量在它上面，所以
+    # 這裡指名它動得到的那幾個路徑，讓紀錄那一支去 git 驗這句話。碰到指名以外的任何
+    # 東西就照舊拒絕：那代表壓版那一步順手改了別的，而那些改動沒有被判定看過。
+    #
+    # 為什麼這份清單住在這裡：可攜層不認得「版號」也不該認得（見 record-delivery-intent.sh
+    # 檔頭）。這是釋出尾段自己的詞彙，而 release-version.sh 就在隔壁——哪天它開始寫別的
+    # 檔案，這裡會紅，這正是要的。
     bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_DIR" \
-      --summary "$SUMMARY" --head "$new_head" >&2
+      --summary "$SUMMARY" --head "$new_head" \
+      --delta-allows VERSION \
+      --delta-allows CHANGELOG.md \
+      --delta-allows package.json \
+      --delta-allows .changeset >&2
     HEAD_SHA="$new_head"
   fi
 

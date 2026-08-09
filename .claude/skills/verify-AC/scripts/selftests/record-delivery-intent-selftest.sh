@@ -280,4 +280,82 @@ grep -Fq "not run-hardened-oracle.sh" <<<"$out" \
   || fail "the refusal must name the producer problem; got: $out"
 echo "  ok  hand-written evidence refuses to record"
 
+# DP-498 R。下游有時候會在判定之後、釘紀錄之前先做一件只動它自己那幾個檔案的事——釋出
+# 尾段的壓版就是。那個 commit 在判定那一站根本還不存在，所以「證據要量在交付的 head 上」
+# 這條對它永遠成立不了：實測 24 張已釋出的單裡有 15 張的交付 head 就是壓版 commit，代表
+# 那 15 次全部走過「尾段死掉 → 把全部斷言重量一次 → 再跑」。那一輪重量沒有量到任何新東西。
+#
+# 所以呼叫者可以指名那段差異碰得到哪些路徑，這支去 git 驗這句話。指名什麼是呼叫者的詞彙。
+issue="$(new_sealed_issue carry template)"
+repo="$WORK/carry"
+measure "$repo" "$issue" A-P1
+measured_head="$(git -C "$repo" rev-parse HEAD)"
+echo "4.15.0" > "$repo/VERSION"
+echo "## 4.15.0" > "$repo/CHANGELOG.md"
+# 只 stage 指名的那幾個：真樹上 issues/ 是另一個 repo（gitignore versioned-elsewhere），
+# 壓版 commit 不可能掃到單的檔案。用 add -A 的 fixture 量的是 fixture 自己的形狀。
+git -C "$repo" add VERSION CHANGELOG.md
+git -C "$repo" commit -qm "chore(release): compress 4.15.0"
+delivered_head="$(git -C "$repo" rev-parse HEAD)"
+(cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' \
+  --head "$delivered_head" --delta-allows VERSION --delta-allows CHANGELOG.md >/dev/null) \
+  || fail "只動了指名路徑的差異，證據應該延續得下去"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+measured, delivered = sys.argv[2], sys.argv[3]
+assert d["head_sha"] == delivered, f"交付的 head 要是新的那個：{d}"
+# R-P2：豁免要看得見——量的是哪一個、交付的是哪一個、中間碰了什麼、當初指名的是哪幾條。
+delta = d.get("head_delta")
+assert delta, f"用了豁免卻沒在紀錄裡留下痕跡：{d}"
+assert delta["from"] == measured, delta
+assert delta["to"] == delivered, delta
+assert sorted(delta["paths"]) == ["CHANGELOG.md", "VERSION"], delta
+assert sorted(delta["declared_allowed"]) == ["CHANGELOG.md", "VERSION"], delta
+' "$issue/.spine/delivery.json" "$measured_head" "$delivered_head" \
+  || fail "延續下來的證據必須在紀錄裡說得出它延續過什麼"
+echo "  ok  只動指名路徑的 commit 不逼人把全部斷言重量一次"
+echo "  ok  用了豁免的紀錄自己說得出量的與交付的差在哪"
+
+# R-N1。豁免的邊界就是「指名」兩個字：那段差異只要多碰一個沒被指名的檔案，就退回原本的
+# 拒絕——證據證的是一棵樹綠了，而那個檔案沒有任何量測看過。
+issue="$(new_sealed_issue carrywide template)"
+repo="$WORK/carrywide"
+measure "$repo" "$issue" A-P1
+echo "4.15.0" > "$repo/VERSION"
+echo "順手改的" >> "$repo/tool.sh"
+git -C "$repo" add VERSION tool.sh
+git -C "$repo" commit -qm "壓版順手多改了一個檔案"
+delivered_head="$(git -C "$repo" rev-parse HEAD)"
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' \
+  --head "$delivered_head" --delta-allows VERSION 2>&1) )" \
+  && fail "差異碰到沒被指名的檔案時應該拒絕"
+grep -Fq "tool.sh" <<<"$out" || fail "拒絕時要說出是哪個檔案越界；拿到：$out"
+[[ -f "$issue/.spine/delivery.json" ]] && fail "被拒絕的紀錄不該留下來"
+echo "  ok  差異碰到指名以外的檔案照舊拒絕，並說出是哪一個"
+
+# R-N2。head 要對得上這條沒有被放寬——沒有指名就沒有豁免，同一個差異照舊擋下來。
+issue="$(new_sealed_issue carrynone template)"
+repo="$WORK/carrynone"
+measure "$repo" "$issue" A-P1
+echo "4.15.0" > "$repo/VERSION"
+git -C "$repo" add VERSION
+git -C "$repo" commit -qm "chore(release): compress"
+delivered_head="$(git -C "$repo" rev-parse HEAD)"
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' \
+  --head "$delivered_head" 2>&1) )" && fail "沒有指名差異時應該照舊拒絕"
+grep -Fq POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE <<<"$out" \
+  || fail "沒有指名時要走原本那條拒絕；拿到：$out"
+echo "  ok  沒有指名就沒有豁免"
+
+# 指名一段不存在的差異是用法錯誤，不是一個可以安靜通過的狀態。
+issue="$(new_sealed_issue carrynohead template)"
+repo="$WORK/carrynohead"
+measure "$repo" "$issue" A-P1
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' \
+  --delta-allows VERSION 2>&1) )" && fail "--delta-allows 沒有 --head 應該被擋"
+grep -Fq POLARIS_DELIVERY_INTENT_USAGE <<<"$out" \
+  || fail "缺 --head 要回用法錯誤；拿到：$out"
+echo "  ok  指名差異卻沒說出要交付哪一個 head 是用法錯誤"
+
 echo "PASS: record-delivery-intent"
