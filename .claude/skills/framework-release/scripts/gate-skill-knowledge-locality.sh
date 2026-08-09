@@ -223,7 +223,9 @@ total_refs = sum(len(s["references"]) for s in skills.values())
 print(f"{prefix} 掃過 {len(skills)} 支 skill，找到 {total_refs} 筆指向版控之外的引用："
       f"分類成動手對象 {classified} 筆、知識 {len(knowledge_outside)} 筆、"
       f"沒有分類 {len(unclassified)} 筆"
-      f"（另有 {out_of_jurisdiction} 個字串不在管轄內：版控沒有排除它們——要嘛不是路徑，要嘛跟著 repo 走。斷指標由 gate-prose-matches-behaviour 管）。")
+      f"（另有 {out_of_jurisdiction} 個字串不在管轄內：版控沒有排除它們——要嘛不是路徑，要嘛跟著 repo 走。"
+      f"它們死了沒有，這一道不判；gate-prose-matches-behaviour 判其中一部分，"
+      f"而它自己會把讓出去的那些逐條印出來）。")
 
 if unclassified:
     print(f"{prefix} 沒有分類的 {len(unclassified)} 筆——一筆沒有說法的往外引用，"

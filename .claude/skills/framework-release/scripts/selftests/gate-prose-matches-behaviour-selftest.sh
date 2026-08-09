@@ -169,6 +169,70 @@ else
   bad "樣板佔位符被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
 fi
 
+# 目錄型指路。四種寫法都要驗，因為這一格以前是**兩道閘中間的空隙**：
+# gate-skill-knowledge-locality 只判版控之外的引用（`.claude/` 開頭直接出局），而這一道
+# 當時只判有副檔名的檔案。於是一個指向被拆掉的目錄的指標兩邊都是綠的，活了好幾個月。
+repo="$(new_repo dir_missing '# demo
+
+跨 repo 的事在 `.claude/rules/nosuch/handbook/`。')"
+out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "指向不存在的目錄沒被擋"
+elif printf '%s' "$out" | grep -q 'nosuch/handbook'; then
+  ok "指向不存在的目錄會紅，而且說得出是哪一個"
+else
+  bad "紅了但沒說出是哪一個目錄：$out"
+fi
+
+repo="$(new_repo dir_present '# demo
+
+腳本在 `.claude/skills/demo/scripts/`。')"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "指向真的存在的目錄是綠的"
+else
+  bad "存在的目錄被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
+# 沒有結尾斜線、也沒有副檔名的寫法。這一種在真的那棵樹上一筆都沒有（量過），所以它的
+# 紅控只能長在這裡——一條只在剛好有人這樣寫時才存在的檢查，等於沒有檢查。
+repo="$(new_repo dir_noslash '# demo
+
+規範在 `.claude/rules/nosuch`。')"
+out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "不帶結尾斜線的目錄指標沒被擋"
+elif printf '%s' "$out" | grep -q 'rules/nosuch'; then
+  ok "不帶結尾斜線的目錄指標一樣會紅"
+else
+  bad "紅了但沒說出是哪一個：$out"
+fi
+
+# 判定的前綴之外一律不判——但要被數出來。這一條擋的是「把判準改成解不到就判紅」：
+# 那樣改會讓 `issues/`、`snapshots/`、`apps/main/` 這一整批全紅，然後這道閘被關掉。
+repo="$(new_repo dir_outside '# demo
+
+產物落在 `test-results/`。')"
+out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+if ! bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "前綴之外的目錄被判紅了，那是猜的"
+elif printf '%s' "$out" | grep -q 'test-results/'; then
+  ok "前綴之外的目錄不判紅，但有被列進不管轄的那一堆"
+else
+  bad "前綴之外的目錄安靜地消失了：$out"
+fi
+
+# 宣告過的目錄走既有的機制，不另開一條路。
+repo="$(new_repo dir_declared '# demo
+
+<!-- PROSE-EXTERNAL-PATHS: .claude/rules/theirs/ — 那是別人 repo 的規範 -->
+
+規範在 `.claude/rules/theirs/`。')"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "宣告成住在別處的目錄不判紅"
+else
+  bad "宣告過的目錄仍然被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
 # `--skill` 是 L-P1 的機制。兩向都要驗：一個把範圍收成空集合的實作，只驗「乾淨的那支會綠」
 # 是抓不到的。
 repo="$(new_repo scope_clean '# demo

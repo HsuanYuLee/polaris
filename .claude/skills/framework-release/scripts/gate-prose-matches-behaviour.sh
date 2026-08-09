@@ -74,6 +74,28 @@ INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n|;&>]*)")
 # 讓出去多少，跑完會印出來——讓出去的精度要被數出來，不能安靜。
 DOC_POINTER = re.compile(r"`([\w.-]+(?:/[\w.-]+)+\.(?:md|json|yaml|yml))`")
 BARE_DOC = re.compile(r"`([\w.-]+\.(?:md|json|yaml|yml))`")
+# 指路的第三種寫法：一個目錄，以 `/` 結尾。以前這一整類一個都沒被判——上面兩條都要求
+# 結尾是 `.md`／`.json`／`.yaml`／`.yml`，而 `.claude/rules/{公司}/handbook/` 一個都不是。
+# 於是它跟 gate-skill-knowledge-locality 之間有一格誰都沒有：那一道只判**版控之外**的
+# 引用，`.claude/` 開頭的直接出局，而且它的訊息還寫著「斷指標由 gate-prose-matches-behaviour
+# 管」——指向一道當時並不管它的閘。
+DIR_POINTER = re.compile(r"`([\w.-]+(?:/[\w.-]+)*/)`")
+# 同一件事的另一種寫法：`.claude/skills/x/references`——沒有結尾斜線，也沒有副檔名，所以
+# 上面三條正則一條都不吃。全樹目前**一筆都沒有**（2026-08-09 量的：解得到 0、解不到 0），
+# 而那正是要現在加的理由：一條只在「剛好有人這樣寫」時才存在的檢查，等於沒有檢查。它的
+# 紅控在 selftest 的 fixture 上，不在這棵樹上。
+NO_EXT_POINTER = re.compile(r"`((?:\.claude|_template)/[\w.-]+(?:/[\w.-]+)*)`")
+# 判哪些目錄：只有這兩個前綴。判準跟裸檔名那一段是同一句話——**解不解得出唯一位置**。
+#
+# `.claude/` 與 `_template/` 是這個 repo 追蹤的兩棵樹，一份散文寫出它們就是在指這裡的
+# 某個位置，對不對得上是可判的。其餘一律不判，因為它們解不出唯一位置：`issues/` 沒有
+# 版控、`snapshots/` 與 `test-results/` 是跑起來才長出來的、`apps/main/` 與 `packages/`
+# 講的是別的 repo 的樹，而 `archive/`、`triage/`、`released/` 這些在句子裡是概念不是路徑。
+#
+# 這個分界是量出來的，不是挑的：全樹 139 筆目錄型指標，全判的話 115 筆變紅——那會讓這
+# 道閘在三次之內被關掉，連它本來判得到的那些也一起沒了（斷言 A-N3 就是為了擋這件事）。
+# 照這個前綴判，12 筆解得到、3 筆解不到，而那 3 筆是同一個真的洞。
+JUDGED_DIR_PREFIXES = (".claude/", "_template/")
 # 子命令是一個完整的字，後面接空白或結束。`path/to/file.md` 是位置參數不是子命令——
 # 只用 \b 收尾的話 `path` 會被當成子命令，然後永遠找不到。
 SUBCOMMAND = re.compile(r"^\s+([a-z][a-z0-9-]*)(?=\s|$)")
@@ -101,6 +123,9 @@ EXTERNAL_DECL = re.compile(r"<!--\s*PROSE-EXTERNAL-PATHS:\s*(\S+)\s*(?:—|--)\s
 problems = []
 # 不被判定的第三態要有數字。一個安靜的豁免，下一次就會有人以為那些也被檢查過了。
 unjudged = set()
+# 目錄型指標裡不在管轄內的那些。跟裸檔名分開數：兩者讓出去的理由相同（解不出唯一
+# 位置），但形狀不同，混成一個數字就看不出是哪一類在成長。
+unjudged_dirs = set()
 external_hits = []      # (檔, 路徑, 前綴, 理由)
 stale_declarations = [] # 宣告了卻沒對上任何東西的前綴
 
@@ -308,6 +333,27 @@ for root, kind in walk_targets:
                 continue
             unjudged.add(f"{rel_doc}: `{quoted}`")
 
+        # 1c. 目錄型指路。判準見 JUDGED_DIR_PREFIXES 的宣告。
+        dir_candidates = set(DIR_POINTER.findall(text))
+        for quoted in NO_EXT_POINTER.findall(text):
+            # 有副檔名的那些是檔案，DOC_POINTER 已經判過了；再判一次只會重複計數。
+            if "." not in quoted.rsplit("/", 1)[-1]:
+                dir_candidates.add(quoted)
+        for quoted in sorted(dir_candidates):
+            if "{" in quoted:
+                continue
+            elsewhere = declared_elsewhere(declared, quoted)
+            if elsewhere:
+                used.add(elsewhere[0])
+                external_hits.append((rel_doc, quoted) + elsewhere)
+                continue
+            if not quoted.startswith(JUDGED_DIR_PREFIXES):
+                unjudged_dirs.add(f"{rel_doc}: `{quoted}`")
+                continue
+            if os.path.isdir(os.path.join(repo_root, quoted.rstrip("/"))):
+                continue
+            problems.append(f"{rel_doc}: 指向不存在的目錄 `{quoted}`")
+
         # 1b. `$SKILL_DIR/...`。變數的值是自明的：SKILL.md 自己那一支 skill 的目錄。
         for tail in SKILL_DIR_REF.findall(text):
             if not os.path.exists(os.path.join(dirpath, tail)):
@@ -371,6 +417,12 @@ if unjudged:
     for item in sorted(unjudged):
         print(f"{prefix}   {item}", file=sys.stderr)
 
+if unjudged_dirs:
+    print(f"{prefix} 目錄型指標 {len(unjudged_dirs)} 個不在管轄內"
+          f"（不是 {' 或 '.join(JUDGED_DIR_PREFIXES)} 開頭，解不出唯一位置）：", file=sys.stderr)
+    for item in sorted(unjudged_dirs):
+        print(f"{prefix}   {item}", file=sys.stderr)
+
 if problems:
     for problem in sorted(set(problems)):
         print(f"{prefix} {problem}", file=sys.stderr)
@@ -381,5 +433,6 @@ if problems:
     sys.exit(1)
 
 print(f"PROSE-MATCHES-BEHAVIOUR {COVERAGE}，指名的檔案、子命令與旗標都對得上"
-      f"（另有 {len(unjudged)} 個沒有目錄的檔名不在管轄內）。")
+      f"（另有 {len(unjudged)} 個沒有目錄的檔名、{len(unjudged_dirs)} 個目錄型指標"
+      f"不在管轄內）。")
 PY

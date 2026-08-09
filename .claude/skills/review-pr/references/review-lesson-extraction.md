@@ -104,9 +104,20 @@ When appending to an existing file, add new entries after the last existing entr
 
 ### Write Location
 
-Write lessons directly to the workspace-owned source of truth:
-`{company}/polaris-config/{project}/handbook/`. Do not write through
-repo-local `.claude/rules/handbook/` and copy it back later; repo-local
-overlays are legacy/native compatibility only.
+Lessons live **inside the skill directory that owns that repo's knowledge** —
+`references/handbook/{repo}/` under that skill. A skill directory is the only
+thing that travels: it is what gets uploaded to claude.ai and Cowork, so a
+lesson written anywhere else is readable on the machine that wrote it and
+missing everywhere else.
 
-`{project-name}` is derived from the repo directory name (e.g., `acme-web-app`).
+Two earlier locations are gone and must not be revived. A workspace-level
+`{company}/polaris-config/{project}/handbook/` is not under version control, so
+it existed only on the author's machine. A repo-local .claude/rules/handbook/ (deliberately not in backticks — the
+location is gone, and naming a gone location as a path is what this paragraph
+is warning against) was a compatibility overlay for the same content. Both were consolidated into
+the owning skill's `references/handbook/`; writing to either one now writes into
+a directory nothing reads.
+
+`{repo}` is the repo directory name (e.g. `acme-web-app`). If the owning skill
+has no handbook directory for that repo yet, create it — the first lesson
+extraction for a repo bootstraps it.
