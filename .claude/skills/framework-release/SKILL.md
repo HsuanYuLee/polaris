@@ -48,9 +48,13 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
    模型。有 changeset 卻沒壓動的話這是矛盾，不是可以印一行 note 略過的事。
 3. **促進 main** —— 找到這條 branch **已經開好**的 PR，過閘之後 fast-forward。不是直接推 main。
 
-   **這支不開 PR。** 它 `gh pr list --state open`，找不到就 die（`POLARIS_SPINE_RELEASE_NO_PR`，
-   `spine-release.sh:186`）。開 PR 是 SWE 的 definition of done，屬 `swe-knowledge`——PR 開出來
-   就是實作完成，而這支是完成**之後**的事。
+   **這支不開 PR。** 它 `gh pr list --state open`；開 PR 是 SWE 的 definition of done，屬
+   `swe-knowledge`——PR 開出來就是實作完成，而這支是完成**之後**的事。
+
+   **但「沒有 open PR」有兩種原因，而它們要的下一步相反**：還沒開，或者已經併進去了。
+   所以找不到的時候它再問一次 git「這條分支在不在 `origin/main` 裡」——在，就說出促進
+   上一趟已經做完並跳過這一步；不在，才 die（`POLARIS_SPINE_RELEASE_NO_PR`）。少了這一問
+   的那一版，尾段被打斷之後重跑一定走到 die，而它建議的修法是去開一個空的 PR。
 
    **壓完版號就要促進到 main，不停在中間。** 一個壓了版號卻沒進 main 的 commit，是一個宣稱
    已經發生、但任何人 clone 下來都看不到的版本。這兩步之間沒有停點。

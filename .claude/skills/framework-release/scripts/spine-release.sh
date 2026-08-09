@@ -30,6 +30,8 @@ ISSUE_DIR=""
 REPO_PATH=""
 EXECUTE=0
 PROBE_TAG=""
+PROBE_BRANCH=""
+PROBE_ISSUE_PATH=""
 
 die() {
   # Description: print a POLARIS marker plus context to stderr and exit 1.
@@ -52,6 +54,12 @@ while [[ $# -gt 0 ]]; do
     # the same question through this path, so a test can reach it without a
     # release; two answers to one question is how the skip below went wrong.
     --origin-has-tag) PROBE_TAG="${2:-}"; shift 2 ;;
+    # 促進那一步問的第二個問題：「這條分支是不是已經在目的地分支裡了」。走同一條路徑
+    # 讓測試問得到它，不必真的釋出一次——理由與上面那一個 probe 相同，一個問題兩個答案
+    # 正是這裡出過錯的形狀。
+    --branch-in-base) PROBE_BRANCH="${2:-}"; shift 2 ;;
+    # 交給下游的那條單路徑。同上：印的與交的是同一個值。
+    --issue-path) PROBE_ISSUE_PATH=1; shift ;;
     -h|--help)
       echo "Usage: spine-release.sh --issue <dir> [--repo <path>] [--execute]" >&2
       echo "Without --execute this previews what it would do and changes nothing." >&2
@@ -61,9 +69,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$ISSUE_DIR" || -n "$PROBE_TAG" ]] || die "POLARIS_SPINE_RELEASE_USAGE" "--issue is required"
+[[ -n "$ISSUE_DIR" || -n "$PROBE_TAG" || -n "$PROBE_BRANCH" ]] \
+  || die "POLARIS_SPINE_RELEASE_USAGE" "--issue is required"
 [[ -n "$REPO_PATH" ]] || REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REPO_PATH="$(cd "$REPO_PATH" && pwd)"
+
+# `--issue` 是相對於 `--repo` 的，而下游那幾支腳本各自對著**呼叫者當下的 cwd** 解析路徑。
+# 這一行是這條路徑唯一的產生者：底下每一處交出去的都是它，不是那條相對的。
+#
+# 少了它的那一版，尾段從 repo 根以外的地方跑會死在 `POLARIS_DELIVERY_INTENT_NO_INDEX:
+# no index.md under issues/…`——那句話說的是「這張單不見了」，而實際狀態是「你站的地方
+# 不對」。2026-08-10 釋出 v4.23.0 時真的死在那裡，位置是版號已經壓下去、還沒推出去的
+# 中間態（DP-500）。
+#
+# `if` 不是風格：`[[ … ]] && X=…` 在 ISSUE_DIR 為空時整句回非 0，而 `set -e` 會讓那一行
+# 直接結束整支腳本——只帶 probe 旗標進來的那幾條路徑會安靜地什麼都不印。
+ISSUE_ABS=""
+if [[ -n "$ISSUE_DIR" ]]; then
+  ISSUE_ABS="$REPO_PATH/$ISSUE_DIR"
+fi
 
 # Description: print the sha origin has for a tag, empty when origin has none.
 # Args: $1 = tag name. Side effects: one network read of origin's refs.
@@ -73,8 +97,27 @@ origin_tag_sha() {
     | awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }'
 }
 
+# Description: 這條分支的內容是不是已經在目的地分支裡了。
+# Args: $1 = 分支名，$2 = 目的地 ref（例如 origin/main）。
+# Returns: 0 表示已經在裡面，非 0 表示不在（含兩者任一解不出來）。
+# 為什麼問 git 不問 gh：這是一個關於 commit 祖先的問題，本機答得出來，而尾段被打斷後
+# 重跑的那一刻最不需要的就是再一次網路往返。
+branch_in_base() {
+  git -C "$REPO_PATH" merge-base --is-ancestor "$1" "$2" 2>/dev/null
+}
+
 if [[ -n "$PROBE_TAG" ]]; then
   origin_tag_sha "$PROBE_TAG"
+  exit 0
+fi
+if [[ -n "$PROBE_BRANCH" ]]; then
+  branch_in_base "$PROBE_BRANCH" "origin/main" && echo yes || echo no
+  exit 0
+fi
+if [[ -n "$PROBE_ISSUE_PATH" ]]; then
+  # 交給下游的就是這一條。印它出來，測試才問得到「交出去的路徑換一個工作目錄開不開得到」，
+  # 而且問到的與真的交出去的是同一個值——不是第二份。
+  echo "$ISSUE_ABS"
   exit 0
 fi
 # The spine finds its own parts next to itself, not inside the repo being
@@ -205,7 +248,7 @@ if [[ "$DESTINATION" == "template" ]]; then
     # 為什麼這份清單住在這裡：可攜層不認得「版號」也不該認得（見 record-delivery-intent.sh
     # 檔頭）。這是釋出尾段自己的詞彙，而 release-version.sh 就在隔壁——哪天它開始寫別的
     # 檔案，這裡會紅，這正是要的。
-    bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_DIR" \
+    bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_ABS" \
       --summary "$SUMMARY" --head "$new_head" \
       --delta-allows VERSION \
       --delta-allows CHANGELOG.md \
@@ -231,13 +274,23 @@ workspace_repo="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/nul
   "could not resolve the workspace repository from gh"
 pr_number="$(gh pr list --repo "$workspace_repo" --head "$BRANCH" --state open \
   --json number -q '.[0].number' 2>/dev/null || true)"
-[[ -n "$pr_number" ]] || die "POLARIS_SPINE_RELEASE_NO_PR" \
-  "no open PR found for $BRANCH; delivery means opening one first."
-note "PR #$pr_number"
-
-bash "$SCRIPTS/framework-release-main-promotion.sh" \
-  --repo "$REPO_PATH" --workspace-repo "$workspace_repo" \
-  --pr "$pr_number" --base main --head "$BRANCH" --execute >&2
+if [[ -n "$pr_number" ]]; then
+  note "PR #$pr_number"
+  bash "$SCRIPTS/framework-release-main-promotion.sh" \
+    --repo "$REPO_PATH" --workspace-repo "$workspace_repo" \
+    --pr "$pr_number" --base main --head "$BRANCH" --execute >&2
+else
+  # 沒有 open PR 有兩種原因，而它們要的下一步完全相反：還沒開，或者已經併進去了。
+  # 舊的那一版把兩者收斂成「先去開一個 PR」——照著做會開出一個空的 PR，而尾段被打斷後
+  # 重跑一定走到這裡（DP-500，2026-08-10 實測）。
+  git -C "$REPO_PATH" fetch --quiet origin main 2>/dev/null || true
+  if branch_in_base "$BRANCH" "origin/main"; then
+    note "$BRANCH 已經在 origin/main 裡了——促進上一趟就做完了，跳過這一步。"
+  else
+    die "POLARIS_SPINE_RELEASE_NO_PR" \
+      "$BRANCH 既沒有 open PR，內容也不在 origin/main 裡；交付的意思是先開一個 PR。"
+  fi
+fi
 
 # Description: leave the checkout running what was just released.
 #   Promotion moves origin/main, but the local checkout stays on a branch that is
