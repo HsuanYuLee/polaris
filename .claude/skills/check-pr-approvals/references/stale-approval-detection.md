@@ -14,7 +14,7 @@ stale_approval = review.state == "APPROVED" && review.commit_id != pr.head.sha
 
 `commit_id` 為 null / 缺失，或 `head.sha` 取值失敗時，一律 **fail-closed 判 stale**——不得因兩者皆空而誤判 valid，也不得 crash。
 
-正規實作（單一 writer path）：`scripts/approval-staleness.sh` 的 `approval_staleness`
+正規實作（單一 writer path）：`scripts/lib/approval-staleness.sh` 的 `approval_staleness`
 函式。consumer script 一律呼叫此 helper，不得各自 inline 重算 staleness。
 
 ## 計算方式

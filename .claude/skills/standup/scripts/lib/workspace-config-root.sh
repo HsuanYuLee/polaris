@@ -56,6 +56,7 @@ resolve_workspace_config_root() {
       cd "$(dirname "$override")" 2>/dev/null && pwd
       return 0
     fi
+    echo "workspace_config_unavailable: POLARIS_WORKSPACE_CONFIG_ROOT 指向 ${override}，那裡沒有 workspace-config.yaml" >&2
     return 1
   fi
 
@@ -71,6 +72,9 @@ resolve_workspace_config_root() {
     fi
   fi
 
+  # 說出為什麼答不出來——沒有 workspace-config.yaml 是正常狀態（單獨帶走的 skill 就長這樣），
+  # 不是故障，而靜默的非 0 讓呼叫端兩者分不出來。
+  echo "workspace_config_unavailable: 從 ${start} 往上找不到 workspace-config.yaml" >&2
   return 1
 }
 

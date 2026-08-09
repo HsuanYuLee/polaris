@@ -301,7 +301,10 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     # outside the fixture path.
     if rel.startswith("scripts/selftests/fixtures/"):
         return True
-    if only_paths and rel not in only_paths:
+    # 一個目錄要能限得住整棵子樹。只比全等的話，`--only-path .claude/skills/swe-knowledge`
+    # 一個檔案都比不到而回 0 hits——那個綠只代表沒有任何檔案叫那個名字。
+    if only_paths and not any(
+            rel == p or rel.startswith(p.rstrip("/") + "/") for p in only_paths):
         return True
     if rel.startswith(".agents/skills"):
         return True

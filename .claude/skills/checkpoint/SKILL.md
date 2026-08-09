@@ -19,6 +19,7 @@ metadata:
     - "list checkpoints"
     - "列出存檔"
   version: 1.2.0
+scope: standalone
 ---
 
 # Checkpoint

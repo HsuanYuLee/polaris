@@ -14,6 +14,7 @@ description: |
   那些在各自的公司 pack 裡，見〈跟公司 pack 的關係〉。
 metadata:
   version: 1.0.0
+scope: standalone
 ---
 
 # swe-knowledge — 軟體工程的 Definition of Done

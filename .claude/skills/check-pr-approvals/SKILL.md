@@ -12,6 +12,7 @@ description: |
 metadata:
   author: ""
   version: 2.1.0
+scope: standalone
 ---
 
 # Check PR Approvals — PR Review 進度追蹤

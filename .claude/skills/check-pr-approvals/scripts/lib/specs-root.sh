@@ -90,7 +90,11 @@ resolve_specs_root() {
   fi
 
   if [[ -z "$workspace_root" ]]; then
-    workspace_root="$(resolve_specs_workspace_root)" || return 1
+    # 說出為什麼答不出來：沒有 specs 站台是單獨帶走的 skill 的正常狀態，不是故障。
+    if ! workspace_root="$(resolve_specs_workspace_root)"; then
+      echo "specs_root_unavailable: 這裡解不出 specs 站台的工作區根，沒有 specs 可寫" >&2
+      return 1
+    fi
   else
     workspace_root="$(_specs_root_abs_path "$workspace_root")"
   fi
@@ -119,7 +123,11 @@ resolve_legacy_specs_root() {
   local workspace_root="${1:-}"
 
   if [[ -z "$workspace_root" ]]; then
-    workspace_root="$(resolve_specs_workspace_root)" || return 1
+    # 說出為什麼答不出來：沒有 specs 站台是單獨帶走的 skill 的正常狀態，不是故障。
+    if ! workspace_root="$(resolve_specs_workspace_root)"; then
+      echo "specs_root_unavailable: 這裡解不出 specs 站台的工作區根，沒有 specs 可寫" >&2
+      return 1
+    fi
   else
     workspace_root="$(_specs_root_abs_path "$workspace_root")"
   fi

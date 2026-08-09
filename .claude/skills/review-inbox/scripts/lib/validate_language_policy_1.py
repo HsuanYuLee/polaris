@@ -38,11 +38,23 @@ if not language:
         for f in missing:
             print(f"error: file not found: {f}", file=sys.stderr)
         sys.exit(2)
+    # 讀不到設定就用英文——這是 style-and-language.md 明文寫的規則，而這裡以前是 exit 1。
+    # 差別在一支 skill 被單獨帶到沒有這個 workspace 的地方時：規則說它照樣工作，腳本說它
+    # 死掉。腳本贏，於是那支 skill 在那裡是壞的。
+    #
+    # 退到英文之後這一檢查沒有東西要驗（CJK 那一段只對中文成立），所以放行——但要說出來。
+    # 一個安靜的放行跟一個沒被執行的檢查，在出事的時候長得一樣。
+    missing = [f for f in files if not Path(f).is_file()]
+    if missing:
+        for f in missing:
+            print(f"error: file not found: {f}", file=sys.stderr)
+        sys.exit(2)
     print(
-        "language_unset: no non-empty language found in workspace-config.yaml ancestry",
+        "language_default_english: 找不到 workspace-config.yaml 的 language，"
+        "依規則退到英文；這一次沒有中文用字要驗。",
         file=sys.stderr,
     )
-    sys.exit(1 if enforcement == "blocking" else 0)
+    sys.exit(0)
 
 if mode in {
     "bilingual",

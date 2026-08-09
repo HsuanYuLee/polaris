@@ -21,6 +21,7 @@ metadata:
   requires:
     - skill: driving-work-to-done
       why: 「哪張單卡住了」這一題本支明文不答，交給它的 spine-loop-state.sh next；沒有它的話那一段是一個指不到任何地方的轉介
+scope: standalone
 ---
 
 # Memory Hygiene

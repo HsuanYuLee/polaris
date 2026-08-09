@@ -13,6 +13,7 @@ metadata:
   requires:
     - skill: driving-work-to-done
       why: 收 TDT candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
+scope: standalone
 ---
 
 # Standup — 每日站立會議報告產生器

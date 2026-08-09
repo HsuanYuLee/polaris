@@ -12,6 +12,7 @@ description: |
   決定下一站是哪一站（走 driving-work-to-done）。
 metadata:
   version: 3.0.0
+scope: standalone
 ---
 
 # verify-ac — 閘二：執行 oracle

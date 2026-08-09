@@ -8,12 +8,33 @@
 ## 這個 workspace 是什麼
 
 一組 skill。每支 skill 自己的目錄裡帶著它需要的東西——腳本、參考文件、範例。
-**沒有共用的腳本目錄，也沒有共用的 reference 目錄**：要找某支 skill 用的東西，去它自己的
-目錄裡找，不要去別處推測。
 
-這個形狀有理由：只有 skill 目錄會被帶到 claude.ai 與 Cowork。放在 skill 目錄外的東西
-（rules、hooks、repo 根目錄的腳本）在那些地方不存在。所以「這件事能不能只靠一支 skill
-完成」就是判斷它該長在哪的準則。
+**東西有兩種帶走的方式，而它們帶走的範圍不一樣。** 這個分別決定每一樣東西住在哪：
+
+| 通道 | 帶走什麼 | 走這條的 |
+|---|---|---|
+| template repo | `.claude/rules/`、`.claude/hooks/`、`.claude/skills/`、`_template/`、根目錄檔案 | 框架自己整包搬家 |
+| claude.ai／Cowork 單支上傳 | 只有那一個 skill 目錄 | 要能像第三方 lib 一樣單獨用的 skill |
+
+**每一支 skill 在自己的 frontmatter 用 `scope:` 說出它走哪一條**，核心不從名字或位置推導：
+
+- `scope: framework`——**這一格幾乎是空的，而且應該保持空的。** 只有那些照描述做成通用
+  就不成立的東西才屬於這裡：釋出尾段讀這個 repo 的 `.changeset/`、推這個 repo 的 tag、
+  同步到這個人的 template repo，換一個環境它就沒有意義。
+- `scope: standalone`（沒宣告時的預設）——**其餘全部。** 判準是一個問題：**照這支
+  skill 自己的描述，把它做成通用、不依賴環境，是不是更好用？** 幾乎每一次答案都是「是」。
+
+  想像的使用者不是你：一個不會寫程式、沒有維護能力、連工作環境都初始化不了的人，
+  由工程師把 skill 匯進他的 Claude Desktop。**在那裡不成立的東西，就是不該留在 skill
+  裡的東西**——「主 checkout 在哪」「這個 workspace 的設定在哪」在那裡沒有答案，所以
+  一支 standalone skill 要嘛不問這些問題，要嘛問不到的時候說出來並照樣工作。
+- `scope: company-only`／`scope: maintainer-only`——不出去。
+
+以前這裡寫的是「沒有共用的腳本目錄，因為只有 skill 目錄會被帶走」。**那句話是假的**：
+template repo 追蹤 `.claude/rules/` 與 `.claude/hooks/`，skill 目錄從來不是唯一會被帶走
+的東西。它把通道二的限制套到了通道一的內容上，代價是 2026-08-09 量到的 70 份副本
+（188 支腳本、118 個名字）——其中五類回答「這個 workspace 的某個東西在哪」的腳本，在
+通道二那些環境裡根本沒有答案，複製過去只是雜訊。
 
 ## 事情怎麼進來
 

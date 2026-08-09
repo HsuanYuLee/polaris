@@ -142,6 +142,14 @@ if ! bash "$SCRIPTS/gate-spine-delivery.sh" --repo "$REPO_PATH" --issue "$ISSUE_
   die "POLARIS_SPINE_RELEASE_RECORD_STALE" \
     "the delivery record describes a different commit than HEAD; re-run verify-ac's handoff step."
 fi
+# 宣告 workspace 就是「這批東西不會出去」。這一步在同步之前跑，因為同步是不可逆的那一刻，
+# 而那個宣告在 2026-08-03 到 2026-08-09 之間沒有任何東西在驗。
+destination_check="$(bash "$SCRIPTS/gate-source-destination.sh" \
+  --repo "$REPO_PATH" --issue "$ISSUE_DIR" --head "$HEAD_SHA" 2>&1)" || {
+  die "POLARIS_SPINE_RELEASE_DESTINATION_ESCAPE" "$destination_check"
+}
+note "destination honoured"
+
 note "fence verified, record current"
 
 if [[ "$EXECUTE" -ne 1 ]]; then

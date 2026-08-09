@@ -27,7 +27,12 @@ resolve_main_checkout() {
   local start="${1:-$(pwd)}"
   local gc
   gc="$(git -C "$start" rev-parse --git-common-dir 2>/dev/null || true)"
-  [[ -n "$gc" ]] || return 1
+  # 說出為什麼答不出來。靜默的非 0 讓呼叫端分不出「這裡不是 git 工作區」與「這支壞了」
+  # ——而一支 skill 被單獨帶到 claude.ai 的時候，前者是正常狀態，不是故障。
+  if [[ -z "$gc" ]]; then
+    echo "main_checkout_unavailable: ${start} 不在任何 git 工作區裡，這裡沒有主 checkout" >&2
+    return 1
+  fi
   # git-common-dir may return a relative path (resolved against $start)
   if [[ "$gc" != /* ]]; then
     gc="$(cd "$start" && cd "$gc" 2>/dev/null && pwd)" || return 1

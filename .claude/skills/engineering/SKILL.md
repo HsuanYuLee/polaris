@@ -14,6 +14,7 @@ metadata:
   requires:
     - skill: driving-work-to-done
       why: 輪次與停點由它保管；換站與停哪一種也只有它回答
+scope: standalone
 ---
 
 # engineering — 兩個閘之間

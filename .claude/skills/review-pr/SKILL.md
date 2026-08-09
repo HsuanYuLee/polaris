@@ -21,6 +21,7 @@ description: |
 metadata:
   author: Polaris
   version: 2.1.0
+scope: standalone
 ---
 
 # review-pr
