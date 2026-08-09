@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import subprocess
 import sys
 import tempfile
@@ -14,10 +13,33 @@ USAGE = """Usage:
   bash scripts/validate-learning-seed-contract.sh --producer refinement --source-container <DP-folder>
   bash scripts/validate-learning-seed-contract.sh --self-test
 """
-CANONICAL_DP = re.compile(
-    r"^docs-manager/src/content/docs/specs/design-plans/DP-[^/]+/"
-    r"(?:index\.md|plan\.md|refinement\.md|refinement\.json)$"
-)
+# 一張單的檔案怎麼認得出來：**它旁邊有 `.spine/`**。
+#
+# 這裡刻意不寫 `issues/`、不寫任何命名空間、也不寫單號長什麼樣——這支 skill 會被單獨
+# 下載到別人的 repo，那裡的單樹叫什麼名字我們不知道。`.spine/` 是脊椎自己放下的標記，
+# 換一個環境它仍然成立。
+#
+# 上一版比對的是 docs-manager 底下 design-plans 的固定路徑。那一層在脊椎切換之後不再
+# 是單住的地方，於是這道檢查對任何真實的 Route A 執行都不可能命中——一道不會失敗的
+# 檢查不是檢查，而它正是「learning 不得自己簽成功的定義」唯一的機械保證。
+SPINE_MARKER = ".spine"
+TICKET_FILES = {"index.md", "plan.md", "refinement.md", "refinement.json"}
+
+
+def is_ticket_file(repo_root: Path, path: str) -> bool:
+    """Report whether a repo-relative path is a ticket's own file.
+
+    A path counts when it sits inside a ticket's `.spine/`, or when it is one of
+    the ticket-owned filenames in a directory that carries a `.spine/`. Returns
+    False for anything else, including research artefacts stored beside a ticket.
+    """
+    parts = Path(path).parts
+    if SPINE_MARKER in parts:
+        return True
+    name = parts[-1] if parts else ""
+    if name not in TICKET_FILES:
+        return False
+    return (repo_root / Path(path).parent / SPINE_MARKER).is_dir()
 
 
 def validate(producer: str, diff_range: str, source_container: str) -> int:
@@ -35,11 +57,19 @@ def validate(producer: str, diff_range: str, source_container: str) -> int:
             if result.stderr:
                 print(result.stderr, file=sys.stderr, end="")
             return result.returncode
+        repo_root = Path.cwd()
+        inspected = 0
         for path in result.stdout.splitlines():
-            if CANONICAL_DP.match(path):
-                print(f"ERROR: learning Route A may not write canonical DP file: {path}", file=sys.stderr)
+            inspected += 1
+            if is_ticket_file(repo_root, path):
+                print(f"ERROR: learning Route A may not write a ticket's own file: {path}", file=sys.stderr)
                 return 1
-        print("PASS: learning seed diff respects Route A contract")
+        # 沒有檔案可看不是通過：一個空的 diff range 與一個乾淨的 diff range 在這裡長得
+        # 一樣，而前者代表這次根本沒量到東西。
+        if inspected == 0:
+            print(f"INCONCLUSIVE: no files in {diff_range} — nothing was inspected", file=sys.stderr)
+            return 2
+        print(f"PASS: learning seed diff respects Route A contract ({inspected} file(s) inspected)")
         return 0
     if producer == "refinement":
         if not source_container:
@@ -67,8 +97,11 @@ def self_test() -> int:
         git(repo, "init", "-q")
         git(repo, "config", "user.email", "selftest@example.test")
         git(repo, "config", "user.name", "Self Test")
-        container = repo / "docs-manager/src/content/docs/specs/design-plans/DP-EXAMPLE-test"
+        # 單樹的名字刻意取一個不是 issues 的：判準是旁邊有沒有 .spine/，不是路徑長什麼樣。
+        container = repo / "any-ticket-tree/some-namespace/backlog/TICKET-EXAMPLE"
         (container / "artifacts").mkdir(parents=True)
+        (container / ".spine").mkdir(parents=True)
+        (container / ".spine/loop-state.json").write_text("{}\n", encoding="utf-8")
         (repo / "README.md").write_text("ok\n", encoding="utf-8")
         git(repo, "add", ".")
         git(repo, "commit", "-q", "-m", "init")
@@ -93,7 +126,7 @@ def self_test() -> int:
                 return 1
         finally:
             os.chdir(old)
-        refinement = repo / "docs-manager/src/content/docs/specs/design-plans/DP-EXAMPLE-refinement"
+        refinement = repo / "any-ticket-tree/some-namespace/backlog/TICKET-EXAMPLE-refinement"
         refinement.mkdir(parents=True)
         if validate("refinement", "", str(refinement)) != 0:
             return 1

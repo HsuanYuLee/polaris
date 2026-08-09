@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.22.0] - 2026-08-10
+
+### Changed
+
+- 0132b71: learning 的知識落點指回活的那一份（DP-493）
+  `/learning` 的 PR / Batch mode 會把 review lesson 寫進 `{company}/polaris-config/{project}/handbook/`
+  ——一個沒版控、只在作者那台機器上存在的目錄。**寫得成功、回報完成、沒有人讀得到。**
+  落點改指到擁有那個 repo 知識的 skill 自己的 `references/handbook/{repo}/`，解法是讀
+  `{前綴}-REPO-NOTES-{公司}:` 宣告，不寫死任何一家公司。
+  同一份文件原本自己跟自己矛盾：最後一節說舊位置已經沒了，而叫人寫進舊位置的表格排在
+  它前面 50 行。現在只有一個答案。
+  另外三處同一個形狀：Batch mode 的 Layer 1 去重讀舊位置、External mode Route A 的去重掃
+  已經沒有單住在裡面的舊層、`SKILL.md` 第一條契約在 DP-479 被拔掉半句話之後只剩一行沒有
+  主詞的字。
+  擋「learning 不得自己簽成功的定義」的那道檢查也修好了：它比對的是舊層的固定路徑，對任何
+  真實情境都不可能命中。判準改成「這個檔案旁邊有沒有 `.spine/`」——脊椎自己的標記，不指名
+  任何單樹的名字。
+
 ## [4.21.0] - 2026-08-10
 
 ### Changed

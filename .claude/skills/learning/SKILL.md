@@ -22,7 +22,10 @@ scope: standalone
 
 ## Mandatory Contracts
 
-  完整分析寫入 `/tmp/polaris-agent-{timestamp}.md`。
+- 任何 sub-agent dispatch 前，先說出它要回傳什麼（Completion Envelope），並要求它把
+  完整分析寫進一個檔案（`/tmp/polaris-agent-{timestamp}.md`），主 session 只收摘要。
+  envelope 的形狀由派工的那一份 flow 自己定義——PR / Batch 在
+  `learning-pr-batch-flow.md`，queue 在 `learning-queue-flow.md`。
 - 任何 Slack / JIRA / GitHub / Confluence 或其他 external write 前，遵守
   `scripts/validate-language-policy.sh` 或 external write gate。
 - 任何 specs Markdown 產出或匯入，遵守 `starlight-authoring-contract.md`。

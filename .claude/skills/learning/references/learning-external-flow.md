@@ -174,10 +174,13 @@ Route A Quick-path gate：Quick path 沒有完整 Comparison Matrix / Knowledge 
 
 Route A DP seeding：
 
-1. Scan existing `specs/design-plans/DP-*` frontmatter，避免 fuzzy duplicate。
-2. Existing SEEDED / DISCUSSION：詢問 append 或新開。
-3. Existing LOCKED / IMPLEMENTED：新開，Background 加 see also。
-4. Existing ABANDONED：詢問 revive 或新開。
+1. 掃使用者指的那棵單樹裡的既有單，避免 fuzzy duplicate。**一張單的狀態讀它自己的
+   `{單}/.spine/loop-state.json`，不從資料夾名推、也不從 frontmatter 的狀態欄推**——那個
+   欄位會過期，而資料夾只是狀態的投影。單樹根在哪由使用者給；沒有給就問，不要猜一個。
+2. 已經有一張在講同一件事、而且還沒收斂：詢問 append 或新開。
+3. 已經有一張而它已經收斂或釋出：新開，Background 加 see also。
+4. 已經有一張而它被關掉了（不做了）：**先讀它記下的理由再問**。一件事被討論過並且結論
+   是不做，重新提出來的時候那個理由是最重要的輸入。
 5. 新的一張單只建 research snapshot；不得由 learning producer 建那張單的 `{issue}/index.md`——研究產出的是證據，不是成功的定義，而成功的定義只有人簽得下去（見 `refinement`）。
 6. 不自動 invoke refinement；只提示 `refinement DP-NNN`。
 7. Route A 不寫 backlog，但仍寫 `polaris-learnings`。

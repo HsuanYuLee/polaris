@@ -63,17 +63,46 @@ Before writing any pattern, classify it into one of three layers:
 
 | Layer | Scope | Write target |
 |-------|-------|-------------|
-| **Repo-specific** | Applies only to this repo's stack, architecture, or conventions | `{company}/polaris-config/{project}/handbook/` |
-| **Company-level** | Applies across multiple repos in the same company | `rules/{company}/handbook/` |
+| **Repo-specific** | Applies only to this repo's stack, architecture, or conventions | `{owning skill}/references/handbook/{repo}/` |
+| **Company-level** | Applies across multiple repos in the same company | `{owning skill}/references/` |
 | **Framework-level** | Applies across all companies and repos | Mark `[framework]`, write as feedback memory instead |
 
+`{owning skill}` is resolved, never assumed — see **Resolving the owning skill** below.
 Reference that company's own repo-notes skill for the full three-layer classification logic. When in doubt, default to repo-specific — it is always safe to start narrow and promote later.
+
+## Resolving the owning skill
+
+The skill that owns a company's repo knowledge declares itself. Scan every
+`SKILL.md` in the tree for this marker and take the directory it lives in:
+
+```
+<!-- {any prefix}-REPO-NOTES-{company}: {command that lists that company's projects} -->
+```
+
+```bash
+find <skills root> -name 'SKILL.md' -exec grep -l -- '-REPO-NOTES-' {} +
+```
+
+Enumerate with `find` rather than `grep --include`: on some platforms that flag
+does not filter, and the scan then matches any file that merely mentions the
+marker — including this one.
+
+This is the whole resolution rule. Do not hard-code a company name, a project
+name, or a path: this skill is downloaded on its own into environments where
+none of those exist, and a copied path resolves to nothing there while still
+looking correct.
+
+**No declaration found means no write target.** Say so and stop; do not invent a
+directory. A lesson written somewhere nothing reads costs more than a lesson not
+written, because the first one looks done.
 
 ## Deduplication Logic
 
 Before writing any lessons, load existing knowledge to avoid duplicates:
 
-1. **Read all handbook sub-files** in `{company}/polaris-config/{project}/handbook/*.md`
+1. **Read all handbook sub-files** in `{owning skill}/references/handbook/{repo}/*.md` — the
+   same place step *Write Format* writes to. Reading one location and writing to another is how
+   duplicates get reported as new.
 2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (repo-owned rules, excluding any legacy `handbook/` overlay)
 3. Also check `{base_dir}/.claude/rules/*.md` (workspace-level rules)
 
@@ -84,7 +113,7 @@ For each extracted pattern, compare against existing lessons and rules:
 
 ## Write Format
 
-Write extracted patterns directly to `{company}/polaris-config/{project}/handbook/`:
+Write extracted patterns directly to `{owning skill}/references/handbook/{repo}/`:
 
 **File naming**: Topic-based, kebab-case `.md` files (e.g. typescript-type-safety.md, error-handling.md). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
 
@@ -100,24 +129,25 @@ Write extracted patterns directly to `{company}/polaris-config/{project}/handboo
 
 When appending to an existing file, add new entries after the last existing entry (before EOF). Do not modify existing entries.
 
-> **Bootstrap note**: If the repo does not yet have a handbook directory, create it. The first lesson extraction for a repo bootstraps the handbook.
+> **Bootstrap note**: If that repo has no handbook directory under the owning skill yet, create
+> it. The first lesson extraction for a repo bootstraps it. This applies only once the owning
+> skill has been resolved — a missing declaration is not a directory to create.
 
-### Write Location
+### Write Location — why it is the skill directory
 
-Lessons live **inside the skill directory that owns that repo's knowledge** —
-`references/handbook/{repo}/` under that skill. A skill directory is the only
-thing that travels: it is what gets uploaded to claude.ai and Cowork, so a
-lesson written anywhere else is readable on the machine that wrote it and
-missing everywhere else.
+The rule itself is stated in **Three-Layer Classification** and **Resolving the
+owning skill** above; this section only says why, and what it replaced.
 
-Two earlier locations are gone and must not be revived. A workspace-level
-`{company}/polaris-config/{project}/handbook/` is not under version control, so
-it existed only on the author's machine. A repo-local .claude/rules/handbook/ (deliberately not in backticks — the
-location is gone, and naming a gone location as a path is what this paragraph
-is warning against) was a compatibility overlay for the same content. Both were consolidated into
-the owning skill's `references/handbook/`; writing to either one now writes into
-a directory nothing reads.
+A skill directory is the only thing that travels. It is what gets uploaded to
+claude.ai and Cowork, so a lesson written anywhere else is readable on the
+machine that wrote it and missing everywhere else.
 
-`{repo}` is the repo directory name (e.g. `acme-web-app`). If the owning skill
-has no handbook directory for that repo yet, create it — the first lesson
-extraction for a repo bootstraps it.
+Two earlier locations are gone and must not be revived (both named here without
+backticks, because naming a gone location as a path is what this paragraph warns
+against). A workspace-level polaris-config handbook was never under version
+control, so it existed only on the author's machine. A repo-local
+.claude/rules/handbook/ overlay held the same content for compatibility. Both
+were consolidated into the owning skill's `references/handbook/`; writing to
+either one today succeeds, and writes into a directory nothing reads.
+
+`{repo}` is the repo directory name (e.g. `acme-web-app`).

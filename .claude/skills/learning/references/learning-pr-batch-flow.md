@@ -91,8 +91,12 @@ Time range 預設 3 個月；使用者可指定，最多 12 個月。
 
 ### Step B2. Layer 1 Dedup
 
-讀 `{company}/polaris-config/{project}/handbook/*.md`，抽所有 `Source:` PR URL /
+讀 `{owning skill}/references/handbook/{repo}/*.md`，抽所有 `Source:` PR URL /
 number，建立 already-extracted set。這些 PR 直接跳過。
+
+`{owning skill}` 的解法只有一個，寫在 `review-lesson-extraction.md` 的
+**Resolving the owning skill**——讀宣告，不要在這裡抄第二份路徑。讀的位置必須跟那一站
+寫入的位置相同：讀舊的、寫新的，會讓每一個 PR 都看起來沒被抽取過。
 
 ### Step B3. Find Candidate PRs
 
