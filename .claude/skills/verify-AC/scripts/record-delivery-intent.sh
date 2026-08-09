@@ -147,6 +147,22 @@ if [[ ${#DELTA_ALLOWS[@]} -gt 0 && -z "$HEAD_SHA" ]]; then
     "與要交付的 head 之間」那段差異，沒有 --head 就沒有那段差異。"
 fi
 
+# 一個縮寫的 sha 進來的時候先解開它。證據裡記的是完整的 40 字元，直接拿縮寫去比會永遠
+# 不相等——而下游那句話寫的是「量完之後又有 commit 落下去了」，於是使用者被指示去重跑
+# 一次本來就正確的量測。2026-08-09 真的付過那個代價一次。
+#
+# 解不開就明說解不開，不要沉默地往下走：一個打錯的 sha 與一個縮寫的 sha 要長得不一樣。
+if [[ -n "$HEAD_SHA" && ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  RESOLVED="$(git rev-parse --verify --quiet "${HEAD_SHA}^{commit}" 2>/dev/null || true)"
+  if [[ -z "$RESOLVED" ]]; then
+    die "POLARIS_DELIVERY_INTENT_HEAD_UNRESOLVED" \
+      "--head 給的是 '$HEAD_SHA'，而 $(pwd) 解不出它是哪一個 commit。" \
+      "給完整的 sha，或在看得到那個 commit 的工作區裡重跑。"
+  fi
+  echo "NOTE: --head '${HEAD_SHA}' 是縮寫，解開成 ${RESOLVED}。" >&2
+  HEAD_SHA="$RESOLVED"
+fi
+
 # Every assertion the fence declares has to have been measured, at this head, by
 # the oracle. Before this check nothing anywhere required evidence to exist
 # before delivery: this script re-verified the fence, gate-spine-delivery says
@@ -191,28 +207,79 @@ if not ids:
           "there is nothing to have proven", file=sys.stderr)
     sys.exit(1)
 
-def delta_within_allowance(repo, frm, to):
+def distinguish(a, b):
+    """把兩個要被說成不同的 sha 變成兩個看得出不同的字串。
+
+    Args:
+        a, b: 兩個 sha。長度不保證一樣——證據裡存過縮寫。
+    Returns:
+        (a_shown, b_shown)。其中一個是另一個的前綴時兩邊都印全長：那種情況沒有任何
+        寬度能讓它們長得不一樣，而截斷會印出兩個一模一樣的字串，然後說它們不同。
+        2026-08-09 真的印過那一行，讀的人照著建議重跑了一次本來就正確的量測。
+    """
+    if a.startswith(b) or b.startswith(a):
+        return a, b
+    width = 12
+    while a[:width] == b[:width] and width < max(len(a), len(b)):
+        width += 4
+    return a[:width], b[:width]
+
+
+def sees_both(repo, frm, to):
+    """Report whether a repo's object store holds both commits.
+
+    Args:  repo = a directory to ask git in; frm / to = commit shas.
+    Returns: True when both resolve to commits there, False otherwise.
+    """
+    if not repo or not os.path.isdir(repo):
+        return False
+    return all(
+        subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
+                       capture_output=True, text=True).returncode == 0
+        for sha in (frm, to))
+
+
+def candidate_repos(measuring_tree):
+    """Ordered, de-duplicated list of trees that might answer a commit question.
+
+    量測用的那棵樹排第一（它最可能有那兩個 commit），然後是現在站的地方。
+    """
+    out = []
+    for repo in (measuring_tree, os.getcwd()):
+        if repo and repo not in out:
+            out.append(repo)
+    return out
+
+
+def delta_within_allowance(measuring_tree, frm, to):
     """呼叫者指名的那段差異是不是真的只碰了它指名的路徑。
 
     Args:
-        repo: 拿來問 git 的工作區；frm 與 to 兩個 commit 都要在它看得到的物件庫裡。
+        measuring_tree: 證據記下的量測工作區。它只是**第一個候選**，不是唯一答案——
+            兩個 commit 之間的差異是物件庫的性質，不是工作目錄的性質，所以任何一棵
+            看得到那兩個 commit 的樹都會給出同一個答案。釋出尾段的前一步剛好會移除
+            量測用的 worktree，把問題綁在它身上等於讓這道判定對每一張在 worktree
+            開工的單永遠不成立。
         frm:  證據量到的 head。
         to:   要交付的 head。
     Returns:
         (verdict, payload)。verdict 為 "ok" 時 payload 是那段差異碰到的路徑清單；
         為 "outside" 時是沒被指名的那幾條；為 "unmeasurable" 時是一句原因。
     """
-    if not repo or not os.path.isdir(repo):
-        return "unmeasurable", f"證據沒說出它在哪一棵樹上量的，或那棵樹已經不在：{repo!r}"
-    for sha in (frm, to):
-        probe = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
-                               capture_output=True, text=True)
-        if probe.returncode != 0:
-            return "unmeasurable", f"{repo} 看不到 commit {sha[:12]}"
+    tried = candidate_repos(measuring_tree)
+    repo = next((r for r in tried if sees_both(r, frm, to)), None)
+    if repo is None:
+        # 問不到不得放行，而且要說出試過哪幾棵——一句「量不到」沒有指名的話，
+        # 下一個人沒有辦法知道要去哪裡找那兩個 commit。
+        listed = "、".join(repr(r) for r in tried) or "（一個候選都沒有）"
+        return "unmeasurable", (
+            f"沒有任何一棵樹同時看得到 {frm[:12]} 與 {to[:12]}；試過：{listed}")
     diff = subprocess.run(["git", "-C", repo, "diff", "--name-only", frm, to],
                           capture_output=True, text=True)
     if diff.returncode != 0:
-        return "unmeasurable", f"git diff 問不出來：{diff.stderr.strip()}"
+        return "unmeasurable", f"{repo} 的 git diff 問不出來：{diff.stderr.strip()}"
+    print(f"NOTE: 那段差異問的是 {repo}"
+          + ("" if repo == measuring_tree else "（證據量在 %r，那棵已經不在或看不到那兩個 commit）" % measuring_tree))
     paths = [p for p in diff.stdout.splitlines() if p]
     outside = [p for p in paths
                if not any(p == a or p.startswith(a.rstrip("/") + "/") for a in delta_allows)]
@@ -244,8 +311,8 @@ for aid in ids:
     elif not ev.get("head_sha"):
         problems.append(f"  {aid}: evidence names no head_sha")
     elif head and ev.get("head_sha") != head and not delta_allows:
-        problems.append(
-            f"  {aid}: measured at {str(ev.get('head_sha'))[:12]}, delivering {head[:12]}")
+        shown_ev, shown_head = distinguish(str(ev.get("head_sha")), head)
+        problems.append(f"  {aid}: measured at {shown_ev}, delivering {shown_head}")
     elif head and ev.get("head_sha") != head:
         carried.setdefault((ev["head_sha"], ev.get("measured_in") or ""), []).append(aid)
         measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
@@ -300,10 +367,18 @@ if not problems:
         tip = subprocess.run(["git", "-C", trees[0], "rev-parse", "HEAD"],
                              capture_output=True, text=True).stdout.strip()
         if not tip:
-            problems.append(f"  量測用的工作區問不出 HEAD：{trees[0]}")
+            # 量測用的那棵樹已經不在（釋出尾段會移除 worktree）不是紅燈：這一條問的是
+            # 「量完之後有沒有再 commit」，而那棵樹消失的時候這件事在這裡量不到。
+            # 揭露，不放行成沉默。
+            print(f"NOTE: 量測用的工作區問不出 HEAD（{trees[0]}）——"
+                  "「量完之後還有沒有新 commit」這一條沒有被檢查。")
         elif tip != head:
+            # 印到看得出差別為止。兩個值被說成不同、印出來卻一模一樣的時候，讀的人會
+            # 去重跑一次本來就是對的量測——2026-08-09 真的發生過（短 sha 對上完整 sha，
+            # 兩邊都截成 12 個字元）。
+            shown_head, shown_tip = distinguish(head, tip)
             problems.append(
-                f"  證據量的是 {head[:12]}，但 {trees[0]} 現在在 {tip[:12]}——"
+                f"  證據量的是 {shown_head}，但 {trees[0]} 現在在 {shown_tip}——"
                 "量完之後又有 commit 落下去了")
 
 if problems:
@@ -331,14 +406,33 @@ HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"
 DELIVERED_IN="$(cat "$TREE_FROM_EVIDENCE")"
 HEAD_DELTA="$(cat "$DELTA_FROM_EVIDENCE")"
 
-# DP-482 之前產生的證據沒有記下它在哪一棵樹上量的。那時候退回去問「呼叫者站在哪」，
-# 而那正是這張單要拆掉的形狀——所以退回去問那張單自己的宣告，它只有一個產生者。
+# 兩種情況會讓「改動落在哪」問不到那份證據：DP-482 之前產生的證據根本沒記下這件事，
+# 以及**記下了、但那棵樹已經不在**——釋出尾段的前一步就是移除量測用的 worktree。第二種
+# 不是「不知道改動落在哪」，只是那個資料夾沒了，而底下的枚舉問的是 commit 之間的事。
+#
+# 兩種都退回去問那張單自己的宣告，它只有一個產生者。宣告也給不出一個還在的地方時**說
+# 出來**，讓枚舉走它自己的預設——一個安靜地帶著死路徑往下跑的呼叫，會在枚舉那一層炸成
+# 一句跟根因無關的話。
+GONE_TREE=""
+if [[ -n "$DELIVERED_IN" && ! -d "$DELIVERED_IN" ]]; then
+  GONE_TREE="$DELIVERED_IN"
+  DELIVERED_IN=""
+fi
 if [[ -z "$DELIVERED_IN" ]]; then
   LANDING_RESOLVER="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
   if [[ -f "$LANDING_RESOLVER" && -f "$ISSUE_DIR/.spine/loop-state.json" ]]; then
-    DELIVERED_IN="$(bash "$LANDING_RESOLVER" landing --state "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null | head -n 1 || true)"
-    [[ -n "$DELIVERED_IN" ]] \
-      && echo "NOTE: 證據沒記下量的是哪一棵樹，改動落在哪改讀這張單的宣告：$DELIVERED_IN"
+    DECLARED_IN="$(bash "$LANDING_RESOLVER" landing --state "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null | head -n 1 || true)"
+    [[ -n "$DECLARED_IN" && -d "$DECLARED_IN" ]] && DELIVERED_IN="$DECLARED_IN"
+  fi
+  if [[ -n "$DELIVERED_IN" ]]; then
+    if [[ -n "$GONE_TREE" ]]; then
+      echo "NOTE: 證據記的量測工作區 ${GONE_TREE} 已經不在，改動落在哪改讀這張單的宣告：${DELIVERED_IN}"
+    else
+      echo "NOTE: 證據沒記下量的是哪一棵樹，改動落在哪改讀這張單的宣告：${DELIVERED_IN}"
+    fi
+  elif [[ -n "$GONE_TREE" ]]; then
+    echo "NOTE: 證據記的量測工作區 ${GONE_TREE} 已經不在，而這張單的宣告也給不出一個還在的地方；" \
+         "底下的枚舉走它自己的預設（單住的那個 repo），這一趟沒有問到改動真的落下去的那棵樹。"
   fi
 fi
 

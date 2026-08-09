@@ -784,11 +784,24 @@ if [[ "$DRY_RUN" == true ]]; then
 fi
 
 CHANGES=$(git -C "$POLARIS_DIR" status --porcelain | wc -l | tr -d ' ')
-if [[ "$CHANGES" == "0" ]]; then
-  echo "No changes detected — template is already up to date."
+# 「沒有新變更要同步」與「沒有東西要推」是兩件事。上一版把它們收斂成同一句話，於是一次
+# 被中斷後補跑的同步會印「已經是最新的」然後跳過推送——而本機那個 compress commit 還在
+# 那裡沒出去。2026-08-09 真的發生過：腳本說最新，remote 停在上一版。
+UNPUSHED=$(git -C "$POLARIS_DIR" rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+if [[ "$CHANGES" == "0" && "$UNPUSHED" == "0" ]]; then
+  echo "No changes to sync, and nothing unpushed — template is already up to date."
   exit 0
 fi
 
+if [[ "$CHANGES" == "0" ]]; then
+  echo "No changes to sync, but $UNPUSHED commit(s) are not on the remote yet."
+  if [[ "$AUTO_PUSH" != true ]]; then
+    echo "  Re-run with --push to send them."
+    exit 0
+  fi
+fi
+
+if [[ "$CHANGES" != "0" ]]; then
 echo "$CHANGES file(s) changed in template."
 
 # ── Step 9a: Auto-genericize company-specific references ──────────
@@ -853,6 +866,8 @@ if [[ "$AUTO_COMMIT" == true ]]; then
     fi
   fi
 fi
+
+fi   # ← 只有真的有變更時才走 9a/9b 與 commit。沒有變更但有未推的 commit 時直接落到推送。
 
 # ── Step 10: Auto-push (with account switch) ──────────────────────
 
