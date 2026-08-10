@@ -78,6 +78,12 @@ record() {
   #   assertion is measured first, at the head about to be recorded, because
   #   recording refuses an assertion nobody proved.
   # Args: $1 = repo
+  #
+  # 量測命令也要登錄——交付那條路會問「證據記的是不是這條斷言簽過的那一條」，而一張沒有
+  # 登錄的單少的是一整層，不是一個可以跳過的欄位。
+  bash "$VERIFY_AC/record-measurement-change.sh" record \
+    --ledger "$1/issues/ns/DP-000-selftest/.spine/measurement-ledger.json" \
+    --assertion-id A-P1 --new-command 'echo MEASURED' --baseline >/dev/null
   (cd "$1" && bash "$VERIFY_AC/run-hardened-oracle.sh" \
     --command 'echo MEASURED' --expect-evidence MEASURED \
     --evidence-out "$1/issues/ns/DP-000-selftest/.spine/evidence/A-P1.json" >/dev/null)

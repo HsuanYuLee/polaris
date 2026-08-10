@@ -3,9 +3,9 @@
 #          what a delivery actually left behind rather than by asking someone to
 #          list it.
 # Inputs:  --issue <dir>, optional --repo <dir> (the tree the delivery landed in),
-#          optional --base <ref> (default: that repo's own default branch),
-#          optional --out <path> (default {issue}/.spine/inventory.json).
-# Outputs: the inventory JSON at --out; a one-line summary on stderr.
+#          optional --base <ref> (default: that repo's own default branch).
+# Outputs: the inventory JSON at {issue}/.spine/inventory.json; a one-line
+#          summary on stderr.
 #          Exit 2 on usage or a missing source.
 #
 # Why this exists
@@ -44,7 +44,6 @@ set -euo pipefail
 ISSUE_DIR=""
 REPO_ROOT=""
 BASE_REF=""
-OUT=""
 
 die() {
   local marker="$1"; shift
@@ -56,7 +55,7 @@ die() {
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  enumerate-spine-inventory.sh --issue <dir> [--repo <dir>] [--base <ref>] [--out <path>]
+  enumerate-spine-inventory.sh --issue <dir> [--repo <dir>] [--base <ref>]
 
   --repo  改動落在哪棵樹（預設：單自己住的那個 repo）
   --base  拿什麼當 diff 的起點（預設：那個 repo 自己的預設分支）
@@ -69,7 +68,6 @@ while [[ $# -gt 0 ]]; do
     --issue) ISSUE_DIR="${2:-}"; shift 2 ;;
     --repo)   REPO_ROOT="${2:-}"; shift 2 ;;
     --base)   BASE_REF="${2:-}"; shift 2 ;;
-    --out)    OUT="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
   esac
@@ -97,7 +95,9 @@ if [[ -z "$REPO_ROOT" ]]; then
   echo "NOTE: --repo 沒有給，改動落在哪退回用單自己住的 repo：$REPO_ROOT" >&2
 fi
 
-[[ -n "$OUT" ]] || OUT="$ISSUE_ABS/.spine/inventory.json"
+# 清單只有一個落點，因為只有一個讀者：check-spine-legacy-layers.sh --inventory 讀的就是
+# 這裡。以前這是一個旗標，而它從來沒有被任何呼叫者給過值。
+OUT="$ISSUE_ABS/.spine/inventory.json"
 
 # 預設的 base 是那個 repo 自己說的預設分支，不是一個硬編的名字。硬編 `origin/main` 的
 # 那一版對每一個預設分支叫別的名字的 repo 都是紅的——而那不是「這張單有問題」，是這支

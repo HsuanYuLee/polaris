@@ -65,12 +65,19 @@ destination: workspace
 - **Z-P1 something**：when x, y happens.
 <!-- POLARIS-FROZEN-Z-END -->
 MD
+  # 證據手寫，因為這支要量的就是那幾個沒辦法真跑出來的值（縮寫的 sha、一棵已經消失的
+  # 樹）。命令與量測登錄照樣要有：交付那條路會問「證據記的是不是這條斷言登錄過的那一
+  # 條」，一張沒有登錄的單少的是一整層。
   python3 - "$dir/.spine/evidence/Z-P1.json" "$head" "$tree" <<'EVIDENCE'
 import json, sys
 json.dump({"verdict": "PASS", "producer": "run-hardened-oracle.sh",
+           "command": "echo MEASURED", "expect_evidence": ["MEASURED"],
            "head_sha": sys.argv[2], "measured_in": sys.argv[3]},
           open(sys.argv[1], "w"))
 EVIDENCE
+  bash "$SKILLS_ROOT/verify-ac/scripts/record-measurement-change.sh" record \
+    --ledger "$dir/.spine/measurement-ledger.json" \
+    --assertion-id Z-P1 --new-command 'echo MEASURED' --baseline >/dev/null
   bash "$SKILLS_ROOT/refinement/scripts/frozen-assertion-fence.sh" seal "$dir/index.md" --by selftest >/dev/null
 }
 
@@ -112,7 +119,7 @@ else
 fi
 
 # ── R-P2：說成不同的兩個值，印出來也不同 ────────────────────────────────────
-if [[ "$out" == *"measured at $SHORT, delivering $SECOND"* ]]; then
+if [[ "$out" == *"量在 ${SHORT}，要交付 ${SECOND}"* ]]; then
   pass "R-P2 被說成不同的那兩個 sha，印出來看得出不同"
 else
   fail "R-P2 被說成不同的那兩個 sha，印出來看得出不同" "$(printf '%s' "$out" | tail -3)"

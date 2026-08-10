@@ -178,228 +178,78 @@ fi
 # The producer has to be the oracle because a hand-written PASS is
 # self-certification. The oracle pins tools before trusting them and keeps the
 # exit code; a JSON file is whoever typed it.
-python3 - "$INDEX" "$ISSUE_DIR/.spine/evidence" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
+python3 - "$ROOT_DIR" "$INDEX" "$ISSUE_DIR" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
   "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "${DELTA_ALLOWS[@]+${DELTA_ALLOWS[@]}}" <<'PY' || exit 1
-import json
-import os
-import re
-import subprocess
 import sys
 
-index_path, evidence_dir, head, head_out, tree_out, delta_out = sys.argv[1:7]
-delta_allows = sys.argv[7:]
+sys.path.insert(0, sys.argv[1] + "/scripts/lib")
+import assertion_verdicts as av
 
-fences = re.findall(
-    r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
-    open(index_path, encoding="utf-8").read(),
-    re.S,
+root, index, issue, head, head_out, tree_out, delta_out = sys.argv[1:8]
+delta_allows = sys.argv[8:]
+
+report = av.judge(
+    index, issue + "/.spine/evidence",
+    head=head or None,
+    delta_allows=delta_allows,
+    # 第二層與第三層都開。這條路徑是唯一會寫下「這張單可以出貨」的地方，所以它讀的
+    # 不能只是幾個 JSON 檔——那些檔案是誰寫的它自己說了算。報告那條路徑預設只做前
+    # 兩層，因為它不宣稱任何東西。
+    ledger_path=issue + "/.spine/measurement-ledger.json",
+    rerun=True,
+    oracle=root + "/scripts/run-hardened-oracle.sh",
 )
-# An id opening a list item, bold or not. Matching only the bold form would tie
-# this to one house style and quietly find nothing when someone drops the
-# asterisks — and finding nothing here reads as "nothing to prove".
-# Ordered, de-duplicated: the report reads in the order a person signed them.
-ids = list(dict.fromkeys(re.findall(
-    r"^[ \t]*[-*][ \t]*\**([A-Z]+-[PN]\d+)\b", "\n".join(fences), re.M)))
 
-if not ids:
+if not report["ids"]:
     print("POLARIS_DELIVERY_INTENT_NO_ASSERTIONS", file=sys.stderr)
-    print(f"{index_path} has a fence but no assertion ids in it; "
+    print(f"{index} has a fence but no assertion ids in it; "
           "there is nothing to have proven", file=sys.stderr)
     sys.exit(1)
 
-def distinguish(a, b):
-    """把兩個要被說成不同的 sha 變成兩個看得出不同的字串。
-
-    Args:
-        a, b: 兩個 sha。長度不保證一樣——證據裡存過縮寫。
-    Returns:
-        (a_shown, b_shown)。其中一個是另一個的前綴時兩邊都印全長：那種情況沒有任何
-        寬度能讓它們長得不一樣，而截斷會印出兩個一模一樣的字串，然後說它們不同。
-        2026-08-09 真的印過那一行，讀的人照著建議重跑了一次本來就正確的量測。
-    """
-    if a.startswith(b) or b.startswith(a):
-        return a, b
-    width = 12
-    while a[:width] == b[:width] and width < max(len(a), len(b)):
-        width += 4
-    return a[:width], b[:width]
-
-
-def sees_both(repo, frm, to):
-    """Report whether a repo's object store holds both commits.
-
-    Args:  repo = a directory to ask git in; frm / to = commit shas.
-    Returns: True when both resolve to commits there, False otherwise.
-    """
-    if not repo or not os.path.isdir(repo):
-        return False
-    return all(
-        subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
-                       capture_output=True, text=True).returncode == 0
-        for sha in (frm, to))
-
-
-def candidate_repos(measuring_tree):
-    """Ordered, de-duplicated list of trees that might answer a commit question.
-
-    量測用的那棵樹排第一（它最可能有那兩個 commit），然後是現在站的地方。
-    """
-    out = []
-    for repo in (measuring_tree, os.getcwd()):
-        if repo and repo not in out:
-            out.append(repo)
-    return out
-
-
-def delta_within_allowance(measuring_tree, frm, to):
-    """呼叫者指名的那段差異是不是真的只碰了它指名的路徑。
-
-    Args:
-        measuring_tree: 證據記下的量測工作區。它只是**第一個候選**，不是唯一答案——
-            兩個 commit 之間的差異是物件庫的性質，不是工作目錄的性質，所以任何一棵
-            看得到那兩個 commit 的樹都會給出同一個答案。釋出尾段的前一步剛好會移除
-            量測用的 worktree，把問題綁在它身上等於讓這道判定對每一張在 worktree
-            開工的單永遠不成立。
-        frm:  證據量到的 head。
-        to:   要交付的 head。
-    Returns:
-        (verdict, payload)。verdict 為 "ok" 時 payload 是那段差異碰到的路徑清單；
-        為 "outside" 時是沒被指名的那幾條；為 "unmeasurable" 時是一句原因。
-    """
-    tried = candidate_repos(measuring_tree)
-    repo = next((r for r in tried if sees_both(r, frm, to)), None)
-    if repo is None:
-        # 問不到不得放行，而且要說出試過哪幾棵——一句「量不到」沒有指名的話，
-        # 下一個人沒有辦法知道要去哪裡找那兩個 commit。
-        listed = "、".join(repr(r) for r in tried) or "（一個候選都沒有）"
-        return "unmeasurable", (
-            f"沒有任何一棵樹同時看得到 {frm[:12]} 與 {to[:12]}；試過：{listed}")
-    diff = subprocess.run(["git", "-C", repo, "diff", "--name-only", frm, to],
-                          capture_output=True, text=True)
-    if diff.returncode != 0:
-        return "unmeasurable", f"{repo} 的 git diff 問不出來：{diff.stderr.strip()}"
-    print(f"NOTE: 那段差異問的是 {repo}"
-          + ("" if repo == measuring_tree else "（證據量在 %r，那棵已經不在或看不到那兩個 commit）" % measuring_tree))
-    paths = [p for p in diff.stdout.splitlines() if p]
-    outside = [p for p in paths
-               if not any(p == a or p.startswith(a.rstrip("/") + "/") for a in delta_allows)]
-    if outside:
-        return "outside", outside
-    return "ok", paths
-
-
-problems = []
-measured = {}
-measured_in = {}
-# 證據量在別的 head 上，但呼叫者指名了那段差異——先收起來，等下面逐個去 git 驗。
-carried = {}
-for aid in ids:
-    path = os.path.join(evidence_dir, f"{aid}.json")
-    if not os.path.exists(path):
-        problems.append(f"  {aid}: no evidence at {path}")
-        continue
-    try:
-        ev = json.load(open(path, encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        problems.append(f"  {aid}: evidence unreadable ({exc})")
-        continue
-    if ev.get("producer") != "run-hardened-oracle.sh":
-        problems.append(
-            f"  {aid}: producer is {ev.get('producer')!r}, not run-hardened-oracle.sh")
-    if ev.get("verdict") != "PASS":
-        problems.append(f"  {aid}: verdict is {ev.get('verdict')!r}, not PASS")
-    elif not ev.get("head_sha"):
-        problems.append(f"  {aid}: evidence names no head_sha")
-    elif head and ev.get("head_sha") != head and not delta_allows:
-        shown_ev, shown_head = distinguish(str(ev.get("head_sha")), head)
-        problems.append(f"  {aid}: measured at {shown_ev}, delivering {shown_head}")
-    elif head and ev.get("head_sha") != head:
-        carried.setdefault((ev["head_sha"], ev.get("measured_in") or ""), []).append(aid)
-        measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
-    else:
-        measured.setdefault(ev["head_sha"], []).append(aid)
-        measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
-
-# 呼叫者指名了差異的話，逐個去 git 驗那句話。驗過了那些斷言才算數——差異裡出現一個沒被
-# 指名的路徑，或者根本問不出那段差異，都退回原本的拒絕。
-delta_record = None
-for (ev_head, tree), aids in sorted(carried.items()):
-    verdict, payload = delta_within_allowance(tree, ev_head, head)
-    if verdict == "ok":
-        measured.setdefault(ev_head, []).extend(aids)
-        delta_record = {"from": ev_head, "to": head, "paths": payload,
-                        "declared_allowed": delta_allows}
-    elif verdict == "outside":
-        problems.append(
-            f"  {', '.join(aids)}: 量在 {ev_head[:12]}，要交付 {head[:12]}，"
-            f"而中間這段差異碰到了沒被指名的檔案：")
-        problems.extend(f"    {p}" for p in payload)
-    else:
-        problems.append(
-            f"  {', '.join(aids)}: 量在 {ev_head[:12]}，要交付 {head[:12]}，"
-            f"而這段差異量不到——{payload}")
-
-# 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條斷言
-# 量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的東西。
-if not problems and not head:
-    if len(measured) > 1:
-        problems.append("  證據指向不只一棵樹，說不出要交付哪一個 head：")
-        for sha, aids in sorted(measured.items()):
-            problems.append(f"    {sha[:12]}: {', '.join(aids)}")
-    else:
-        head = next(iter(measured))
-
-# 證據說得出自己是在哪一棵樹上量的，所以「那棵樹現在還在不在那個 commit」問得到它本人。
-# 這一條原本問的是呼叫者當下站的目錄——量完之後又推了幾個 commit 的時候它確實會紅，但
-# 它紅的理由是「你站的地方變了」，而站的地方跟量的地方在 --cwd 之下根本是兩棵樹。
-if not problems:
-    trees = [d for d in measured_in if d]
-    if len(trees) > 1:
-        problems.append("  證據來自不只一棵樹，說不出要交付哪一個工作區：")
-        for tree in sorted(trees):
-            problems.append(f"    {tree}: {', '.join(measured_in[tree])}")
-    elif not trees:
-        # 揭露而不是放行：舊的證據沒有這個欄位，這一條就量不到。量不到跟量到沒問題是
-        # 兩件事，安靜跳過會讓下一個讀的人以為它查過了。
-        print("NOTE: 證據沒有記下它在哪一棵樹上量的（DP-482 之前產生的），"
-              "「量完之後還有沒有新 commit」這一條沒有被檢查。")
-    else:
-        tip = subprocess.run(["git", "-C", trees[0], "rev-parse", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
-        if not tip:
-            # 量測用的那棵樹已經不在（釋出尾段會移除 worktree）不是紅燈：這一條問的是
-            # 「量完之後有沒有再 commit」，而那棵樹消失的時候這件事在這裡量不到。
-            # 揭露，不放行成沉默。
-            print(f"NOTE: 量測用的工作區問不出 HEAD（{trees[0]}）——"
-                  "「量完之後還有沒有新 commit」這一條沒有被檢查。")
-        elif tip != head:
-            # 印到看得出差別為止。兩個值被說成不同、印出來卻一模一樣的時候，讀的人會
-            # 去重跑一次本來就是對的量測——2026-08-09 真的發生過（短 sha 對上完整 sha，
-            # 兩邊都截成 12 個字元）。
-            shown_head, shown_tip = distinguish(head, tip)
-            problems.append(
-                f"  證據量的是 {shown_head}，但 {trees[0]} 現在在 {shown_tip}——"
-                "量完之後又有 commit 落下去了")
-
-if problems:
+tally = av.counts(report)
+if report["blockers"] or tally[av.FAIL] or tally[av.UNMEASURABLE]:
     print("POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE", file=sys.stderr)
-    print(f"{len(ids)} assertions declared; refusing to record delivery intent:",
-          file=sys.stderr)
-    print("\n".join(problems), file=sys.stderr)
+    print(f"{len(report['ids'])} assertions declared; "
+          "refusing to record delivery intent:", file=sys.stderr)
+    av.render(report, stream=sys.stderr)
     print("Re-measure at the delivered head with run-hardened-oracle.sh "
           "--evidence-out, then record again.", file=sys.stderr)
     sys.exit(1)
 
-open(head_out, "w", encoding="utf-8").write(head)
-open(tree_out, "w", encoding="utf-8").write(next(iter(d for d in measured_in if d), ""))
-if delta_record:
-    open(delta_out, "w", encoding="utf-8").write(json.dumps(delta_record, ensure_ascii=False))
-    print(f"EVIDENCE: {len(ids)} assertions measured at {delta_record['from'][:12]}, "
-          f"delivering {head[:12]} ({', '.join(ids)})")
-    print(f"  中間那段差異只碰了呼叫者指名的路徑，共 {len(delta_record['paths'])} 個："
-          f"{', '.join(delta_record['paths'])}")
+# 逐條都站得住了，才問「這一趟做成了幾層」。三層裡只有這一層會因為外面的狀態而做不成
+# （另外兩層一個一定跑、一個上面寫死了 True）。**「這張單沒有量測登錄」不是豁免**：
+# 少了它，一份手寫的證據可以自己指名一條一定會過的命令，而第三層會忠實地把它跑綠。
+#
+# 排在逐條之後，因為「哪一條沒過」是讀的人先要知道的事；一張連證據都還沒有的單，先被
+# 告知「你的登錄不見了」只會讓人去修一個還沒輪到的東西。
+if not report["layers"]["registered"]:
+    print("POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE", file=sys.stderr)
+    print(av.layers_line(report), file=sys.stderr)
+    print(f"交付這條路三層全要做。{issue}/.spine/measurement-ledger.json 讀不到，"
+          "所以「證據記的命令是登錄過的那一條」沒有辦法問——先用 engineering 的 "
+          "record-measurement-change.sh 把每條斷言的量測命令登錄起來。", file=sys.stderr)
+    sys.exit(1)
+
+print(av.layers_line(report))
+for note in report["notes"]:
+    print(f"NOTE: {note}")
+open(head_out, "w", encoding="utf-8").write(report["head"])
+open(tree_out, "w", encoding="utf-8").write(report["measured_in"])
+if report["delta"]:
+    import json
+    open(delta_out, "w", encoding="utf-8").write(
+        json.dumps(report["delta"], ensure_ascii=False))
+    # 兩個被說成不同的 sha 要印得看得出不同——其中一個是另一個的前綴時，截成 12 個字元
+    # 會印出兩個一模一樣的字串然後說它們不同（2026-08-09 真的印過那一行）。
+    shown_from, shown_head = av.distinguish(report["delta"]["from"], report["head"])
+    print(f"EVIDENCE: {len(report['ids'])} assertions measured at "
+          f"{shown_from}, delivering {shown_head} "
+          f"({', '.join(report['ids'])})")
+    print(f"  中間那段差異只碰了呼叫者指名的路徑，共 {len(report['delta']['paths'])} 個："
+          f"{'、'.join(report['delta']['paths'])}")
 else:
-    print(f"EVIDENCE: {len(ids)} assertions measured at {head[:12]} ({', '.join(ids)})")
+    print(f"EVIDENCE: {len(report['ids'])} assertions measured at "
+          f"{report['head'][:12]} ({', '.join(report['ids'])})")
 PY
 
 HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"

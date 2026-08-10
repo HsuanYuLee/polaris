@@ -135,13 +135,29 @@ def read(path):
         return handle.read()
 
 
+# 一個名字只出現在註解裡，不算這支腳本認得它。腳本的 `# Usage:` 檔頭是散文的一種，而拿
+# 散文去驗散文永遠是綠的：一支腳本停掉某個旗標卻沒改檔頭，這道閘就從兩邊都看不出來。
+#
+# 全樹目前**一筆都沒有**（2026-08-10 量的：收緊之後零筆新紅），所以紅控在 selftest 的
+# fixture 上，不在這棵樹上——一條只在「剛好有人這樣寫」時才存在的檢查，等於沒有檢查。
+#
+# 收緊有代價，而且量過了：四筆本來對的散文變紅，全部指向 `place-issues-by-state.sh` 的
+# `--issues` / `--check`。那支是個殼，真的參數在它 exec 的 python 那一支裡，而殼的檔頭
+# 註解剛好把兩個旗標都寫了——所以它以前是靠註解變綠的，不是靠行為。修法是讓詞表跟得到
+# 那種寫法的殼（見下面 delegate 那一段），不是放寬這一條。
+#
+# 只剝整行的註解，不剝行尾的。行尾那種要判斷 `#` 是不是在字串裡，而判錯的代價是把一段
+# 真的程式碼剝掉、然後把對的散文判紅——那是這道閘最不該犯的錯（斷言 A-N3）。
+LINE_COMMENT = re.compile(r"^[ \t]*#.*$", re.MULTILINE)
+
+
 def script_vocabulary(script_path):
     """腳本認得的子命令與旗標。
 
     子命令從結尾那個 dispatch case 讀，旗標從所有 case 分支讀——兩者都是 `x|y)` 的形狀，
     分不開也不需要分開：一個名字只要出現在任何一個 case 標籤裡，這支腳本就處理得動它。
     """
-    text = read(script_path)
+    text = LINE_COMMENT.sub("", read(script_path))
     words = set()
     for label in re.findall(r"^\s*([\w|:*.-]+)\)", text, re.MULTILINE):
         for part in label.split("|"):
@@ -153,10 +169,16 @@ def script_vocabulary(script_path):
     # 一支 `exec python3 "$SCRIPT_DIR/lib/x.py" "$@"` 的殼，它認得的字全在被 exec 的那一支
     # 裡面。只讀殼會得到一份空詞表，然後把散文裡每一個對的旗標都判紅——
     # validate-learning-seed-contract.sh 就是這個形狀。跟一層就夠，殼不會疊殼。
-    for delegate in re.findall(r"\$\{?SCRIPT_DIR\}?/([\w./-]+\.(?:py|sh|mjs))", text):
+    #
+    # 殼不只一種寫法：`place-issues-by-state.sh` 用的是
+    # `exec python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/x.py" "$@"`，
+    # 沒有 `SCRIPT_DIR` 這個名字。所以也認「某個展開的結尾接一條同目錄相對路徑」——
+    # 那個展開求出來的就是這支腳本自己的目錄，跟上一種是同一件事。
+    for delegate in re.findall(
+            r"(?:\$\{?SCRIPT_DIR\}?|[)}])/([\w./-]+\.(?:py|sh|mjs))", text):
         target = os.path.join(os.path.dirname(script_path), delegate)
         if os.path.exists(target):
-            words.update(re.findall(r"--[a-z][a-z0-9-]*", read(target)))
+            words.update(re.findall(r"--[a-z][a-z0-9-]*", LINE_COMMENT.sub("", read(target))))
     return words
 
 

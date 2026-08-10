@@ -251,5 +251,61 @@ scoped() {
 [[ "$(scoped --skill other)" == 1 ]] && ok "--skill other 要紅——範圍不是被收成空集合" || bad "--skill other 應該紅"
 [[ "$(scoped --skill nosuch)" == 2 ]] && ok "--skill 指到不存在的是量不到" || bad "--skill nosuch 應該 exit 2"
 
+# 只寫在註解裡的旗標不算存在。腳本的 `# Usage:` 檔頭是散文的一種，拿散文去驗散文永遠是
+# 綠的——一支腳本停掉某個旗標卻沒改檔頭，這道閘從兩邊都看不出來。真的那棵樹上一筆都沒有
+# （2026-08-10 量的），所以紅控只能長在這裡。
+repo="$(new_repo comment_only_flag '# demo
+
+```bash
+bash .claude/skills/demo/scripts/tool.sh show --legacy
+```')"
+printf '# Usage: tool.sh show --legacy\n' >> "$repo/.claude/skills/demo/scripts/tool.sh"
+out="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "只寫在註解裡的旗標被當成存在"
+elif printf '%s' "$out" | grep -q -- '--legacy'; then
+  ok "只寫在註解裡的旗標會紅"
+else
+  bad "紅了但沒說出是哪個旗標：$out"
+fi
+
+# 上一條的反面：真的在程式碼裡的旗標不能因為剝註解而變紅。剝掉的要正好是註解，不是別的。
+repo="$(new_repo real_flag_survives '# demo
+
+```bash
+bash .claude/skills/demo/scripts/tool.sh record --state x
+```')"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "真的在 case 裡的旗標剝完註解仍然是綠的"
+else
+  bad "剝註解把真的旗標弄丟了：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
+# 殼的第二種寫法：exec 到同目錄 lib/ 底下那一支，位置用 BASH_SOURCE 展開出來，沒有
+# SKILL_DIR 這個名字。詞表跟不到被 exec 的那一支的話，殼就只剩檔頭註解可以靠——
+# 而註解已經不算數了，於是一批對的散文會變紅。place-issues-by-state.sh 就是這個形狀。
+repo="$(new_repo shell_delegate_bash_source '# demo
+
+```bash
+bash .claude/skills/demo/scripts/shell.sh --issues x --check
+```')"
+mkdir -p "$repo/.claude/skills/demo/scripts/lib"
+cat > "$repo/.claude/skills/demo/scripts/shell.sh" <<'EOF'
+#!/usr/bin/env bash
+# Usage: shell.sh --issues <path> --check
+exec python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/real.py" "$@"
+EOF
+cat > "$repo/.claude/skills/demo/scripts/lib/real.py" <<'EOF'
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--issues")
+parser.add_argument("--check", action="store_true")
+EOF
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "殼用 BASH_SOURCE 展開時，詞表跟得到被 exec 的那一支"
+else
+  bad "殼的旗標跟不到，對的散文被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
 echo "gate-prose-matches-behaviour selftest: PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

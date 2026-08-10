@@ -21,6 +21,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 RECORD="$ROOT_DIR/scripts/record-delivery-intent.sh"
 FENCE="$ROOT_DIR/scripts/frozen-assertion-fence.sh"
 ORACLE="$ROOT_DIR/scripts/run-hardened-oracle.sh"
+LEDGER_SCRIPT="$ROOT_DIR/scripts/record-measurement-change.sh"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -29,8 +30,12 @@ trap 'rm -rf "$WORK"' EXIT
 #   JSON by hand here would test a check against a forgery it is meant to catch.
 # Args: $1 = repo path, $2 = source dir (absolute), $3 = assertion id
 measure() {
-  local repo="$1" issue="$2" aid="$3"
-  (cd "$repo" && bash "$ORACLE" --command 'echo MEASURED' \
+  local repo="$1" issue="$2" aid="$3" cmd='echo MEASURED'
+  # 量測命令要先登錄過，交付那條路才問得出「證據記的是不是簽過的那一條」。真樹上這一步
+  # 由 engineering 做；fixture 不做的話，它量到的是一條被跳過的層而不是一條通過的層。
+  bash "$LEDGER_SCRIPT" record --ledger "$issue/.spine/measurement-ledger.json" \
+    --assertion-id "$aid" --new-command "$cmd" --baseline >/dev/null
+  (cd "$repo" && bash "$ORACLE" --command "$cmd" \
      --expect-evidence MEASURED \
      --evidence-out "$issue/.spine/evidence/$aid.json" >/dev/null)
 }
@@ -210,7 +215,7 @@ out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
   --summary 'x' 2>&1) )" && fail "an unmeasured assertion should refuse to record"
 grep -Fq POLARIS_DELIVERY_INTENT_EVIDENCE_INCOMPLETE <<<"$out" \
   || fail "missing evidence did not emit its marker; got: $out"
-grep -Fq "A-P1: no evidence" <<<"$out" \
+grep -Fq "A-P1" <<<"$out" && grep -Fq "沒有證據" <<<"$out" \
   || fail "the refusal must name which assertion is unmeasured; got: $out"
 [[ -f "$issue/.spine/delivery.json" ]] \
   && fail "a refused recording must not leave a record behind"
@@ -247,6 +252,8 @@ git -C "$caller" config user.name selftest
 echo unrelated > "$caller/unrelated.txt"
 git -C "$caller" add -A
 git -C "$caller" commit -qm "a history that has nothing to do with the delivery"
+bash "$LEDGER_SCRIPT" record --ledger "$issue/.spine/measurement-ledger.json" \
+  --assertion-id A-P1 --new-command 'echo MEASURED' --baseline >/dev/null
 (cd "$caller" && bash "$ORACLE" --command 'echo MEASURED' --cwd "$repo" \
    --expect-evidence MEASURED \
    --evidence-out "$issue/.spine/evidence/A-P1.json" >/dev/null)
@@ -276,9 +283,51 @@ json.dump({"schema_version": 1, "producer": "me", "verdict": "PASS",
 PY
 out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
   --summary 'x' 2>&1) )" && fail "hand-written evidence should refuse to record"
-grep -Fq "not run-hardened-oracle.sh" <<<"$out" \
+grep -Fq "不是 run-hardened-oracle.sh" <<<"$out" \
   || fail "the refusal must name the producer problem; got: $out"
 echo "  ok  hand-written evidence refuses to record"
+
+# W-P4。上一條擋的是抄錯 producer 的偽造。抄對了呢——`producer` 寫成 oracle 的名字、
+# `verdict` 寫 PASS、`head_sha` 抄現在的 head，整份檔案自洽。擋它的是第二層：那條命令
+# 沒有人登錄過。
+issue="$(new_sealed_issue forged template)"
+repo="$WORK/forged"
+measure "$repo" "$issue" A-P1
+python3 - "$issue/.spine/evidence/A-P1.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+evidence = json.load(open(path))
+# 只換命令，其餘原封不動——這正是一個有 shell 的施工端最省事的偽造。
+evidence["command"] = "true"
+json.dump(evidence, open(path, "w"))
+PY
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
+  --summary 'x' 2>&1) )" && fail "指名一條沒登錄過的命令應該被拒絕"
+grep -Fq "登錄過的那一條" <<<"$out" \
+  || fail "拒絕時要說出是命令對不上登錄；拿到：$out"
+echo "  ok  自洽但指名未登錄命令的證據記錄不下去"
+
+# W-P4 的另一半：整張單沒有量測登錄不是豁免。少了第二層，上面那份偽造就會過。
+issue="$(new_sealed_issue noledger template)"
+repo="$WORK/noledger"
+measure "$repo" "$issue" A-P1
+rm -f "$issue/.spine/measurement-ledger.json"
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
+  --summary 'x' 2>&1) )" && fail "沒有量測登錄應該拒絕，不是跳過那一層"
+grep -Fq "measurement-ledger.json" <<<"$out" \
+  || fail "拒絕時要說出缺的是登錄；拿到：$out"
+echo "  ok  沒有量測登錄不是豁免，是拒絕"
+
+# W-P1/W-P2 的另一面：三層都做成了，紀錄自己要說出來。一份沒說自己做到第幾層的輸出，
+# 讀起來永遠像做滿了。
+issue="$(new_sealed_issue layersline template)"
+repo="$WORK/layersline"
+measure "$repo" "$issue" A-P1
+out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' 2>&1) )" \
+  || fail "三層都成立時應該記得下來；拿到：$out"
+grep -Fq "LAYERS: 檔案自洽、登錄相符、重跑一次" <<<"$out" \
+  || fail "記錄成功時要說出做到第幾層；拿到：$out"
+echo "  ok  記錄成功時說得出自己做了哪三層"
 
 # DP-498 R。下游有時候會在判定之後、釘紀錄之前先做一件只動它自己那幾個檔案的事——釋出
 # 尾段的壓版就是。那個 commit 在判定那一站根本還不存在，所以「證據要量在交付的 head 上」
@@ -357,5 +406,23 @@ out="$( (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary '
 grep -Fq POLARIS_DELIVERY_INTENT_USAGE <<<"$out" \
   || fail "缺 --head 要回用法錯誤；拿到：$out"
 echo "  ok  指名差異卻沒說出要交付哪一個 head 是用法錯誤"
+
+# W-P5。這一層擋得住什麼、擋不住什麼要寫在讀的人會撞到的地方，而且要逐條指名。散文沒有
+# exit code，所以這裡靜態讀它：段落在不在、有沒有指名那個最會被略過的一種（一個能在同一
+# 棵樹上執行任意命令的施工端）、以及有沒有把自己說成滴水不漏。
+#
+# 最後那一條是反過來判的：一份宣稱擋得住所有偽造的說明，會讓下一個人不再看 diff——而
+# diff 正是這三層真正靠著的東西。
+SKILL_MD="$ROOT_DIR/SKILL.md"
+section="$(sed -n '/^### 這一層擋得住什麼、擋不住什麼/,/^## /p' "$SKILL_MD")"
+[[ -n "$section" ]] || fail "SKILL.md 沒有〈這一層擋得住什麼、擋不住什麼〉這一段"
+listed="$(grep -c '^- \*\*' <<<"$section" || true)"
+[[ "$listed" -ge 3 ]] || fail "擋不住的那幾種要逐條列出來，現在只有 $listed 條"
+grep -Fq '能在同一棵樹上執行任意命令的施工端' <<<"$section" \
+  || fail "沒有指名「能在同一棵樹上執行任意命令的施工端」這一種"
+grep -Fq '不是證明' <<<"$section" || fail "沒有說出這三層不是證明"
+grep -Fq '不要把它說成擋得住所有偽造' <<<"$section" \
+  || fail "沒有明文禁止把它說成擋得住所有偽造"
+echo "  ok  說明逐條指名擋得住的與擋不住的（$listed 條），而且不宣稱滴水不漏"
 
 echo "PASS: record-delivery-intent"

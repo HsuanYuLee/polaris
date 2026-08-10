@@ -51,6 +51,11 @@ Usage:
 EOF
 }
 
+# NO-CALLER: --exempt-path — 這棵樹上沒有一張單需要它。留著是因為它是「命令裡不准有這台
+# 機器的路徑」那道拒絕唯一的出路，而那道拒絕會直接讓命令登錄不進去；一道沒有出路的閘
+# 會被整個繞過。理由跟豁免一起寫進登錄，所以用過的痕跡在 diff 裡看得見。
+# NO-CALLER: --exempt-why — 上面那個的另一半。兩個一定成對，只給一個是用法錯誤。
+
 die() {
   # Description: emit a POLARIS marker plus human message, then fail closed.
   # Args: $1 = marker, $2.. = message
