@@ -9,17 +9,24 @@
 # 全套 68.6 秒，每個 commit 跑它會被學會跳過。但按動到的 skill 切之後，一次 commit 通常
 # 只碰一兩支——而「各 skill 自己帶著自己的東西」正是這件事成立的原因。
 #
-# Usage: run-selftests.sh --repo <工作區> [--all | --staged | --changed <路徑>...]
-#          --all      全部。pre-push 用這個。
-#          --staged   staged 的改動動到哪幾支 skill，就跑那幾支。pre-commit 用這個。
-#          --changed  自己指定路徑，行為與 --staged 相同。
-# Exit:  0 都過 / 1 有紅的 / 2 量不到（範圍算不出來、或該跑的檔案讀不到）
+# Usage: run-selftests.sh --repo <工作區> [--all | --staged | --since-base | --changed <路徑>...]
+#          --all         全部。釋出尾段用這個，它本來就是慢的一站。
+#          --staged      staged 的改動動到哪幾支 skill，就跑那幾支。pre-commit 用這個。
+#          --since-base  這條分支相對於預設分支動過的**所有**檔案。pre-push 用這個。
+#          --changed     自己指定路徑，行為與 --staged 相同。
+#          --base <ref>  指名預設分支（預設問 origin/HEAD），只有 --since-base 會用到。
+# Exit:  0 都過 / 1 有紅的 / 2 量不到（該跑的檔案讀不到、根解錯了）
+#
+# `--since-base` 算不出範圍時**不是**回 2，是說出原因並退回跑全套。理由：這個模式掛在
+# pre-push 上，而「範圍算不出來」在那裡最可能的形狀是 shallow clone 或第一次推一條沒有
+# 上游的分支——那時候縮成零支跟全綠長得一樣，而全套只是慢。
 
 set -uo pipefail
 
 PREFIX="[polaris run-selftests]"
 REPO_ROOT=""
 MODE=""
+BASE=""
 CHANGED=()
 
 while [[ $# -gt 0 ]]; do
@@ -27,8 +34,10 @@ while [[ $# -gt 0 ]]; do
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
     --all) MODE=all; shift ;;
     --staged) MODE=staged; shift ;;
+    --since-base) MODE=since_base; shift ;;
+    --base) BASE="${2:-}"; shift 2 ;;
     --changed) MODE=changed; shift; while [[ $# -gt 0 && "$1" != --* ]]; do CHANGED+=("$1"); shift; done ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) echo "$PREFIX 不認得的參數：$1" >&2; exit 2 ;;
   esac
 done
@@ -43,14 +52,56 @@ if [[ ! -d "$SKILLS_DIR" ]]; then
   exit 2
 fi
 
+# Description: 在被測的那個 repo 上跑 git，並且把 hook 環境裡的 GIT_DIR 拿掉——不拿掉的話
+#              這些指令走的是 git 交給 hook 的那個 repo，而不是 --repo 指名的那一個。
+git_q() { env -u GIT_DIR -u GIT_WORK_TREE git -C "$REPO_ROOT" "$@"; }
+
 if [[ "$MODE" == staged ]]; then
   # 不用 mapfile：macOS 內建的是 bash 3.2，沒有它。一支 hook 要能在使用者真的那台跑。
-  staged_list="$(env -u GIT_DIR -u GIT_WORK_TREE \
-    git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMR)" || {
+  staged_list="$(git_q diff --cached --name-only --diff-filter=ACMR)" || {
     echo "$PREFIX 量不到：問不出 staged 的檔案。" >&2; exit 2; }
   while IFS= read -r line; do
     [[ -n "$line" ]] && CHANGED+=("$line")
   done <<< "$staged_list"
+fi
+
+# Description: 這條分支相對於預設分支動過的所有檔案。算不出來時把原因印到 stderr 並回非 0
+#              ——呼叫端會退回全套。安靜地縮成零支跟全綠長得一樣，那是這裡唯一禁止的結果。
+# Outputs: 一行一個 repo 相對路徑（stdout）。
+#
+# 原因走 stderr 不走全域變數：這支函式是在命令替換裡被呼叫的，那是一個 subshell，寫進
+# 全域變數的東西回不到這裡——那一版每一種算不出來的情況都會靜靜地跑零支。
+branch_range_files() {
+  local base="$BASE" merge_base
+  if [[ -z "$base" ]]; then
+    base="$(git_q symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"
+    if [[ -z "$base" ]]; then
+      echo "$PREFIX 算不出分支範圍：解不出預設分支（origin/HEAD 沒設）。" >&2; return 1
+    fi
+  fi
+  if ! git_q rev-parse --verify --quiet "${base}^{commit}" >/dev/null 2>&1; then
+    echo "$PREFIX 算不出分支範圍：預設分支 ${base} 的 commit 本機沒有（shallow clone？沒 fetch 過？）。" >&2
+    return 1
+  fi
+  merge_base="$(git_q merge-base "$base" HEAD 2>/dev/null)"
+  if [[ -z "$merge_base" ]]; then
+    echo "$PREFIX 算不出分支範圍：這條分支跟 ${base} 沒有共同祖先。" >&2; return 1
+  fi
+  git_q diff --name-only --diff-filter=ACMR "$merge_base" HEAD 2>/dev/null || {
+    echo "$PREFIX 算不出分支範圍：問不出 ${merge_base}..HEAD 的改動。" >&2; return 1; }
+}
+
+if [[ "$MODE" == since_base ]]; then
+  range_rc=0
+  range_list="$(branch_range_files)" || range_rc=$?
+  if [[ "$range_rc" -ne 0 ]]; then
+    echo "$PREFIX 退回跑全套——縮成零支跟全綠長得一樣。" >&2
+    MODE=all
+  else
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && CHANGED+=("$line")
+    done <<< "$range_list"
+  fi
 fi
 
 # Description: 一條 repo 相對路徑屬於哪一支 skill。公司 skill 多包一層，那一層也算。

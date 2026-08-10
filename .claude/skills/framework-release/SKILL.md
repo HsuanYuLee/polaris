@@ -101,16 +101,54 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
 | `gate-source-destination.sh` | 宣告了 `destination: workspace`，卻有檔案落在會被同步出去的位置 |
 
 上面這些掃全樹的閘合計 1.3 秒，所以它們掛在 **commit** 上，不是 push——一個過不了閘的
-commit 已經在歷史裡了，那時候修要改寫歷史。selftest 全套 68 秒，commit 只跑這次動到的
-那幾支 skill 的，全套留給 push。兩邊都由 `install-git-hooks.sh` 裝：
+commit 已經在歷史裡了，那時候修要改寫歷史。
+
+## 本機這一層擋得住什麼、擋不住什麼
+
+**它不是安全網，是一層會被自願跑的檢查。** 這一句要先講：一份把自己說成安全網的說明，會讓
+下一個人不去問「那誰在擋」。
+
+兩個 hook 真正被執行的內容住在 `githooks/`，是版控裡的兩個檔案——改它們會出現在 diff 裡，
+一個新 clone 接上一次就拿到當前的版本：
+
+| hook | 跑什麼 | 為什麼是這個範圍 |
+|---|---|---|
+| `githooks/pre-commit` | 上面那幾道掃全樹的閘 ＋ `run-selftests.sh --staged` | 只跑這次 staged 動到的那幾支 skill。過不了閘的 commit 從來不存在 |
+| `githooks/pre-push` | 同一批閘 ＋ `run-selftests.sh --since-base` | 這條分支相對於預設分支動過的**所有**檔案所屬的 skill。不是最後一次 commit 動到的那些（分支前面幾個 commit 動過的會整個漏掉），也不是全套——全套 87.7 秒，掛在每次推送上會被關掉，而一個被關掉的檢查比沒有檢查糟 |
+
+`--since-base` 算不出範圍時（`origin/HEAD` 沒設、shallow clone、跟預設分支沒有共同祖先）
+會**說出原因並退回跑全套**，不會安靜地一支都不跑。
+
+接上的方式是把 `core.hooksPath` 指向那個目錄，不是把內容複製進 `.git/hooks/`：
 
 ```bash
-bash .claude/skills/framework-release/scripts/install-git-hooks.sh            # 裝
+bash .claude/skills/framework-release/scripts/install-git-hooks.sh            # 接上
 bash .claude/skills/framework-release/scripts/install-git-hooks.sh --status   # 看狀態
-bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 移除
+bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 拆掉
 ```
 
-它只會動自己裝的那些（檔案裡有 `[polaris-git-hooks]` 標記），別人手寫的 hook 不碰。
+**代價要說出來**：`core.hooksPath` 一設，`.git/hooks/` 底下所有東西都失效，包含別人手寫的。
+所以接上之前它會掃那個目錄，有不是這套裝的（`[polaris-git-hooks]` 標記以外的）就指名並停
+下來——用一個靜默的停用換一個宣稱的保障，比不接還糟。
+
+<!-- POLARIS-GIT-HOOKS: .claude/skills/framework-release/githooks | bash .claude/skills/framework-release/scripts/install-git-hooks.sh -->
+
+上面那一行是機器讀的：`swe-knowledge` 的開工條件掃它，沒接上就不開輪次。它不認得這個目錄
+叫什麼、也不認得這支安裝器——換一套 hook 只要換那一行。
+
+### 它擋不住的那幾條
+
+| 繞過的方式 | 為什麼擋不住 |
+|---|---|
+| `git commit --no-verify`、`git push --no-verify` | 一個字。hook 的存在本來就假設呼叫者願意跑它 |
+| 直接推預設分支 | 沒有 branch protection（要 repo admin），而本機 hook 不區分推去哪 |
+| 遠端沒有任何強制 | github.com 沒有 server-side hook，`pre-receive` 只有 GitHub Enterprise Server 有。這個 repo 的 `.github/workflows/ci.yml` 從來沒有跑過一次（`total_count: 0`），要打開它需要 admin |
+| 從一個還沒有 `githooks/` 的分支開 worktree | `core.hooksPath` 存的是相對路徑，那個工作樹裡的目錄不存在，git 安靜地什麼都不跑 |
+| 事後把 hook 檔案的執行位元拿掉 | git 安靜地跳過它。安裝器與開工條件都會擋，但那是它們跑的那一刻的事 |
+
+**真正在擋的是這條尾段。** 促進到 main 之前它重跑全套閘與全套 selftest——走脊椎出去的東西
+是被檢查過的，暴露面只有上面那幾條繞過脊椎的路。這一層不假裝能關掉它們，只負責讓「有接上、
+有跑、跑得夠」這三件成立。
 
 ## 從哪裡跑
 

@@ -128,5 +128,85 @@ else
   bad "沒有指名任何地方卻自己找了一個來判：rc=$RC $OUT"
 fi
 
+# ── 第二條：宣告出來的版控 hook 目錄，git 真的在用嗎 ─────────────────────────
+# 沒接上的 checkout，它的每個 commit 與每次 push 一道閘都不會跑，而且不會有任何東西說。
+# 這是只有開工前擋得住的那一種——發現的時候那些 commit 已經在歷史裡了。
+
+HOOKS_REL=".claude/skills/framework-release/githooks"
+
+# Description: 造一個宣告了版控 hook 目錄的 repo（已經站在 feature 分支上）。
+# Args: $1 = case 名字
+# Outputs: repo 路徑
+new_declared_repo() {
+  local repo; repo="$(new_repo "$1" main)"
+  mkdir -p "$repo/$HOOKS_REL" "$repo/.claude/skills/framework-release"
+  printf '# framework-release\n<!-- POLARIS-GIT-HOOKS: %s | bash 接上它的那支腳本 -->\n' \
+    "$HOOKS_REL" > "$repo/.claude/skills/framework-release/SKILL.md"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/$HOOKS_REL/pre-commit"
+  chmod +x "$repo/$HOOKS_REL/pre-commit"
+  git -C "$repo" switch -q -c feat/hooks
+  printf '%s' "$repo"
+}
+
+repo="$(new_declared_repo hooks_connected)"
+git -C "$repo" config core.hooksPath "$HOOKS_REL"
+run --repo "$repo"
+if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q 'hook：已接上'; then
+  ok "接上了就放行，並且說出接的是哪一個目錄"
+else
+  bad "接上了卻沒放行或沒說：rc=$RC $OUT"
+fi
+
+repo="$(new_declared_repo hooks_unset)"
+run --repo "$repo"
+if [[ "$RC" -ne 0 ]] && printf '%s' "$OUT" | grep -q '沒有在用它'; then
+  ok "宣告了卻沒接上：不開輪次"
+else
+  bad "沒接上卻放行了：rc=$RC $OUT"
+fi
+printf '%s' "$OUT" | grep -q '修法：bash 接上它的那支腳本' \
+  && ok "拒絕的訊息說得出怎麼接上（命令來自宣告，不是寫死的）" \
+  || bad "拒絕沒有說怎麼接上：$OUT"
+
+repo="$(new_declared_repo hooks_elsewhere)"
+git -C "$repo" config core.hooksPath /tmp/somewhere-else
+run --repo "$repo"
+[[ "$RC" -ne 0 ]] && ok "core.hooksPath 指到別的地方也不算接上" \
+  || bad "指到別的地方卻放行了：$OUT"
+
+# 沒有執行位元的 hook，git 是安靜地跳過——接上了跟沒接一樣。
+repo="$(new_declared_repo hooks_not_exec)"
+git -C "$repo" config core.hooksPath "$HOOKS_REL"
+chmod -x "$repo/$HOOKS_REL/pre-commit"
+run --repo "$repo"
+if [[ "$RC" -ne 0 ]] && printf '%s' "$OUT" | grep -q '執行位元'; then
+  ok "hook 沒有執行位元＝沒接上，指名那個檔並不放行"
+else
+  bad "沒有執行位元卻放行了：rc=$RC $OUT"
+fi
+
+# 問不到閘的狀態就拒絕。宣告指向一個不存在的目錄，是這一類裡唯一在 fixture 裡造得出來的
+# 形狀——另一種（core.hooksPath 讀不出來）需要一份壞掉的 .git/config，而那會讓更前面的
+# rev-parse 先炸掉，所以它在程式碼裡守著、但這裡量不到它。
+repo="$(new_declared_repo hooks_dir_gone)"
+git -C "$repo" config core.hooksPath "$HOOKS_REL"
+rm -rf "$repo/$HOOKS_REL"
+run --repo "$repo"
+if [[ "$RC" -ne 0 ]] && printf '%s' "$OUT" | grep -q '量不到'; then
+  ok "宣告指向不存在的目錄：說出量不到，並且不放行"
+else
+  bad "宣告指向空氣卻放行了：rc=$RC $OUT"
+fi
+
+# 沒有宣告的工作區（多數產品 repo）這一條不適用，而且要把不適用印出來——一個安靜的第三態
+# 下一次會被當成查過了。
+repo="$(new_repo no_declaration main)"; git -C "$repo" switch -q -c feat/x
+run --repo "$repo"
+if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q '這一條不適用'; then
+  ok "沒有宣告 hook 目錄的工作區：放行，而且說出這一條不適用"
+else
+  bad "不適用沒有被印出來：rc=$RC $OUT"
+fi
+
 echo "check-swe-precondition selftest: PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

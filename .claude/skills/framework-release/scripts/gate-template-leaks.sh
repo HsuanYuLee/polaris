@@ -14,9 +14,9 @@ set -euo pipefail
 #     (post-merge). By the time leaks were detected the workspace PR had already
 #     merged, forcing a hard-reset + replacement PR.
 #   * This gate runs the same scan at workspace PR creation (via
-#     scripts/check-framework-pr-gate.sh) and at git push time (via
-#     .git/hooks/pre-push installed by .claude/skills/framework-release/scripts/install-git-hooks.sh) so leaks
-#     are caught before merge.
+#     scripts/check-framework-pr-gate.sh) and at git push time (it is one of the
+#     gates run-gates.sh runs, and .claude/skills/framework-release/githooks/pre-push
+#     calls that) so leaks are caught before merge.
 
 PREFIX="[polaris gate-template-leaks]"
 REPO_ROOT=""

@@ -535,10 +535,11 @@ fi
 #   now merged and disposable, with local main still at the pre-release commit.
 #   A later session starting from main would silently build on the old state.
 #
-#   The part that is easy to miss is the hooks: .git/hooks/ is generated per
-#   machine and is not in the repository, so a release that adds a gate does not
-#   activate it until install-git-hooks.sh runs again. Syncing the file is not
-#   the same as arming the gate.
+#   The part that is easy to miss is the hooks. Their content is versioned now
+#   (.claude/skills/framework-release/githooks/), so landing main is enough to
+#   update what runs — but core.hooksPath is per-clone config, so a checkout that
+#   has never been connected still runs nothing. install-git-hooks.sh is what
+#   connects it, and it is idempotent.
 #
 #   Skipped entirely when the tree is dirty — landing is housekeeping and must
 #   never be a reason to touch someone's uncommitted work.
@@ -564,7 +565,9 @@ land_locally() {
   note "main $previous_main -> $(git -C "$REPO_PATH" rev-parse --short main)"
 
   # Idempotent, and the only step that actually arms a newly released gate.
-  bash "$SCRIPTS/install-git-hooks.sh" >/dev/null 2>&1 \
+  # --repo, not cwd: this ran from wherever the caller happened to stand, and a
+  # shell that had wandered into issues/ is exactly how DP-500 was born.
+  bash "$SCRIPTS/install-git-hooks.sh" --repo "$REPO_PATH" >/dev/null 2>&1 \
     && note "git hooks reinstalled — newly released gates are now armed" \
     || note "git hooks reinstall failed; run bash .claude/skills/framework-release/scripts/install-git-hooks.sh"
 

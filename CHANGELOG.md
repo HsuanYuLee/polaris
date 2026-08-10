@@ -1,5 +1,30 @@
 # Changelog
 
+## [4.26.0] - 2026-08-10
+
+### Changed
+
+- 0cf5f9f: ### Changed
+  本機這一層的閘現在說到做到，並且說得出它擋不住什麼（DP-471）。
+  - **pre-push 真的跑 selftest，範圍照分支算**：`run-selftests.sh` 新增 `--since-base`，跑的是
+    這條分支相對於預設分支動過的**所有**檔案所屬的 skill。在這之前 pre-push 只跑
+    `run-gates.sh`，而 `SKILL.md` 與 `run-selftests.sh` 的 usage 兩處都寫著「全套留給 push」——
+    一道被兩處文件宣稱存在、實際不存在的檢查。範圍算不出來時（`origin/HEAD` 沒設、shallow
+    clone）說出原因並退回跑全套，不會安靜地一支都不跑。
+  - **閘的內容進版控**：兩個 hook 移到 `.claude/skills/framework-release/githooks/`，由
+    `install-git-hooks.sh` 設 `core.hooksPath` 接上。git 真的執行的就是版控裡那兩個檔案——改
+    它們會出現在 diff 裡，新 clone 接上一次就拿到當前的版本。以前它們是 heredoc 生進
+    `.git/hooks/` 的，閘的改動不在任何一個 diff 裡。
+  - **接上之前先看有沒有別人手寫的 hook**：`core.hooksPath` 一設會讓 `.git/hooks/` 底下所有
+    東西失效。有不是這套裝的就指名並停下來，不默默停用。沒有執行位元的 hook 也拒絕接上——
+    git 是安靜地跳過它們的。
+  - **沒接上就不開輪次**：`check-swe-precondition.sh` 多一條，掃工作區自己宣告的
+    `{前綴}-GIT-HOOKS: {路徑} | {接上它的命令}`。沒有宣告的工作區這一條不適用，而且會印出
+    「不適用」。問不出閘的狀態時拒絕，不是放行。
+  - **文件不再把這一層說成安全網**：`framework-release/SKILL.md` 逐條列出它擋不住什麼
+    （`--no-verify`、直接推預設分支、遠端沒有任何強制、沒有 `githooks/` 的 worktree、事後被
+    拿掉的執行位元），以及真正在擋的是釋出尾段促進 main 之前那次全套重跑。
+
 ## [4.25.0] - 2026-08-10
 
 ### Changed

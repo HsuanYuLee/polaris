@@ -90,5 +90,43 @@ reset_fixture
 rm -rf "$tmp/repo/.claude/skills"
 check "skill 目錄不存在時 exit 2" 2 "量不到" --all
 
+# ── --since-base：範圍照分支算 ─────────────────────────────────────
+# 這一段是 DP-471 的 V-P1 與 V-N2。以前 pre-push 一支 selftest 都沒跑，而兩處文件寫著
+# 「全套留給 push」；補上的時候如果只看最後一次 commit，分支前面動過的 skill 一樣會漏。
+
+# Description: 造一棵有預設分支、有 origin/HEAD 的樹，並在一條 feature 分支上放兩個
+#              commit——第一個動 alpha，第二個動 beta。只看最後一次 commit 的話只會看到 beta。
+branched_fixture() {
+  reset_fixture
+  git -C "$tmp/repo" symbolic-ref refs/remotes/origin/HEAD \
+    "refs/heads/$(git -C "$tmp/repo" rev-parse --abbrev-ref HEAD)"
+  git -C "$tmp/repo" switch -q -c feat/x
+  echo '# alpha touched' >> "$tmp/repo/.claude/skills/alpha/SKILL.md"
+  git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm "動 alpha"
+  echo '# beta touched' >> "$tmp/repo/.claude/skills/beta/SKILL.md"
+  git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm "動 beta"
+}
+
+branched_fixture
+check "--since-base 涵蓋整條分支，不只最後一次 commit" 0 "跑了 2 支" --since-base
+# 對照組：真的只看最後一次 commit 的話是 1 支。這一行證明上面那個 2 不是因為全跑了。
+check "對照：只看最後一次 commit 只會看到 beta" 0 "跑了 1 支" \
+  --changed .claude/skills/beta/SKILL.md
+
+# 範圍算不出來時要說出來並退回全套。安靜地縮成零支跟全綠長得一樣。
+branched_fixture
+git -C "$tmp/repo" symbolic-ref -d refs/remotes/origin/HEAD
+check "解不出預設分支：說出原因" 0 "算不出分支範圍" --since-base
+check "解不出預設分支：退回跑全套，不是跑零支" 0 "範圍：全部，跑了 2 支" --since-base
+
+branched_fixture
+check "指名一個不存在的預設分支也退回全套" 0 "範圍：全部，跑了 2 支" --since-base --base no-such-branch
+
+# 退回全套之後紅的還是要紅——退路不得順便變成放行。
+branched_fixture
+git -C "$tmp/repo" symbolic-ref -d refs/remotes/origin/HEAD
+printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/repo/.claude/skills/beta/selftests/beta-selftest.sh"
+check "退回全套之後，紅的照樣紅" 1 "beta-selftest.sh" --since-base
+
 echo "run-selftests selftest: PASS=$pass FAIL=$fail"
 [[ "$fail" == 0 ]]

@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # check-swe-precondition.sh — 軟體工程的工作，開輪次之前要成立的條件。
 #
-# 只有一條：**不站在預設分支上**。
+# 兩條：**不站在預設分支上**，以及**那個工作區宣告的版控 hook 目錄真的被 git 在用**。
 #
-# 為什麼是開工前而不是交付前：`check-swe-done.sh` 也查這一條，但那時候已經來不及——改動
+# 為什麼是開工前而不是交付前：`check-swe-done.sh` 也查第一條，但那時候已經來不及——改動
 # 躺在預設分支上這件事，是在第一個 commit 落下的那一刻發生的，不是在交付那一刻。
 # 2026-08-03 三張單的 commit 全部混在預設分支上，而當天寫下這條規矩的那個 commit 本身
 # 也在預設分支上；規矩在寫下的一小時內失效四次。
 #
-# 為什麼只有一條：開工前成立得了的條件才放這裡。「有一個 PR」開工前不可能成立，
+# 第二條同一個時態問題更嚴重：hook 沒接上的 checkout，它的每一個 commit 與每一次 push
+# 一道閘都不會跑，而且**不會有任何東西說**。發現的時候那些 commit 已經在歷史裡了。
+#
+# 第二條不認得任何一個 hook 目錄的位置，也不認得哪一支 skill 負責裝它。它掃那個工作區
+# 自己的宣告：`{任意前綴}-GIT-HOOKS: {相對路徑} | {接上它的命令}`。沒有宣告的工作區（多數
+# 產品 repo）這一條不適用，而且會把「不適用」印出來——一個安靜的第三態下一次就會被當成
+# 查過了。
+#
+# 為什麼只有這兩條：開工前成立得了的條件才放這裡。「有一個 PR」開工前不可能成立，
 # 「push 前跑完本機驗證」那時候沒有東西可以驗——那些是交付前的事。一個開工前註定
 # 不成立的前置條件，只會逼人學會繞過整道閘。
 #
@@ -46,6 +54,68 @@ if [[ ${#REPO_PATHS[@]} -eq 0 ]]; then
   echo "$PREFIX 修法：spine-loop-state.sh init --where <每一個工作區的路徑>（可以給很多次）" >&2
   exit 2
 fi
+
+# Description: 這個工作區有沒有宣告一個版控的 hook 目錄。宣告掃的是它自己的 skill，核心
+#              與這支腳本都不認得那個目錄叫什麼、由誰裝。
+# Args: $1 = repo toplevel
+# Outputs: `{相對路徑}|{接上它的命令}`；沒有宣告就什麼都不印。
+hooks_declaration() {
+  local top="$1" line
+  [[ -d "$top/.claude/skills" ]] || return 0
+  line="$(grep -rhoE '[A-Za-z0-9_-]+-GIT-HOOKS:[^>]*' "$top/.claude/skills" \
+    --include=SKILL.md 2>/dev/null | head -1)"
+  [[ -n "$line" ]] || return 0
+  printf '%s' "${line#*-GIT-HOOKS:}" | sed 's/^ *//; s/ *$//; s/ *| */|/'
+}
+
+# Description: 判「宣告出來的那個 hook 目錄，git 真的在用嗎」。
+# Args: $1 = repo toplevel
+# Exit:  0 成立或不適用 / 2 不成立、量不到（訊息進 stderr，成立的一句話進 stdout）
+check_hooks() {
+  local top="$1" decl dir fix actual rc=0 f
+  decl="$(hooks_declaration "$top")"
+  if [[ -z "$decl" ]]; then
+    echo "  hook：這個工作區沒有宣告版控 hook 目錄，這一條不適用。"
+    return 0
+  fi
+  dir="${decl%%|*}"; fix="${decl#*|}"
+  if [[ ! -d "$top/$dir" ]]; then
+    echo "$PREFIX 量不到：${top} 宣告的 hook 目錄 ${dir} 不存在。" >&2
+    echo "$PREFIX 宣告與現況對不上時這裡不放行——一個指向空氣的宣告，跟沒有宣告在出事的時候長得一樣。" >&2
+    return 2
+  fi
+  # 沒有執行位元的 hook，git 是安靜地不跑它：沒有警告，commit 與 push 一樣過。所以「接上了」
+  # 不只是 config 指對地方，還要那裡的東西真的跑得起來。
+  for f in "$top/$dir"/*; do
+    [[ -f "$f" ]] || continue
+    if [[ ! -x "$f" ]]; then
+      echo "$PREFIX 開工條件不成立：${dir}/$(basename "$f") 沒有執行位元，git 會安靜地不跑它。" >&2
+      echo "$PREFIX 修法：chmod +x 它，並且讓版控也記得（git update-index --chmod=+x）。" >&2
+      return 2
+    fi
+  done
+  actual="$(git -C "$top" config --get core.hooksPath 2>/dev/null)" || rc=$?
+  # git config 對「沒設」回 1，其餘非 0 才是真的讀不出來。把兩者混成一個，會讓一個壞掉的
+  # config 被讀成「沒接上」——而那是一個看起來有答案的錯答案。
+  if [[ "$rc" -gt 1 ]]; then
+    echo "$PREFIX 量不到：${top} 的 core.hooksPath 讀不出來（git config 回 ${rc}）。" >&2
+    echo "$PREFIX 問不到閘的狀態不是通過。" >&2
+    return 2
+  fi
+  if [[ "$actual" == "$dir" || "$actual" == "$top/$dir" ]]; then
+    echo "  hook：已接上 ${dir}。"
+    return 0
+  fi
+  echo "$PREFIX 開工條件不成立：${top} 宣告了版控 hook 目錄 ${dir}，但 git 沒有在用它。" >&2
+  if [[ -z "$actual" ]]; then
+    echo "$PREFIX 現在 core.hooksPath 沒設，git 在用 .git/hooks——那裡沒有這套閘。" >&2
+  else
+    echo "$PREFIX 現在 core.hooksPath = ${actual}。" >&2
+  fi
+  echo "$PREFIX 沒接上的話，這個 checkout 的每個 commit 與每次 push 一道閘都不會跑，而且不會有任何東西說。" >&2
+  echo "$PREFIX 修法：${fix}   然後重跑一次。" >&2
+  return 2
+}
 
 # Description: 對一個 repo 判「有沒有站在預設分支上」。
 # Args: $1 = repo 路徑
@@ -85,7 +155,11 @@ if [[ "$BRANCH" == "$LOCAL_BASE" ]]; then
   exit 2
 fi
 
+  local HOOKS_LINE
+  HOOKS_LINE="$(check_hooks "$TOPLEVEL")" || exit 2
+
   echo "SWE-PRECONDITION-OK $(basename "$TOPLEVEL"):${BRANCH}（預設分支是 ${LOCAL_BASE}）"
+  echo "$HOOKS_LINE"
 }
 
 # 每一個都要成立。有一個不成立就整體不成立——放行一個「三個地方裡有兩個對」的開工，
