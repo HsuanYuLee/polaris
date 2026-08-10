@@ -53,6 +53,7 @@ AUTO_COMMIT=false
 AUTO_PUSH=false
 PRUNE=true
 LEAK_BLOCKING=true
+STATUS_ONLY=false
 
 read_workspace_language() {
   local start="${1:-$INSTANCE_DIR}"
@@ -178,9 +179,34 @@ while [[ $# -gt 0 ]]; do
     --no-prune) PRUNE=false; shift ;;
     --leak-blocking) LEAK_BLOCKING=true; shift ;;
     --leak-warn-only) LEAK_BLOCKING=false; shift ;;
+    # 只讀：印一行「這一趟同步做到哪」。問的是 template checkout 自己，不是任何一份帳。
+    # 住在這裡而不是呼叫端，是因為 template 在哪、什麼算「同步完了」是這一支的知識——
+    # 呼叫端自己去問 ~/polaris，就是那份知識的第二份（DP-501 T-N1）。
+    --status) STATUS_ONLY=true; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+# 只讀模式要能報告「那棵樹不在」，所以它排在解析路徑的前面——`cd` 到一個不存在的目錄
+# 會直接讓整支死掉，而一個死掉的探針說不出任何話。
+if [[ "$STATUS_ONLY" == true ]]; then
+  if [[ ! -d "$POLARIS_DIR/.claude/skills" ]]; then
+    echo "unreachable  template checkout 不在 $POLARIS_DIR"
+    exit 0
+  fi
+  POLARIS_DIR="$(cd "$POLARIS_DIR" && pwd)"
+  tpl_version="$(cat "$POLARIS_DIR/VERSION" 2>/dev/null || echo unknown)"
+  src_version="$(cat "$INSTANCE_DIR/VERSION" 2>/dev/null || echo unknown)"
+  dirty="$(git -C "$POLARIS_DIR" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  unpushed="$(git -C "$POLARIS_DIR" rev-list --count '@{u}..HEAD' 2>/dev/null || echo unknown)"
+  if [[ "$tpl_version" == "$src_version" && "$dirty" == "0" && "$unpushed" == "0" ]]; then
+    verdict="in-sync"
+  else
+    verdict="behind"
+  fi
+  echo "$verdict  template=$tpl_version instance=$src_version dirty=$dirty unpushed=$unpushed"
+  exit 0
+fi
 
 POLARIS_DIR="$(cd "$POLARIS_DIR" && pwd)"
 

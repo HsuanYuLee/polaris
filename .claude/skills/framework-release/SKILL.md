@@ -40,6 +40,23 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue}
 bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} --execute
 ```
 
+## 被打斷了：先問它走到哪
+
+```bash
+bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} --status
+```
+
+**逐項問每一個系統，然後直接重跑 `--execute` 就好。** 每一步在做之前都會先問那個真的擁有
+那件事的系統——`git ls-remote` 問 tag、`gh release view` 問 release、`merge-base` 問促進、
+template checkout 自己問同步——所以做過的會被跳過，沒做的會被補上。
+
+**沒有進度檔，這是刻意的。** 一份「做到第幾步」的本機紀錄是同一件事的第二個答案，而第一個
+答案在 origin、在 GitHub、在 template checkout 上。兩份會漂，而漂掉的那一刻正好是有人被
+打斷、最需要一句真話的時候。
+
+問不到的那一項會說它問不到（例如 `gh` 不在、`origin/main` 的物件本機沒有），不會省略、
+也不會猜一個——一個安靜的第三態，下一次就會被當成查過了。
+
 ## 尾段做哪幾件事
 
 1. **重驗** —— fence 與交付紀錄都要還成立。任一項不成立就停，這時候還沒有任何東西被送出去。
@@ -59,7 +76,11 @@ bash .claude/skills/framework-release/scripts/spine-release.sh --issue {issue} -
    **壓完版號就要促進到 main，不停在中間。** 一個壓了版號卻沒進 main 的 commit，是一個宣稱
    已經發生、但任何人 clone 下來都看不到的版本。這兩步之間沒有停點。
 4. **同步 template** —— 只有 `destination: template` 的單才做。`workspace` 的到第 3 步為止。
-5. **接回本機** —— main 快轉、git hook 重裝、已併的分支刪掉。
+5. **打 tag、建 release** —— **兩件事，各問各的系統。** tag 問 `git ls-remote --tags origin`，
+   release 問 `gh release view`。用一個判斷答兩件事的那一版，在「tag 推出去了、release 還
+   沒建」那個中斷點重跑會印「already on origin」然後回報出貨完成，而那個 release 從來沒有
+   存在過。問不到 release 在不在的時候**停**，不當成已經有了。
+6. **接回本機** —— main 快轉、git hook 重裝、已併的分支刪掉。
 
 `destination` 是人在閘一宣告的，寫在 `{issue}/index.md` 的 frontmatter。這裡只讀不改。
 
@@ -109,6 +130,10 @@ bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 
 
 **紀錄釘的 commit 不是現在的 HEAD** —— 判定之後又有新 commit。要嘛把那些 commit 也送審，
 要嘛回到被判定的那個狀態。不要重寫紀錄去遷就 HEAD。
+
+**但有一種例外，而它自己證明得了**：HEAD 就是上一趟被打斷前壓的那個版號 commit——直接坐在
+被判定的 head 上，而且只碰了 `VERSION`／`CHANGELOG.md`／`package.json`／`.changeset`。
+這一種尾段自己會重釘並往下走。兩個條件任一不成立就照舊拒絕，並說出是哪一項不成立。
 
 **fence 對不上** —— 斷言在判定之後被動過。這比版本號錯嚴重：對著一份沒人簽過的成功定義
 出貨，比不出貨糟。回 `refinement` 重簽，然後整條重走。

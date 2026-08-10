@@ -32,6 +32,9 @@ EXECUTE=0
 PROBE_TAG=""
 PROBE_BRANCH=""
 PROBE_ISSUE_PATH=""
+STATUS=0
+PROBE_TAIL_PLAN=""
+PROBE_RECORD_STATE=0
 
 die() {
   # Description: print a POLARIS marker plus context to stderr and exit 1.
@@ -60,16 +63,23 @@ while [[ $# -gt 0 ]]; do
     --branch-in-base) PROBE_BRANCH="${2:-}"; shift 2 ;;
     # 交給下游的那條單路徑。同上：印的與交的是同一個值。
     --issue-path) PROBE_ISSUE_PATH=1; shift ;;
+    # 只讀：逐項問每個系統這一趟走到哪，印完就結束。什麼都不寫、不推、不建立。
+    --status) STATUS=1; shift ;;
+    # 只讀 probe：tag 與 release 各自要不要做（同一個函式，測試問到的與真的做的是同一份）。
+    --tail-plan) PROBE_TAIL_PLAN="${2:-}"; shift 2 ;;
+    # 只讀 probe：交付紀錄與 HEAD 的關係——current / resumable-version-commit / stale。
+    --record-state) PROBE_RECORD_STATE=1; shift ;;
     -h|--help)
-      echo "Usage: spine-release.sh --issue <dir> [--repo <path>] [--execute]" >&2
+      echo "Usage: spine-release.sh --issue <dir> [--repo <path>] [--execute | --status]" >&2
       echo "Without --execute this previews what it would do and changes nothing." >&2
+      echo "--status asks each system how far this release got, and writes nothing." >&2
       exit 0
       ;;
     *) die "POLARIS_SPINE_RELEASE_USAGE" "unknown argument: $1" ;;
   esac
 done
 
-[[ -n "$ISSUE_DIR" || -n "$PROBE_TAG" || -n "$PROBE_BRANCH" ]] \
+[[ -n "$ISSUE_DIR" || -n "$PROBE_TAG" || -n "$PROBE_BRANCH" || -n "$PROBE_TAIL_PLAN" ]] \
   || die "POLARIS_SPINE_RELEASE_USAGE" "--issue is required"
 [[ -n "$REPO_PATH" ]] || REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REPO_PATH="$(cd "$REPO_PATH" && pwd)"
@@ -114,6 +124,44 @@ if [[ -n "$PROBE_BRANCH" ]]; then
   branch_in_base "$PROBE_BRANCH" "origin/main" && echo yes || echo no
   exit 0
 fi
+# Description: 這個 repo 在 GitHub 上叫什麼。
+# Returns: `owner/name` 印到 stdout，問不到就印空字串（不 die：只讀模式要能報告「問不到」）。
+resolve_workspace_repo() {
+  (cd "$REPO_PATH" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
+}
+
+# Description: 這個 tag 的 GitHub release 存不存在。
+# Args: $1 = tag，$2 = owner/name。
+# Returns: 0 存在，非 0 不存在或問不到。
+# 為什麼要單獨問：tag 與 release 是兩件事，而它們之間有一個真實的中斷點（DP-501）。
+release_exists() {
+  [[ -n "${2:-}" ]] || return 1
+  gh release view "$1" --repo "$2" --json tagName >/dev/null 2>&1
+}
+
+# Description: 這一趟 tag 與 release 各自要不要做。
+# Args: $1 = tag，$2 = owner/name。
+# Outputs: 兩行——`tag push|skip` 與 `release create|skip|unknown`。
+# 為什麼是兩行：舊的那一版用一個判斷（tag 在不在 origin 上）決定兩件事，於是推 tag 與建
+# release 之間被切斷時，重跑會印「already on origin」然後回報 shipped，而那個 release
+# 從來沒有存在過（DP-501）。真的要做的那一步讀的就是這兩行，probe 印的也是這兩行。
+plan_tag_and_release() {
+  local tag="$1" repo="${2:-}"
+  if [[ -n "$(origin_tag_sha "$tag")" ]]; then echo "tag skip"; else echo "tag push"; fi
+  if [[ -z "$repo" ]]; then
+    echo "release unknown"
+  elif release_exists "$tag" "$repo"; then
+    echo "release skip"
+  else
+    echo "release create"
+  fi
+}
+
+if [[ -n "$PROBE_TAIL_PLAN" ]]; then
+  plan_tag_and_release "$PROBE_TAIL_PLAN" "$(resolve_workspace_repo)"
+  exit 0
+fi
+
 if [[ -n "$PROBE_ISSUE_PATH" ]]; then
   # 交給下游的就是這一條。印它出來，測試才問得到「交出去的路徑換一個工作目錄開不開得到」，
   # 而且問到的與真的交出去的是同一個值——不是第二份。
@@ -164,6 +212,179 @@ esac
 BRANCH="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD)"
 HEAD_SHA="$(git -C "$REPO_PATH" rev-parse HEAD)"
 
+# 壓版那一步碰得到的路徑，唯一的一份。重釘時要交出去的 `--delta-allows`、以及判斷「HEAD
+# 是不是一個壓版 commit」時要比對的清單，都從這裡展開——抄成兩份的話，哪天 release-version.sh
+# 開始寫別的檔案，其中一份會先鬆掉而沒有人看得見。
+VERSION_STEP_PATHS=(VERSION CHANGELOG.md package.json .changeset)
+
+RECORD_STALE_REASON=""
+
+# Description: HEAD 是不是「剛好坐在被判定的 head 上、而且只碰了壓版那幾條路徑」的那一個 commit。
+# Returns: 0 是，非 0 不是——不是的時候 RECORD_STALE_REASON 說出是哪一項不成立。
+# Why: 交付紀錄釘的不是 HEAD 有兩種原因，而它們要的下一步相反——上一趟自己壓的版號
+#   commit（這支腳本證明得了），或者有人塞了沒被判定看過的改動（照舊拒絕）。舊的那一版
+#   把兩者收斂成同一種拒絕，於是「壓完版之後被切斷」對那張單永遠啟動不了（DP-501）。
+version_commit_on_recorded_head() {
+  RECORD_STALE_REASON=""
+  local parent touched path allowed matched
+  parent="$(git -C "$REPO_PATH" rev-parse --verify --quiet 'HEAD^' 2>/dev/null || true)"
+  if [[ -z "$parent" ]]; then
+    RECORD_STALE_REASON="HEAD 沒有 parent，說不出它是不是坐在被判定的那個 commit 上"
+    return 1
+  fi
+  if [[ "$parent" != "$RECORDED_HEAD" ]]; then
+    RECORD_STALE_REASON="HEAD 的 parent 是 ${parent:0:12}，不是紀錄釘的 ${RECORDED_HEAD:0:12}——中間不只一個 commit"
+    return 1
+  fi
+  touched="$(git -C "$REPO_PATH" diff --name-only "$RECORDED_HEAD" HEAD 2>/dev/null || true)"
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    matched=0
+    for allowed in "${VERSION_STEP_PATHS[@]}"; do
+      if [[ "$path" == "$allowed" || "$path" == "$allowed"/* ]]; then matched=1; break; fi
+    done
+    if [[ "$matched" -eq 0 ]]; then
+      RECORD_STALE_REASON="那個 commit 碰到了壓版步驟碰不到的檔案：$path"
+      return 1
+    fi
+  done <<< "$touched"
+  return 0
+}
+
+# Description: 把交付紀錄重釘到壓版之後的那個 head，並讓紀錄那一支去 git 驗這段差異。
+# Args: $1 = 要釘上去的 head。
+# Side effects: 覆寫 {issue}/.spine/delivery.json；差異碰到指名以外的路徑時它自己會拒絕。
+repin_across_version_commit() {
+  local head="$1" flags=() path
+  for path in "${VERSION_STEP_PATHS[@]}"; do flags+=(--delta-allows "$path"); done
+  bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_ABS" \
+    --summary "$SUMMARY" --head "$head" "${flags[@]}" >&2
+}
+
+# Description: 逐項問每一個系統「這一趟做到哪裡了」，印成一張表。只讀。
+# Side effects: 無。不 fetch（那會寫 refs）、不 commit、不 push、不建立任何檔案。
+# Why: 被中斷的尾段留下一半送出去的狀態，而「走到第幾步」以前沒有任何指令回答得出來——
+#   2026-08-10 那一次是人拿 git ls-remote、gh release list、template checkout 的 status
+#   一項一項反推的，而反推的人漏看哪一項，沒有任何東西說得出來（DP-501）。
+#
+#   每一格問的都是**真的擁有那件事的那個系統**，不是任何一份本機的帳。一份進度檔會與
+#   現實不一致，而不一致的那一刻正好是有人被中斷、最需要一句真話的時候。
+# Description: 印一列「這一步做到哪」。
+# Args: $1 = 步驟名，$2 = 狀態，$3 = 細節（可省）。
+# 不排欄位：printf 的 %-Ns 數的是位元組，而中文標籤一個字三個位元組——用它對齊，這張表
+# 在有中文的時候永遠是歪的，而歪掉的表比沒有表更難讀。
+say() { printf '   %s：%s%s\n' "$1" "$2" "${3:+ — $3}" >&2; }
+status_report() {
+  step "走到哪了"
+
+  # 1. 交付紀錄釘的是不是 HEAD
+  if [[ "${RECORDED_HEAD}" == "${HEAD_SHA}" ]]; then
+    say 交付紀錄 對得上 "釘在 ${HEAD_SHA:0:12}"
+  elif version_commit_on_recorded_head; then
+    say 交付紀錄 待重釘 "釘在 ${RECORDED_HEAD:0:12}，而 HEAD 是它上面的壓版 commit"
+  else
+    say 交付紀錄 對不上 "${RECORD_STALE_REASON}"
+  fi
+
+  # 2. 版號
+  local pending version
+  pending="$(pending_changesets)"
+  version="$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
+  if [[ "${DESTINATION}" != "template" ]]; then
+    say 版號 不適用 "destination=${DESTINATION}，這條路徑不壓版"
+  elif [[ "${pending}" == "0" ]]; then
+    say 版號 壓過了 "VERSION=${version}，沒有待處理的 changeset"
+  else
+    say 版號 還沒壓 "VERSION=${version}，$pending 份 changeset 待處理"
+  fi
+
+  # 3. 這條分支推出去了沒
+  local remote_branch
+  remote_branch="$(git -C "${REPO_PATH}" ls-remote origin "refs/heads/${BRANCH}" 2>/dev/null | awk '{print $1}')"
+  if [[ -z "${remote_branch}" ]]; then
+    say 推分支 沒有 "origin 上沒有 ${BRANCH}（可能是收尾時刪掉的）"
+  elif [[ "${remote_branch}" == "${HEAD_SHA}" ]]; then
+    say 推分支 推過了 "origin/$BRANCH = ${HEAD_SHA:0:12}"
+  else
+    say 推分支 落後 "origin/$BRANCH = ${remote_branch:0:12}，本機是 ${HEAD_SHA:0:12}"
+  fi
+
+  # 4. 促進 main——問 origin 現在的 main 是哪一個 commit，再問它含不含要交付的那個
+  local main_sha
+  main_sha="$(git -C "${REPO_PATH}" ls-remote origin refs/heads/main 2>/dev/null | awk '{print $1}')"
+  if [[ -z "${main_sha}" ]]; then
+    say 促進main 問不到 "origin 說不出 refs/heads/main"
+  elif ! git -C "${REPO_PATH}" cat-file -e "${main_sha}^{commit}" 2>/dev/null; then
+    say 促進main 問不到 "origin/main 是 ${main_sha:0:12}，本機物件庫沒有它——沒有 fetch 就答不了"
+  elif git -C "${REPO_PATH}" merge-base --is-ancestor "${RECORDED_HEAD}" "${main_sha}" 2>/dev/null; then
+    say 促進main 併了 "${RECORDED_HEAD:0:12} 在 origin/main（${main_sha:0:12}）裡"
+  else
+    say 促進main 還沒 "${RECORDED_HEAD:0:12} 不在 origin/main（${main_sha:0:12}）裡"
+  fi
+
+  # 5. template——問那一支自己，template 在哪、什麼算同步完了是它的知識
+  if [[ "${DESTINATION}" != "template" ]]; then
+    say 同步template 不適用 "destination=${DESTINATION}"
+  else
+    say 同步template "$(bash "$SCRIPTS/sync-to-polaris.sh" --status 2>/dev/null || echo '問不到')"
+  fi
+
+  # 6/7. tag 與 GitHub release——兩件事，各問各的
+  local tag repo
+  tag="v${version}"
+  repo="$(resolve_workspace_repo)"
+  if [[ "${DESTINATION}" != "template" ]]; then
+    say tag 不適用 "destination=${DESTINATION}"
+    say release 不適用 "destination=${DESTINATION}"
+  else
+    if [[ -n "$(origin_tag_sha "${tag}")" ]]; then
+      say tag 推過了 "$tag 在 origin 上"
+    else
+      say tag 還沒 "origin 上沒有 ${tag}"
+    fi
+    if [[ -z "${repo}" ]]; then
+      say release 問不到 "gh 說不出這個 repo 在 GitHub 上叫什麼"
+    elif release_exists "${tag}" "${repo}"; then
+      say release 建過了 "$repo 有 $tag 的 release"
+    else
+      say release 還沒 "$repo 沒有 $tag 的 release"
+    fi
+  fi
+
+  # 8. 這張單自己的釋出紀錄（本機檔案，問的就是本機檔案）
+  if [[ -f "$REPO_PATH/$ISSUE_DIR/.spine/release.json" ]]; then
+    say 釋出紀錄 寫了 "$ISSUE_DIR/.spine/release.json"
+  else
+    say 釋出紀錄 還沒 "$ISSUE_DIR/.spine/release.json 不在"
+  fi
+
+  # 9. 本機收尾
+  local local_main
+  local_main="$(git -C "${REPO_PATH}" rev-parse --verify --quiet main 2>/dev/null || true)"
+  if [[ -z "${main_sha}" ]]; then
+    say 本機收尾 問不到 "不知道 origin/main 是哪一個，比不了"
+  elif [[ "${local_main}" == "${main_sha}" ]]; then
+    say 本機收尾 做了 "本機 main = origin/main"
+  else
+    say 本機收尾 還沒 "本機 main = ${local_main:0:12}，origin/main = ${main_sha:0:12}"
+  fi
+
+  step "只讀"
+  note "什麼都沒有被寫、被推、被建立。"
+}
+
+if [[ "$PROBE_RECORD_STATE" -eq 1 ]]; then
+  # 只讀：交付紀錄釘的與 HEAD 的關係。真的那道判斷讀的是同一個函式。
+  if [[ "$RECORDED_HEAD" == "$HEAD_SHA" ]]; then
+    echo "current"
+  elif version_commit_on_recorded_head; then
+    echo "resumable-version-commit"
+  else
+    echo "stale: $RECORD_STALE_REASON"
+  fi
+  exit 0
+fi
+
 step "delivery record"
 note "source        $ISSUE_DIR"
 note "destination   $DESTINATION"
@@ -171,6 +392,11 @@ note "judged by     ${JUDGED_BY:-unknown}"
 note "recorded head ${RECORDED_HEAD:0:12}"
 note "current head  ${HEAD_SHA:0:12}"
 note "branch        $BRANCH"
+
+if [[ "$STATUS" -eq 1 ]]; then
+  status_report
+  exit 0
+fi
 
 # The fence and the record must both still hold, checked here rather than trusted
 # from whenever verify-ac ran.
@@ -181,9 +407,18 @@ if ! bash "$VERIFY_AC/frozen-assertion-fence.sh" verify "$REPO_PATH/$ISSUE_DIR/i
 fi
 # 這裡知道自己在釋出哪一張單（--issue 是必填），所以直接說。讓閘自己去掃全部紀錄、
 # 再判斷哪些是這個 repo 的事，是別張單的紀錄擋住這次釋出的唯一途徑（DP-482）。
+RESUMED_VERSION_COMMIT=0
 if ! bash "$SCRIPTS/gate-spine-delivery.sh" --repo "$REPO_PATH" --issue "$ISSUE_DIR" >/dev/null 2>&1; then
-  die "POLARIS_SPINE_RELEASE_RECORD_STALE" \
-    "the delivery record describes a different commit than HEAD; re-run verify-ac's handoff step."
+  # 兩種原因，下一步相反。見 version_commit_on_recorded_head 的檔頭。
+  if version_commit_on_recorded_head; then
+    RESUMED_VERSION_COMMIT=1
+    note "紀錄釘的是上一趟壓版之前的 head，而 HEAD 就是那個壓版 commit——這一趟會重釘它"
+  else
+    die "POLARIS_SPINE_RELEASE_RECORD_STALE" \
+      "交付紀錄釘的 commit 不是 HEAD，而 HEAD 不是一個壓版 commit：" \
+      "  $RECORD_STALE_REASON" \
+      "要嘛把那些 commit 也送審，要嘛回到被判定的那個狀態。不要重寫紀錄去遷就 HEAD。"
+  fi
 fi
 # 宣告 workspace 就是「這批東西不會出去」。這一步在同步之前跑，因為同步是不可逆的那一刻，
 # 而那個宣告在 2026-08-03 到 2026-08-09 之間沒有任何東西在驗。
@@ -221,6 +456,14 @@ fi
 # Workspace-bound work deliberately skips this: CHANGELOG.md syncs outward, so an
 # entry for work that never leaves would announce something nobody can see.
 if [[ "$DESTINATION" == "template" ]]; then
+  # 上一趟壓完版就被切斷的話，重釘是這一趟第一件要做的事——它排在壓版之後的那一版
+  # 走不到這裡，因為前面那道拒絕先死了（DP-501）。
+  if [[ "$RESUMED_VERSION_COMMIT" -eq 1 ]]; then
+    step "re-pin"
+    repin_across_version_commit "$HEAD_SHA"
+    note "交付紀錄重釘到 ${HEAD_SHA:0:12}"
+  fi
+
   step "version"
   before="$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
   # 份數要在這裡數：changeset CLI 會把用掉的那些刪掉，壓完再數永遠是 0。
@@ -247,13 +490,8 @@ if [[ "$DESTINATION" == "template" ]]; then
     #
     # 為什麼這份清單住在這裡：可攜層不認得「版號」也不該認得（見 record-delivery-intent.sh
     # 檔頭）。這是釋出尾段自己的詞彙，而 release-version.sh 就在隔壁——哪天它開始寫別的
-    # 檔案，這裡會紅，這正是要的。
-    bash "$VERIFY_AC/record-delivery-intent.sh" --issue "$ISSUE_ABS" \
-      --summary "$SUMMARY" --head "$new_head" \
-      --delta-allows VERSION \
-      --delta-allows CHANGELOG.md \
-      --delta-allows package.json \
-      --delta-allows .changeset >&2
+    # 檔案，這裡會紅，這正是要的。清單本身在 VERSION_STEP_PATHS，只有一份。
+    repin_across_version_commit "$new_head"
     HEAD_SHA="$new_head"
   fi
 
@@ -269,7 +507,7 @@ git -C "$REPO_PATH" push origin "$BRANCH" >&2
 
 # ── promotion ─────────────────────────────────────────────────────────────────
 step "promote main"
-workspace_repo="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+workspace_repo="$(resolve_workspace_repo)"
 [[ -n "$workspace_repo" ]] || die "POLARIS_SPINE_RELEASE_NO_REPO" \
   "could not resolve the workspace repository from gh"
 pr_number="$(gh pr list --repo "$workspace_repo" --head "$BRANCH" --state open \
@@ -397,17 +635,35 @@ tag="v$version"
 # with identical names pointing at entirely different commits. Reading local tags
 # made the tail skip its own tag and still print "shipped at v3.85.1" — the
 # release existed nowhere on origin (2026-08-02).
-remote_tag="$(origin_tag_sha "$tag")"
-if [[ -n "$remote_tag" ]]; then
-  note "$tag already on origin — leaving it alone"
+tail_plan="$(plan_tag_and_release "$tag" "$workspace_repo")"
+tag_plan="$(printf '%s\n' "$tail_plan" | awk '$1 == "tag" { print $2 }')"
+release_plan="$(printf '%s\n' "$tail_plan" | awk '$1 == "release" { print $2 }')"
+
+if [[ "$tag_plan" == "skip" ]]; then
+  note "$tag 已經在 origin 上——不動它"
 else
   # -f because a same-named tag may already sit locally, pointing at the template
   # repository's commit; this repository's tag has to point at what shipped here.
   git -C "$REPO_PATH" tag -f -a "$tag" -m "${SUMMARY:-$tag}" >/dev/null
   git -C "$REPO_PATH" push origin "$tag" >&2
+  note "pushed $tag"
+fi
+
+# release 是另一件事，所以另外問一次。上面那個判斷答的是「tag 在不在 origin 上」，而
+# 推 tag 與建 release 之間有一個真實的中斷點：舊的那一版在那裡重跑會印「already on
+# origin」然後一路報成 shipped，而那個 release 從來沒有存在過（DP-501）。
+# 這正是這支腳本 2026-08-02 那次事故的鏡像——當時修的是「問哪一邊」，沒修「一個問題
+# 答兩件事」。
+if [[ "$release_plan" == "unknown" ]]; then
+  die "POLARIS_SPINE_RELEASE_UNKNOWN_RELEASE_STATE" \
+    "問不到 $tag 的 GitHub release 在不在，所以說不出該不該建它。" \
+    "問不到不是「已經有了」——安靜跳過會讓一個從沒存在過的 release 被回報成出貨完成。"
+elif [[ "$release_plan" == "skip" ]]; then
+  note "$tag 的 GitHub release 已經在了——不動它"
+else
   gh release create "$tag" --repo "$workspace_repo" \
     --title "$tag" --notes "${SUMMARY:-$tag}" >&2
-  note "released $tag"
+  note "created release $tag"
 fi
 
 write_release_record "$version"
