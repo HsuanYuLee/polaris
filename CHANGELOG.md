@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.29.0] - 2026-08-11
+
+### Changed
+
+- f9a5786: web-dev-env 補上第六個環境 `member-ci`：docker 那一層在跑的 PHP，前五筆「一個啟動命令＋一個在聽的 port」的形狀套不上它，所以它一直沒有人宣告會起它。紀錄裡最值錢的是 caveat——dev 的 nginx 會把 `{locale}/category` 這類路徑轉去 nuxt，包含 production 由 member-ci 服務的那些頁，不知道的人會對著另一個 repo 的程式碼驗這個 repo 的改動然後全綠。
+
 ## [4.28.0] - 2026-08-11
 
 ### Changed
