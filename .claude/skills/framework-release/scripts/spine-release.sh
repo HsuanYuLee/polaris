@@ -615,6 +615,29 @@ RELEASE_RECORD
   # 大括號不是風格：全形括號的位元組會被 bash 收進變數名，`set -u` 之下整個尾段就死在
   # 這一行——而它跑在 tag 與 release 都送出去之後，壞掉的樣子是「釋出成功但沒收尾」。
   note "釋出紀錄：$ISSUE_DIR/.spine/release.json（released_on=${today} version=${version}）"
+  reproject_position
+}
+
+# Description: 剛寫下的釋出紀錄改變了這張單的狀態，位置要跟著重算。
+#
+# 為什麼這一行非有不可：位置是狀態的投影，而在這之前這一段從來沒有做過投影。398 張躺在
+# `released/` 的單位置是對的，但它們是靠**後來某張不相干的單跑了 `record`**（那一支才會叫
+# 重算）才被順手擺正的——所以永遠是最後釋出的那一張錯著，直到下一個人開下一張單。DP-507
+# 就是那張。**一個靠不相干的未來工作才會正確的帳，在最後一筆上永遠是錯的。**
+#
+# 重算失敗不讓釋出失敗：釋出已經送出去了，這一步回頭把它判成失敗只會讓紀錄與事實更遠。
+# 但它必須被看見——位置與狀態對不上正是要被看見的那件事。
+reproject_position() {
+  local placer="$REPO_PATH/.claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh"
+  local root="${ISSUE_DIR%%/*}"
+  [[ -n "$root" && -d "$REPO_PATH/$root" ]] || {
+    note "位置沒重算：從 $ISSUE_DIR 推不出單樹的根"; return 0; }
+  [[ -f "$placer" ]] || { note "位置沒重算：找不到 $placer"; return 0; }
+  # `--spine-only`：剛動過的是一張走脊椎的單，它的答案在本機。讓釋出去問別的命名空間宣告
+  # 的解析器，等於每釋出一次就打幾十趟網路，而且那些系統掛掉的時候釋出會被拖著失敗。
+  bash "$placer" --issues "$REPO_PATH/$root" --execute --spine-only >/dev/null \
+    && note "位置重算完了" \
+    || note "位置沒重算完，可能與狀態對不上：$placer --issues $REPO_PATH/$root"
 }
 
 if [[ "$DESTINATION" != "template" ]]; then

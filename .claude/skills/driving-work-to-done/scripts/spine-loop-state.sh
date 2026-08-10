@@ -717,8 +717,56 @@ with open(state, "w", encoding="utf-8") as handle:
     handle.write("\n")
 print(f"CLOSED: {state}")
 print(f"  理由：{reason}")
-print("  下一次重算會把它放進 closed/。它不再出現在待辦，但它還在，而且說得出自己為什麼不做。")
+print("  它不再出現在待辦，但它還在，而且說得出自己為什麼不做。")
 PY
+
+  # 狀態改了，痕跡也要改。在這之前 close 只改狀態——DP-440 關單之後 branch 與 PR 活了兩天，
+  # 而「這張單不做了」與「還有一條 branch 在等著被合」同時成立、沒有任何東西回報。
+  # 核心不認得 branch 也不認得 PR：它讀那份知識宣告的收尾命令，跑它，把它印的話原樣轉出來。
+  local cleanup_rc=0
+  cleanup_traces || cleanup_rc=$?
+  reproject_position
+  # 收不乾淨不讓 close 失敗——單已經關了，那是對的，反悔它只會讓狀態與事實更遠。但它要被
+  # 看見：一個沒有被列出來的殘留，下一次就會被當成沒有殘留。
+  [[ "$cleanup_rc" -eq 0 ]] \
+    || echo "[spine-loop-state] 有東西沒收乾淨（見上面），單本身已經關了。" >&2
+  return 0
+}
+
+# Description: 跑這張單的 pack 宣告的收尾命令；沒有宣告就說出來並當作沒有東西要收。
+# Returns: 收尾命令的 exit code（沒有 pack 或沒有宣告時回 0）
+cleanup_traces() {
+  local pack doc declared args out rc=0
+  pack="$(python3 -c '
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+print((data.get("knowledge_pack") or {}).get("pack") or "")' "$STATE")"
+  [[ -n "$pack" && "$pack" != "none" ]] || {
+    echo "  沒有領域 pack，沒有版控上的痕跡要收。"; return 0; }
+  doc="$(pack_doc "$pack")" || {
+    echo "[spine-loop-state] 解析不到 ${pack}，痕跡沒收——這一趟沒問到，不是沒有東西。" >&2
+    return 2; }
+  declared="$(pack_declaration "$doc" CLOSE-CLEANUP)"
+  [[ -n "$declared" ]] || {
+    echo "  ${pack} 沒有宣告收尾（CLOSE-CLEANUP），沒有東西要收。"; return 0; }
+
+  args="$(python3 -c '
+import json, shlex, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+identity = data.get("workspace_identity") or {}
+out = [shlex.quote(p) for p in (identity.get("declared_landing") or [])]
+for value in identity.get("values") or []:
+    out += ["--identity", shlex.quote(value)]
+if data.get("closed_reason"):
+    out += ["--reason", shlex.quote(data["closed_reason"].splitlines()[0])]
+print(" ".join(out))' "$STATE")"
+  [[ -n "$args" ]] || {
+    echo "  這張單沒記下落腳處，痕跡收不了（DP-482 之前的單要先 land）。"; return 2; }
+
+  echo "[spine-loop-state] ${pack} 宣告的收尾：${declared}" >&2
+  out="$(run_declared "${declared} ${args}" 2>&1)" || rc=$?
+  [[ -n "$out" ]] && printf '%s\n' "$out"
+  return "$rc"
 }
 
 cmd_init() {
@@ -1390,6 +1438,106 @@ print("LANDED: " + "、".join(landing) + " → " + "、".join(identities))
 PY_LAND
 }
 
+# Description: 問這張單「它出去了沒有」，出去了就把釋出紀錄寫在單身上、重算位置。
+#
+# 核心不認得 PR、不認得 merge、不認得任何一種釋出。它做四件事：找到這張單的 pack、讀出
+# 那份知識宣告的 DELIVERED 命令、把這張單記下的落腳處與身分原樣接上去跑、非 0 就把它印的
+# 話原樣轉出來。**換一個領域只要換那份宣告，這裡一行都不用動。**
+#
+# 為什麼核心要有這一支：在這之前「這張單出去了」只有 framework-release 的釋出尾段寫得出
+# 來，而那一段做的事（壓版、推 tag、同步 template）只對自己就是 owner 的 repo 成立。一張
+# 落在別人 repo 的單於是永遠停在 done/：它的 PR 早就 merge 了，而本機沒有任何東西記得
+# 下來。這件事在寫這一支的當天真的有一張單卡在那裡。**「出去了」不該只有一個來源說得出口。**
+#
+# 沒有宣告不是「出去了」，是問不到。一個 pack 沒宣告終局訊號，核心能說的只有「這一趟沒問
+# 到」——寫下釋出紀錄等於替一個沒有人回答過的問題填答案。
+cmd_released() {
+  parse_args "$@"
+  [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE"
+  require_python3
+
+  local record; record="$(dirname "$STATE")/release.json"
+  if [[ -f "$record" ]]; then
+    # 已經有一份就不再寫。兩個地方都能宣稱「這張單出去了」的話，它們遲早給出不同的日期。
+    echo "RELEASED: 已經有釋出紀錄了，不重寫 — $record"
+    return 0
+  fi
+
+  local pack; pack="$(python3 -c '
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+print((data.get("knowledge_pack") or {}).get("pack") or "")' "$STATE")"
+  [[ -n "$pack" && "$pack" != "none" ]] || die "POLARIS_SPINE_RELEASED_NO_PACK" \
+    "這張單沒有領域 pack（$pack），沒有人回答得出「它出去了沒有」。" \
+    "不改程式碼的工作走完就是走完，那一類的終局不在這裡判。"
+
+  local doc; doc="$(pack_doc "$pack")" || die "POLARIS_SPINE_RELEASED_PACK_UNRESOLVED" \
+    "解析不到 pack ${pack} 的 SKILL.md"
+  local declared; declared="$(pack_declaration "$doc" DELIVERED)"
+  [[ -n "$declared" ]] || die "POLARIS_SPINE_RELEASED_UNDECLARED" \
+    "${pack} 沒有宣告終局訊號（DELIVERED），所以「它出去了沒有」這一趟問不到。" \
+    "沒問到不是出去了——去那份知識裡寫下它，再跑一次。"
+
+  # 落腳處與身分原樣交還給那份知識。核心兩樣都當不透明字串，它只負責記得與轉交。
+  local args; args="$(python3 -c '
+import json, shlex, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+identity = data.get("workspace_identity") or {}
+out = [shlex.quote(p) for p in (identity.get("declared_landing") or [])]
+for value in identity.get("values") or []:
+    out += ["--identity", shlex.quote(value)]
+print(" ".join(out))' "$STATE")"
+
+  echo "[spine-loop-state] ${pack} 宣告的終局訊號：${declared}" >&2
+  local out rc=0
+  out="$(run_declared "${declared} ${args}")" || rc=$?
+  [[ -n "$out" ]] && printf '%s\n' "$out"
+
+  if [[ "$rc" -ne 0 ]]; then
+    # 1 與 2 原樣往上傳：還沒出去與問不到是兩件事，塌成同一個 exit code 的那一刻，
+    # 一次 API 逾時就跟一張還在 review 的單長得一樣。
+    echo "[spine-loop-state] 沒有寫釋出紀錄（${pack} 回 ${rc}）。" >&2
+    return "$rc"
+  fi
+
+  # `$out` 用參數傳，不內插進原始碼：那份輸出是領域知識寫的，裡面有一個引號就會讓這段
+  # Python 變成另一段 Python。核心跑別人給的字串時，字串永遠是資料不是程式。
+  python3 - "$record" "$pack" "$declared" "$BY" "$out" <<'PY_RELEASED'
+import json
+import sys
+from datetime import datetime, timezone
+
+record, pack, declared, by, signal_output = sys.argv[1:6]
+now = datetime.now(timezone.utc)
+
+# 釋出日由那份知識給，不由這裡填「今天」。一張上週就走完、今天才被問到的單，填今天會讓
+# released/{日期}/ 把它歸進錯的那一天——而那一格是給人翻的，日期說謊比沒有日期更糟。
+# 幾個落腳處就取**最晚**的那一天：全部走完才算走完，最後出去的那一個才是這張單出去的時候。
+days = sorted(
+    line.split("\t")[1]
+    for line in signal_output.splitlines()
+    if line.startswith("delivered\t") and len(line.split("\t")) > 1
+       and line.split("\t")[1] not in ("", "-"))
+released_on = days[-1] if days else now.strftime("%Y-%m-%d")
+with open(record, "w", encoding="utf-8") as handle:
+    json.dump({
+        "schema_version": 1,
+        "producer": "spine-loop-state.sh released",
+        "released_on": released_on,
+        # 沒問到日期就退回今天，而且說出來——一個安靜的退路，下一次會被當成量到的日期。
+        "released_on_source": "signal" if days else "recorded-today (訊號沒說是哪一天)",
+        "recorded_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # 訊號是誰給的要記下來：一份不知道自己憑什麼成立的釋出紀錄，事後沒有辦法被質疑。
+        "signal_pack": pack,
+        "signal_command": declared,
+        "recorded_by": by or None,
+    }, handle, ensure_ascii=False, indent=1)
+    handle.write("\n")
+PY_RELEASED
+  echo "RELEASED: $record"
+  reproject_position
+}
+
 main() {
   local sub="${1:-}"
   [[ -n "$sub" ]] || { usage; exit 2; }
@@ -1406,6 +1554,7 @@ main() {
     reset) cmd_reset "$@" ;;
     show) cmd_show "$@" ;;
     find) cmd_find "$@" ;;
+    released) cmd_released "$@" ;;
     landing) cmd_landing "$@" ;;
     land) cmd_land "$@" ;;
     -h|--help) usage; exit 0 ;;
