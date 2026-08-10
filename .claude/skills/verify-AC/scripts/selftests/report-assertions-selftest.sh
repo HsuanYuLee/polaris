@@ -72,7 +72,7 @@ echo "report-assertions selftest"
 # W-P1：一條一條說出來，而且三種判定都有名字。
 issue="$(new_issue green)"
 run_report --issue "$issue"
-[[ "$RC" -eq 0 ]] || fail "全綠應該 exit 0；拿到 $RC：$OUT"
+[[ "$RC" -eq 0 ]] || fail "全綠應該 exit 0；拿到 ${RC}：$OUT"
 grep -q 'PASS  A-P1' <<<"$OUT" || fail "沒有逐條印出 A-P1：$OUT"
 grep -q 'PASS  A-P2' <<<"$OUT" || fail "沒有逐條印出 A-P2：$OUT"
 grep -Fq '2 條——過 2、沒過 0、量不到 0' <<<"$OUT" \
@@ -89,8 +89,8 @@ ok "跑完一個檔案都沒動"
 # 做到第幾層要自己說。一份沒說自己做到第幾層的報告，讀起來永遠像做滿了。
 grep -Fq 'LAYERS: 檔案自洽、登錄相符、重跑一次' <<<"$OUT" \
   || fail "--rerun 要說出三層都做了：$OUT"
-grep -Fq '重跑了 1 條不同的命令（2 條斷言共用）' <<<"$OUT" \
-  || fail "重跑要照命令去重，並說出跑了幾條：$OUT"
+grep -Fq '重跑了 1 趟（2 條斷言共用）' <<<"$OUT" \
+  || fail "重跑要去重，並說出跑了幾趟：$OUT"
 run_report --issue "$issue"
 grep -Fq '（沒做：重跑一次）' <<<"$OUT" || fail "沒加 --rerun 要說出那一層沒做：$OUT"
 ok "做到第幾層自己說得出來，沒做的那一層也說"
@@ -100,7 +100,7 @@ ok "做到第幾層自己說得出來，沒做的那一層也說"
 issue="$(new_issue partial)"
 rm "$issue/.spine/evidence/A-P2.json"
 run_report --issue "$issue"
-[[ "$RC" -eq 1 ]] || fail "有沒過的應該 exit 1；拿到 $RC：$OUT"
+[[ "$RC" -eq 1 ]] || fail "有沒過的應該 exit 1；拿到 ${RC}：$OUT"
 grep -q 'PASS  A-P1' <<<"$OUT" || fail "缺一條的時候另一條就不印了：$OUT"
 grep -q 'FAIL  A-P2' <<<"$OUT" || fail "沒說出是哪一條缺：$OUT"
 grep -Fq '沒有證據' <<<"$OUT" || fail "沒說出它是怎麼缺的：$OUT"
@@ -110,7 +110,7 @@ ok "缺東西的時候整份照印，並指名是哪一條、怎麼缺的"
 issue="$(new_issue unmeasurable)"
 printf 'not json at all' > "$issue/.spine/evidence/A-P2.json"
 run_report --issue "$issue"
-[[ "$RC" -eq 2 ]] || fail "有量不到的應該 exit 2；拿到 $RC：$OUT"
+[[ "$RC" -eq 2 ]] || fail "有量不到的應該 exit 2；拿到 ${RC}：$OUT"
 grep -q '????  A-P2' <<<"$OUT" || fail "量不到沒有自己的判定符號：$OUT"
 grep -Fq '量不到 1' <<<"$OUT" || fail "量不到沒有被算進去：$OUT"
 ok "量不到是第三種，有自己的 exit code，而且被數出來"
@@ -135,15 +135,123 @@ evidence["command"] = "true"   # 自洽，但沒有人登錄過這條命令
 json.dump(evidence, open(path, "w"))
 PY
 run_report --issue "$issue"
-[[ "$RC" -eq 1 ]] || fail "指名未登錄命令的證據，報告應該判紅；拿到 $RC：$OUT"
+[[ "$RC" -eq 1 ]] || fail "指名未登錄命令的證據，報告應該判紅；拿到 ${RC}：$OUT"
 grep -Fq '登錄過的那一條' <<<"$OUT" || fail "報告沒說出命令對不上登錄：$OUT"
 (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary 'x' >/dev/null 2>&1) \
   && fail "報告判紅，交付卻記得下來——兩邊判的不是同一件事"
 ok "報告判紅時交付也擋得住，同一份 fixture 兩邊同一個答案"
 
+# B-P1／B-P2／B-N3：重跑要把證據記下的工具交還給 oracle。
+#
+# 假工具住在 mktemp 底下——也就是 oracle 釘死的那幾個系統目錄之外，跟真單裡的 gh 同一個
+# 處境。量測時 `--require-tool` 把它 symlink 進釘死的 PATH，命令才跑得起來；重跑時若不
+# 交還，同一條命令就是 exit 127。
+TOOLBOX="$WORK/toolbox"
+mkdir -p "$TOOLBOX"
+cat > "$TOOLBOX/polaris-faketool" <<'TOOL'
+#!/usr/bin/env bash
+echo "FAKE-OK"
+TOOL
+chmod +x "$TOOLBOX/polaris-faketool"
+
+# Description: 造一張單，唯一那條斷言的命令非得靠 $TOOLBOX 裡那支工具才跑得起來。
+# Args: $1 = case 名字
+new_tool_issue() {
+  local name="$1" repo="$WORK/$1" issue cmd
+  issue="$repo/issues/DP-000-selftest"
+  cmd='polaris-faketool'
+  mkdir -p "$issue"
+  git init -q "$repo"
+  git -C "$repo" config user.email selftest@example.com
+  git -C "$repo" config user.name selftest
+  {
+    echo "---"; echo "title: selftest source"; echo "destination: template"; echo "---"
+    echo
+    echo "<!-- POLARIS-FROZEN-A-BEGIN -->"
+    echo "- **A-P1** the tool-borne thing holds."
+    echo "<!-- POLARIS-FROZEN-A-END -->"
+  } > "$issue/index.md"
+  bash "$FENCE" seal "$issue/index.md" --by selftest >/dev/null
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm "seal selftest source"
+  git -C "$repo" update-ref refs/remotes/origin/main HEAD
+  bash "$LEDGER_SCRIPT" record --ledger "$issue/.spine/measurement-ledger.json" \
+    --assertion-id A-P1 --new-command "$cmd" --baseline >/dev/null
+  (cd "$repo" && PATH="$TOOLBOX:$PATH" bash "$ORACLE" --command "$cmd" \
+     --require-tool 'polaris-faketool:--version' --expect-evidence FAKE-OK \
+     --evidence-out "$issue/.spine/evidence/A-P1.json" >/dev/null)
+  printf '%s' "$issue"
+}
+
+# 紅控先跑：把證據裡那份工具清單拿掉，同一條命令就該紅。它同時證明第三層不會好心地
+# 從現在的 PATH 補一支工具進去——那支工具此刻確實在 PATH 上（$TOOLBOX 還掛著）。
+issue="$(new_tool_issue tools_stripped)"
+python3 - "$issue/.spine/evidence/A-P1.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+evidence = json.load(open(path))
+evidence["tools"] = []
+json.dump(evidence, open(path, "w"))
+PY
+PATH="$TOOLBOX:$PATH" run_report --issue "$issue" --rerun
+[[ "$RC" -eq 1 ]] || fail "證據沒記工具、命令又非得靠它，重跑該紅；拿到 ${RC}：$OUT"
+grep -Fq '重跑一次是紅的' <<<"$OUT" || fail "紅控沒有紅在重跑那一層：$OUT"
+grep -Fq '（沒有輸出）' <<<"$OUT" \
+  && fail "判紅卻說不出理由——理由在 oracle 的 stderr 上：$OUT"
+grep -Fq 'command not found' <<<"$OUT" \
+  || fail "紅的理由要帶著命令自己說的那句話：$OUT"
+ok "工具沒交還就是紅的，而且說得出為什麼"
+# 上面那支工具此刻確實在 PATH 上（$TOOLBOX 還掛著），證據裡卻沒有它。它仍然紅，表示這一層
+# 交還的就是證據記的那幾個，不從現在的環境推導出額外的工具。
+ok "第三層不從現在的環境補一支工具進去"
+
+issue="$(new_tool_issue tools_handed_back)"
+PATH="$TOOLBOX:$PATH" run_report --issue "$issue" --rerun
+[[ "$RC" -eq 0 ]] || fail "證據記著工具，重跑該把它交還給 oracle；拿到 ${RC}：$OUT"
+grep -Fq 'LAYERS: 檔案自洽、登錄相符、重跑一次' <<<"$OUT" || fail "三層沒做滿：$OUT"
+ok "證據記下的工具（連能力探針一起）重跑時交還得回去"
+
+# B-P3：DP-506 之前的證據沒有 tools 這個欄位。那表示當初沒探過工具，照沒探過跑就是了，
+# 不是量不到、也不是紅。上面那個紅控拿掉的是欄位的值，這裡拿掉的是欄位本身。
+issue="$(new_issue no_tools_field)"
+python3 - "$issue/.spine/evidence/A-P1.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+evidence = json.load(open(path))
+evidence.pop("tools", None)
+json.dump(evidence, open(path, "w"))
+PY
+run_report --issue "$issue" --rerun
+[[ "$RC" -eq 0 ]] || fail "舊證據沒有 tools 欄位不該因此變紅；拿到 ${RC}：$OUT"
+ok "沒有工具清單的舊證據照沒探過跑"
+
+# 去重不得把另一條斷言的答案借給這一條。兩條斷言跑同一條命令、各自要求不同的證據樣式，
+# 是真單的常態；去重的鍵漏掉那幾樣的話，第二條拿到的是第一條的答案，而它自己的樣式從來
+# 沒有被檢查過——一條沒被量到的斷言看起來就跟過了一樣。
+issue="$(new_issue shared_command_different_needles)"
+python3 - "$issue/.spine/evidence/A-P2.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+evidence = json.load(open(path))
+# 同一條登錄過的命令（前兩層照樣綠），但這一條斷言要的是輸出裡沒有的那句話。
+evidence["expect_evidence"] = ["NOT-IN-THE-OUTPUT"]
+json.dump(evidence, open(path, "w"))
+PY
+run_report --issue "$issue" --rerun
+[[ "$RC" -eq 2 ]] || fail "共用命令但樣式不同，第二條該自己被量；拿到 ${RC}：$OUT"
+grep -q 'PASS  A-P1' <<<"$OUT" || fail "樣式還在的那一條該是綠的：$OUT"
+# oracle 對「命令跑完了但沒有它被要求產出的正向證據」回 exit 2 而不是 1，所以這一條落在
+# 量不到那一格。它一樣不是通過：報告 exit 2、交付照樣拒絕。
+grep -q '????  A-P2' <<<"$OUT" || fail "樣式不在的那一條該被判成量不到：$OUT"
+grep -Fq '重跑了 2 趟（2 條斷言共用）' <<<"$OUT" \
+  || fail "樣式不同就是兩趟，不該被去重成一趟：$OUT"
+ok "去重照整趟重跑的條件，不只照命令"
+grep -Fq '量不到 1' <<<"$OUT" || fail "重跑那一層的量不到沒有被數出來：$OUT"
+ok "重跑跑不出結果時是量不到，照樣印出來、照樣被數，exit 不是 0"
+
 # 指到一張不存在的單是量不到，不是「沒有東西要證明」。
 run_report --issue "$WORK/nosuch"
-[[ "$RC" -eq 2 ]] || fail "單不在應該 exit 2；拿到 $RC：$OUT"
+[[ "$RC" -eq 2 ]] || fail "單不在應該 exit 2；拿到 ${RC}：$OUT"
 ok "單不在是量不到"
 
 echo "PASS: report-assertions（$PASS 項）"

@@ -161,12 +161,60 @@ def registered_commands(ledger_path):
     return out
 
 
-def _rerun(command, cwd, expect, forbid, oracle, notes):
+def tool_specs(evidence):
+    """把證據記下的工具清單還原成 `--require-tool` 認得的樣子，回一個 tuple。
+
+    Args:
+        evidence: 一份 oracle 產的證據。
+    Returns:
+        `("gh", "rg:--version")` 這種形狀；證據沒記過工具就是空的。
+
+    oracle 記的是 `name` 與 `capability_probe` 兩個欄位（`run-hardened-oracle.sh` 的
+    payload），而 `--require-tool` 吃的是 `name` 或 `name:<探針參數>`——同一件事的兩個
+    形狀，中間差一次翻譯。**沒有這個欄位表示當初沒探過工具**，那是一個答案，不是缺料：
+    DP-506 之前產生的證據全部長那樣，而它們的命令本來就只用釘死的 PATH 上那幾支。
+    """
+    specs = []
+    for tool in evidence.get("tools") or []:
+        name = tool.get("name")
+        if not name:
+            continue
+        probe = tool.get("capability_probe")
+        specs.append(f"{name}:{probe}" if probe else name)
+    return tuple(specs)
+
+
+def _why(done):
+    """從 oracle 的兩個串流拼出「為什麼紅的」，回一行字。
+
+    Args:
+        done: `subprocess.run` 的結果。
+    Returns:
+        一行說明；兩個串流都空的時候回「（沒有輸出）」。
+
+    oracle 判紅時把 marker 與說明印在 **stderr**，而在那之前它已經把命令自己的兩個串流
+    原樣重播過。所以最後幾行是 oracle 說的、再前面是命令自己說的，兩邊一起才回答得了
+    「哪裡紅的」。原本只讀 stdout，於是一條只往 stderr 寫的命令永遠只換得到那句
+    「（沒有輸出）」——一個判紅而說不出理由的閘，跟一個沒有理由的通過一樣不能用。
+    """
+    lines = [ln for ln in (done.stderr or "").splitlines() if ln.strip()]
+    if not lines:
+        lines = [ln for ln in (done.stdout or "").splitlines() if ln.strip()]
+    return " / ".join(lines[-WHY_LINES:]) if lines else "（沒有輸出）"
+
+
+# 拼失敗訊息時往回取幾行。最後兩行固定是 oracle 的 marker 與說明，再前面一行是命令
+# 自己最後說的話——那一行通常才是人要看的東西（`gh: command not found`）。
+WHY_LINES = 3
+
+
+def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
     """拿這條命令現在再跑一次，回 (state, 一句話)。
 
     Args:
         command: 要跑的命令；cwd: 在哪棵樹上跑（空的就用現在站的地方）。
         expect / forbid: 證據記下的正負向證據樣式，原樣交還給 oracle。
+        tools: 證據記下的工具清單，原樣交還給 oracle 的 `--require-tool`。
         oracle: `run-hardened-oracle.sh` 的路徑。
         notes: 說明會被 append 進來的清單。
     Returns:
@@ -174,6 +222,10 @@ def _rerun(command, cwd, expect, forbid, oracle, notes):
 
     跑不起來是 UNMEASURABLE 不是 FAIL：oracle 不在、證據沒說跑的是哪一條命令，說的都是
     「這一趟沒問到」，而把問不到讀成沒過，跟把它讀成通過一樣是在編一個答案。
+
+    工具要交還，是因為 oracle 會把 PATH 釘死成宣告的那幾個目錄，只有 `--require-tool`
+    探到的才會被 symlink 進去。不交還的話，一條當初靠 `gh` 才跑得起來的命令重跑時
+    exit 127，而那份證據本身是好的——這一層就從「再驗一次」變成「懲罰用過外部工具的單」。
     """
     if not oracle or not os.path.exists(oracle):
         return UNMEASURABLE, f"重跑不了：找不到 {oracle or 'run-hardened-oracle.sh'}"
@@ -190,14 +242,16 @@ def _rerun(command, cwd, expect, forbid, oracle, notes):
         argv += ["--expect-evidence", pattern]
     for pattern in forbid or []:
         argv += ["--forbid-evidence", pattern]
+    for spec in tools or ():
+        argv += ["--require-tool", spec]
     if cwd:
         argv += ["--cwd", cwd]
     done = subprocess.run(argv, capture_output=True, text=True)
     if done.returncode == 0:
         return PASS, "重跑一次仍然是綠的"
     if done.returncode == 1:
-        return FAIL, "重跑一次是紅的：" + (done.stdout.strip().splitlines() or ["（沒有輸出）"])[-1]
-    return UNMEASURABLE, "重跑量不到：" + (done.stderr.strip().splitlines() or ["（沒有輸出）"])[-1]
+        return FAIL, "重跑一次是紅的：" + _why(done)
+    return UNMEASURABLE, "重跑量不到：" + _why(done)
 
 
 def judge(index_path, evidence_dir, head=None, delta_allows=(),
@@ -302,22 +356,31 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                 mark(aid, UNMEASURABLE, f"量在 {ev_head[:12]}，而這段差異量不到——{payload}")
 
     # 第三層。跑的是證據記的那條命令——走到這裡它已經被上面驗過等於登錄的那一條（登錄檔
-    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條斷言共用，所以照
-    # (命令, 樹) 去重再跑：一張八條斷言三條命令的單，重跑三次不是八次。
+    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條斷言共用，所以去重再跑：
+    # 一張八條斷言三條命令的單，重跑三次不是八次。
+    #
+    # 去重的鍵是**決定那一趟重跑的全部東西**，不只是命令：兩條斷言可以跑同一條命令而各自
+    # 要求不同的證據樣式，鍵漏掉那幾樣的話，第二條會拿到第一條的答案，而它自己的樣式從來
+    # 沒有被檢查過——一條沒被量到的斷言看起來就跟過了一樣。
     if rerun:
         cache = {}
         for aid in ids:
             if aid in rows or aid not in evidence:
                 continue
             ev = evidence[aid]
-            key = (ev.get("command", ""), ev.get("measured_in") or "")
+            expect = tuple(ev.get("expect_evidence") or ())
+            forbid = tuple(ev.get("forbid_evidence") or ())
+            command = ev.get("command", "")
+            cwd = ev.get("measured_in") or ""
+            tools = tool_specs(ev)
+            key = (command, cwd, expect, forbid, tools)
             if key not in cache:
-                cache[key] = _rerun(key[0], key[1], ev.get("expect_evidence"),
-                                    ev.get("forbid_evidence"), oracle, report["notes"])
+                cache[key] = _rerun(command, cwd, expect, forbid, tools, oracle,
+                                    report["notes"])
             state, detail = cache[key]
             if state != PASS:
                 mark(aid, state, detail)
-        report["notes"].append(f"重跑了 {len(cache)} 條不同的命令（{len(ids)} 條斷言共用）")
+        report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條斷言共用）")
 
     # 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條
     # 斷言量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的。

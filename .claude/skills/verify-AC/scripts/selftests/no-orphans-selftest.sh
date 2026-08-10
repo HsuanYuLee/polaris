@@ -107,7 +107,7 @@ printf '# demo\n\n跑 `scripts/used.sh`。\n' > "$WORK/red/SKILL.md"
 printf '#!/usr/bin/env bash\ncase "$1" in\n  --issue) shift 2 ;;\nesac\n' > "$WORK/red/scripts/used.sh"
 printf '#!/usr/bin/env bash\necho nobody calls me\n' > "$WORK/red/scripts/orphan.sh"
 audit "$WORK/red"
-[[ "$RC" -eq 1 ]] || fail "沒有呼叫者的檔案應該判紅；拿到 $RC：$OUT"
+[[ "$RC" -eq 1 ]] || fail "沒有呼叫者的檔案應該判紅；拿到 ${RC}：$OUT"
 grep -q 'ORPHAN scripts/orphan.sh' <<<"$OUT" || fail "沒說出是哪一個檔案：$OUT"
 ok "沒有呼叫者的檔案會紅，而且說得出是哪一個"
 
@@ -117,7 +117,7 @@ printf '#!/usr/bin/env bash\ncase "$1" in\n  --issue) shift 2 ;;\n  --nobody-use
   > "$WORK/red/scripts/used.sh"
 printf '# demo\n\n跑 `scripts/used.sh --issue x`。\n' > "$WORK/red/SKILL.md"
 audit "$WORK/red"
-[[ "$RC" -eq 1 ]] || fail "沒有呼叫者的旗標應該判紅；拿到 $RC：$OUT"
+[[ "$RC" -eq 1 ]] || fail "沒有呼叫者的旗標應該判紅；拿到 ${RC}：$OUT"
 grep -q -- 'ORPHAN used.sh --nobody-uses-this' <<<"$OUT" || fail "沒說出是哪一個旗標：$OUT"
 ok "沒有呼叫者的旗標會紅，而且說得出是哪一個"
 
@@ -125,14 +125,14 @@ ok "沒有呼叫者的旗標會紅，而且說得出是哪一個"
 printf '#!/usr/bin/env bash\n# NO-CALLER: --nobody-uses-this — 保留給下游，這棵樹上沒有呼叫者\ncase "$1" in\n  --issue) shift 2 ;;\n  --nobody-uses-this) shift ;;\nesac\n' \
   > "$WORK/red/scripts/used.sh"
 audit "$WORK/red"
-[[ "$RC" -eq 0 ]] || fail "寫下理由之後應該是綠的；拿到 $RC：$OUT"
+[[ "$RC" -eq 0 ]] || fail "寫下理由之後應該是綠的；拿到 ${RC}：$OUT"
 grep -q '1 個旗標有寫下來的理由' <<<"$OUT" || fail "寫下來的理由要被數出來：$OUT"
 ok "寫下理由的旗標不判紅，而且理由的數量被印出來"
 
 printf '#!/usr/bin/env bash\n# NO-CALLER: --nobody-uses-this\ncase "$1" in\n  --issue) shift 2 ;;\n  --nobody-uses-this) shift ;;\nesac\n' \
   > "$WORK/red/scripts/used.sh"
 audit "$WORK/red"
-[[ "$RC" -eq 1 ]] || fail "沒有理由的標記不該買到豁免；拿到 $RC：$OUT"
+[[ "$RC" -eq 1 ]] || fail "沒有理由的標記不該買到豁免；拿到 ${RC}：$OUT"
 ok "只有標記沒有理由不算寫下來"
 
 # 真的那棵樹。上面三條證明這支量得到東西，這一條才有意義。
