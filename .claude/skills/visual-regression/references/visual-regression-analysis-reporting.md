@@ -54,7 +54,7 @@ Standalone run 不上傳 artifacts，只提供 local HTML report path。
 ## JIRA Wiki Report
 
 不論 pass 或 fail，ticket verification flow 必須寫 rich JIRA report。使用
-`vr-jira-report-template.md`，並透過 REST API v2 wiki markup 發 comment；不要使用 MCP
+認領那個命名空間的那一層自己的報告格式，並透過它宣告的命令發出去；不要使用 MCP
 markdown comment。
 
 Report rules：

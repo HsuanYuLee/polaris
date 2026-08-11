@@ -66,4 +66,5 @@ Playwright tests 必須 `workers: 1`。Parallel tests 會同時打 shared Mockoo
 ## JIRA Report Surface
 
 Inline screenshots 必須使用 JIRA REST API v2 wiki markup。MCP markdown comment 無法可靠嵌入
-ticket attachments。Report template 見 `vr-jira-report-template.md`。
+ticket attachments。**報告長什麼樣不寫在這裡**——那是某一家公司的介面細節（wiki 語法、
+API 版本、附件命名），跟著認領那個命名空間的那一層走。這一層只管怎麼產 before/after 截圖。

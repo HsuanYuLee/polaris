@@ -43,7 +43,7 @@ VR 在 quality chain 中回答：「既有頁面是否仍 visually intact？」�
 | Any VR run | `visual-regression-principles.md`, `visual-regression-preflight-flow.md`, `visual-regression-config.md`, `workspace-config.yaml` |
 | Screenshot execution | `visual-regression-capture-flow.md`, `dependency-consent.md` |
 | Fixtures enabled | `api-contract-guard.md`, `visual-regression-fixture-flow.md`, `vr-artifact-location.md` |
-| Analysis or JIRA report | `visual-regression-analysis-reporting.md`, `vr-jira-report-template.md` |
+| Analysis or JIRA report | `visual-regression-analysis-reporting.md` |
 
 JIRA report、Slack summary，或任何 external write body 送出前，必須依
 `workspace-config.yaml` 的 `language` 驗證語言。
