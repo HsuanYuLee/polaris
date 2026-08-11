@@ -1,6 +1,6 @@
 # check-pr-approvals Reporting Reference
 
-本 reference 承接 `check-pr-approvals/SKILL.md` 的低頻輸出細節。只有在產出分類報告、加 label、送 Slack、處理 🔧 remediation 或 merged PR side effects 時讀取。
+本 reference 承接 `check-pr-approvals/SKILL.md` 的低頻輸出細節。只有在產出報告、加 label、組通知訊息時讀取。
 
 ## Classification Report
 
@@ -8,17 +8,17 @@
 
 ```markdown
 🟢 可催 review（N 個）：
-| # | Repo | PR | Title | Approvals | Reviewers | Label |
-|---|------|----|-------|-----------|-----------|-------|
-| 1 | repo-a | [#1786](url) | feat: xxx | 0/2 | — | |
-| 2 | repo-b | [#302](url) | fix: yyy | 1/2 | reviewer-b ✅ | 👀 |
+| # | Repo | PR | 單 | Title | Approvals | Reviewers | Label |
+|---|------|----|----|-------|-----------|-----------|-------|
+| 1 | repo-a | [#1786](url) | [KEY-1](ticket-url) | feat: xxx | 0/2 | — | |
+| 2 | repo-b | [#302](url) | [KEY-2](ticket-url) | fix: yyy | 1/2 | reviewer-b ✅ | 👀 |
 
 🔧 需先修正（N 個）：
-| Repo | PR | Ticket | 問題 |
-|------|----|--------|------|
-| repo-a | [#1920](url) | TASK-3788 | CI fail (codecov/patch) |
-| repo-c | [#45](url) | TASK-3801 | rebase conflict |
-| repo-d | [#67](url) | 無對應 ticket | 2 unresolved review comments |
+| Repo | PR | 單 | 問題 |
+|------|----|----|------|
+| repo-a | [#1920](url) | [KEY-3](ticket-url) | CI fail (codecov/patch) |
+| repo-c | [#45](url) | [KEY-4](ticket-url) | rebase conflict |
+| repo-d | [#67](url) | 查不出 | 2 unresolved review comments |
 
 ✅ 已達標（N 個）：repo-a [#100](url), repo-b [#200](url)
 
@@ -33,6 +33,11 @@ Reviewers 欄位：
 - `—`：尚無人 review
 
 問題欄可複合，例如 `CI fail + 2 unresolved comments`。排序規則：🟢 PR 依 valid approvals 升序；🔧 PR 依 conflict > CI fail > comments 排序。
+
+「單」欄用 `ticket.key` 加 `ticket.url` 做成連結——**🔧 那一批要靠它才知道回哪裡解問題**。
+`ticket` 是 `null` 時寫「查不出」，不要寫「無對應單」：前者是這一趟沒答案，後者是斷定它
+本來就沒有單，而這支 skill 不知道後面那件事。同一批裡查不出來的有幾個、是哪幾個，
+`attach-pr-ticket.sh` 已經逐筆印在 stderr。
 
 ## Label Handling
 
@@ -50,90 +55,39 @@ gh pr edit <number> --repo "{github_org}/<repo>" --add-label "👀 need review"
 gh pr edit <number> --repo "{github_org}/<repo>" --add-label ":eyes: need review"
 ```
 
-Label 失敗不應中斷整批 Slack reminder，但必須在最後回報哪些 PR label 失敗。
+Label 失敗不應中斷整批通知，但必須在最後回報哪些 PR label 失敗。
 
-## Slack Reminder
+## 通知訊息
 
-只通知使用者選中的 🟢 PR。Slack message 送出前必須 materialize 成 temp markdown，並通過：
+只通知使用者選中的那些。**這支 skill 決定訊息要說什麼，不決定它長什麼樣子**——最終格式
+屬於認領那個 org 的那一層（它才知道要送去哪、那個地方的標記語法是什麼）。
+
+每一則要說得出：
+
+- 這是誰的 PR、日期
+- 按 repo 分組，同 repo 的放一起
+- 每個 PR：連結、標題、`valid_approvals`/`threshold`
+- 每個 PR 的 reviewer 狀態，逐位：
+  - 有 stale approve → 需要 re-approve（有新 push）
+  - 有 valid approve → 已 approve
+  - 有 REQUEST_CHANGES → requested changes
+  - 還沒有人看 → 還需幾位
+- 總共幾個 PR 需要看
+
+送出前必須 materialize 成 temp markdown，並通過語言閘：
 
 ```bash
-bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
+bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <訊息檔>
 ```
 
-Slack wording 不使用「催促」、「催」、「趕快」。用「麻煩大家幫忙」、「有空幫忙看一下」。
-
-Template：
-
-```text
-:mag: *PR Review 進度*
-時間：{YYYY-MM-DD}
-作者：{author}
-
-以下 PR 麻煩大家有空幫忙 review / re-approve，感謝 :pray:
-
-*{repo_name}*
-• <{pr_url}|#{number}> {title} — _{valid_approvals}/{threshold} approve(s)_
-  {reviewer_details}
-
-共 {selected_count} 個 PR 需要 review / re-approve
-```
-
-Reviewer details：
-
-- 有 stale approve：`⚠️ {username} 需 re-approve（有新 push）`
-- 有 valid approve：`✅ {username} 已 approve`
-- 有 REQUEST_CHANGES：`🔄 {username} requested changes`
-- 尚無人 review：`還需 {threshold} 位同仁 review`
-- 已有部分 valid approval：`還需 {remaining} 位同仁 review`
-
-按 repo 分組；同 repo PR 放在同一組。
-
-## JIRA Remediation Routing
-
-🔧 PR 必須從 branch name 或 PR title 萃取 ticket key。Pattern：`[A-Z]+-\d+`。
-
-若 ticket key 存在，查 JIRA 狀態：
-
-- 狀態是 `CODE REVIEW`：轉回 `IN DEVELOPMENT`，並留言記錄原因。
-- 已在 `IN DEVELOPMENT` 或其他狀態：不轉狀態，只在報告中列出。
-- 轉狀態失敗：不阻塞報告，但必須列為 warning。
-
-`AWAITING_RE_REVIEW` 不屬於 remediation routing：不轉回 `IN DEVELOPMENT`，
-不貼「需修正」comment，只在 reviewer reminder / re-review handoff 中呈現。
-
-Comment 範例：
-
-```text
-PR #{number} 目前仍需修正：{reason}。已轉回 IN DEVELOPMENT。
-```
-
-若 ticket key 萃取不到，不做 JIRA routing，報告中標 `無對應 ticket`。
-
-## Merged PR Side Effects
-
-掃描過程發現 merged PR 時才處理本段。
-
-### Feature Branch PR Gate
-
-讀 `../references/feature-branch-pr-gate.md`，依該 reference 執行偵測與回報。不要在本 reference 重寫 gate 語意。
-
-### 完成的標記不在這裡下
-
-從 branch / title 萃取到的 ticket key，**本 skill 不替它標任何完成狀態**。
-
-一張單完成了沒有，唯一的答案在 `issues/{命名空間}/{單}/.spine/loop-state.json` 的
-`status`，由 `verify-ac` 判定之後寫下。位置（活躍區 / `archive/`）是那個狀態的投影，由
-`spine-loop-state.sh record` 自己搬。
-
-本 skill 只回報 PR 的狀態。看到一張單該收而沒收，說出來，不要動手——第二個會寫完成狀態
-的地方，就是第二套會跟位置打架的權威。
+用字不使用「催促」、「催」、「趕快」；用「麻煩大家幫忙」、「有空幫忙看一下」。
 
 ## Completion Summary
 
 最後回報：
 
 - 已加 label 的 PR
-- Slack 發送 channel
+- 通知送到哪（由宣告方回答）
 - JIRA 已從 `CODE REVIEW` 轉回 `IN DEVELOPMENT` 的 ticket
 - 仍需修正的 🔧 PR 與建議指令，例如 `做 TASK-3788`
-- label / JIRA / Slack 的 warning
+- label 與通知的 warning

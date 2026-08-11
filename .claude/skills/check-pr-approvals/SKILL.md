@@ -1,7 +1,7 @@
 ---
 name: check-pr-approvals
 description: |
-  "掃描使用者的 open PR，偵測 CI 狀態、未回覆 review comments、approval 數量，分類為三種狀態（可催/需修/已達標）後由使用者選擇催 review 或手動修正。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
+  "把使用者名下已經開好的 PR 蒐集起來、帶回每一個的 review 狀態、列出來讓他決定要請誰看，然後通知對的人。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
 
   使用者問**自己的** PR 現在怎麼樣，或想找人來看。例如「我的 PR」「PR 狀態」
   「催 review」「PR 被 approve 了嗎」「請同仁幫我 review」。
@@ -11,164 +11,166 @@ description: |
   不用於：review 別人的 PR（走 review-pr）、掃團隊待看的 PR（走 review-inbox）。
 metadata:
   author: ""
-  version: 2.1.0
+  version: 3.0.0
 scope: standalone
 ---
 
-# Check PR Approvals — PR Review 進度追蹤
+# check-pr-approvals — 請人來看已經開好的 PR
 
-掃描 `{config: github.org}` org（fallback: `your-org`）下指定使用者的 open PR，偵測 rebase、CI、review comments、approval / stale approval，並用 shared PR state vocabulary 做分類後等待使用者選擇下一步。
+實作做完、PR 開出來了，缺的是最後一步：**請同事看**。這支 skill 承載那一步的全部——這批
+總共有多少、分在哪些 repo、每一個現在被誰看了、要通知誰。
 
-核心邊界：本 skill 只偵測、分類、呈報與在使用者選擇後通知 reviewer；不自動修正 CI failure、review comments 或 rebase conflict。需修正的 PR 另行處理（修 review comments 多半不用立案，直接做；會改變成功定義的走 `refinement`）。
+三步，順序固定，**中間那一步是人**：
 
-## 前置
+1. **query** 名下所有 open PR，帶回每一個的 review 狀態。
+2. **列出來問使用者要怎麼處理**——列的東西要足夠讓他當場決定，不用再去 GitHub 翻一遍。
+3. **照他的決定通知對的人**。
 
-讀取 workspace config（見 `workspace-config.yaml`），需要：
+## 這支 skill 不知道的三件事
 
-- `github.org`
-- `slack.channels.ai_notifications`
-- shared defaults：approval threshold、review label、fallback org/channel
+**要看哪個 org、哪個 repo 通知誰、一張單長什麼樣。** 三者都由認領那個 org 的 skill 在
+自己的 `SKILL.md` 宣告，這裡掃所有 skill 找那一行：
 
-若使用者沒有指定 author，先執行：
+```
+<!-- {任意前綴}-PR-CONTEXT-{org}: {命令} -->
+```
+
+鍵裡那一段就是 org 名，所以掃一次同時回答「要 query 誰」與「拿到之後問誰」。一個宣告都
+沒有時說出來並停下——**不猜一個 org，不用占位字串當預設值**。
+
+宣告的命令要認得兩個模式，第一個參數就是模式名：
+
+| 模式 | 進 | 出 |
+|---|---|---|
+| `notify --repo R` | 參數 | 這個 repo 的 PR 通知誰，格式由那一層自己定 |
+| `ticket` | stdin：`repo⇥number⇥title⇥branch` | `repo⇥number⇥單號⇥單的 URL` |
+
+`ticket` 走 TSV 而不是把 PR 的 JSON 丟過去：那個資料結構是這支 skill 的事，交出去等於逼
+每一家公司的知識層都得認得它。**這裡不認得任何一家公司的單號長什麼樣**，也不該認得。
+
+所以這裡沒有前置設定要人先準備，也不需要任何環境變數。author 沒指定時自己偵測：
 
 ```bash
 MY_USER="$(gh api user --jq '.login')"
 ```
 
+approval threshold 這類判定門檻仍讀 workspace config 的 shared defaults。
+
 ## Bundled Scripts
 
-Script 路徑相對於本 skill 目錄。執行前確認有 `+x` 權限。
+路徑相對於本 skill 目錄。
 
-| Script | 用途 | Output contract |
-|--------|------|-----------------|
-| `.claude/skills/check-pr-approvals/scripts/fetch-user-open-prs.sh` | 搜尋 author open PR，含 base/head/labels | PR JSON array |
-| `.claude/skills/check-pr-approvals/scripts/rebase-pr-branch.sh` | 批次 rebase PR branches | 加上 `rebase_status` |
-| `.claude/skills/check-pr-approvals/scripts/fetch-pr-review-comments.sh` | 批次取得未回覆 actionable comments | 加上 `actionable_comments` |
-| `.claude/skills/check-pr-approvals/scripts/check-pr-approval-status.sh` | 批次檢查 approvals / stale | 加上 approval fields |
+| Script | 用途 | 輸出 |
+|--------|------|------|
+| `scripts/resolve-pr-context.sh` | `orgs` 列出被宣告的 org；`notify` / `ticket` 轉交給認領那個 org 的命令 | org 清單／那一層的答案 |
+| `scripts/fetch-user-open-prs.sh` | 名下所有 open PR，含 org/base/head | PR JSON array |
+| `scripts/check-pr-approval-status.sh` | approval 數、stale、被指名還沒看的 reviewer | 加上 approval 欄位 |
+| `scripts/fetch-pr-review-comments.sh` | 還沒被回覆的 actionable comments | 加上 `unaddressed_comments` |
+| `scripts/check-pr-ci-status.sh` | CI 狀態 | 加上 `ci` |
+| `scripts/attach-pr-ticket.sh` | 這個 PR 屬於哪一張單 | 加上 `ticket` |
+| `scripts/plan-pr-notify.sh` | 這批要通知哪裡，逐個 repo 給建議 | `repo⇥狀態⇥數量⇥目的地` |
 
-Script 是 deterministic source；不要在入口重寫其內部 API / stale / bot filter 邏輯。PR
-type、mergeability、base_freshness、`awaiting_re_review` / `mergeable_ready` 語義以 shared
-PR state contract 為準。本 skill 只能偵測與轉述 shared state，不得把 bucket 名稱包裝成
-author-side completion / release authority。
+Script 是 deterministic source；不要在入口重寫它們的 API、stale 或 bot filter 邏輯。
 
 ## Lazy-load Map
 
 | 何時讀 | Reference | 用途 |
 |--------|-----------|------|
-| 產出分類報告、加 label、送 Slack、處理需修正 PR 時 | `references/check-pr-approvals-reporting.md` | report table、Slack wording、label fallback、JIRA remediation routing |
-| 判讀 approval / stale semantics 前 | `references/stale-approval-detection.md` | stale approval 權威定義 |
-| 掃到 merged PR 時 | `references/feature-branch-pr-gate.md` | Feature Branch PR Gate |
-| Slack message 送出前 | `.claude/rules/style-and-language.md` | language gate |
-ion |
+| 產出報告、加 label、組通知訊息時 | `references/check-pr-approvals-reporting.md` | 報告表格、label 處理、訊息要說出哪幾件事 |
+| 判讀 approval / stale 語意前 | `references/stale-approval-detection.md` | stale approval 的權威定義 |
+| 需要 shared PR state 字彙時 | `references/pr-state-contract.md` | PR type、mergeability、base freshness |
+| 訊息送出前 | `.claude/rules/style-and-language.md` | 語言閘 |
 
-## Workflow
+## 1. Query：這批是哪些、狀態如何
 
-### 1. Scan Open PRs
-
-```bash
-"$SKILL_DIR/scripts/fetch-user-open-prs.sh" --author "$MY_USER"
-```
-
-若結果為 `[]`，回報目前沒有 open PR，流程結束。
-
-### 2. Rebase Branches
+一條 pipe 走完，每一段各補一類狀態：
 
 ```bash
-"$SKILL_DIR/scripts/fetch-user-open-prs.sh" --author "$MY_USER" \
-  | "$SKILL_DIR/scripts/rebase-pr-branch.sh" --work-dir "{base_dir}"
+"$SKILL_DIR/scripts/fetch-user-open-prs.sh" \
+  | "$SKILL_DIR/scripts/check-pr-approval-status.sh" --threshold "$APPROVAL_THRESHOLD" \
+  | "$SKILL_DIR/scripts/fetch-pr-review-comments.sh" --author "$MY_USER" \
+  | "$SKILL_DIR/scripts/check-pr-ci-status.sh" \
+  | "$SKILL_DIR/scripts/attach-pr-ticket.sh"
 ```
 
-`rebase_status=conflict` 的 PR 直接歸類為 🔧 需先修正，不嘗試自動解衝突。
+結果為 `[]` 就回報沒有 open PR，結束。
 
-### 3. Check CI
+**問不到的東西不會被讀成「沒問題」**，這是這一步的重點：
 
-對 rebase 成功或 skipped 的 PR 查。CI / mergeability / base freshness vocabulary 以
-`references/pr-state-contract.md` 與 shared PR state scripts 為準；本 skill 不再依賴
-舊的 shared reference PR status helper，也不自行重建 PR readiness schema。
+| 欄位 | 值 | 意思 |
+|---|---|---|
+| `branch_status` | `unreachable` | base/head 沒問到。不是「base 是預設分支」 |
+| `ci.state` | `UNREACHABLE` | 這一趟沒問到 CI。**不是 PASS，也不是 NONE** |
+| `ci.state` | `NONE` | 真的沒有設任何 check |
+| `ticket` | `null` | 沒查出屬於哪張單。**不是「這個 PR 沒有單」**——那幾筆會被逐個指名 |
 
-Classification（先看 shared PR state，再看傳統 bucket）：
+某個 org 整個問不到時，其餘 org 的結果照常回來，問不到的那些被逐個指名；全部問不到時
+非 0 退出，而不是回一個看起來像「沒有 PR」的空陣列。
 
-- all pass → 繼續 review comments / approvals 判定
-- any fail → 🔧 需先修正
-- pending / no checks → 最多重試 2 次，間隔 30 秒；仍 pending 則列為等待中並說明
+## 2. 列出來，讓使用者決定
 
-`codecov/patch` 與 `codecov/patch/*` fail 一律等同 CI fail。
+報告要讓人**當場**決定，不用再去別的地方查。逐個 PR 給出：
 
-### 4. Check Review Comments
+- repo、編號、標題、連結
+- **它屬於哪一張單**（`ticket.key` 與 `ticket.url`）。卡住的 PR 要回頭解問題時，那張單就是
+  去處。查不出來的標成「查不出」並且**不要寫成「沒有單」**——那是兩件事
+- approval：`valid_approvals`/`threshold`，有 stale 要標出來
+- 被指名但還沒回應的 reviewer（`requested_reviewers`）
+- 還沒被回覆的意見數（`unaddressed_comments`）
+- CI 狀態；`FAIL` 要帶上是哪幾個 check（`ci.failing`）
+- 這個 PR 適不適合現在請人看，不適合的話卡在哪
+
+最後給出總數與 repo 分布。
+
+**然後停下來等使用者選。** 沒有得到選擇之前不通知、不加標記、不動任何一個 repo。
+
+**不自動挑一批送出去。** 判斷可以給，決定不代做。
+
+## 3. 通知對的人
+
+只處理使用者選中的那些。**先給出建議，再送**：
 
 ```bash
-echo "$ci_passed_prs" \
-  | "$SKILL_DIR/scripts/fetch-pr-review-comments.sh" --author "$MY_USER"
+printf '%s' "$SELECTED" | "$SKILL_DIR/scripts/plan-pr-notify.sh"
 ```
 
-有未回覆 actionable comments 的 PR 歸類為 🔧 需先修正。Code review bots 的建議視為 actionable；非 code review bot 通知由 script 過濾。
+它逐個 repo（不是逐個 PR）算出要送去哪，輸出 `repo⇥狀態⇥數量⇥目的地`。**把這份建議連同
+目的地一起給使用者看過再送**——目的地是通知的一半，一個沒被看過的目的地跟沒被選過一樣。
 
-### 5. Check Approvals
+退出碼 4 的意思是「我答完我答得出的，剩下這幾個要你給」，**不是壞掉**：
 
-先讀 `references/stale-approval-detection.md`，再跑：
+- **`known`** → 照宣告那一支 skill 自己的說明送出。**怎麼送、送到哪，是那一層的事**——
+  這支 skill 不認得任何一個目的地的形狀。
+- **`unknown`** → 對使用者說出「這幾個 repo 我不知道要通知誰」，把宣告那一層印出來的
+  修法原樣附上，**問他要一個目的地**。不猜一個，也不沿用別的 repo 的——同一個 org 底下
+  不同 repo 送去不同地方是常態。
+- 拿到答案之後**當下記下來**，照宣告那一層說的方式（訊息裡會寫）。只用在這一次的話，
+  下一次會再問一次同樣的問題，而被問的人會以為自己上次沒講清楚。
+
+一個 repo 問不到不擋其餘的：其他 repo 照常送，問不到的那幾個等答案。
+
+送出前把訊息寫成 temp markdown 並通過語言閘：
 
 ```bash
-echo "$review_comment_checked_prs" \
-  | "$SKILL_DIR/scripts/check-pr-approval-status.sh" --threshold "$APPROVAL_THRESHOLD"
+bash "$SKILL_DIR/scripts/validate-language-policy.sh" --blocking --mode artifact <訊息檔>
 ```
 
-Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
-
-### 6. Classify
-
-| 分類 | 條件 | 下一步 |
-|------|------|--------|
-| 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 shared classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
-| 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示這張要先修 |
-| ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知；這只代表 approval threshold 達標，不等於 release completed |
-
-若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `.claude/skills/check-pr-approvals/scripts/pr-review-state-classifier.sh`
-或等價 thread-aware evidence 判斷。`AWAITING_RE_REVIEW` 代表作者已處理且需要 reviewer
-重新 review；不得把它列為 🔧，也不得將 JIRA 轉回 `IN DEVELOPMENT`。
-
-shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_freshness=stale_downstream`，
-不能用「可催 review」包裝；要明確落在需修正 / 需 rebase 的 bucket。
-
-🔧 PR 必須從 branch name 或 title 萃取 ticket key（pattern: `[A-Z]+-\d+`）；萃取不到就標「無對應 ticket」。有 ticket key 且 JIRA 在 `CODE REVIEW` 時，依 reporting reference 回轉 `IN DEVELOPMENT` 並留言。
-
-### 7. Report + User Selection Gate
-
-讀 `references/check-pr-approvals-reporting.md` 產出使用者報告。報告後必須等待使用者輸入要通知的 🟢 PR 編號，例如 `1,2`、`all`、`none`。
-
-不可讓使用者選 🔧 或 ✅ PR 送 review reminder。未得到選擇前，不加 label、不送 Slack。
-
-### 8. Label + Slack
-
-只處理使用者選中的 🟢 PR：
-
-1. 依 reporting reference 加 review label，已存在則跳過。
-2. 組 Slack message。
-3. 送出前先把 message 寫成 temp markdown，跑：
-
-   ```bash
-   bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
-   ```
-
-4. language gate 通過後才送 Slack。
-
-### 9. Merged PR Side Effects
-
-如果掃描過程發現 merged PR：
-
-- 讀 `references/feature-branch-pr-gate.md` 並執行 gate。
-- 若 branch / title 可萃取非 Epic ticket key，且對應 spec container 存在，依 reporting reference 執行 Spec Done Marker。
+送完之後逐個回報：送出去的是哪幾個、送到哪、成功與否。**送不出去要說出來**，不能只報成功
+的那些。
 
 ## Hard Safety Rules
 
-- 不自動修正 CI failure、review comments、rebase conflict。
+- **不動任何一個 repo 的 git 狀態**：不 rebase、不 push、不切分支、不 stash。base 過期是
+  報告上的一行，要不要處理是使用者的決定。
+- 不自動修正 CI failure 或 review comments。
+- 不代替使用者決定要通知誰、通知哪幾個。
 - 不使用 `gh pr view --json reviews` 取代 bundled approval script。
-- 不使用 `gh pr checks --json` 取代 bundled REST-backed status script。
-- 不省略 🔧 PR ticket key；萃取不到要明寫。
-- 不通知已達標或需修正的 PR。
+- 不使用 `gh pr checks --json` 取代 bundled CI script。
+- 不把問不到的狀態讀成通過——`UNREACHABLE` 不是 `PASS`。
+- 不通知已達標的 PR。
 - 不把「已達標」寫成「可 release / 已完成」。
 - 不忽略 stale approval。
-- 不把未通過 language gate 的 Slack message 送出。
-- 不在 Slack wording 使用「催促」、「催」、「趕快」等字眼；用「麻煩大家幫忙」、「有空幫忙看一下」。
-
+- 不把未通過語言閘的訊息送出。
+- 訊息不使用「催促」、「催」、「趕快」等字眼；用「麻煩大家幫忙」、「有空幫忙看一下」。
 
 <!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

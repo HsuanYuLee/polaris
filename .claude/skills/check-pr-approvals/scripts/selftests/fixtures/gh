@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# 假的 gh：讓這支 skill 的整條 pipeline 可以離線、可重跑地被量。
+#
+# 為什麼要它：這支 skill 的每一段都在問 GitHub，而「問不到的東西不會被讀成沒問題」這一類
+# 斷言**只能靠餵紅來證明**——真的 GitHub 不會配合你在需要的時候壞掉。用真帳號量的結果也
+# 不可重跑：PR 會被 approve、CI 會從 PENDING 變綠（這在 DP-511 的兩趟量測之間真的發生過）。
+#
+# 只認這支 skill 真的會打的那幾個端點，其餘一律非 0 並說出是哪一個——一個「不認得就回空」
+# 的 stub 會把「我沒實作」變成「那裡沒東西」，而那正是被量的斷言要擋的形狀。
+#
+# 情境（由 POLARIS_SELFTEST_SCENARIO 選）：
+#   happy       acme/widget #101 #102，兩個都問得到
+#   unreachable 多一個 acme/gadget #103（PR endpoint 壞）與一個整個問不到的 org
+
+set -uo pipefail
+
+SCENARIO="${POLARIS_SELFTEST_SCENARIO:-happy}"
+
+# --jq 的值要拿來過濾輸出；--method / -f / --paginate 這些只是雜訊，吃掉就好。
+JQ_FILTER=""
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --jq) JQ_FILTER="${2:-}"; shift 2 ;;
+    --method|-f|-F|-H|--limit|--author|--state|--owner|--json)
+      ARGS+=("$1" "${2:-}"); shift 2 ;;
+    --paginate) shift ;;
+    *) ARGS+=("$1"); shift ;;
+  esac
+done
+
+emit() {
+  if [[ -n "$JQ_FILTER" ]]; then
+    printf '%s' "$1" | jq -r "$JQ_FILTER"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+fail() {
+  echo "gh: $1" >&2
+  exit 1
+}
+
+SEARCH_ACME='[
+  {"repository":{"name":"widget"},"number":101,"title":"[ACME-1] 乾淨的那一個","url":"https://example.invalid/acme/widget/pull/101","updatedAt":"2026-08-11T00:00:00Z","labels":[]},
+  {"repository":{"name":"widget"},"number":102,"title":"[ACME-2] 卡住的那一個","url":"https://example.invalid/acme/widget/pull/102","updatedAt":"2026-08-11T01:00:00Z","labels":[]}
+]'
+SEARCH_ACME_UNREACHABLE='[
+  {"repository":{"name":"widget"},"number":101,"title":"[ACME-1] 乾淨的那一個","url":"https://example.invalid/acme/widget/pull/101","updatedAt":"2026-08-11T00:00:00Z","labels":[]},
+  {"repository":{"name":"widget"},"number":102,"title":"[ACME-2] 卡住的那一個","url":"https://example.invalid/acme/widget/pull/102","updatedAt":"2026-08-11T01:00:00Z","labels":[]},
+  {"repository":{"name":"gadget"},"number":103,"title":"[ACME-3] 問不到的那一個","url":"https://example.invalid/acme/gadget/pull/103","updatedAt":"2026-08-11T02:00:00Z","labels":[]}
+]'
+
+PULL_101='{"head":{"sha":"aaa111"},"base":{"ref":"main"},"requested_reviewers":[]}'
+PULL_102='{"head":{"sha":"bbb222"},"base":{"ref":"main"},"requested_reviewers":[{"login":"reviewer-y"}]}'
+
+REVIEWS_101='[
+  {"user":{"login":"reviewer-a"},"state":"APPROVED","submitted_at":"2026-08-10T00:00:00Z","commit_id":"aaa111"},
+  {"user":{"login":"reviewer-b"},"state":"APPROVED","submitted_at":"2026-08-10T01:00:00Z","commit_id":"aaa111"}
+]'
+# commit_id 不是現在的 head → stale approve。這一筆存在的唯一理由是讓 has_stale 真的被走到。
+REVIEWS_102='[
+  {"user":{"login":"reviewer-x"},"state":"APPROVED","submitted_at":"2026-08-10T00:00:00Z","commit_id":"old999"}
+]'
+
+COMMENTS_101='[]'
+COMMENTS_102='[
+  {"id":1,"user":{"login":"reviewer-x"},"body":"這裡要改","created_at":"2026-08-10T02:00:00Z","in_reply_to_id":null,"path":"a.ts","line":1},
+  {"id":2,"user":{"login":"reviewer-x"},"body":"這個命名","created_at":"2026-08-10T03:00:00Z","in_reply_to_id":null,"path":"b.ts","line":2},
+  {"id":3,"user":{"login":"reviewer-y"},"body":"還有這個","created_at":"2026-08-10T04:00:00Z","in_reply_to_id":null,"path":"c.ts","line":3}
+]'
+
+CHECKS_AAA111='{"check_runs":[{"name":"build","status":"completed","conclusion":"success","started_at":"2026-08-10T00:00:00Z"}]}'
+CHECKS_BBB222='{"check_runs":[
+  {"name":"build","status":"completed","conclusion":"success","started_at":"2026-08-10T00:00:00Z"},
+  {"name":"lint","status":"completed","conclusion":"failure","started_at":"2026-08-10T00:00:00Z"}
+]}'
+
+case "${ARGS[0]:-}" in
+  api) ;;
+  search)
+    [[ "${ARGS[1]:-}" == "prs" ]] || fail "這個 stub 只認得 search prs"
+    owner=""
+    for ((i = 0; i < ${#ARGS[@]}; i++)); do
+      [[ "${ARGS[$i]}" == "--owner" ]] && owner="${ARGS[$((i + 1))]}"
+    done
+    case "$owner" in
+      acme)
+        if [[ "$SCENARIO" == "unreachable" ]]; then emit "$SEARCH_ACME_UNREACHABLE"; else emit "$SEARCH_ACME"; fi
+        exit 0 ;;
+      ghost) fail "Could not resolve to an Organization with the login of 'ghost'." ;;
+      *) fail "這個 stub 不認得 org「${owner}」" ;;
+    esac ;;
+  *) fail "這個 stub 只認得 api 與 search，收到：${ARGS[0]:-（空的）}" ;;
+esac
+
+# 到這裡一定是 api。路徑是 api 後面第一個不以 - 開頭的參數。
+PATH_ARG=""
+for ((i = 1; i < ${#ARGS[@]}; i++)); do
+  [[ "${ARGS[$i]}" == -* ]] && continue
+  PATH_ARG="${ARGS[$i]}"
+  break
+done
+
+case "$PATH_ARG" in
+  user) emit '{"login":"selftest-user"}' ;;
+  repos/acme/widget/pulls/101) emit "$PULL_101" ;;
+  repos/acme/widget/pulls/102) emit "$PULL_102" ;;
+  repos/acme/widget/pulls/101/reviews) emit "$REVIEWS_101" ;;
+  repos/acme/widget/pulls/102/reviews) emit "$REVIEWS_102" ;;
+  repos/acme/widget/pulls/101/comments) emit "$COMMENTS_101" ;;
+  repos/acme/widget/pulls/102/comments) emit "$COMMENTS_102" ;;
+  # 這一筆刻意壞掉：branch_status / ci 的 unreachable 分支只有靠它才走得到。
+  repos/acme/gadget/pulls/103*) fail "Not Found (HTTP 404)" ;;
+  repos/acme/widget/commits/aaa111/check-runs) emit "$CHECKS_AAA111" ;;
+  repos/acme/widget/commits/bbb222/check-runs) emit "$CHECKS_BBB222" ;;
+  repos/acme/*/commits/*/statuses) emit '[]' ;;
+  *) fail "這個 stub 不認得端點「${PATH_ARG}」" ;;
+esac

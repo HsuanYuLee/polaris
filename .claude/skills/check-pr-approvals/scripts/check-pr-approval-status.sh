@@ -2,7 +2,7 @@
 # check-pr-approval-status.sh — 批次檢查 PR 的 approval 數量（含 stale 偵測）
 #
 # Usage: echo '<pr_json>' | ./check-pr-approval-status.sh [--threshold <N>]
-# Input (stdin): fetch-user-open-prs.sh 或 rebase-pr-branch.sh 的 JSON 輸出
+# Input (stdin): fetch-user-open-prs.sh 的 JSON 輸出
 # Output (stdout): JSON array，每個 PR 附加 approval 資訊
 # Progress (stderr): 檢查進度
 #
@@ -31,17 +31,16 @@ set -euo pipefail
 # lives in scripts/lib/pr-approval-count.sh so check-pr-approvals and
 # pr-action-classifier share exactly one counting path (AC6) instead of each
 # keeping a private loop that can drift.
-APPROVAL_COUNT_LIB="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/pr-approval-count.sh"
+APPROVAL_COUNT_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/pr-approval-count.sh"
 if [[ ! -f "$APPROVAL_COUNT_LIB" ]]; then
   echo "POLARIS_TOOL_MISSING:pr-approval-count.sh (expected at $APPROVAL_COUNT_LIB)" >&2
   exit 1
 fi
 
-ORG="${ORG:-}"
-if [[ -z "$ORG" ]]; then
-  echo "ERROR: ORG environment variable required (e.g. export ORG=my-github-org)" >&2
-  exit 1
-fi
+# org 從每一筆 PR 自己帶的 `.org` 讀，不從環境變數。上游 fetch-user-open-prs.sh 從宣告解出
+# org 之後就把它寫在每一筆上——一批 PR 可以橫跨多個 org，一個全域變數表達不了那件事。
+# 環境變數仍然當 fallback，那是給手工餵舊格式 JSON 的情況用的。
+ORG_FALLBACK="${ORG:-}"
 THRESHOLD=2
 
 while [[ $# -gt 0 ]]; do
@@ -71,6 +70,14 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   repo=$(_jq '.repo')
   number=$(_jq '.number')
+  org=$(_jq '.org')
+  if [[ -z "$org" || "$org" == "null" ]]; then
+    org="$ORG_FALLBACK"
+  fi
+  if [[ -z "$org" ]]; then
+    echo "POLARIS_APPROVAL_NO_ORG: ${repo} #${number} 這一筆沒有 org，也沒有 ORG fallback" >&2
+    exit 2
+  fi
 
   count=$((count + 1))
 
@@ -86,19 +93,21 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   # 取得 reviews（commit_id 為 staleness 判定基準；submitted_at 僅用於挑出
   # 同一 reviewer 的最新一筆 review）。兩段式捕捉 exit code：成功才採用輸出，
   # 非零（含網路 / 404 / auth 失敗）一律 fail-closed，不靜默吞成 []。
-  if ! reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
+  if ! reviews=$(gh api "repos/${org}/${repo}/pulls/${number}/reviews" \
     --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]'); then
     echo "POLARIS_APPROVAL_API_ERROR: gh api 取得 $repo #$number reviews 失敗" >&2
     exit 2
   fi
 
-  # 取得 PR 當前 head commit SHA（沿用同一個 PR endpoint，僅改 --jq 投影，
-  # 不新增 API round-trip）。同樣兩段式 fail-closed。
-  if ! head_sha=$(gh api "repos/$ORG/$repo/pulls/$number" \
-    --jq '.head.sha'); then
-    echo "POLARIS_APPROVAL_API_ERROR: gh api 取得 $repo #$number head.sha 失敗" >&2
+  # 取得 PR 當前 head commit SHA 與「被指名但還沒回應」的 reviewer（沿用同一個 PR
+  # endpoint，僅改 --jq 投影，不新增 API round-trip）。同樣兩段式 fail-closed。
+  if ! pr_meta=$(gh api "repos/${org}/${repo}/pulls/${number}" \
+    --jq '{head_sha: .head.sha, requested_reviewers: [.requested_reviewers[].login]}'); then
+    echo "POLARIS_APPROVAL_API_ERROR: gh api 取得 ${repo} #${number} head.sha 失敗" >&2
     exit 2
   fi
+  head_sha=$(printf '%s' "$pr_meta" | jq -r '.head_sha')
+  requested_reviewers=$(printf '%s' "$pr_meta" | jq -c '.requested_reviewers')
 
   # 走 shared canonical counter（DP-413 T3）：把 reviews + head_sha 交給
   # scripts/lib/pr-approval-count.sh 做 per-reviewer 最新 review 的 valid/stale
@@ -115,7 +124,9 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   # 保留原本欄位，直接併入 shared counter 的計數物件（valid_approvals /
   # total_approvals / has_stale / reviewers），再補 needs_review 與 threshold。
   original=$(echo "$row" | base64 --decode)
-  enriched=$(echo "$original" | jq --argjson c "$count_json" --argjson needs_review "$needs_review" --argjson threshold "$THRESHOLD" '. + $c + {needs_review: $needs_review, threshold: $threshold}')
+  enriched=$(echo "$original" | jq --argjson c "$count_json" --argjson needs_review "$needs_review" \
+    --argjson threshold "$THRESHOLD" --argjson requested "$requested_reviewers" \
+    '. + $c + {needs_review: $needs_review, threshold: $threshold, requested_reviewers: $requested}')
 
   echo "$enriched" >> "$tmpfile"
 

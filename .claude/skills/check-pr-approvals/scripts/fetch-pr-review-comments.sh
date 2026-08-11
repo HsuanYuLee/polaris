@@ -24,11 +24,9 @@
 
 set -euo pipefail
 
-ORG="${ORG:-}"
-if [[ -z "$ORG" ]]; then
-  echo "ERROR: ORG environment variable required (e.g. export ORG=my-github-org)" >&2
-  exit 1
-fi
+# org 從每一筆 PR 自己帶的 `.org` 讀，不從環境變數——一批 PR 可以橫跨多個 org。
+# 環境變數留作 fallback，給手工餵舊格式 JSON 的情況。
+ORG_FALLBACK="${ORG:-}"
 AUTHOR=""
 
 # 非 code review 的自動化 bot — 這些只是通知訊息，不是 code review 建議
@@ -71,13 +69,21 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   repo=$(_jq '.repo')
   number=$(_jq '.number')
+  org=$(_jq '.org')
+  if [[ -z "$org" || "$org" == "null" ]]; then
+    org="$ORG_FALLBACK"
+  fi
+  if [[ -z "$org" ]]; then
+    echo "POLARIS_COMMENTS_NO_ORG: ${repo} #${number} 這一筆沒有 org，也沒有 ORG fallback" >&2
+    exit 2
+  fi
 
   count=$((count + 1))
 
   # ========== Part A: Inline review comments（thread-based 判斷）==========
 
   # 取得所有 inline review comments
-  all_comments=$(gh api "repos/$ORG/$repo/pulls/$number/comments" \
+  all_comments=$(gh api "repos/${org}/${repo}/pulls/${number}/comments" \
     --paginate \
     --jq '[.[] | {id: .id, user: .user.login, path: .path, line: (.line // .original_line // 0), body: .body, in_reply_to_id: .in_reply_to_id, created_at: .created_at}]' 2>/dev/null || echo "[]")
 
@@ -126,7 +132,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   # ========== Part B: Review body comments ==========
 
   # 取得所有 reviews（含 body）
-  all_reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
+  all_reviews=$(gh api "repos/${org}/${repo}/pulls/${number}/reviews" \
     --paginate \
     --jq '[.[] | {id: .id, user: .user.login, body: .body, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
 

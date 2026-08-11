@@ -1,5 +1,52 @@
 # Changelog
 
+## [4.30.0] - 2026-08-12
+
+### Changed
+
+- 625b1a1: ### Changed
+  **`check-pr-approvals` 收成三步：query 名下的 PR 帶回狀態 → 列出來讓人決定 → 通知對的人
+  （DP-511）。** 實作做完、PR 開出來了，缺的是最後一步：請同事看。這支 skill 現在承載那一步
+  的全部——這批總共有多少、分在哪些 repo、每一個現在被誰看了、屬於哪張單、要通知誰。
+  **新的宣告點 `PR-CONTEXT`。** 核心不知道要看哪個 org、哪個 repo 通知誰、一張單長什麼樣，
+  三件事都由認領那個 org 的 skill 在自己的 `SKILL.md` 宣告：
+  ```
+  <!-- {任意前綴}-PR-CONTEXT-{org}: {命令} -->
+  ```
+  鍵裡那一段就是 org 名，所以掃一次同時回答「要 query 誰」與「拿到之後問誰」——不然會有雞
+  生蛋：要先知道 org 才查得到那個 org 的宣告。宣告的命令認兩個模式：`notify --repo R` 回
+  目的地，`ticket` 從 stdin 讀 `repo⇥number⇥title⇥branch`、回 `repo⇥number⇥單號⇥URL`。
+  **`ticket` 走 TSV 而不是把 PR 的 JSON 交出去**：那個資料結構是核心的事，交出去等於逼每一
+  家公司的知識層都得認得它，依賴方向會反過來。
+  ### Added
+  - **每個 PR 帶回 review 狀態**：approval 數與 stale、被指名但還沒看的 reviewer、還沒被
+    回覆的意見數、CI 狀態。**問不到的每一種都自己一個值**——`ci.state` 的 `UNREACHABLE` 跟
+    `NONE` 分開（後者是「這個 repo 不跑 CI」，前者是「這一趟沒問到」），`branch_status` 的
+    `unreachable` 不等於「base 是預設分支」，`ticket: null` 不等於「這個 PR 沒有單」。
+  - **`attach-pr-ticket.sh`**：卡住的 PR 要回頭解問題時，去處是那張單。認不出來的那幾筆由
+    核心算差集並**逐筆指名**——宣告那一層只回答它答得出的。
+  - **`plan-pr-notify.sh`**：送出之前逐個 repo 給出「要送去哪」的建議。**問不到不是壞掉，
+    是一個要人回答的問題**，所以 `exit 4` 跟壞掉分開；問不到的那幾個連同修法原樣附上，
+    其餘 repo 照常。
+  - **18 條斷言各有一個離線可重跑的量測**（`scripts/selftests/`）。附一支假的 `gh`：真的
+    GitHub 不會在你需要的時候壞掉，而「問不到不得被讀成沒問題」這一類只能靠餵紅來證明；
+    而且它的回答會變——這張單量兩趟之間就有一個 PENDING 的 check 變綠了。
+  ### Removed
+  `rebase-pr-branch.sh`、`check-feature-pr.sh`、`references/feature-branch-pr-gate.md`，以及
+  reporting 裡管 JIRA 狀態的兩節。「弄成可以 merge」不是「請人看」。那支 rebase 還有能力在
+  人沒看見的情況下做錯：stacked PR 守衛靜默失效，而 `--dry-run` 只跳過最後那次 push，前面的
+  cascade 段根本不看那個旗標。Hard Safety Rules 第一條因此換成**不動任何一個 repo 的 git
+  狀態**。
+  ### 這一輪自己踩到的
+  - **「找到了但找錯」踩了兩次**。一棵樹上有四份 `workspace-config.yaml`，依字母序會先命中
+    範本那份（前綴寫著佔位的 `PROJ`），於是它安靜地回答「這個 repo 不存在」與「0/17 個 PR
+    有單號」。判準改成「哪一份說得出這批 repo」。
+  - **`A-N1`（不得寫死座標）把公司名寫死在檢查裡**，被 gate 抓到。改成從 `PR-CONTEXT` 宣告
+    推導禁字。
+  - **`grep -licF` 同時給 `-l` 與 `-c`**，BSD grep 讓 `-c` 勝出，11 個 token 變成 297 個假
+    命中。
+  - **`--list` 的正則只認 `ID)`**，於是共用 `B-P2|B-N1)` 標籤的那兩條斷言從清單裡靜靜消失。
+
 ## [4.29.0] - 2026-08-11
 
 ### Changed
