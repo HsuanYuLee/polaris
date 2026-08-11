@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# 假的 gh。真的 gh 會把 --jq 套在回應上，所以這一份直接吐已經 jq 過的形狀——測的是
+# check-swe-done.sh 怎麼讀那些欄位，不是 jq 會不會跑。
+#
+# 由環境變數驅動：
+#   FAKE_PR_FACTS      `pr view` 要吐的 "state\tnumber\tauthor"。空的＝這條 branch 沒有 PR
+#   FAKE_PR_LIST       `pr list --json number --jq length` 要吐的數字
+#   FAKE_COMMENTS      `api .../comments` 要吐的 TSV："id\tin_reply_to_id\tlogin"
+#   FAKE_COMMENTS_RC   非 0 的話 `api` 直接失敗——用來量「問不到」那一種
+#   FAKE_CALL_LOG      每一次呼叫的完整參數會被 append 到這個檔
+set -uo pipefail
+
+[[ -n "${FAKE_CALL_LOG:-}" ]] && printf '%s\n' "$*" >> "$FAKE_CALL_LOG"
+
+case "${1:-}" in
+  pr)
+    case "${2:-}" in
+      view)
+        [[ -n "${FAKE_PR_FACTS:-}" ]] || exit 1
+        printf '%s\n' "$FAKE_PR_FACTS"
+        ;;
+      list)
+        printf '%s\n' "${FAKE_PR_LIST:-0}"
+        ;;
+      *) exit 1 ;;
+    esac
+    ;;
+  api)
+    [[ "${FAKE_COMMENTS_RC:-0}" == "0" ]] || exit "${FAKE_COMMENTS_RC}"
+    [[ -n "${FAKE_COMMENTS:-}" ]] && printf '%s\n' "$FAKE_COMMENTS"
+    ;;
+  *) exit 1 ;;
+esac
+exit 0
