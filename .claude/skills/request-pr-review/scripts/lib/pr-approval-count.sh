@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Purpose: Canonical valid-approval counter (DP-413 T3). Single shared source of
-#          the per-reviewer latest-review valid/stale approval tally, consumed by
-#          both check-pr-approvals (check-pr-approval-status.sh) and the PR-state
-#          pr-action-classifier policy-first APPROVED branch, so there is exactly
-#          one counting path (AC6, no second implementation that can drift).
+# Purpose: Canonical valid-approval counter (DP-413 T3). Single source of the
+#          per-reviewer latest-review valid/stale approval tally, so no caller
+#          keeps a private counting loop that can drift from this definition.
+#          Consumed by check-pr-approval-status.sh.
 # Inputs:  --head-sha SHA (required) — current PR head commit SHA.
 #          --reviews-json PATH       — reviews array file; read from stdin if omitted.
 #          Reviews JSON shape: [{user, state, submitted_at, commit_id}, ...].

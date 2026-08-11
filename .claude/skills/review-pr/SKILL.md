@@ -8,7 +8,7 @@ description: |
   "review 此 PR", "review 該 PR", "幫我 review 這個 PR" (without team subject),
   "review for me", "code review", or shares a PR URL with self-directed review
   intent. NOT for "請<同仁/大家/人名>幫我 review" (subject = others) — that is
-  催 review, route to check-pr-approvals. NOT for "review 大家的 PR" / "掃 PR"
+  催 review, route to request-pr-review. NOT for "review 大家的 PR" / "掃 PR"
   (object = others' PRs) — route to review-inbox. NOT for fixing review comments
   on your own PR — that needs no relay, just fix it.
 
@@ -17,7 +17,7 @@ description: |
   過來要人看。
 
   不用於：「請〈同仁/大家〉幫我 review」——主語是別人，那是催 review，
-  走 check-pr-approvals。
+  走 request-pr-review。
 metadata:
   author: Polaris
   version: 2.1.0

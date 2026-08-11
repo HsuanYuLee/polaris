@@ -19,7 +19,7 @@
 # 旁邊的 approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
 # 不再用 commit 時間戳（review submit time 與 PR last-push time 比較）判 approval 是否失效
 # ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。
-# DP-355：head.sha 改由 PR 物件 /pulls/N 的 .head.sha 取得（與 check-pr-approvals 一致），
+# DP-355：head.sha 改由 PR 物件 /pulls/N 的 .head.sha 取得（與 request-pr-review 一致），
 # 不再依賴 /commits 分頁的 .[-1].sha——commit 數超過分頁上限時 .[-1] 不是真 head。
 #
 # Example:
@@ -29,7 +29,7 @@
 set -euo pipefail
 
 # 載入 DP-315 canonical commit_id 基準 staleness atom（單一 writer path，與
-# check-pr-approvals 共用）。approval_staleness <review_commit_id> <head_sha>
+# request-pr-review 共用）。approval_staleness <review_commit_id> <head_sha>
 # 輸出 "valid" / "stale"。
 APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/approval-staleness.sh"
 if [[ ! -f "$APPROVAL_STALENESS_HELPER" ]]; then
@@ -144,7 +144,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     my_commit_id=$(echo "$my_latest" | jq -r '.commit_id')
 
     # 取得 PR 當前 head commit SHA：用 PR 物件本身的 .head.sha
-    # （與 check-pr-approvals/scripts/check-pr-approval-status.sh:82 同一 canonical
+    # （與 request-pr-review/scripts/check-pr-approval-status.sh:82 同一 canonical
     # 投影）。不再讀 /pulls/N/commits 分頁的 .[-1].sha——/commits 預設只回第一頁，
     # PR commit 數超過分頁上限時 .[-1] 取到的是第一頁最後一筆而非真 head，會讓
     # staleness / push-since-review 判定誤判（BS3 修正）。

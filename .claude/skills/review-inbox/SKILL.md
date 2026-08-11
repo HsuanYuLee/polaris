@@ -1,12 +1,12 @@
 ---
 name: review-inbox
 description: |
-  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'). Key: '我的 PR' → check-pr-approvals; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
+  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
 
   要掃出團隊裡等著自己看的 PR。例如「掃 PR」「review 大家的 PR」
   「有哪些 PR 要我看」，或給一個 Slack thread URL 要人看那一串。
 
-  分辨：「我的 PR」→ check-pr-approvals；「大家的 PR」或 Slack URL → 這裡；
+  分辨：「我的 PR」→ request-pr-review；「大家的 PR」或 Slack URL → 這裡；
   單一個 PR URL → review-pr。
 metadata:
   author: Polaris
@@ -25,7 +25,7 @@ scope: standalone
 ## Contract
 
 此 skill 只處理多 PR discovery + batch review orchestration。單一 PR URL 轉 `review-pr`；
-「我的 PR」approval 狀態轉 `check-pr-approvals`。
+「我的 PR」approval 狀態轉 `request-pr-review`。
 
 支援三個來源：
 

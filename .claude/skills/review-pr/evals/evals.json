@@ -65,7 +65,7 @@
       "id": 11,
       "query": "確認 PR approve 狀況",
       "should_trigger": false,
-      "notes": "PR approve 狀況 → check-pr-approvals"
+      "notes": "PR approve 狀況 → request-pr-review"
     },
     {
       "id": 12,
@@ -77,7 +77,7 @@
       "id": 13,
       "query": "我的 PR 被 approve 了嗎",
       "should_trigger": false,
-      "notes": "查 approve → check-pr-approvals"
+      "notes": "查 approve → request-pr-review"
     }
   ]
 }

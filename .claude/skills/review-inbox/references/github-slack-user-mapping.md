@@ -7,7 +7,7 @@ Shared reference for resolving a GitHub username to a Slack user ID. Used by ski
 - `review-inbox` Step 5b-1 (PR authors)
 - `review-pr` Step 7a (PR author)
 - `engineering` revision mode R6a (reviewers)
-- `check-pr-approvals` (PR reviewers for 催 review)
+- `request-pr-review` (PR reviewers for 催 review)
 
 ## Lookup Chain (依序嘗試，找到即停)
 

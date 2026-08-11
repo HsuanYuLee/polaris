@@ -10,7 +10,7 @@
 > **Claude Code 注意事項：** 大部分 Polaris 技能會使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。Pro/Team 方案只能使用單步技能。
 
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`check-pr-approvals`）
+- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`request-pr-review`）
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證

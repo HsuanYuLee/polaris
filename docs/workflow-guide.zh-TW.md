@@ -194,7 +194,7 @@ flowchart LR
     %% ── Review Skills ──
     RP["review-pr"]
     RI["review-inbox"]
-    CPA["check-pr-approvals"]
+    RPR["request-pr-review"]
     %% ── Scrum Skills ──
     SP["sprint-planning"]
     SU["standup"]
@@ -232,11 +232,11 @@ flowchart LR
     %% ── Epic tracking ──
     MT -.->|pick ticket| WO
     MT -.->|resume branch-ticket| WO
-    MT -.->|resume PR review| CPA
+    MT -.->|resume PR review| RPR
     CV -->|batch push| GPW
     CV -->|gap: needs dev| WO
     CV -->|gap: fix review| WO
-    CV -->|gap: needs approval| CPA
+    CV -->|gap: needs approval| RPR
     CV -->|gap: verify AC| VAC
 
     %% ── Scrum chain ──
@@ -253,7 +253,7 @@ flowchart LR
 
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
-    class RP,RI,CPA,PRP review
+    class RP,RI,RPR,PRP review
     class RF,EB,SASD,SP,IT planning
     class MT,CV orchestrator
     class SU,UT,LRN standalone
@@ -269,7 +269,7 @@ flowchart LR
 - `visual-regression` 作為 `engineer-delivery-flow` Step 3.5 執行（行為驗證之後、Pre-PR Review 之前），當改動的檔案命中 VR 設定的 domain 時觸發。選擇性但建議用於版面/樣式變更
 - `unit-test`、`learning` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
 - `pr-pickup` 是 Slack 協作層——從 Slack 訊息擷取 PR URL 並 dispatch 給 `engineering`（revision mode）；本身不改程式碼
-- `review-pr`、`engineering`（revision mode）、`check-pr-approvals` 的 lesson extraction 直接寫入 repo handbook（v2.12.0 起取消中間 buffer）
+- `review-pr`、`engineering`（revision mode）、`request-pr-review` 的 lesson extraction 直接寫入 repo handbook（v2.12.0 起取消中間 buffer）
 
 ---
 

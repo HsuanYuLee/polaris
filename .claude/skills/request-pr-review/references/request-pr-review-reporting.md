@@ -1,6 +1,6 @@
-# check-pr-approvals Reporting Reference
+# request-pr-review Reporting Reference
 
-本 reference 承接 `check-pr-approvals/SKILL.md` 的低頻輸出細節。只有在產出報告、加 label、組通知訊息時讀取。
+本 reference 承接 `request-pr-review/SKILL.md` 的低頻輸出細節。只有在產出報告、加 label、組通知訊息時讀取。
 
 ## Classification Report
 
@@ -77,7 +77,7 @@ Label 失敗不應中斷整批通知，但必須在最後回報哪些 PR label �
 送出前必須 materialize 成 temp markdown，並通過語言閘：
 
 ```bash
-bash .claude/skills/check-pr-approvals/scripts/validate-language-policy.sh --blocking --mode artifact <訊息檔>
+bash .claude/skills/request-pr-review/scripts/validate-language-policy.sh --blocking --mode artifact <訊息檔>
 ```
 
 用字不使用「催促」、「催」、「趕快」；用「麻煩大家幫忙」、「有空幫忙看一下」。

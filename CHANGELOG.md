@@ -1,5 +1,43 @@
 # Changelog
 
+## [4.31.0] - 2026-08-12
+
+### Changed
+
+- 7d7df84: ### Changed
+  **`check-pr-approvals` 改名為 `request-pr-review`（DP-515）。** DP-511 把它收成三步之後，
+  名字停在舊職責上：`approvals` 只是它回傳的五類狀態裡的一類，而 `check` 讀起來是唯讀的——
+  但它會把訊息送出去。同家族另外兩支是 `review-pr`（我看別人的）與 `review-inbox`（等我看
+  的），這一支現在落在同一個座標系上：**誰看誰的 PR，三支各佔一格，從名字就分得出來。**
+  **不留舊名字的別名或 symlink。** 一個沒有人維護的第二個名字，會讓下一個人以為有兩支。
+  `CHANGELOG.md` 與 specs 那個 repo 的稽核封存不在改名範圍內：那些是歷史紀錄，那幾版當時
+  就叫那個名字，改掉等於竄改。
+  ### Removed
+  `scripts/` 從 16 支剩 8 支。刪掉的兩種，「刪對了沒」的問法不一樣：
+  - **在別的 skill 有複本的七個**（`gate-pr-language.sh`、`pr-state-snapshot.sh`、
+    `resolve-pr-work-source.sh`、`sync-spec-sidebar-metadata.sh`、
+    `validate-specs-collection-shape.sh`、`lib/specs-root.sh`、
+    `lib/validate_specs_collection_shape_1.py`）——這張單只刪自己這一份，別處那幾份原封不動，
+    而且彼此仍逐位元組相同（DP-467 H-N1：複本是對的，漂才是病）。
+  - **這裡獨有而且零引用的三個**（`pr-action-classifier.sh`、`pr-review-state-classifier.sh`、
+    `references/pr-state-contract.md`）——刪完之後全樹再掃一次，沒有人在找它們。
+    其中兩處有寫入能力（`gate-pr-language.sh` 的用法註解示範 `gh pr edit`、
+    `lib/github-rest.sh` 的 `--method POST`），而那三步從來不呼叫它們。
+  ### Added
+  **11 條斷言各有一個離線可重跑的量測**（`scripts/selftests/request-pr-review-shape-selftest.sh`）。
+  行為那一半不重複量——`A-N1` 直接把 DP-511 那 18 條整套跑一遍，當作「改名沒改行為」的證據。
+  另外兩條是結構檢查，改完之後仍然守著：`B-P1` 從 `SKILL.md` 指名的腳本出發做遞移閉包，
+  追不到的就是孤兒；`B-P3` 要求 `references/` 與 Lazy-load Map 一一對上。
+  ### 這一輪自己踩到的
+  - **`specs-root.sh` 與 `validate_specs_collection_shape_1.py` 被歸錯類**。單裡寫的是「這裡
+    獨有」，實際上 learning／standup／visual-regression 各有一份逐位元組相同的複本。歸錯類
+    的代價是用錯的問法去問——對一個有複本的檔案問「全樹零命中嗎」，答案永遠是紅的。
+  - **`git diff` 限縮到新路徑就看不到 rename**。目錄整個改名之後，只給新路徑當 pathspec 的
+    那一版把每一支都算成整支新增，於是「只改了註解嗎」這條讀起來像「每一支都被大改了」。
+    改成讓 `-M --name-status` 自己算配對，不用「把 skill 名換掉」去推舊路徑。
+  - **量測自己是它的例外**。`selftests/` 底下必須指名舊名字與被刪的檔名——那是它的題目。
+    三條負向斷言第一次全紅，紅的是量測不是產物；豁免逐條印在輸出裡，不靜靜跳過。
+
 ## [4.30.0] - 2026-08-12
 
 ### Changed

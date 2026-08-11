@@ -41,7 +41,7 @@ stale_approvals = count(reviews where state == "APPROVED" && commit_id != head.s
 
 | Skill | 用途 |
 |-------|------|
-| `check-pr-approvals` | 篩選 valid approve 數 < threshold 的 PR，催 re-approve |
+| `request-pr-review` | 篩選 valid approve 數 < threshold 的 PR，催 re-approve |
 | `review-inbox` | 分類為 `needs_re_approve` 狀態，決定是否需要 re-review |
 | `converge` | 識別 review 卡住的 blocker（0 valid approved 超過 2 天） |
 
@@ -52,4 +52,4 @@ stale_approvals = count(reviews where state == "APPROVED" && commit_id != head.s
 - approve 綁定的 commit 與當前 head 不一致的一律視為無效（涵蓋 force-push / rebase / 新 commit）。
 - 必須計入需要 re-approve 的清單。
 - **禁止**改用 `head.repo.pushed_at`、`submitted_at` 或 committer-date 作為 staleness 依據——shared repo 中他人 push 不相干 branch 會 bump `pushed_at`，用時間戳會把仍對當前 head 有效的 approval 誤標 stale。`commit_id == head.sha` 的判定不受此影響。
-- 不同 skill 的 threshold 可能不同（check-pr-approvals 預設 2，其他依情境判斷）。
+- 不同 skill 的 threshold 可能不同（request-pr-review 預設 2，其他依情境判斷）。

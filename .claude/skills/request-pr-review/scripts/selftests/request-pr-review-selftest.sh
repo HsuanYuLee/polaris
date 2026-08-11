@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# check-pr-approvals-selftest.sh — 一條斷言一個 case，離線可重跑。
+# request-pr-review-selftest.sh — 一條斷言一個 case，離線可重跑。
 #
-# Usage: check-pr-approvals-selftest.sh --assertion <ID>
-#        check-pr-approvals-selftest.sh --list
+# Usage: request-pr-review-selftest.sh --assertion <ID>
+#        request-pr-review-selftest.sh --list
 #
 # Exit: 0 這條成立 / 1 這條不成立 / 2 量不到（前置條件沒到，不得被讀成成立）
 #
@@ -420,7 +420,7 @@ PY
 
   C-P4)
     doc="$SKILL_DIR/SKILL.md"
-    ref="$SKILL_DIR/references/check-pr-approvals-reporting.md"
+    ref="$SKILL_DIR/references/request-pr-review-reporting.md"
     [[ -s "$doc" && -s "$ref" ]] || unmeasurable "讀不到 SKILL.md 或 reporting reference"
     grep -q '送出去的是哪幾個、送到哪、成功與否' "$doc" || fail "沒有要求逐個回報"
     grep -q '送不出去要說出來' "$doc" || fail "沒有要求把送不出去的也說出來"

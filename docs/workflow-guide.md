@@ -202,7 +202,7 @@ flowchart LR
     %% ── Review Skills ──
     RP["review-pr"]
     RI["review-inbox"]
-    CPA["check-pr-approvals"]
+    RPR["request-pr-review"]
     %% ── Scrum Skills ──
     SP["sprint-planning"]
     SU["standup"]
@@ -240,11 +240,11 @@ flowchart LR
     %% ── Epic tracking ──
     MT -.->|pick ticket| WO
     MT -.->|resume branch-ticket| WO
-    MT -.->|resume PR review| CPA
+    MT -.->|resume PR review| RPR
     CV -->|batch push| GPW
     CV -->|gap: needs dev| WO
     CV -->|gap: fix review| WO
-    CV -->|gap: needs approval| CPA
+    CV -->|gap: needs approval| RPR
     CV -->|gap: verify AC| VAC
 
     %% ── Scrum chain ──
@@ -261,7 +261,7 @@ flowchart LR
 
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
-    class RP,RI,CPA,PRP review
+    class RP,RI,RPR,PRP review
     class RF,EB,SASD,SP,IT planning
     class MT,CV orchestrator
     class SU,UT,LRN standalone
@@ -277,7 +277,7 @@ flowchart LR
 - `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
 - `unit-test`, `learning` are standalone skills — triggered directly by the user, not part of the main chain
 - `pr-pickup` is the Slack collaboration layer — extracts PR URLs from Slack messages and dispatches to `engineering` (revision mode); does not modify code itself
-- Lesson extraction from `review-pr`, `engineering` (revision mode), `check-pr-approvals` writes directly to repo handbook (no intermediate buffer since v2.12.0)
+- Lesson extraction from `review-pr`, `engineering` (revision mode), `request-pr-review` writes directly to repo handbook (no intermediate buffer since v2.12.0)
 
 ---
 

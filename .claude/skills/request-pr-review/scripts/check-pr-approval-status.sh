@@ -13,9 +13,8 @@
 #   - reviewers         — reviewer 明細 JSON array [{user, state, is_stale}]
 #   - needs_review      — 是否需要（更多）review（valid < threshold）
 #
-# valid-approval 計數（含 stale 判定）走 shared canonical counter
-# scripts/lib/pr-approval-count.sh（DP-413 T3），與 pr-action-classifier 共用同一
-# 條計數路徑（AC6）。該 counter 內部再走 scripts/lib/approval-staleness.sh
+# valid-approval 計數（含 stale 判定）走 scripts/lib/pr-approval-count.sh
+# （DP-413 T3）——這支不自己再數一次。該 counter 內部再走 scripts/lib/approval-staleness.sh
 # （DP-315 canonical commit_id 基準的單一 writer path）：review 綁定的 commit_id
 # 與 PR 當前 head.sha 相等才算 valid，不相等或任一為空 / null 一律 fail-closed 判
 # stale；舊的時間戳基準（review submit time 與 PR last-push time 比較）不再使用。
@@ -28,9 +27,8 @@ set -euo pipefail
 
 # Canonical valid-approval counter (DP-413 T3). The per-reviewer latest-review
 # valid/stale tally (which itself reuses the DP-315 commit_id staleness atom)
-# lives in scripts/lib/pr-approval-count.sh so check-pr-approvals and
-# pr-action-classifier share exactly one counting path (AC6) instead of each
-# keeping a private loop that can drift.
+# lives in scripts/lib/pr-approval-count.sh, so this script has no private
+# counting loop of its own that could drift from the shared definition.
 APPROVAL_COUNT_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/pr-approval-count.sh"
 if [[ ! -f "$APPROVAL_COUNT_LIB" ]]; then
   echo "POLARIS_TOOL_MISSING:pr-approval-count.sh (expected at $APPROVAL_COUNT_LIB)" >&2
@@ -111,7 +109,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   # 走 shared canonical counter（DP-413 T3）：把 reviews + head_sha 交給
   # scripts/lib/pr-approval-count.sh 做 per-reviewer 最新 review 的 valid/stale
-  # 計數，與 pr-action-classifier 共用同一條計數路徑（AC6），不再於此保留第二套。
+  # 計數，這裡不保留第二套。
   count_json=$(printf '%s' "$reviews" | bash "$APPROVAL_COUNT_LIB" --head-sha "$head_sha")
   valid_approvals=$(echo "$count_json" | jq -r '.valid_approvals')
   has_stale=$(echo "$count_json" | jq -r '.has_stale')

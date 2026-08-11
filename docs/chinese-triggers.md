@@ -34,7 +34,7 @@ description: "Polaris skill 的中文與英文觸發詞對照。"
 | **review-pr** — 審查別人的 PR | 幫我 review、review 這個 PR、看一下這個 PR、檢查 PR | review PR, code review, take a look at this PR, check this PR | 以 reviewer 角色審查 PR，留 inline comments，提交 APPROVE 或 REQUEST_CHANGES |
 | **engineering** (revision mode) — 修正自己 PR 的 review | 修 PR、修正 review、處理 review、回覆 review、CI 沒過、PR 有 review | fix review, address review, fix PR, CI failed, lint/test/coverage failed, pre-commit failed | 回到施工單（task.md），依 review comments 修正程式碼、回覆 reviewer、重跑品質檢查。engineering 的 revision mode，不是獨立 skill |
 | **pr-pickup** — 從 Slack 接 PR | 接這個 PR、處理 Slack PR、同仁貼的 PR、pickup | pr-pickup, pickup, Slack URL + PR intent | Slack 協作層：從 Slack 訊息擷取 PR URL，dispatch 給 engineering revision mode 處理，完工後回 Slack thread 告知結果 |
-| **check-pr-approvals** — 我的 PR 狀態 | 我的 PR、PR 狀態、催 review、PR 被 approve 了嗎、幫我掃我的 PR、還有哪些 PR 沒過 | check PR approvals | 掃描自己的 open PR：rebase、自動修 CI 失敗、檢查 approve 數、選擇後發 Slack 催 review |
+| **request-pr-review** — 請人看我的 PR | 我的 PR、PR 狀態、催 review、PR 被 approve 了嗎、幫我掃我的 PR、還有哪些 PR 沒過、請同仁幫我 review | request PR review, ask someone to review my PR | 名下 open PR 逐個帶回 review 狀態與所屬單號 → 列出來讓人決定 → 通知對的人。不動任何一個 repo 的 git 狀態 |
 | **review-inbox** — 掃大家的 PR | 掃 PR、掃大家的 PR、幫我掃、review 大家的 PR、批次 review、有哪些 PR 要我看、review [Slack thread URL]、幫我看這串、這串 PR review 一下 | scan PR, review inbox, batch review, review [slack_url] | 三種模式找出需要自己 review 的 PR 並批次執行：Label（GitHub label）、Slack（channel 掃描）、Thread（指定 Slack 討論串 URL） |
 
 
@@ -79,7 +79,7 @@ description: "Polaris skill 的中文與英文觸發詞對照。"
 
 | 情境 | 中文說法 | 路由 skill |
 |------|---------|-----------|
-| 檢查自己 PR 的 approve 狀態、CI、review comments | 我的 PR、催 review、PR 狀態 | `check-pr-approvals` |
+| 請人來看自己已經開好的 PR（approve 狀態、CI、review comments） | 我的 PR、催 review、PR 狀態、請同仁幫我 review | `request-pr-review` |
 | 看有哪些別人的 PR 需要我 review | 掃 PR、大家的 PR、批次 review、review [Slack URL] | `review-inbox` |
 | 幫某個指定 PR 做 code review | review 這個 PR [PR URL]、幫我 review | `review-pr` |
 | 修正自己 PR 上的 review comments 或 CI 失敗 | 修 PR、修正 review、CI 沒過 | `engineering` (revision mode) |

@@ -1,7 +1,7 @@
 ---
-name: check-pr-approvals
+name: request-pr-review
 description: |
-  "把使用者名下已經開好的 PR 蒐集起來、帶回每一個的 review 狀態、列出來讓他決定要請誰看，然後通知對的人。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
+  "把使用者名下已經開好的 PR 蒐集起來、帶回每一個的 review 狀態、列出來讓他決定要請誰看，然後通知對的人。Trigger: '我的 PR', 'request PR review', 'ask someone to review my PR', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
 
   使用者問**自己的** PR 現在怎麼樣，或想找人來看。例如「我的 PR」「PR 狀態」
   「催 review」「PR 被 approve 了嗎」「請同仁幫我 review」。
@@ -11,11 +11,11 @@ description: |
   不用於：review 別人的 PR（走 review-pr）、掃團隊待看的 PR（走 review-inbox）。
 metadata:
   author: ""
-  version: 3.0.0
+  version: 4.0.0
 scope: standalone
 ---
 
-# check-pr-approvals — 請人來看已經開好的 PR
+# request-pr-review — 請人來看已經開好的 PR
 
 實作做完、PR 開出來了，缺的是最後一步：**請同事看**。這支 skill 承載那一步的全部——這批
 總共有多少、分在哪些 repo、每一個現在被誰看了、要通知誰。
@@ -76,9 +76,8 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 
 | 何時讀 | Reference | 用途 |
 |--------|-----------|------|
-| 產出報告、加 label、組通知訊息時 | `references/check-pr-approvals-reporting.md` | 報告表格、label 處理、訊息要說出哪幾件事 |
+| 產出報告、加 label、組通知訊息時 | `references/request-pr-review-reporting.md` | 報告表格、label 處理、訊息要說出哪幾件事 |
 | 判讀 approval / stale 語意前 | `references/stale-approval-detection.md` | stale approval 的權威定義 |
-| 需要 shared PR state 字彙時 | `references/pr-state-contract.md` | PR type、mergeability、base freshness |
 | 訊息送出前 | `.claude/rules/style-and-language.md` | 語言閘 |
 
 ## 1. Query：這批是哪些、狀態如何

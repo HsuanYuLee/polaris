@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: Canonical commit_id-based approval-staleness atom (DP-315 T1).
 #          Single shared implementation sourced by PR-review skill consumers
-#          (check-pr-approvals, review-inbox) so there is exactly one writer
+#          (request-pr-review, review-inbox) so there is exactly one writer
 #          path for the staleness decision (AC2, AC-NF1).
 # Inputs:  approval_staleness <review_commit_id> <head_sha>
 #            $1 review.commit_id — the commit a review (APPROVED) was tied to.
