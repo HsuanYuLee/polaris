@@ -26,8 +26,15 @@ scope: standalone
 `standup` 是 daily standup 與 EOD summary 的單一入口。它讀當日的 triage state 當排序依據，
 但**不自己做排序判斷**，也不捏造資料來源沒有的活動。沒有 triage state 就照常收集並說出來。
 它可以轉述 PR / JIRA / planning / blocker 現況，但不得自行把這些訊號升格成 workflow
-authority；例如「PR 狀態良好」不等於 `mergeable_ready`，release page / standup 內容也不等於
-release eligibility 或 release completed。
+authority。這條有兩個方向，兩個都要擋：
+
+- **不得升格成完成宣告**——「PR 狀態良好」不等於 `mergeable_ready`，release page / standup
+  內容也不等於 release eligibility 或 release completed。
+- **不得升格成待辦**——狀態名、單上的現況表、一個答不了問題的查詢回空，都不構成「還有什麼
+  要做」。判準與三個實例在 `standup-data-collection-flow.md` 的〈狀態不是意圖〉，這裡不抄
+  第二份。
+
+這條原本只寫了第一個方向，而 2026-08-12 的四次校正有兩次是第二個方向。
 
 Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS heading，不寫「無」。
 
@@ -45,8 +52,10 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 1. 讀 workspace config，取得 JIRA、Confluence、GitHub、projects、teams。
 2. 讀今日 triage state；缺漏或過期就照常往下走，並在報告裡寫明沒有它。
 3. 計算 `YDY_DATE`、`PRESENT_DATE`、`TDT_PLAN_DATE`；使用者指定日期時以使用者為準。
-4. 收集 YDY sources：git commits、JIRA updates、Calendar meetings。
-5. Merge and deduplicate YDY，並做 plan vs actual comparison。
+4. 收集 YDY sources：git commits、JIRA updates（含窗內留言）、分支上的事（被 merge 的 PR、
+   收到的 review comment、CI 狀態）、Calendar meetings。視窗綁在查詢那一層，不是事後過濾。
+5. Merge and deduplicate YDY，並做 plan vs actual comparison。同一張單描述與留言衝突時留言
+   勝出，且把落差說出來。
 6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR，以及
    `issues/` 底下還沒收斂的單。後者用
    `bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check`
@@ -54,10 +63,13 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
    `{單樹根}/OPEN.md` 是同一次重算產出的人看版本，非 release 的單都在那裡，帶著它在哪一格、
    上次動過多久、是不是自己的單。沒有狀態檔又沒有解析器可問的目錄不參與判定，但數量會
    印出來——轉述那個數字，不要當成已檢查過。
-7. 收集 BOS：JIRA discuss status、前幾天持續 blocker、使用者口述。
-8. 依 `standup-template.md` 組裝四區塊並呈現給使用者確認。
+7. 收集 BOS：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
+   `standup-planning-flow.md` 的准入判準——「我在等誰」，自己動得了的是待辦不是 blocker。
+8. 依 `standup-template.md` 組裝四區塊並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
 9. 使用者確認後，寫 local markdown。
 10. 對 local markdown 跑 language gate，通過後 append 到 Confluence page。
+11. 落差清單裡使用者逐條同意的那幾條，才寫回單／PR——同一條紀律：落地成檔案 → 過 gate →
+    才送。沒點頭的不寫。
 
 ## Data Rules
 
