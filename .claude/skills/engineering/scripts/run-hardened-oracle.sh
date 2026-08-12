@@ -33,7 +33,7 @@
 #   run-hardened-oracle.sh --command <cmd>
 #       [--require-tool <name>[:<probe args>]]...
 #       [--expect-evidence <regex>]... [--forbid-evidence <regex>]...
-#       [--min-evidence-bytes <n>] [--evidence-out <path>]
+#       [--evidence-out <path>]
 #       [--cwd <dir>] [--system-path <dir:dir:...>]
 #
 # Exit codes:
@@ -43,6 +43,10 @@
 
 set -uo pipefail
 
+# NO-CALLER: --system-path — 這棵樹上沒有人給過值，因為預設的四個目錄夠用。留著是因為
+# 它是釘死 PATH 之後唯一的出路：把系統工具裝在別處的機器（nix、只有 homebrew 的機器）
+# 上，沒有它連 git 都探不到，而這支腳本會正確地拒絕跑——一道無法在那台機器上成立的閘
+# 不是嚴謹，是關掉它。
 DEFAULT_SYSTEM_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 
 COMMAND=""
@@ -50,7 +54,6 @@ HAVE_COMMAND="no"
 CWD=""
 SYSTEM_PATH="$DEFAULT_SYSTEM_PATH"
 EVIDENCE_OUT=""
-MIN_EVIDENCE_BYTES=0
 REQUIRE_TOOLS=()
 EXPECT_PATTERNS=()
 FORBID_PATTERNS=()
@@ -61,7 +64,7 @@ Usage:
   run-hardened-oracle.sh --command <cmd>
       [--require-tool <name>[:<probe args>]]...
       [--expect-evidence <regex>]... [--forbid-evidence <regex>]...
-      [--min-evidence-bytes <n>] [--evidence-out <path>]
+      [--evidence-out <path>]
       [--cwd <dir>] [--system-path <dir:dir:...>]
 EOF
 }
@@ -90,7 +93,6 @@ while [[ $# -gt 0 ]]; do
     --require-tool) REQUIRE_TOOLS+=("${2:-}"); shift 2 ;;
     --expect-evidence) EXPECT_PATTERNS+=("${2:-}"); shift 2 ;;
     --forbid-evidence) FORBID_PATTERNS+=("${2:-}"); shift 2 ;;
-    --min-evidence-bytes) MIN_EVIDENCE_BYTES="${2:-0}"; shift 2 ;;
     --evidence-out) EVIDENCE_OUT="${2:-}"; shift 2 ;;
     --cwd) CWD="${2:-}"; shift 2 ;;
     --system-path) SYSTEM_PATH="${2:-}"; shift 2 ;;
@@ -196,15 +198,6 @@ if [[ "$COMMAND_EXIT" -ne 0 ]]; then
 fi
 
 if [[ "$VERDICT" == "PASS" ]]; then
-  evidence_bytes="$(wc -c < "$combined" | tr -d ' ')"
-  if [[ "$evidence_bytes" -lt "$MIN_EVIDENCE_BYTES" ]]; then
-    VERDICT="NOT_PASS"
-    MARKER="POLARIS_ORACLE_NO_POSITIVE_EVIDENCE"
-    DETAIL="command produced ${evidence_bytes} bytes of output, below the required ${MIN_EVIDENCE_BYTES}; exit 0 without output is not a measurement"
-  fi
-fi
-
-if [[ "$VERDICT" == "PASS" ]]; then
   for pattern in "${EXPECT_PATTERNS[@]:-}"; do
     [[ -n "$pattern" ]] || continue
     if ! grep -Eq "$pattern" "$combined"; then
@@ -229,6 +222,14 @@ if [[ "$VERDICT" == "PASS" ]]; then
 fi
 
 if [[ -n "$EVIDENCE_OUT" ]]; then
+  # 正負向樣式走環境變數，不擠進 argv：那串位置參數已經固定了九個再接一串工具紀錄，
+  # 中間插兩個變長的清單要多一組長度欄位，而那正是會被下一個人數錯的東西。
+  #
+  # 記下來的理由：同一支 selftest 常常同時是好幾條斷言的量測命令，**分開它們的只有這幾個
+  # 樣式**。沒有記下來的話，任何要重跑這份證據的人只能重跑那條命令，然後把「它綠了」讀成
+  # 「每一條都綠了」。
+  POLARIS_ORACLE_EXPECT="$(printf '%s\n' "${EXPECT_PATTERNS[@]:-}")" \
+  POLARIS_ORACLE_FORBID="$(printf '%s\n' "${FORBID_PATTERNS[@]:-}")" \
   python3 - "$EVIDENCE_OUT" "$COMMAND" "$COMMAND_EXIT" "$VERDICT" "$MARKER" "$DETAIL" \
     "$STDOUT_FILE" "$STDERR_FILE" "$run_dir" "${TOOL_RECORDS[@]:-}" <<'PY'
 import json
@@ -278,6 +279,10 @@ payload = {
     # 說不出「現在它還在不在」——而後者正是交付紀錄要問的問題，它原本靠呼叫者當下站的
     # 位置去問，於是在 --cwd 之下問錯了樹（DP-482）。
     "measured_in": os.path.abspath(run_dir),
+    # 空字串要丟掉：bash 3.2 展開一個空陣列仍然給一個空元素，而一條空的 regex 什麼都符合
+    # ——留著它，重跑那一層會永遠是綠的。
+    "expect_evidence": [p for p in os.environ.get("POLARIS_ORACLE_EXPECT", "").split("\n") if p],
+    "forbid_evidence": [p for p in os.environ.get("POLARIS_ORACLE_FORBID", "").split("\n") if p],
 }
 os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
 with open(out, "w", encoding="utf-8") as handle:

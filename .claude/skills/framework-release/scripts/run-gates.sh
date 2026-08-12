@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# 八道掃全樹的閘，一次跑完。commit 與 push 兩邊都用這一支。
+# 九道掃全樹的閘，一次跑完。commit 與 push 兩邊都用這一支。
 #
 # 這支以前叫 pre-push-quality-gate.sh，判準是「一旦 push 出去就收不回來，而且發生在 CLI
-# 上」。2026-08-10 量掉了那個判準的前提：八道閘掃**整棵樹**合計 1.34 秒（最慢的
-# template-leaks 0.38s，最快的 dangling-declarations 0.04s）。既然是免費的，把它們留在
+# 上」。2026-08-10 量掉了那個判準的前提：那時八道閘掃**整棵樹**合計 1.34 秒。2026-08-12
+# 加上第九道之後重量：合計 2.47 秒（最慢的 template-leaks 0.93s 與 layer-vocabulary
+# 0.90s，最快的 dangling-declarations 0.02s，新加的 copy-sets 0.12s）。既然是免費的，把它們留在
 # push 那一站就只有壞處——一個過不了閘的 commit 已經在歷史裡了，那時候修要改寫歷史；
 # 擋在 commit 的話它從來不存在。
 #
@@ -28,6 +29,11 @@
 # 四、散文引用行為：同一個洞的另一面。SKILL.md 指名的檔案、子命令、旗標，搬家之後會一個
 #    一個變成空位，而讀的人第一行就被指過去。`engineering` 與 `verify-ac` 的「前置必讀」
 #    指著兩個不存在的檔，從 DP-462 一路活到 4.1.0，沒有任何東西看得見。
+# 五、同名副本一致：DP-462 拆完共用 scripts/ 之後，同一支腳本在多支 skill 底下各有一份。
+#    副本是刻意的，沒有東西維持它們一致才是病（DP-467 H-N1）。它符合這一層的守則——
+#    一組副本沒有一端擁有它，判給其中任何一份都會在那一份被搬走的時候變綠。這道閘的量測
+#    以前住在釋出封存的證據目錄裡，沒有人叫它，於是判定用的 oracle 兩份漂了 31 行而
+#    整整四天沒有任何東西說話（DP-514）。
 
 set -euo pipefail
 
@@ -66,6 +72,7 @@ bash "$GATES/gate-ignore-classes.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-dangling-declarations.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-skill-knowledge-locality.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-layer-vocabulary.sh" --repo "$ROOT_DIR" || fail=1
+bash "$GATES/gate-copy-sets.sh" --repo "$ROOT_DIR" || fail=1
 
 if [[ "$fail" -ne 0 ]]; then
   echo "[polaris run-gates] 上面的閘沒過，停下。" >&2

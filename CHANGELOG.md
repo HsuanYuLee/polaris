@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.35.0] - 2026-08-12
+
+### Changed
+
+- 3699dc0: DP-514：住在釋出封存裡的那道檢查
+  DP-467 H-N1 簽了「副本本身是刻意的，沒有東西維持它們一致才是病」，而**維持一致的那支腳本住在釋出封存的證據目錄裡**（`issues/.../DP-467-.../.spine/evidence/h-n1-check.py`），沒有任何閘叫它。一支不被呼叫的檢查跟沒有那支檢查的差別只有磁碟空間，而它比沒有更糟——H-N1 在紀錄上是「有東西在守」。
+  2026-08-12 拿它對真樹跑一次，三類全中：
+  - **漂了**：兩份 `run-hardened-oracle.sh` 差 31 行。那是**判定用的 oracle**——`engineering` 那份停在 DP-467，`verify-ac` 那份收了 DP-504 的修正（拔掉 `--min-evidence-bytes`、把 `expect_evidence`/`forbid_evidence` 寫進證據 JSON，而後者正是 `assertion_verdicts.py:371-372` 會讀的欄位）。兩站用不同的尺量同一件事，四天沒有任何東西說話。
+  - **無主**：`polaris-external-write-gate.sh`、`submit-pr-review-selftest.sh` 各兩份，宣告源沒說為什麼。
+  - **宣告過期**：四支（`pr-approval-count.sh`、`pr-state-snapshot.sh`、`release_closeout_helpers.py`、`resolve-pr-work-source.sh`）在宣告源裡，樹上只剩一份。
+  ## 改了什麼
+  `gate-copy-sets.sh` 進 `run-gates.sh` 成為第九道（0.12s，九道合計 2.47s），宣告源 `copy-sets.json` 跟著搬進版控、與閘同住。管轄從 `.sh`/`.py`/`.mjs` 擴到 `.md`，散文那半收窄成「`{skill}/references/` 直屬那一層」——因為檔名在散文裡同時被當**位置**用，純檔名分組會噴 16 組而大半是假的（`SKILL.md` 24 份、handbook 底下各對象一份的 `index.md` 9 份、兩個不同產品的 `testing.md`）。收窄後 12 組散文副本、0 假陽性；合計 37 組、102 份。
+  三處 drift 清掉。`run-hardened-oracle.sh` 的統一方向不是新推論——**DP-504 已經決定過**拔掉那個旗標，engineering 那份只是漏同步。兩處散文 drift 是同一個形狀（「這一份提到自己所在的位置」），所以修法是把那個位置從副本裡拿掉。
+  ## 這一輪最值得記的：斷言簽錯了，回頭重簽
+  閘一簽的 A-P4 把副本的鍵寫成「相對 skill 根的路徑」。施工時補量發現那個鍵會**靜靜地弄丟一組真副本**：`approval-staleness.sh` 在一支 skill 底下是 `scripts/`、在另一支是 `scripts/lib/`，兩份逐位元相同。所以落地的鍵是檔名，管轄靠副檔名與目錄收窄——與 A-P4 寫的「只有 (a) 算副本」矛盾。
+  **沒有就地放寬。** 停 `assertion_wrong`、回 `refinement` 重簽、重新凍結。重簽新增 (f)「同一份東西被抄成不同名字的——這道判準看不見，要說出來，不得靜默」，而那個行為當時還不存在，所以又補了一輪：閘現在每次都印 `DISCLOSURE`（綠的時候也印，因為綠的那一次最容易被讀成「掃完了」），selftest 從 12 例長到 14 例。
+  教訓寫在單上：`refinement` 的規矩是「列不出三種通常就是還沒想過」，這一輪的反例是**列得出五種也可能是還沒想過，如果那五種只在一半的資料上驗過**。
+  ## 驗到哪
+  10 條斷言全 PASS（head `6938517a0c9c`）、selftest 14/14、逐條紅控 12 個注入 12 個紅。紅控過程中注入器自己擋下一次假紅控：A-N2 的 needle 縮排寫錯，`assert old in s` 當場死掉——沒有那行 assert 的話它會給出 exit 0，而「注入沒生效」會被讀成「這條斷言不會紅」。
+  ## 這道閘擋不住的（寫在表頭，不靜默）
+  改了名字的副本（鍵是檔名的直接代價，換鍵也修不掉）、`.claude/skills/` 以外的副本（`_template/` 底下今天量 0 個同名檔）、巢狀 `references/` 底下的散文副本（今天量 0 組）、`--no-verify`。
+
 ## [4.34.0] - 2026-08-12
 
 ### Changed

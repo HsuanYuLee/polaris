@@ -99,6 +99,7 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
 | `gate-skill-knowledge-locality.sh` | 一支 skill 靠工作區底下沒有版控的東西才跑得動——在寫下它的人的機器上全綠，別人 clone 下來就是壞的 |
 | `gate-layer-vocabulary.sh` | 一段話寫進錯的層——核心的散文出現領域詞、領域 pack 出現公司樣式、公司 skill 重講核心的機制 |
 | `gate-source-destination.sh` | 宣告了 `destination: workspace`，卻有檔案落在會被同步出去的位置 |
+| `gate-copy-sets.sh` | 同一個名字在多支 skill 底下的那幾份漂開了、或多出一份說不出自己為什麼在那裡——副本是刻意的，沒有東西維持它們一致才是病 |
 
 上面這些掃全樹的閘合計 1.3 秒，所以它們掛在 **commit** 上，不是 push——一個過不了閘的
 commit 已經在歷史裡了，那時候修要改寫歷史。
