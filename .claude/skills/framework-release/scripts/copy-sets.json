@@ -25,6 +25,7 @@
         "specs-root.sh",
         "submit-pr-review.sh",
         "sync-spec-sidebar-metadata.sh",
+        "tool-attribution.sh",
         "tool-resolution.sh",
         "validate-language-policy.sh",
         "validate-specs-collection-shape.sh",

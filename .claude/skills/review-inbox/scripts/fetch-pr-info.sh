@@ -12,21 +12,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GITHUB_REST_LIB=""
-for candidate in \
-  "${SCRIPT_DIR}/../../../../scripts/lib/github-rest.sh" \
-  "${SCRIPT_DIR}/../../../scripts/lib/github-rest.sh" \
-  "${SCRIPT_DIR}/../../scripts/lib/github-rest.sh"
-do
-  if [[ -f "$candidate" ]]; then
-    GITHUB_REST_LIB="$candidate"
-    break
-  fi
-done
-if [[ -n "$GITHUB_REST_LIB" ]]; then
-  # shellcheck source=/dev/null
-  . "$GITHUB_REST_LIB"
+# lib 就在自己旁邊。DP-462 之前它在 repo 根的共用 scripts/ 底下，而那三條舊候選在
+# DP-513 之前一條都沒中——因為每個呼叫點都用 `declare -F` 包著、有 gh CLI 的 else 分支，
+# 所以整條 REST 路徑安靜地死了幾個月，輸出上跟它正常運作長得一模一樣。
+GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
+if [[ ! -f "$GITHUB_REST_LIB" ]]; then
+  echo "POLARIS_GITHUB_REST_LIB_MISSING:$GITHUB_REST_LIB" >&2
+  echo "這一支需要它才走得了 REST 路徑。找不到就停，不要靜默退回 gh——那樣沒有人會知道。" >&2
+  exit 2
 fi
+# shellcheck source=/dev/null
+. "$GITHUB_REST_LIB"
 
 REPO="${1:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"
 PR_NUMBER="${2:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"

@@ -94,7 +94,7 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
 | `gate-template-leaks.sh` | live company slug 進公開的 template repo |
 | `gate-runtime-instruction-manifest.sh` | 生成的常駐指令過期——之後每個 session 都會靜默讀到錯的那份 |
 | `gate-no-tracked-specs.sh` | 個人的規劃內容混進這個 repo |
-| `gate-skill-script-references.sh` | skill 腳本指向不存在的同目錄檔案——搬家留下的洞，執行期才炸 |
+| `gate-skill-script-references.sh` | skill 腳本從自己的位置算起指名一個不存在的東西——搬家留下的洞，執行期才炸。被存在性檢查包住的算候選，整組落空才紅 |
 | `gate-prose-matches-behaviour.sh` | SKILL.md 指名的檔案／子命令／旗標對不上實際行為——同一個洞的散文那一面 |
 | `gate-skill-knowledge-locality.sh` | 一支 skill 靠工作區底下沒有版控的東西才跑得動——在寫下它的人的機器上全綠，別人 clone 下來就是壞的 |
 | `gate-layer-vocabulary.sh` | 一段話寫進錯的層——核心的散文出現領域詞、領域 pack 出現公司樣式、公司 skill 重講核心的機制 |
