@@ -28,6 +28,9 @@
 
 set -uo pipefail
 
+# 「這支 skill 走哪個通道」由 lib/skill_scope.py 回答，跟同步腳本同一個地方。
+SCRIPT_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
+
 PREFIX="[polaris gate-source-destination]"
 REPO_PATH=""
 ISSUE_DIR=""
@@ -145,16 +148,17 @@ command -v python3 >/dev/null 2>&1 || {
   exit 2
 }
 
-python3 - "$REPO_PATH" "$PREFIX" "$ISSUE_DIR" "$SOURCE_OF_LIST" "${CHANGED[@]}" <<'PY'
+python3 - "$SCRIPT_LIB" "$REPO_PATH" "$PREFIX" "$ISSUE_DIR" "$SOURCE_OF_LIST" "${CHANGED[@]}" <<'PY'
 import os
 import re
 import subprocess
 import sys
 
-repo, prefix, issue_dir, source_of_list = sys.argv[1:5]
-changed = [p for p in sys.argv[5:] if p]
+sys.path.insert(0, sys.argv[1])
+from skill_scope import goes_to_template
 
-NOT_SYNCED = re.compile(r"^\s*scope:\s*(company-only|maintainer-only)\s*$", re.MULTILINE)
+repo, prefix, issue_dir, source_of_list = sys.argv[2:6]
+changed = [p for p in sys.argv[6:] if p]
 
 
 def company_dirs():
@@ -174,7 +178,7 @@ def unsynced_skill_dirs():
     """自己宣告 company-only／maintainer-only 的 skill 目錄，相對於 repo。
 
     判準是那份 frontmatter，不是目錄名字——用名字比對只抓得到 symlink 與命名空間
-    兩種形狀裡的一種。
+    兩種形狀裡的一種。讀宣告的是 lib/skill_scope.py，跟同步腳本問同一個地方。
     """
     found = []
     skills_root = os.path.join(repo, ".claude", "skills")
@@ -182,12 +186,7 @@ def unsynced_skill_dirs():
         if "SKILL.md" not in filenames:
             continue
         dirnames[:] = []
-        try:
-            with open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8") as handle:
-                text = handle.read()
-        except (OSError, UnicodeDecodeError):
-            continue
-        if NOT_SYNCED.search(text):
+        if not goes_to_template(os.path.join(dirpath, "SKILL.md")):
             found.append(os.path.relpath(dirpath, repo))
     return sorted(found)
 

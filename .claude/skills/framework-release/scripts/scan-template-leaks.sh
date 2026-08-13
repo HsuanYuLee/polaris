@@ -72,7 +72,7 @@ if [[ -z "$WORKSPACE" ]]; then
   }
 fi
 
-python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
+python3 - "$SCRIPT_DIR/lib" "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
 import json
 import os
 import re
@@ -80,19 +80,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, sys.argv[1])
+from skill_scope import declared_scope, NOT_TEMPLATE_FACING
+
 try:
     import yaml
 except Exception as exc:
     print(f"scan-template-leaks: PyYAML is required: {exc}", file=sys.stderr)
     sys.exit(2)
 
-workspace = Path(sys.argv[1]).expanduser().resolve()
-template_arg = sys.argv[2]
+workspace = Path(sys.argv[2]).expanduser().resolve()
+template_arg = sys.argv[3]
 template = Path(template_arg).expanduser().resolve() if template_arg else None
-source_mode = sys.argv[3]
-output_format = sys.argv[4]
-blocking = sys.argv[5] == "1"
-only_paths = {p for p in sys.argv[6:] if p}
+source_mode = sys.argv[4]
+output_format = sys.argv[5]
+blocking = sys.argv[6] == "1"
+only_paths = {p for p in sys.argv[7:] if p}
 
 if source_mode not in {"workspace", "template", "both"}:
     print("scan-template-leaks: --source must be workspace, template, or both", file=sys.stderr)
@@ -283,29 +286,14 @@ def is_text_file(path: Path):
 
 
 def skill_scope(root: Path, skill_name: str):
-    """Read what a skill declares its scope to be.
+    """這支 skill 宣告自己走哪個通道。
 
-    Returns the declared scope string, or "" when the skill has no SKILL.md, no
-    frontmatter, or no scope line. Callers compare against a specific scope
-    rather than inferring one from where the directory sits: company skills used
-    to be identified by living under .claude/skills/{company}/, a depth the
-    runtime never registers, so the path could not be both the exclusion key and
-    a reachable location.
+    問的是 lib/skill_scope.py，跟同步腳本、readme-lint、gate-source-destination 同一個
+    ——以前這裡自己寫一條正則，而「用哪條正則」是這棵樹上曾經有五個答案的問題。判準是
+    宣告不是位置：公司 skill 曾經靠「住在 .claude/skills/{company}/ 底下」被認出來，
+    而那個深度執行期根本不註冊，所以那條路徑沒辦法同時是排除鍵與一個到得了的位置。
     """
-    skill_md = root / ".claude" / "skills" / skill_name / "SKILL.md"
-    if not skill_md.exists():
-        return ""
-    try:
-        text = skill_md.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        return ""
-    frontmatter = text.split("---", 2)
-    if len(frontmatter) < 3:
-        return ""
-    # Indentation-tolerant: scope may be declared at the top level or nested
-    # under metadata:, and both are in use.
-    match = re.search(r"(?m)^\s*scope:\s*(\S+)\s*$", frontmatter[1])
-    return match.group(1) if match else ""
+    return declared_scope(root / ".claude" / "skills" / skill_name / "SKILL.md")
 
 
 def resolve_gitignored(root: Path, rel_paths):
@@ -394,7 +382,7 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
         for depth in (2, 3):
             if len(parts) > depth:
                 scope = skill_scope(root, "/".join(parts[2:depth + 1]))
-                if scope in {"maintainer-only", "company-only"}:
+                if scope in NOT_TEMPLATE_FACING:
                     return True
     if rel.startswith(".claude/rules/"):
         rule_scope = parts[2] if len(parts) > 2 else ""

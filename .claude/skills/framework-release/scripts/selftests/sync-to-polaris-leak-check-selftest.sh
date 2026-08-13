@@ -130,6 +130,8 @@ build_tree() {
   # 那支腳本還指名了別的姊妹；這兩棵樹之間唯一的差別要是「掃描器在不在」，其餘都補齊，
   # 不然紅的原因會是另一條引用。
   : > "$root/.claude/skills/framework-release/scripts/validate-language-policy.sh"
+  mkdir -p "$root/.claude/skills/framework-release/scripts/lib"
+  : > "$root/.claude/skills/framework-release/scripts/lib/skill_scope.py"
   if [[ "$with_sibling" == true ]]; then
     fake_scanner "$root/.claude/skills/framework-release/scripts"
   fi

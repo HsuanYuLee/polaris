@@ -271,6 +271,20 @@ echo "Companies: ${COMPANY_DIRS[*]:-none} (excluded from sync)"
 [[ "$PRUNE" == true ]] && echo "Prune:     ON (will remove stale files)"
 echo ""
 
+# 一支 skill 走哪個通道，問唯一那個讀取器，不在這裡自己寫一條正則。理由寫在
+# lib/skill_scope.py 的檔頭：這個問題以前有五份答案，而讀寬讀窄的後果都看 diff 看不出來。
+SKILL_SCOPE="$SCRIPT_DIR/lib/skill_scope.py"
+
+# 這支 skill 會不會被帶進 template repo。離場碼 0 會、1 不會。
+goes_to_template() {
+  python3 "$SKILL_SCOPE" template-facing "$1"
+}
+
+# 這支 skill 自己宣告的通道，沒宣告時是空字串。只拿來印給人看。
+declared_scope() {
+  python3 "$SKILL_SCOPE" scope "$1"
+}
+
 copy_file() {
   local src="$1" dst="$2" label="$3"
   if [[ ! -f "$src" ]]; then return; fi
@@ -419,21 +433,13 @@ for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
     continue
   fi
 
-  # Skip company-specific skills. The declaration is the frontmatter, not the
-  # path. Company skills live in .claude/skills/{company}/{name}/ — the repo's
-  # convention, and more than one person maintains it — with a depth-one symlink
-  # so the runtime registers them at all. That means this loop sees each company
-  # skill twice: once through the symlink (has SKILL.md, caught here) and once as
-  # the {company}/ namespace directory (no SKILL.md, caught above). Excluding by
-  # directory name would only catch one of the two shapes.
-  if grep -qE '^[[:space:]]*scope:[[:space:]]*company-only' "$skill_dir/SKILL.md" 2>/dev/null; then
-    echo "  ~ $skill_name/ (company-only, skipped)"
-    continue
-  fi
-
-  # Skip maintainer-only skills (scope: maintainer-only in SKILL.md frontmatter)
-  if grep -q 'scope:.*maintainer-only' "$skill_dir/SKILL.md" 2>/dev/null; then
-    echo "  ~ $skill_name/ (maintainer-only, skipped)"
+  # 自己宣告不出去的就不出去。宣告是 frontmatter 頂層的 scope:，不是路徑——公司 skill
+  # 住在 .claude/skills/{company}/{name}/（這個 repo 的慣例，而且不只一個人在維護），
+  # 加一個 depth-one 符號連結讓執行期認得它們。所以這個迴圈會看到每一支公司 skill 兩次：
+  # 一次透過符號連結（有 SKILL.md，擋在這裡），一次是 {company}/ 命名空間目錄（上面那格
+  # 已經擋掉）。用目錄名排除只擋得到兩種形狀裡的一種。
+  if ! goes_to_template "$skill_dir/SKILL.md"; then
+    echo "  ~ $skill_name/ ($(declared_scope "$skill_dir/SKILL.md"), skipped)"
     continue
   fi
 
@@ -581,8 +587,10 @@ if [[ "$PRUNE" == true ]]; then
     skill_name=$(basename "$polaris_skill")
     [[ "$skill_name" == "references" ]] && continue
     instance_skill_dir="$INSTANCE_DIR/.claude/skills/$skill_name"
+    # 清除問的判準要跟複製那一步同一個，否則一支後來改成不出去的 skill 會被複製那一步
+    # 跳過、被這一步留著，於是它永遠停在模板裡——「只往前寫」的那一類洞。
     if [[ ! -d "$instance_skill_dir" || ! -f "$instance_skill_dir/SKILL.md" ]] \
-      || grep -q 'scope:.*maintainer-only' "$instance_skill_dir/SKILL.md" 2>/dev/null; then
+      || ! goes_to_template "$instance_skill_dir/SKILL.md"; then
       if [[ "$DRY_RUN" == false ]]; then
         rm -rf "$polaris_skill"
       fi

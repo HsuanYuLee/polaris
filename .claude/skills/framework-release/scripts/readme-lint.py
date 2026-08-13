@@ -28,6 +28,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from skill_scope import goes_to_template  # noqa: E402
+
 
 def _default_root() -> Path:
     """從這支腳本自己的位置往上找到帶著 `.claude/skills/` 的那一層。
@@ -65,17 +68,15 @@ def template_facing_skills() -> set[str]:
       ——用名字比對就等於用位置判斷公司身分。
     - **指進命名空間的 symlink**。runtime 要靠 depth-one 才註冊得到那些 skill，所以同一支
       會被看到兩次；而且它的名字帶著公司代號，寫進會同步出去的 README 就是洩漏。
-    - **自己宣告不出去的**（`scope: company-only` / `maintainer-only`），跟同步腳本同一個
-      機制：宣告在 frontmatter，不在路徑上。
+    - **自己宣告不出去的**（`scope: company-only` / `maintainer-only`），跟同步腳本問
+      同一個讀取器：宣告在 frontmatter 頂層，不在路徑上、也不在正文裡。
     """
     skills = set()
     for path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
         directory = path.parent
         if directory.is_symlink():
             continue
-        text = path.read_text(encoding="utf-8")
-        # 縮排容忍：scope 可能寫在頂層，也可能巢在 metadata: 底下，兩種都在用。
-        if re.search(r"(?m)^\s*scope:\s*(company-only|maintainer-only)\s*$", text):
+        if not goes_to_template(path):
             continue
         skills.add(directory.name)
     return skills
