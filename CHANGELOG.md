@@ -1,5 +1,38 @@
 # Changelog
 
+## [4.37.0] - 2026-08-13
+
+### Changed
+
+- ea9d4a0: DP-520：兩個量到但沒落地的環境
+  某家公司的 `web-dev-env` skill 多了兩筆環境宣告。它們是做另一張產品單的途中實測出來的，
+  但那張單宣告的落腳處只有三個產品工作區，框架 repo 不在其中——於是這兩筆從第一個字起就
+  躺在框架主 checkout 的未追蹤變更上：沒有分支、沒有單、沒有判定，下一次 `git switch` 就
+  沒了。這張單不發明任何東西，只補那件缺的事。
+  （環境的名字、port、啟動命令與陷阱都留在那支公司 skill 自己的 `environments.yaml` 裡，
+  不抄進這份公開的紀錄。）
+  ### Added
+  - **兩筆環境宣告，形狀跟既有六筆都不同**：不是 host 上的 dev server，也不是被 nginx 服務的
+    PHP，而是**在 docker workspace 容器裡起的 `artisan serve`**。走容器是量出來的結論而不是
+    偏好——容器裡才有對的 PHP 與 composer，而 redis 只在 docker 網路上有 alias、host 那一側
+    沒有 publish。它們的 `health_check` 因此也走 `docker-compose exec`：那個容器只 publish
+    22，一個從 host 打得到的健康檢查在這裡會是假的。
+  - **兩筆的 `caveat` 記的都是同一種東西——一個不會讓啟動失敗的失敗**，而它的訊息講的是別的
+    事。一個少填設定會讓服務照樣起來、只是回 **404 而訊息是「route could not be found」**，
+    讀起來像路由沒註冊；另一個連不到上游時把例外吞掉、**回 200**，body 是一份合法的、只有
+    一條 URL 的 sitemap（線上是數千條），而且結果還會被寫進 redis 快取。這一類在輸出上跟成功
+    長得一模一樣，是下一個人會安靜量錯的地方。
+  ### Changed
+  - **`caveat` 與 `requires` 的分界說清楚了**：`requires` 是開機檢查表（要做什麼），`caveat`
+    是失敗長什麼樣。驗證時對照散文與資料才發現其中一筆的陷阱被埋在 `requires` 裡——而已經
+    設定好的人會直接跳過那一格，那正是這條警告最需要被看到的人。
+  ### 驗證
+  `environment-declarations-selftest.sh`：**PASS=8 FAIL=0**——那支 skill 宣告的八個環境各被
+  執行一次，不是只驗新增的兩筆。既有六筆逐位元未動（前綴 `cmp` 比對，6861B 完全相同）。
+  八條斷言全 PASS，三層都做（檔案自洽、登錄相符、重跑一次）。
+  產品端的服務實際起起來、打端點、讀 log 確認上游逾時，是那張產品單已經做過而且記在
+  `verified_by` 裡的事，這張單不重跑。
+
 ## [4.36.0] - 2026-08-12
 
 ### Changed
