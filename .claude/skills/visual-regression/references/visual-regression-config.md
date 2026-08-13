@@ -111,6 +111,41 @@ polaris-config/{company}/visual-regression/
 | `workers` | `1` | 多 test 並行會打爆 Mockoon + dev server 的 shared port，造成 timeout、記憶體不足、截圖不完整。見 SKILL.md P6 |
 | mobile project `userAgent` | iPhone UA string | UA-based SSR detection（如 `@nuxtjs/device`）需要 mobile UA 才會回 mobile layout。只設 viewport 375px 不夠。見 SKILL.md P3 |
 
+## 這棵 tooling 樹不在版控裡
+
+<!-- VR-CONTRACT: tooling-tree-unversioned -->
+
+`polaris-config/{company}/visual-regression/` **不在版控裡**——它被公司目錄那條忽略規則
+蓋住，而那個目錄本身也不是一個獨立的 repo。所以：
+
+- **那裡的東西沒有歷史。** 誰改的、什麼時候改的、為什麼改成這樣，一個字都查不到。
+- **丟了就沒了。** `playwright.config.ts` 裡那些「為什麼是這個值」的理由（workers=1、
+  mobile 要換 UA、自簽憑證要 `ignoreHTTPSErrors`）住在一個沒有備份的地方。
+- **在那裡修東西不會出現在任何 diff 上**，所以沒有任何斷言驗得了它。
+
+因此**會漂的那兩件事由這個 skill 這一側的檢查守**（`scripts/check-vr-config.sh`），
+不由那棵樹自己守：宣告的瀏覽器與 project 實際跑的引擎對不對得起來、設定裡列的頁面還在
+不在。檢查在版控裡，被檢查的東西不在——這是刻意的分工，不是遺漏。
+
+**「要不要把它納入版控」是另一個決定**，牽涉一整棵 `node_modules` 與快照，不在這一段的
+範圍裡。這一段只負責讓「它現在不在版控裡」這件事不是一個安靜的事實。
+
+## readiness selector 不跨組件樹共用
+
+<!-- VR-CONTRACT: readiness-selector-per-tree -->
+
+`wait_for` 那個 selector **綁的是一棵組件樹，不是一個站台**。同一個 URL 的桌機版與行動版
+可能由兩棵不同的樹渲染出來，而它們沒有共用的 selector：2026-08-12 量到的那一組，桌機有
+`[data-testid="searchTxtCategoryKeyword"]`、沒有 `.product-list-main`；行動版反過來，而且
+行動版 SSR 整頁零個 `data-testid`——商品清單是 hydrate 之後才 CSR 填進去的。
+
+**所以一份只在其中一棵樹上驗過的等待條件，在另一棵上會逾時。** 而逾時讀起來像「頁面
+壞了」或「網路慢」，不像「selector 選錯樹」——這是它難查的原因，不是它罕見的原因。
+
+做法：**每一個 viewport 各自驗一次它的 `wait_for`**，不要共用；共用之前要有人真的在那個
+viewport 上看過那個 selector 出現。設定裡沒有地方分開寫的話，那就是設定要補的地方，
+不是把兩邊硬湊成同一個 selector。
+
 ## 欄位詳細說明
 
 ### `server` — Dev 環境啟動
