@@ -1,5 +1,24 @@
 # Changelog
 
+## [4.42.0] - 2026-08-13
+
+### Changed
+
+- 03c254f: DP-523：外洩掃描的第二個空掃軸——零檔案
+  `scan-template-leaks.sh` 以前用 `$SCRIPT_DIR/..` 算工作區的根，假設自己還住在
+  `{repo}/scripts/` 底下；DP-462 把它搬進 skill 目錄之後，那一行算出來的是
+  `.claude/skills/framework-release`。實測：同一棵樹、同一份注入的外洩，不帶 `--workspace`
+  印 `hits: 0` 並 exit 0，帶著正確的根印 `hits: 1` 並擋下來。**這一支是外洩閘，它的假綠方向
+  是放行。**
+  - 解根改成往上找第一個帶 `.claude/skills` 的祖先（`run-gates.sh` 用的同一個判準，不是第二
+    份答案），找不到就停在 `POLARIS_TEMPLATE_LEAK_SCAN_NO_ROOT`，不拿一個猜出來的根去掃。
+  - `scanned: N` 每一趟都印，綠的那一趟也印。一個檔案都沒掃到停在
+    `POLARIS_TEMPLATE_LEAK_SCAN_NO_FILES`——`--only-path` 指到不存在的路徑以前印 `hits: 0`
+    並 exit 0。
+  - 帶著明確 `--workspace` 的兩個既有呼叫端完全不經過解根那一段，判定與離場碼不變。
+    新的 case 加進既有的 `scan-template-leaks-vacuous-selftest.sh`（6 → 12），不另開一支：那支
+    的檔頭第一句就是這條契約，它守的是「零樣式」那一軸，這一輪補上「零檔案」那一軸。
+
 ## [4.41.0] - 2026-08-13
 
 ### Changed

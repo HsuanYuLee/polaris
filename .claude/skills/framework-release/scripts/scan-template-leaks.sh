@@ -11,8 +11,23 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEFAULT_WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKSPACE="$DEFAULT_WORKSPACE"
+# 沒有人告訴我們工作區在哪的時候，往上找第一個帶 `.claude/skills` 的祖先——這是
+# run-gates.sh 已經在用的同一個判準，不是第二份答案。
+#
+# 以前這裡是 `cd "$SCRIPT_DIR/.."`，假設自己還住在 `{repo}/scripts/` 底下；DP-462 把它搬進
+# skill 目錄之後，那一行算出來的是 `.claude/skills/framework-release`。實測：同一棵樹、同一
+# 份注入的外洩，不帶 --workspace 印 `hits: 0` 並 exit 0，帶著正確的根印 `hits: 1` 並擋下來。
+# 兩個呼叫端都明確帶 --workspace，所以它只在有人手動跑的時候咬人——而手動跑正是判定那一站
+# 的量測會做的事。
+resolve_workspace_root() {
+  local dir="$SCRIPT_DIR"
+  while [[ "$dir" != "/" ]]; do
+    [[ -d "$dir/.claude/skills" ]] && { printf '%s' "$dir"; return 0; }
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+WORKSPACE=""
 TEMPLATE=""
 SOURCE="workspace"
 FORMAT="summary"
@@ -23,7 +38,7 @@ usage() {
 usage: scan-template-leaks.sh [options]
 
 Options:
-  --workspace <path>   Workspace instance root (default: script parent)
+  --workspace <path>   Workspace instance root (default: nearest ancestor with .claude/skills)
   --template <path>    Polaris template root (required for --source template)
   --source <mode>      workspace | template | both (default: workspace)
   --format <mode>      summary | markdown | json (default: summary)
@@ -47,6 +62,15 @@ while [[ $# -gt 0 ]]; do
     *) echo "scan-template-leaks: unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+if [[ -z "$WORKSPACE" ]]; then
+  WORKSPACE="$(resolve_workspace_root)" || {
+    echo "POLARIS_TEMPLATE_LEAK_SCAN_NO_ROOT" >&2
+    echo "scan-template-leaks: 從 $SCRIPT_DIR 往上找不到帶 .claude/skills 的工作區根。" >&2
+    echo "scan-template-leaks: 拿一個猜出來的根去掃會掃到 0 個檔案，而那個 0 讀起來像乾淨。修法：帶 --workspace <工作區根>。" >&2
+    exit 2
+  }
+fi
 
 python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" "${ONLY_PATHS[@]+"${ONLY_PATHS[@]}"}" <<'PY'
 import json
@@ -462,9 +486,16 @@ def framework_context_labels(rel: str, line: str):
     return labels
 
 
+scanned = {}
+
+
 def scan_source(root: Path, source_name: str):
     hits = []
-    for file_path in scan_roots(root, source_name):
+    files = scan_roots(root, source_name)
+    # 掃了幾個檔案是這一趟與「什麼都沒掃」唯一的差別——0 hits 與 0 個檔案在輸出上長得一樣，
+    # 而後者是一個假的綠。這個數字每一趟都印，綠的那一趟也印。
+    scanned[source_name] = len(files)
+    for file_path in files:
         rel = file_path.relative_to(root).as_posix()
         path_labels = [item["label"] for item, regex in compiled if regex.search(rel)]
         if path_labels:
@@ -506,6 +537,23 @@ if source_mode in {"workspace", "both"}:
 if source_mode in {"template", "both"}:
     hits.extend(scan_source(template, "template"))
 
+total_scanned = sum(scanned.values())
+scanned_detail = ", ".join(f"{name} {count}" for name, count in scanned.items())
+
+# 第二個空掃軸。第一個是零樣式（上面那一段），這一個是零檔案：範圍限到一個不存在的路徑、
+# 或根解錯，都會走到這裡。兩者的共同點是 `hits: 0` 加 exit 0——跟一趟掃過而且乾淨的執行
+# 完全相同。
+if total_scanned == 0:
+    print("POLARIS_TEMPLATE_LEAK_SCAN_NO_FILES", file=sys.stderr)
+    print("scan-template-leaks: 一個檔案都沒掃到——這一趟什麼都沒讀，不是讀過而且乾淨。",
+          file=sys.stderr)
+    print(f"scan-template-leaks: 掃的根是 {workspace}"
+          + (f"；範圍限在 {', '.join(sorted(only_paths))}" if only_paths else "")
+          + "。", file=sys.stderr)
+    print("scan-template-leaks: 修法：確認 --workspace 指的是工作區根，"
+          "以及 --only-path 指的路徑真的存在。", file=sys.stderr)
+    sys.exit(2)
+
 
 def emit_summary():
     print("Template leak scan")
@@ -515,6 +563,7 @@ def emit_summary():
         print(f"template: {template}")
     print(f"companies: {', '.join(companies) if companies else 'none'}")
     print(f"patterns: {', '.join(item['raw'] for item in patterns) if patterns else 'none'}")
+    print(f"scanned: {total_scanned}" + (f" ({scanned_detail})" if len(scanned) > 1 else ""))
     print(f"hits: {len(hits)}")
     if not patterns:
         # 這一行是這一趟與「量過了、乾淨」唯一的差別，除了它不會有 hits 之外。讀的人不需要
@@ -552,6 +601,7 @@ def emit_markdown():
     if template:
         print(f"- Template: `{template}`")
     print(f"- Companies: `{', '.join(companies) if companies else 'none'}`")
+    print(f"- Scanned: `{total_scanned}`")
     print(f"- Hits: `{len(hits)}`")
     print()
     print("| Source | File | Line | Patterns | Class | Action | Text |")
@@ -562,7 +612,8 @@ def emit_markdown():
 
 
 if output_format == "json":
-    print(json.dumps({"patterns": patterns, "companies": companies, "hits": hits}, indent=2, ensure_ascii=False))
+    print(json.dumps({"patterns": patterns, "companies": companies,
+                      "scanned": scanned, "hits": hits}, indent=2, ensure_ascii=False))
 elif output_format == "markdown":
     emit_markdown()
 else:

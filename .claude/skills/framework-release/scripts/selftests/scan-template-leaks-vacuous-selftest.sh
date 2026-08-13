@@ -8,6 +8,12 @@
 #
 # 走得完的那條路是宣告，不是零這個數字——所以這裡四個 case 分成兩組：沒有宣告時要停，
 # 有宣告時要走得完；而宣告與實際對不上的時候，兩邊都不算。
+#
+# **第二個軸（DP-523）：零檔案。** 上面那一組守的是「一個樣式都沒有」，而同一個形狀還有
+# 另一半——樣式齊全，但一個檔案都沒讀到。兩條路走到那裡：範圍限在一個不存在的路徑上，或者
+# 沒有人告訴它工作區在哪而它自己算錯了根。2026-08-13 實測：同一棵樹、同一份注入的外洩，
+# 不帶 `--workspace` 印 `hits: 0` 並 exit 0，帶著正確的根印 `hits: 1` 並擋下來。這一支是
+# 外洩閘，所以它的假綠方向是放行。
 
 set -euo pipefail
 
@@ -80,6 +86,83 @@ if [[ "$rc" == 2 && "$out" == *"量不到"* && "$out" != *"BLOCKED"* ]]; then
   echo "PASS 閘把量不到跟有外洩分開講"; pass=$((pass+1))
 else
   echo "FAIL 閘把量不到跟有外洩分開講: exit=${rc}"; echo "$out" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# ══ 第二個軸：零檔案（DP-523） ═════════════════════════════════════
+# Description: 把受測腳本複製進假工作區的 skill 目錄，讓它自己解根——真腳本住在真 repo 裡，
+# 從那裡解永遠解得到真的根，那樣測不到解根這件事。$1 = 假工作區的根。
+plant_script() {
+  mkdir -p "$1/.claude/skills/framework-release/scripts"
+  cp "$SCRIPT" "$1/.claude/skills/framework-release/scripts/scan-template-leaks.sh"
+  printf '%s' "$1/.claude/skills/framework-release/scripts/scan-template-leaks.sh"
+}
+
+# Description: 在假工作區裡注入一份帶著公司字串的檔案。$1 = 根，$2 = 公司名。
+inject_leak() { printf -- '# probe\n\n%s\n' "$2" > "$1/.claude/skills/one/leak.md"; }
+
+# ── K-P1 沒有人告訴它工作區在哪的時候，它解出來的是工作區的根 ──────
+root="$(new_workspace selfroot acme)"
+planted="$(plant_script "$root")"
+inject_leak "$root" acme
+# macOS 的 $TMPDIR 是一條 symlink，而腳本解根用的是 `cd ... && pwd`——比字串要比解開之後
+# 的那一個，不然這個 case 會在一個跟解根無關的地方紅。
+real_root="$(cd "$root" && pwd -P)"
+out="$(bash "$planted" --blocking 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" == 1 && "$out" == *"workspace: $real_root"* && "$out" == *"hits: 1"* ]]; then
+  echo "PASS 不帶工作區參數時解出來的是工作區的根"; pass=$((pass+1))
+else
+  echo "FAIL 不帶工作區參數時解出來的是工作區的根: exit=${rc}"; echo "$out" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# K-N1 同一棵樹、同一份外洩，帶著明確工作區的那條路判一樣的東西。
+out2="$(bash "$planted" --workspace "$root" --blocking 2>&1)" && rc2=0 || rc2=$?
+if [[ "$rc2" == "$rc" && "$out2" == *"hits: 1"* ]]; then
+  echo "PASS 帶著明確工作區的呼叫端行為不變"; pass=$((pass+1))
+else
+  echo "FAIL 帶著明確工作區的呼叫端行為不變: exit=${rc2}（自己解根時是 ${rc}）"; echo "$out2" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# ── K-P2 解不出根就停，不拿一個猜出來的根去掃 ──────────────────────
+mkdir -p "$tmp/noroot/scripts"
+cp "$SCRIPT" "$tmp/noroot/scripts/scan-template-leaks.sh"
+out="$(bash "$tmp/noroot/scripts/scan-template-leaks.sh" --blocking 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" == 2 && "$out" == *"POLARIS_TEMPLATE_LEAK_SCAN_NO_ROOT"* ]]; then
+  echo "PASS 往上找不到工作區的根 → 停，不猜一個"; pass=$((pass+1))
+else
+  echo "FAIL 往上找不到工作區的根 → 停，不猜一個: exit=${rc}"; echo "$out" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# ── K-P3 掃了幾個檔案要說出來，綠的那一趟也印 ──────────────────────
+root="$(new_workspace counted acme)"
+out="$(bash "$SCRIPT" --workspace "$root" --blocking 2>&1)" && rc=0 || rc=$?
+if [[ "$rc" == 0 && "$out" =~ scanned:\ [1-9] ]]; then
+  echo "PASS 綠的那一趟也說出掃了幾個檔案"; pass=$((pass+1))
+else
+  echo "FAIL 綠的那一趟也說出掃了幾個檔案: exit=${rc}"; echo "$out" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# ── K-P4 三種輸入各有可分辨的答案 ──────────────────────────────────
+root="$(new_workspace threeways acme)"
+bash "$SCRIPT" --workspace "$root" --blocking >/dev/null 2>&1 && clean=0 || clean=$?
+inject_leak "$root" acme
+bash "$SCRIPT" --workspace "$root" --blocking >/dev/null 2>&1 && leaky=0 || leaky=$?
+out="$(bash "$SCRIPT" --workspace "$root" --only-path .claude/skills/nowhere --blocking 2>&1)" && nofiles=0 || nofiles=$?
+if [[ "$clean" != "$leaky" && "$leaky" != "$nofiles" && "$clean" != "$nofiles" \
+      && "$out" == *"POLARIS_TEMPLATE_LEAK_SCAN_NO_FILES"* ]]; then
+  echo "PASS 乾淨／有外洩／一個都沒掃到，三種答案分辨得出來（${clean} / ${leaky} / ${nofiles}）"; pass=$((pass+1))
+else
+  echo "FAIL 三種答案分辨得出來: 乾淨=${clean} 有外洩=${leaky} 沒掃到=${nofiles}"; echo "$out" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# ── K-N2 不新開第二份「工作區在哪」的答案 ──────────────────────────
+# 解根的判準沿用樹裡既有的那一個（帶著 .claude/skills 的祖先）。新開一個環境變數或設定檔
+# 就是第二份答案，而兩份會漂。
+resolver="$(sed -n '/^resolve_workspace_root()/,/^}/p' "$SCRIPT")"
+if [[ "$resolver" == *".claude/skills"* ]] \
+   && ! grep -qE '\$\{?(POLARIS_WORKSPACE|WORKSPACE_ROOT|POLARIS_ROOT)\b' "$SCRIPT"; then
+  echo "PASS 解根沿用既有判準，沒有新開第二份答案"; pass=$((pass+1))
+else
+  echo "FAIL 解根沿用既有判準，沒有新開第二份答案"; echo "$resolver" | sed 's/^/     /'; fail=$((fail+1))
 fi
 
 echo "scan-template-leaks vacuous selftest: PASS=$pass FAIL=$fail"
