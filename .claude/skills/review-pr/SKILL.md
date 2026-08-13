@@ -42,6 +42,21 @@ reviewer-side 屬 read-only lane，但對 `changes_requested`、`active unresolv
 結論寫成 author-side stage authority；「可 merge / 可 release / 已完成」仍必須沿用 shared PR /
 workflow state，而不是 reviewer prose。
 
+## 這支 skill 有沒有被叫對：`evals/evals.json`
+
+上面那條界線（什麼走這支、什麼走 `review-inbox` / `request-pr-review`）不是只寫在散文裡，
+它有一份**具名的案例集**：`evals/evals.json`，13 句真的會被打出來的話，7 句該觸發、6 句
+不該。每一條帶著它為什麼在那裡（`notes`）。
+
+**它是給人讀的，不是給腳本跑的**——這裡沒有 runner，也刻意不要有一支。它的用途是：改
+frontmatter 的 `description` 之前先讀那 13 句，問「改完之後這 13 句的答案還一樣嗎」。負向
+那 6 句尤其重要，因為觸發詞放寬的代價從來不出現在正向案例上。
+
+**什麼時候要更新它**：這支 skill 被叫錯、或該叫沒叫到的那一刻——把那句原話補成第 14 條，
+標好它該不該觸發。一句在真實對話裡走錯的話，比十句想像出來的案例有用。同一趟摩擦也記進
+你手上那張單的活文件（`SKILL-UTILITY`，見 `driving-work-to-done`），兩者不重複：那裡記
+「這一趟它幫到還是擋到」，這裡記「這句話該路由到哪」。
+
 ## Reference Loading
 
 | Situation | Load |
@@ -59,8 +74,10 @@ Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔�
 1. 從使用者輸入或 Slack context 解析 PR URL；找不到單一 PR 時停止或轉 `review-inbox`。
 2. 依 `pr-input-resolver.md` 解析 owner、repo、number、本地 project path；找不到本地 repo
    時使用 remote read mode。
-3. 用 bundled fetch script 取得 metadata、files、review strategy、existing reviews、approval
-   state、re-review signal。
+3. 用 `scripts/fetch-pr-info.sh <owner/repo> <pr_number> [--my-user <username>]` 取得 metadata、
+   files、review strategy、existing reviews、approval state、re-review signal。它只放行
+   open 且非 draft 的 PR——已合併、已關閉、還在 draft 的一律拒絕並說出是哪一種狀態。
+   打 `--help` 問得到用法。
 4. 讀 repo rules、workspace handbook、PR description、changed files、diff、既有 review
    comments，建立去重清單。
 5. Review changed files；large PR 依 reference 分組派 sub-agent fan-out。

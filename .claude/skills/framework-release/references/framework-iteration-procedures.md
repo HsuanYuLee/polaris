@@ -4,6 +4,15 @@
 >
 > 這份檔案自己就是那份程序。它以前說內容摘自 rules/framework-iteration.md，而那一層在 DP-462
 > 被拆掉之後就不存在了——指向一個不存在的地方，讀起來跟指向一個權威一模一樣。
+>
+> **它 2026-08-13 從 `standup/references/` 搬過來**（DP-536）：講的是這個框架自己怎麼迭代、
+> 怎麼壓版、怎麼掃待辦，跟「產出每日站會報告」沒有關係，住在那支 skill 裡只是歷史。
+>
+> **底下有兩段已經被脊椎取代，留著是為了不在搬家時弄丟內容，但它們不再是權威**：
+> 〈Backlog Hygiene〉描述的是 DP-462 之前那種「一行一個 `[ ]` 加日期標籤」的待辦，而現在
+> 一張單是一個目錄、停滯只出現在 `{單樹根}/OPEN.md` 上，且刻意不設天數門檻；〈Release
+> Preflight Enforcement〉後半講的 DP-392 topology guard 與 `bundle_branch_alias` 屬於脊椎
+> 之前那一套交付層。現在的答案分別在 `.claude/rules/document-flow.md` 與這支 skill 的 SKILL.md 裡。
 
 ## Iteration Cadence Map
 
@@ -41,7 +50,7 @@ After a VERSION bump is committed, execute these steps in order — no user conf
 
 0. **One commit for everything** — first write `VERSION` + `CHANGELOG.md`, then run `git add -A` to stage all changes together (framework code + VERSION + CHANGELOG), then commit once. Never run `git add -A` before writing VERSION/CHANGELOG (they won't be staged), and never commit VERSION/CHANGELOG separately while code diffs remain in the working tree
 
-1. **docs-lint** — run `python3 .claude/skills/standup/scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
+1. **docs-lint** — run `python3 .claude/skills/framework-release/scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
 2. **docs-sync** — if docs-lint reported issues beyond count fixes (phantom skills, missing entries, stale diagrams), invoke `/docs-sync` to fix them. The skill's Step 0 uses docs-lint output + git diff to scope the sync. If changes are found, commit as a separate `docs:` commit
 3. **backlog-staleness-scan** — scan `issues/` for stale items (see § Backlog Hygiene below)
 4. **同步到 template repo** — 這一步屬釋出尾段，由 `framework-release` 做（它自己帶著那支腳本）。這裡只記它在鏈上的位置。

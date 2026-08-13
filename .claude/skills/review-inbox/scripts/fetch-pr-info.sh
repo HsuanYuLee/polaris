@@ -2,6 +2,7 @@
 # fetch-pr-info.sh — 取得 PR 完整資訊（metadata + files + re-review 偵測）
 #
 # Usage: ./fetch-pr-info.sh <owner/repo> <pr_number> [--my-user <username>]
+#        ./fetch-pr-info.sh --help
 # Output (stdout): JSON object with PR info, files, size, and re-review status
 # Progress (stderr): 取得進度
 #
@@ -24,8 +25,50 @@ fi
 # shellcheck source=/dev/null
 . "$GITHUB_REST_LIB"
 
-REPO="${1:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"
-PR_NUMBER="${2:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"
+usage() {
+  cat <<EOF
+fetch-pr-info.sh — 取得一個 PR 的完整資訊（metadata + files + review strategy + re-review 偵測）
+
+用法：
+  fetch-pr-info.sh <owner/repo> <pr_number> [--my-user <username>]
+  fetch-pr-info.sh --help
+
+參數：
+  <owner/repo>            例如 your-org/your-repo
+  <pr_number>             PR 編號
+  --my-user <username>    以誰的身分判斷 re-review／approval；省略時問 gh api user
+
+輸出：
+  stdout  一個 JSON 物件：repo、number、title、author、base、head、files、file_count、
+          total_additions／total_deletions／total_changes、review_strategy、
+          all_reviews、my_review_count、my_last_review_state、is_re_review、pushed_at
+  stderr  取得進度
+
+離場碼：
+  0  取到了
+  1  參數不對，或這個 PR 不該被 review（非 OPEN、或還是 draft）
+  2  跑不起來（旁邊的 lib/github-rest.sh 不在）
+
+例：
+  fetch-pr-info.sh your-org/your-repo 1882
+  fetch-pr-info.sh your-org/your-repo 1882 --my-user your-github-user
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 2 ]]; then
+  echo "fetch-pr-info.sh: 少了參數——要 <owner/repo> 與 <pr_number> 兩個。" >&2
+  echo >&2
+  usage >&2
+  exit 1
+fi
+
+REPO="$1"
+PR_NUMBER="$2"
 shift 2
 
 MY_USER=""

@@ -25,7 +25,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("POLARIS_README_LINT_ROOT", Path(__file__).resolve().parent.parent)).resolve()
+def _default_root() -> Path:
+    """從這支腳本自己的位置往上找到帶著 `.claude/skills/` 的那一層。
+
+    以前寫死 `parent.parent`，那算出來的是這支 skill 自己的目錄；於是照文件打的
+    `python3 .claude/skills/.../readme-lint.py` 掃到 0 支 skill，印出「OK (0 skills,
+    all documented)」——一個什麼都沒量到的綠燈，跟真的乾淨長得一模一樣。
+    """
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / ".claude" / "skills").is_dir():
+            return candidate
+    return here.parent.parent
+
+
+ROOT = Path(os.environ.get("POLARIS_README_LINT_ROOT", _default_root())).resolve()
 SKILLS_DIR = ROOT / ".claude" / "skills"
 README_FILES = [ROOT / "README.md", ROOT / "README.zh-TW.md"]
 DOCS_DIR = ROOT / "docs"

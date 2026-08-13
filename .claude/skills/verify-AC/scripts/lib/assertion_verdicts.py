@@ -246,7 +246,14 @@ def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
         argv += ["--require-tool", spec]
     if cwd:
         argv += ["--cwd", cwd]
-    done = subprocess.run(argv, capture_output=True, text=True)
+    # 用 bytes 收再自己解碼：量測命令吐得出不是 UTF-8 的位元組（掃到二進位檔、
+    # 或 shell 把多位元組字元切斷），而 text=True 會在那一刻丟 traceback ——
+    # 那既不是 PASS 也不是「量不到」，是一個沒有判定的離場。
+    done = subprocess.run(argv, capture_output=True)
+    done = subprocess.CompletedProcess(
+        done.args, done.returncode,
+        done.stdout.decode("utf-8", "replace"),
+        done.stderr.decode("utf-8", "replace"))
     if done.returncode == 0:
         return PASS, "重跑一次仍然是綠的"
     if done.returncode == 1:

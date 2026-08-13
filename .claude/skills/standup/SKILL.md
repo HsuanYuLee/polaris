@@ -48,7 +48,6 @@ workflow authority。這條有兩個方向，兩個都要擋：
 | Any run | `standup-data-collection-flow.md`, `workspace-config.yaml` |
 | 今日格 / planning | `standup-planning-flow.md`, `session-timeline.md` when useful |
 | Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `scripts/resolve-standup-destination.sh`, `scripts/validate-language-policy.sh` |
-| Monthly framework hygiene | `framework-iteration-procedures.md` |
 
 ## Flow
 
@@ -97,6 +96,3 @@ workflow authority。這條有兩個方向，兩個都要擋：
 
 輸出 standup date、每張 epic 的三格 counts、local file、送出狀態（含目的地或缺宣告的理由）、
 任何 skipped sources 與原因。
-
-
-<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

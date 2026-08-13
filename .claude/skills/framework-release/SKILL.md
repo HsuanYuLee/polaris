@@ -162,6 +162,27 @@ bash .claude/skills/framework-release/scripts/install-git-hooks.sh --remove   # 
 下來。撞到的時候順序是：在新 head 上重跑量測 → 重寫交付紀錄 → 再跑一次 `--execute`
 （這時已經沒有待消化的 changeset，不會再壓一次版）。
 
+## 壓完版之後那條鏈
+
+尾段做完的那六件事之外，這個框架自己還有一段迭代程序——壓版之後要跑的 docs-lint、待辦
+掃描、驗證過的樣式怎麼升格。它寫在 `references/framework-iteration-procedures.md`，
+**按需載入**，不是每次釋出都要讀。
+
+那份程序裡指名的 docs-lint 就在這支 skill 底下：
+
+```bash
+python3 .claude/skills/framework-release/scripts/readme-lint.py            # 只檢查
+python3 .claude/skills/framework-release/scripts/readme-lint.py --fix      # 順手改掉數字
+python3 .claude/skills/framework-release/scripts/readme-lint.py --verbose  # 全部細節
+```
+
+它比對的是「文件裡講的 skill」與「真的存在的 SKILL.md」：數量、指向不存在的 skill、
+存在卻沒有人提過的 skill、觸發詞表、流程圖節點。**它掃的是會跟著 template repo 出去的
+那幾份文件**（README、`docs/`），所以它守的是別人 clone 下來第一眼讀到的東西。
+
+這兩樣 2026-08-13 從 `standup/` 搬過來（DP-536）——它們講的是這個框架怎麼迭代，不是
+怎麼產出每日站會報告。
+
 ## 卡住的時候
 
 **沒有交付紀錄** —— 回 `verify-ac` 跑它的交付步驟。這支不會替你寫一份。
