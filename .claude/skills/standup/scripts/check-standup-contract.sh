@@ -106,8 +106,57 @@ CONTRACT = {
             ("邊界案例指名", r"QA"),
             ("空著是一個答案", r"留白|空著"),
             ("待辦不得被搬過去填", r"搬過去填"),
+            # DP-519 F-P4：判準從一句話變成一張照著判得出來的表。三種措辭各自要在。
+            ("措辭：等 X 確認", r"等 X 確認"),
+            ("措辭：等 X 回", r"等 X 回"),
+            ("措辭：等 X review", r"等 X review"),
+            ("理由是要開會或通知當事人", r"開會|通知當事人"),
         ],
-        "C-P1 C-P2 C-P3 C-P4 C-N1",
+        "C-P1 C-P2 C-P3 C-P4 C-N1 F-P4 F-P5 F-N2",
+    ),
+    "destination-is-declared": (
+        "references/standup-format-publish-flow.md",
+        [
+            ("這支 skill 不認得目的地", r"不認得任何一個目的地"),
+            ("問那支解析器", r"resolve-standup-destination\.sh"),
+            ("四種離場碼各自不同", r"離場碼互不相同|不得收斂成同一句"),
+            ("缺席時不猜也不沿用", r"不猜、也不沿用|不猜也不沿用"),
+            ("缺席時報告照常寫本地", r"照常產出、照常寫本地檔案|報告照常產出"),
+            ("不新開對外寫入通道", r"不新開對外寫入通道"),
+        ],
+        "E-P1 E-P2 E-P3 E-N2",
+    ),
+    "epic-three-cells": (
+        "references/standup-template.md",
+        [
+            ("主體是 epic", r"主體是 epic"),
+            ("三格的名字", r"昨日.*今日.*卡關"),
+            ("舊四區塊對映到哪", r"舊區塊"),
+            ("口頭同步只留在本地", r"只留在本地"),
+            ("沒有 epic 的不散落", r"其他（無 Epic）"),
+            ("只有一份說法", r"唯一一份說法|兩套形狀並存"),
+            ("本地就是要送出去的那一份", r"本地檔案就是要送出去的那一份"),
+        ],
+        "E-P4 E-P5 E-N3",
+    ),
+    "plan-vs-actual-source": (
+        "references/standup-planning-flow.md",
+        [
+            ("來源是自己寫的那份", r"自己每天落下的那份本地檔案"),
+            ("指名它住在哪", r"standups/"),
+            ("每次說出拿哪一份比的", r"拿哪一份比的要說出來"),
+            ("沒有可比的也要說", r"不沉默跳過"),
+        ],
+        "F-P1 F-P2",
+    ),
+    "no-orphan-input": (
+        "references/standup-data-collection-flow.md",
+        [
+            ("那條讀取被拿掉了", r"整個拿掉"),
+            ("理由是沒有生產者", r"沒有人在寫|沒有生產者"),
+            ("跟「問不到」分得開", r"根本沒有生產者"),
+        ],
+        "F-P3",
     ),
     "terse-output": (
         "references/standup-template.md",
@@ -165,16 +214,31 @@ CONTRACT = {
 # 不變量：這張單收窄行為，不得順手改掉既有的結構。錨管「有沒有說新的」，這一組管
 # 「舊的還在不在」——兩者方向相反，缺一邊就有一整類的漂沒有人看得到。
 INVARIANTS = [
-    ("references/standup-format-publish-flow.md", "四個區塊還在",
-     r"YDY – Yesterday I Did.*TDT – Today's Tasks.*BOS – Blockers or Struggles.*口頭同步", "D-N3"),
+    ("references/standup-format-publish-flow.md", "三格還在",
+     r"昨日.*今日.*卡關", "E-P4"),
     ("references/standup-format-publish-flow.md", "分組規則還在",
-     r"YDY 與 TDT 都依 team 分組", "D-N3"),
+     r"排序以 epic 為主體", "E-P4"),
     ("references/standup-format-publish-flow.md", "連結寫法還在",
      r"\[KEY title\]\(URL\)", "D-N3"),
-    ("references/standup-planning-flow.md", "BOS 三個來源還在",
+    ("references/standup-planning-flow.md", "卡關三個來源還在",
      r"DISCUSS.*持續存在的 blocker.*口述", "C-N2"),
     ("references/standup-planning-flow.md", "判準不擴張來源",
-     r"不擴張", "C-N2"),
+     r"不擴張", "C-N2 F-N1"),
+]
+
+# 被取代掉的不變量：**不是刪掉，是換掉，而且換掉這件事要看得見。** 一個不變量默默消失
+# 與一個不變量被有意識地替換，在檔案裡長得一樣——所以舊的那一條連同它守的斷言留在這裡，
+# 每次執行都印出來。DP-519 E-P4／E-N3 換掉了輸出的形狀，D-N3 守的那兩條隨之失效。
+SUPERSEDED = [
+    ("四個區塊還在（YDY/TDT/BOS/口頭同步）", "D-N3", "三格還在（昨日/今日/卡關）", "E-P4 E-N3"),
+    ("YDY 與 TDT 都依 team 分組", "D-N3", "排序以 epic 為主體", "E-P4"),
+]
+
+# 不得再出現的東西：一個沒有生產者的輸入、一份被刪掉的散文。這一組跟上面兩組方向都不同
+# ——它問「舊的走乾淨了沒」。留一句指向不存在的東西的指示，讀的人只會照做然後自己撞上。
+ABSENT = [
+    ("沒有生產者的排序輸入", r"daily-triage", "F-P3"),
+    ("被刪掉的 Confluence 操作手冊", r"confluence-page-update", "F-P3"),
 ]
 
 ANCHOR = re.compile(r"<!--\s*STANDUP-CONTRACT:\s*([a-z0-9-]+)\s*-->")
@@ -248,10 +312,63 @@ for rel, label, pattern, assertions in INVARIANTS:
     if not matches(pattern, bodies[rel]):
         failures.append(f"{rel}：既有結構被動到了——「{label}」不見了（守 {assertions}）")
 
+# ── 舊的走乾淨了沒 ──────────────────────────────────────────────────────────
+# 掃整個 skill 目錄，不只掃那幾份契約散文：一句指向死掉的東西的指示，出現在腳本註解或
+# SKILL.md 裡跟出現在契約裡一樣會誤導人。掃了幾個檔案要印出來——掃到 0 個檔案跟「掃過了、
+# 乾淨」在輸出上長得一樣。
+scanned = []
+for dirpath, dirnames, filenames in os.walk(skill_dir):
+    dirnames[:] = [d for d in dirnames if d not in ("__pycache__", ".git")]
+    for fn in filenames:
+        if fn.endswith((".md", ".sh", ".py", ".mjs", ".yaml", ".yml")):
+            scanned.append(os.path.join(dirpath, fn))
+
+def absence_exempt(path):
+    """宣告面與注入面自己要寫得出那個字串，所以這兩處不受這一組管。
+
+    - 這支腳本：它就是「不得出現」這句話住的地方。
+    - `scripts/selftests/` 底下：那些字串是餵給檢查的輸入，不是給人讀的指示。
+
+    豁免要說出來，不要靜靜地跳過——一個沒被說出的豁免，跟沒有豁免在出事的時候長得一樣。
+    """
+    if os.path.basename(path) == "check-standup-contract.sh":
+        return True
+    return f"{os.sep}selftests{os.sep}" in path
+
+
+exempt = [p for p in scanned if absence_exempt(p)]
+for label, pattern, assertions in ABSENT:
+    checked += 1
+    hits = []
+    for path in scanned:
+        if absence_exempt(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except (OSError, UnicodeDecodeError):
+            continue
+        if re.search(pattern, text, re.IGNORECASE):
+            hits.append(os.path.relpath(path, skill_dir))
+    for hit in hits:
+        failures.append(f"{hit}：不該再出現的東西還在——「{label}」（守 {assertions}）")
+
 print(
     f"{prefix} MEASURED anchors={total_anchors} contract_points={len(CONTRACT)} "
-    f"invariants={len(INVARIANTS)} evidence_checks={checked}"
+    f"invariants={len(INVARIANTS)} absent_checks={len(ABSENT)} "
+    f"scanned_files={len(scanned) - len(exempt)} exempt_files={len(exempt)} "
+    f"evidence_checks={checked}"
 )
+if exempt:
+    print(f"{prefix} DISCLOSURE 不受「不得再出現」那一組管的檔案（宣告面與注入面）：")
+    for path in sorted(os.path.relpath(p, skill_dir) for p in exempt):
+        print(f"{prefix}   {path}")
+print(f"{prefix} DISCLOSURE 逐個契約點與它守的斷言：")
+for name, (rel, _evidence, assertions) in sorted(CONTRACT.items()):
+    print(f"{prefix}   {name} → {assertions}（{rel}）")
+print(f"{prefix} DISCLOSURE 被取代掉的不變量（不是消失，是換掉）：")
+for old_label, old_assertions, new_label, new_assertions in SUPERSEDED:
+    print(f"{prefix}   「{old_label}」（守 {old_assertions}）→ 「{new_label}」（守 {new_assertions}）")
 
 if failures:
     for line in failures:

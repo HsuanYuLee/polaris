@@ -41,16 +41,27 @@ ANCHORS=(
   "drift-surfaced:references/standup-format-publish-flow.md"
   "drift-needs-consent:references/standup-format-publish-flow.md"
   "unmeasurable-is-not-silent:references/standup-data-collection-flow.md"
+  "destination-is-declared:references/standup-format-publish-flow.md"
+  "epic-three-cells:references/standup-template.md"
+  "plan-vs-actual-source:references/standup-planning-flow.md"
+  "no-orphan-input:references/standup-data-collection-flow.md"
 )
 
 # 不變量：舊的結構被順手改掉的那一種。每一項給一個「刪掉它」的注入。
 # 格式：住在哪個檔:要刪掉的字串
 INVARIANT_KILLS=(
-  "references/standup-format-publish-flow.md:BOS – Blockers or Struggles"
-  "references/standup-format-publish-flow.md:YDY 與 TDT 都依 team 分組"
+  "references/standup-format-publish-flow.md:**卡關**"
+  "references/standup-format-publish-flow.md:排序以 epic 為主體"
   "references/standup-format-publish-flow.md:[KEY title](URL)"
   "references/standup-planning-flow.md:使用者在對話中的口述 blockers"
   "references/standup-planning-flow.md:不擴張"
+)
+
+# 不得再出現的東西：把它塞回去，要紅。這一組跟上面兩組方向都不同——上面問「說了沒」，
+# 這一組問「舊的走乾淨了沒」。少了它，一句指向死掉的東西的指示可以安靜地留在樹上。
+ABSENT_INJECTIONS=(
+  "references/standup-data-collection-flow.md:檢查 {company}/.daily-triage.json 當排序依據"
+  "references/standup-format-publish-flow.md:依 confluence-page-update.md 做 append"
 )
 
 # fresh_copy <dest> —— 把真的散文複製一份出來動手腳，不碰原樹。
@@ -74,7 +85,7 @@ expect() {
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))
-    echo "$PREFIX 沒抓到：$what（想要 exit $want，實際 $got）" >&2
+    echo "$PREFIX 沒抓到：${what}（想要 exit ${want}，實際 ${got}）" >&2
   fi
 }
 
@@ -115,7 +126,7 @@ open(path, "w", encoding="utf-8").write(
 )
 PY
   # ${name} 要帶大括號：後面接的是全形括號，bash 在這個 locale 下會把它的第一個 byte
-  # 讀進變數名，於是 `$name（` 變成一個 unbound variable。
+  # 讀進變數名，於是 `${name}（` 變成一個 unbound variable。
   expect 1 "掏空 ${name}（錨還在）" -- bash "$CHECKER" --skill-dir "$d"
 done
 
@@ -137,6 +148,27 @@ open(path, "w", encoding="utf-8").write(src.replace(needle, "（刪掉了）"))
 PY
   expect 1 "刪掉既有結構：${needle}" -- bash "$CHECKER" --skill-dir "$d"
 done
+
+# ── 2c. 不得再出現的東西：塞回去，要紅 ───────────────────────────────────────
+abs_n=0
+for entry in "${ABSENT_INJECTIONS[@]}"; do
+  rel="${entry%%:*}"
+  line="${entry#*:}"
+  abs_n=$((abs_n + 1))
+  d="$WORK/abs-$abs_n"
+  fresh_copy "$d"
+  printf '\n%s\n' "$line" >> "$d/$rel"
+  expect 1 "把死掉的東西塞回去：${line}" -- bash "$CHECKER" --skill-dir "$d"
+done
+
+# 這一組的注入面本身要能生效：掃到 0 個檔案的話上面每一條都會假綠。
+scanned="$(bash "$CHECKER" --skill-dir "$SKILL_DIR" | sed -n 's/.*scanned_files=\([0-9]*\).*/\1/p')"
+if [[ -n "$scanned" && "$scanned" -gt 0 ]]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  echo "$PREFIX 沒抓到：掃了 0 個檔案，上面每一條「不得出現」都是假綠" >&2
+fi
 
 # ── 3. 量不到要用 2，不是 0 ──────────────────────────────────────────────────
 d="$WORK/nodir"

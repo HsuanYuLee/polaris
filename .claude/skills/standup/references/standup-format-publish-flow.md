@@ -1,43 +1,64 @@
 ---
 title: "Standup Format Publish Flow"
-description: "standup 的 YDY/TDT/BOS/口頭同步格式、local markdown backup、language gate 與 Confluence append 流程。"
+description: "standup 的三格格式、local markdown backup、language gate，以及目的地怎麼問出來。"
 ---
 
 # Standup Publish Contract
 
-這份 reference 負責格式、確認、本地備份與 Confluence 發布。
+這份 reference 負責格式、確認、本地備份與發布。
 
 ## Required Sections
 
-Standup entry 必須有四個區塊：
+Standup entry 的主體是 epic，每一張 epic 三格：**昨日**、**今日**、**卡關**。沒有 epic 的
+東西集中在一筆 `其他（無 Epic）`。`口頭同步` 放在所有 epic 之後、分隔線之前，**只留在
+本地**。
 
-1. `YDY – Yesterday I Did`
-2. `TDT – Today's Tasks`
-3. `BOS – Blockers or Struggles`
-4. `口頭同步`
-
-`口頭同步` 放在 BOS 後、分隔線前。使用 3-4 條 italic bullets，口語化摘要：
-
-- YDY 精華 1-2 條。
-- 插曲或損失 0-1 條。
-- TDT 計畫 1 條。
-
-不要逐條複述 YDY / TDT。
+舊的四區塊（YDY／TDT／BOS／口頭同步）與這三格的對映只有一份，寫在
+`standup-template.md` 的〈形狀〉那一節，這裡不抄第二份。格式一律遵守那份模板。
 
 ## Grouping Rules
 
-YDY 與 TDT 都依 team 分組。Ticket 有 parent Epic 時，Epic 在 team 分組內成為最上層。
+排序以 epic 為主體。同一張 epic 底下的 ticket 依序縮排在它自己的格裡。
 
 Sub-task 全部通過時折成一行，例如 N/N 驗證子單通過；有失敗才展開。
 
-NO-JIRA 項目用一行摘要帶過。
+NO-JIRA 項目用一行摘要帶過，放進 `其他（無 Epic）`。
 
-格式需遵守 `standup-template.md`，並維持既有 Confluence page 的風格。
+## 送到哪：問宣告，不要問這份散文
+
+<!-- STANDUP-CONTRACT: destination-is-declared -->
+
+**這支 skill 不認得任何一個目的地。** 送到哪、那裡的表單長什麼形狀、送出是人做的還是
+程式做的，全部住在那家公司自己的 `workspace-config.yaml`——跟 JIRA instance、Slack
+channel 同一類，都是公司資料。問它：
+
+```bash
+bash scripts/resolve-standup-destination.sh --company <公司>
+```
+
+四種答案，離場碼互不相同，**不得收斂成同一句「找不到」**：
+
+| 離場碼 | 意思 | 接下來 |
+|---|---|---|
+| 0 | 宣告齊全，印出 url／shape／publish | 照 `publish` 說的方式送 |
+| 3 | 宣告在，但缺必要欄位 | 指名缺哪幾格，請人補齊。半條宣告比沒有宣告糟，它看起來像有人設定過 |
+| 4 | 沒有宣告（設定檔不在，或沒有那個區塊） | **報告照常產出、照常寫本地檔案**，說出是哪一家公司缺什麼 |
+| 2 | 量不到（參數不對、工具不在） | 停下來說出來，不要走進判定 |
+
+**宣告缺席時不猜、也不沿用上一個目的地。** 「說出來然後停在本地」與「安靜地當成沒有
+目的地」在輸出上長得一樣，而只有前者是對的。這一段是量出來的：整個 publish 半邊曾經寫死
+指向一個從 2026-06-25 起就不再被寫入的地方，一個多月沒有任何東西會紅。
+
+`publish: manual` 表示那裡沒有可用的 API——內容產出、過 gate、呈現給人，**由人自己貼上去**。
+那不是流程停住，是流程走完了而最後一步本來就是人做的。
+
+**不新開對外寫入通道。** 換目的地不得多開一條平行路徑：不論送到哪，順序都是同一條——
+落地成檔案 → 過 `scripts/validate-language-policy.sh` → 人點頭 → 才送。
 
 ## Confirmation
 
-呈現 draft 後等待使用者確認。使用者可新增、刪除、改寫 YDY / TDT / BOS / 口頭同步。只有使用者
-說 OK、推上去、確認等明確同意後，才進入 publish。
+呈現 draft 後等待使用者確認。使用者可新增、刪除、改寫任何一格。只有使用者說 OK、推上去、
+確認等明確同意後，才進入 publish。
 
 ## 落差：看得見，但不會被自己寫掉
 
@@ -61,7 +82,7 @@ NO-JIRA 項目用一行摘要帶過。
 
 <!-- STANDUP-CONTRACT: drift-needs-consent -->
 
-**人點頭才寫。** 這一段跟 Confluence 走同一條紀律，順序不得顛倒：
+**人點頭才寫。** 這一段跟送出走同一條紀律，順序不得顛倒：
 
 1. 落差列出來，等使用者逐條裁。
 2. 同意的那幾條，內容先落地成檔案。
@@ -87,26 +108,17 @@ NO-JIRA 項目用一行摘要帶過。
 
 內容包含 `## YYYYMMDD` heading 到 entry 結尾分隔線。目錄不存在就建立；同日重跑可覆寫。
 
+**這一份不是備份，是本體。** 送出去的內容就是它，唯一的差別是 `口頭同步` 那一段只在這裡。
+它同時是下一份 standup 的 plan vs actual 比對來源（見 `standup-planning-flow.md`）——
+所以它每天都要寫，即使那天沒送出去。
+
 ## Language Gate
 
-Confluence 是 external write。推送前對 local markdown 執行
+送出是 external write。推送前對 local markdown 執行
 `scripts/validate-language-policy.sh` 指定的 blocking artifact gate。Gate fail 時修正自然語言並重跑；
-不可把未通過 gate 的 standup 寫到 Confluence。
-
-## Confluence Append
-
-依 `confluence-page-update.md`：
-
-1. 搜尋當月 `YYYYMM Standup Meeting` page。
-2. 找不到時告知使用者需先建立，不自行猜位置。
-3. 取得 existing content 與 version number。
-4. 更新前偵測 version conflict；若 version changed，重新讀最新內容。
-5. Append new standup entry 到頁面尾端。
-6. 使用 version message 說明新增日期。
-
-更新後回報 Confluence page link 與 local file path。
+不可把未通過 gate 的 standup 送出去。
 
 ## Link Rules
 
-Ticket link 使用 markdown `[KEY title](URL)`。不要使用 Confluence smartlink custom tags；
+Ticket link 使用 markdown `[KEY title](URL)`。不要使用平台專屬的 smartlink custom tags；
 markdown update 會把既有 smart link 轉成普通連結，這是 API behavior，應保持一致。

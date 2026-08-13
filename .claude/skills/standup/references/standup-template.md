@@ -2,17 +2,45 @@
 
 每日 standup entry 的完整格式範例。產出時依此模板填入實際資料。
 
+## 形狀：以 epic 為主體，一張 epic 三格
+
+<!-- STANDUP-CONTRACT: epic-three-cells -->
+
+**產出的主體是 epic，不是區塊。** 每一張 epic 一筆，每一筆帶三格：**昨日**、**今日**、
+**卡關**。目的地的表單就是這個形狀，所以報告直接長成那個形狀——不先產一份別的東西再
+現場翻譯一次。
+
+以前這裡是四個區塊（YDY／TDT／BOS／口頭同步）加團隊分組。**那四個名字沒有消失，它們
+變成格**，對映關係只有這一份：
+
+| 舊區塊 | 現在在哪 |
+|---|---|
+| YDY – Yesterday I Did | 每張 epic 的 **昨日** 格 |
+| TDT – Today's Tasks | 每張 epic 的 **今日** 格 |
+| BOS – Blockers or Struggles | 每張 epic 的 **卡關** 格 |
+| 口頭同步 | **只留在本地那份檔案**，不送出——表單沒有這一格 |
+
+**這張表是唯一一份說法。** 兩套形狀並存的話，下一個人不知道該照哪一套產出，而兩套都
+看起來像現行版本。
+
+**沒有 epic 的東西不散落。** 獨立 ticket、NO-JIRA 的工作、會議，全部集中在最後一筆
+具名的非 epic 條目（`### 其他（無 Epic）`）底下，一樣是三格。它們不會因為沒有 epic 就
+掉出報告。
+
+**本地檔案就是要送出去的那一份。** 本地留下的內容與貼到目的地的內容是同一個東西，
+中間沒有第二次翻譯——唯一的差別是 `口頭同步` 那一段只在本地。
+
 ## 格式規則
 
 1. **日期標題**：`## YYYYMMDD`（無斜線、無空格）
-2. **大區塊**：`* **粗體標題**`（YDY / TDT / BOS / 口頭同步）
-3. **團隊分組**：`* Team A` / `* Team B` / `* 自定義標題（NO-JIRA）` / `* meeting`
-4. **Epic 巢狀**：Epic → Task → Sub-task，依序縮排
-5. **Sub-task 折疊**：同一 Task 下 sub-task 全部通過時，折成一行 `（N/N 驗證子單通過）`；有失敗或 blocker 的才展開
-6. **團隊歸屬**：JIRA prefix 與 team 的對應由 workspace config 定義；無 JIRA → 自定義標題；會議 → meeting
-7. **口頭同步**：用 `_斜體_` 格式（Confluence 不支援 list 內 blockquote）
+2. **每張 epic 一個 `### [KEY 標題](URL)`**，沒有 epic 的集中在 `### 其他（無 Epic）`
+3. **三格用 `* **昨日**` / `* **今日**` / `* **卡關**`**，順序固定，一格都不省略
+4. **格底下是 ticket 或一行摘要**，依序縮排
+5. **Sub-task 折疊**：同一 Task 下 sub-task 全部通過時，折成一行 `（N/N 驗證子單通過）`；
+   有失敗或 blocker 的才展開
+6. **空的格留白**：那一張 epic 昨天沒動就 `* **昨日**` 底下留白，不寫「無」
+7. **口頭同步**：用 `_斜體_`，放在所有 epic 之後、分隔線之前，標明不送出
 8. **每段結尾**：加 `---` 分隔線
-9. **省略空區塊**：某團隊沒項目就不列；BOS 沒項目只留標題
 
 ## 怎麼寫：產出物精簡，證據不精簡
 
@@ -37,7 +65,7 @@
 
 | 拿來掃的（套五條） | 拿來驗的（不套） |
 |---|---|
-| 站會報告的四個區塊 | 單上的量測留言 |
+| 站會報告的三格 | 單上的量測留言 |
 | 看板欄位（昨日／今日／卡關） | root cause 推導 |
 | 口頭同步 | 驗證紀錄與對照表 |
 
@@ -49,53 +77,38 @@
 ```markdown
 ## YYYYMMDD
 
-* **YDY – Yesterday I Did**
+### [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100)
 
-    * Team A
+* **昨日**
+    * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) Task 標題 — 動作摘要 ✅（N/N 驗證子單通過）`✅ planned`
+    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) Task 標題 — 動作摘要 `🟢 additional`
+* **今日**
+    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 計畫動作
+* **卡關**
+    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 等 PM 拍板兩個方案選哪個
 
-        * [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100) `✅ planned`
-            * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) Task 標題 — 動作摘要 ✅（N/N 驗證子單通過）
-            * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) Task 標題 — 開放
-            * [TASK-ccc](https://your-domain.atlassian.net/browse/TASK-ccc) Task 標題 — 開放
-        * [EPIC-200 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-200) `✅ planned`
-            * [TASK-ddd](https://your-domain.atlassian.net/browse/TASK-ddd) Task 標題 — 完成 ✅
-            * [TASK-eee](https://your-domain.atlassian.net/browse/TASK-eee) Task 標題 — 進行中
+### [EPIC-200 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-200)
 
-    * Team B
+* **昨日**
+    * [TASK-ddd](https://your-domain.atlassian.net/browse/TASK-ddd) Task 標題 — 完成 ✅ `✅ planned`
+* **今日**
+    * [TASK-eee](https://your-domain.atlassian.net/browse/TASK-eee) — 計畫動作
+* **卡關**
 
-        * [TASK-fff](https://your-domain.atlassian.net/browse/TASK-fff) 獨立 Task 標題 — 動作摘要 `🟢 additional`
+### 其他（無 Epic）
 
-    * AI 工具改善（NO-JIRA）
+* **昨日**
+    * [TASK-fff](https://your-domain.atlassian.net/browse/TASK-fff) 獨立 Task 標題 — 動作摘要 `🟢 additional`
+    * AI 工具改善（NO-JIRA）：一行摘要描述改了什麼 `🟢 additional`
+    * 會議名稱
+      M月 D日 (星期X) · 上午/下午H:MM - H:MM
+* **今日**
+    * 會議名稱
+      M月 D日 (星期X) · 上午/下午H:MM - H:MM
+      地點：XXX
+* **卡關**
 
-        * 一行摘要描述改了什麼 `🟢 additional`
-
-    * meeting
-
-        * 會議名稱
-          M月 D日 (星期X) · 上午/下午H:MM - H:MM
-        * 會議名稱
-          M月 D日 (星期X) · 上午/下午H:MM - H:MM
-          地點：XXX
-
-* **TDT – Today's Tasks**
-
-    * Team A
-
-        * [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100)
-            * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) — 計畫動作
-        * [EPIC-200 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-200)
-            * [TASK-eee](https://your-domain.atlassian.net/browse/TASK-eee) — 計畫動作
-
-    * meeting
-
-        * 會議名稱
-          M月 D日 (星期X) · 上午/下午H:MM - H:MM
-
-* **BOS – Blockers or Struggles**
-
-    * [PROJ-zzz](https://your-domain.atlassian.net/browse/PROJ-zzz) — 阻擋原因
-
-* **口頭同步**
+* **口頭同步**（只留在本地，不送出）
 
     * _昨天主要把 XXX 做完了，YYY 成果_
     * _AAA 佔滿下午，BBB 延後_
@@ -103,6 +116,9 @@
 
 ---
 ```
+
+`口頭同步` 用 3-4 條 italic bullets，口語化摘要：昨日精華 1-2 條、插曲或損失 0-1 條、
+今日計畫 1 條。不要逐條複述上面已經有的東西。
 
 ## Sub-task 折疊規則
 
@@ -124,8 +140,7 @@
 
 **精簡**：
 ```markdown
-* AI 工具改善（NO-JIRA）
-    * Claude Code skills + workspace docs 更新 `🟢 additional`
+* AI 工具改善（NO-JIRA）：Claude Code skills + workspace docs 更新 `🟢 additional`
 ```
 
 **不要這樣**：
@@ -137,7 +152,9 @@
 
 ## Plan vs Actual 標記
 
-- `✅ planned` — 前一天 TDT 有計畫、實際有做
-- `🟢 additional` — 前一天 TDT 沒計畫、額外做的
-- `🔴 loss: [原因]` — 前一天 TDT 有計畫但沒做（問使用者原因）
-- 會議和 meeting 項目不標記
+標在**昨日**格的每一項後面：
+
+- `✅ planned` — 前一份 standup 的今日格有計畫、實際有做
+- `🟢 additional` — 前一份沒計畫、額外做的
+- `🔴 loss: [原因]` — 前一份有計畫但沒做（問使用者原因）
+- 會議項目不標記

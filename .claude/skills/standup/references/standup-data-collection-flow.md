@@ -1,6 +1,6 @@
 ---
 title: "Standup Data Collection Flow"
-description: "standup 的 config/defaults、auto-triage guard、日期計算、git/JIRA/Calendar YDY data collection。"
+description: "standup 的 config/defaults、日期計算、git/JIRA/Calendar 昨日 data collection。"
 ---
 
 # Standup Data Contract
@@ -12,7 +12,6 @@ description: "standup 的 config/defaults、auto-triage guard、日期計算、g
 讀取 workspace config，取得：
 
 - `jira.instance`
-- `confluence.space`
 - `github.org`
 - `jira.projects`
 - `projects[].path`
@@ -21,14 +20,18 @@ description: "standup 的 config/defaults、auto-triage guard、日期計算、g
 Config 不存在時使用 `workspace-config.yaml` 的 `defaults` 區塊 fallback。GitHub username 動態取得。Timezone 預設
 Asia/Taipei。
 
-## Triage State：有就用，沒有就說
+## 排序：沒有生產者的輸入不留在契約裡
 
-收集 standup 資料前，檢查 `{company}/.daily-triage.json`。存在且 `date` 是今天就拿它當排序
-依據；missing 或 stale 就照常收集，並在報告裡寫明「今日沒有 triage state」。
+<!-- STANDUP-CONTRACT: no-orphan-input -->
 
-以前這裡寫的是「missing 就去執行 my-triage 產生一份」。那支 skill 已經不在了，而一句指向
-不存在的東西的指示，讀的人只會照做然後自己撞上。**沒有 triage state 是一個要被說出來的
-狀態，不是一個要被自動補上的洞**——排序的判斷本來就不屬於 standup。
+**這一步以前讀一份沒有人在寫的檔案。** 產生它的那支 skill 早就不在了，本機那份停在
+2026-06-16，而契約每天照著說一次「今日沒有那份排序狀態」——那句話沒有收件人。
+
+一個**永遠只有一種答案**的輸入不是輸入，它是儀式。所以那一條讀取整個拿掉了，排序改由
+仍然存在的依據決定（priority、in development 優先），寫在 `standup-planning-flow.md`。
+
+這跟下面〈問不到就說出來〉不衝突，兩者問的是不同的問題：那一節管**有生產者但這次問不到**
+的來源，這一節管**根本沒有生產者**的來源。前者要說出來，後者要拿掉。
 
 ## Date Semantics
 
@@ -38,13 +41,13 @@ Standup 有三個日期：
 |---|---|
 | `PRESENT_DATE` | 報告標題日期與當天會議來源 |
 | `YDY_DATE` | 收集 git / JIRA / Calendar activity 的日期 |
-| `TDT_PLAN_DATE` | TDT 工作項目的規劃目標日 |
+| `TDT_PLAN_DATE` | 今日格工作項目的規劃目標日 |
 
-週一：YDY 是上週五；PRESENT 與 TDT 是週一。
+週一：`YDY_DATE` 是上週五；`PRESENT_DATE` 與 `TDT_PLAN_DATE` 是週一。
 
-週二到週四：YDY 是昨天；PRESENT 與 TDT 是今天。
+週二到週四：`YDY_DATE` 是昨天；`PRESENT_DATE` 與 `TDT_PLAN_DATE` 是今天。
 
-週五：YDY 是週四；PRESENT 是週五；TDT work target 是下週一。
+週五：`YDY_DATE` 是週四；`PRESENT_DATE` 是週五；`TDT_PLAN_DATE` 是下週一。
 
 使用者指定日期時，以使用者指定為準，並明確回報三個日期。
 
@@ -79,7 +82,7 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 
 - 補 git 沒抓到的 status-only work。
 - 補 ticket title。
-- 提供 TDT fallback candidates。
+- 提供今日格的 fallback candidates。
 
 ### 留言：一張單最新的話在這裡
 
@@ -112,13 +115,13 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 
 **昨天發生的事包含分支上的事**，不是只算今天還沒做完的部分。YDY_DATE 視窗內要收三類：
 
-| 收什麼 | 為什麼它是 YDY 而不是 TDT |
+| 收什麼 | 為什麼它進昨日格而不是今日格 |
 |---|---|
 | 被 merge 的 PR | 那是昨天真正完成的交付。少了它，一張已經結束的單會被寫成「還在進行」 |
 | 收到的 review comment | 別人昨天對我的東西說了什麼，是昨天發生在我身上的事 |
 | CI 狀態變化 | 昨天推上去的東西綠了還是紅了，決定今天第一件事是什麼 |
 
-`standup-planning-flow.md` 的 §PR Status Supplements 收的是**自己還開著的** PR → TDT。
+`standup-planning-flow.md` 的 §PR Status Supplements 收的是**自己還開著的** PR → 今日格。
 兩者不重疊：那一節回答「今天還要處理什麼」，這一節回答「昨天發生了什麼」。2026-08-12 缺的
 就是這一節——EPIC-200 / EPIC-300 兩條分支昨天各自被 merge，而報告一開始把它們寫成還在進行中。
 
@@ -158,13 +161,13 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 - **不當成「沒有」。** 一個問不到的來源回空，跟一個真的空的來源，在輸出上長得一樣——`0` 這
   個數字自己不會說它是哪一種。
 
-這一條跟上面〈Triage State〉是同一個形狀：**沒有 X 是一個要被說出來的狀態，不是一個要被
-自動補上的洞。**
+這一條與上面〈排序〉那一節互為對照：**有生產者而這次問不到，要說出來；根本沒有生產者，
+要拿掉。** 兩者都不准變成一個安靜的洞。
 
 ## Calendar Activity
 
-用 Calendar MCP 分別讀 YDY_DATE 與 PRESENT_DATE。YDY meetings 放到 YDY；PRESENT_DATE
-meetings 放到 TDT。週五 TDT meetings 仍是週五當天會議，不是下週一。
+用 Calendar MCP 分別讀 YDY_DATE 與 PRESENT_DATE。YDY_DATE 的會議放進昨日格；PRESENT_DATE
+的會議放進今日格。週五今日格的會議仍是週五當天會議，不是下週一。
 
 過濾 all-day events。列出 meeting title、日期、weekday、time range、timezone、location
 when available。Calendar MCP 沒有 `conferenceData` 時，不猜 Meet URL。

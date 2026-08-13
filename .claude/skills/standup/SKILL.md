@@ -1,7 +1,7 @@
 ---
 name: standup
 description: |
-  "Use when the user wants to generate a daily standup report or end-of-day summary (YDY/TDT/BOS/口頭同步). Single entry point for all standup and end-of-day workflows. Trigger: 'standup', '站會', 'daily', '寫 standup', '下班', '收工', 'EOD', 'wrap up', '今天做了什麼'."
+  "Use when the user wants to generate a daily standup report or end-of-day summary (per-epic 昨日/今日/卡關). Single entry point for all standup and end-of-day workflows. Trigger: 'standup', '站會', 'daily', '寫 standup', '下班', '收工', 'EOD', 'wrap up', '今天做了什麼'."
 
   要產出每日站會報告或下班摘要。例如「站會」「daily」「下班」「收工」
   「EOD」「今天做了什麼」。
@@ -9,24 +9,23 @@ description: |
   不用於：一張單走到哪（走 driving-work-to-done）、工時補登（走該公司自己的 worklog skill）。
 metadata:
   author: Polaris
-  version: 2.1.0
+  version: 3.0.0
   requires:
     - skill: driving-work-to-done
-      why: 收 TDT candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
+      why: 收今日格 candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
 scope: standalone
 ---
 
 # Standup — 每日站立會議報告產生器
 
-從 git、JIRA、Calendar、PR status、triage state 與使用者補充資料產出 YDY / TDT / BOS /
-口頭同步報告。使用者確認後，先存 local markdown，再 append 到 Confluence standup page。
+從 git、JIRA、Calendar、PR status 與使用者補充資料，產出**以 epic 為主體、每張 epic 三格
+（昨日／今日／卡關）**的報告。使用者確認後寫 local markdown，再依公司宣告的目的地送出。
 
 ## Contract
 
-`standup` 是 daily standup 與 EOD summary 的單一入口。它讀當日的 triage state 當排序依據，
-但**不自己做排序判斷**，也不捏造資料來源沒有的活動。沒有 triage state 就照常收集並說出來。
-它可以轉述 PR / JIRA / planning / blocker 現況，但不得自行把這些訊號升格成 workflow
-authority。這條有兩個方向，兩個都要擋：
+`standup` 是 daily standup 與 EOD summary 的單一入口。它不自己做排序判斷，也不捏造資料
+來源沒有的活動。它可以轉述 PR / JIRA / planning / blocker 現況，但不得自行把這些訊號升格成
+workflow authority。這條有兩個方向，兩個都要擋：
 
 - **不得升格成完成宣告**——「PR 狀態良好」不等於 `mergeable_ready`，release page / standup
   內容也不等於 release eligibility 或 release completed。
@@ -36,62 +35,68 @@ authority。這條有兩個方向，兩個都要擋：
 
 這條原本只寫了第一個方向，而 2026-08-12 的四次校正有兩次是第二個方向。
 
-Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS heading，不寫「無」。
+**送出去之前必須等待使用者確認。** 沒有卡關的項目時保留那一格，不寫「無」。
+
+**目的地不寫在這支 skill 裡。** 送到哪、什麼形狀、誰按下送出，問
+`scripts/resolve-standup-destination.sh`；宣告缺席時說出來、報告照常產出並寫在本地，
+不猜也不沿用。判準與四種離場碼在 `standup-format-publish-flow.md` 的〈送到哪〉。
 
 ## Reference Loading
 
 | Situation | Load |
 |---|---|
 | Any run | `standup-data-collection-flow.md`, `workspace-config.yaml` |
-| TDT / planning | `standup-planning-flow.md`, `session-timeline.md` when useful |
-| Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `confluence-page-update.md`, `scripts/validate-language-policy.sh` |
+| 今日格 / planning | `standup-planning-flow.md`, `session-timeline.md` when useful |
+| Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `scripts/resolve-standup-destination.sh`, `scripts/validate-language-policy.sh` |
 | Monthly framework hygiene | `framework-iteration-procedures.md` |
 
 ## Flow
 
-1. 讀 workspace config，取得 JIRA、Confluence、GitHub、projects、teams。
-2. 讀今日 triage state；缺漏或過期就照常往下走，並在報告裡寫明沒有它。
-3. 計算 `YDY_DATE`、`PRESENT_DATE`、`TDT_PLAN_DATE`；使用者指定日期時以使用者為準。
-4. 收集 YDY sources：git commits、JIRA updates（含窗內留言）、分支上的事（被 merge 的 PR、
+1. 讀 workspace config，取得 JIRA、GitHub、projects、teams。
+2. 計算 `YDY_DATE`、`PRESENT_DATE`、`TDT_PLAN_DATE`；使用者指定日期時以使用者為準。
+3. 收集昨日 sources：git commits、JIRA updates（含窗內留言）、分支上的事（被 merge 的 PR、
    收到的 review comment、CI 狀態）、Calendar meetings。視窗綁在查詢那一層，不是事後過濾。
-5. Merge and deduplicate YDY，並做 plan vs actual comparison。同一張單描述與留言衝突時留言
-   勝出，且把落差說出來。
-6. 收集 TDT candidates：JIRA open sprint、open PR status、review-requested PR，以及
+4. Merge and deduplicate 昨日，並做 plan vs actual comparison——比對來源是
+   `{base_dir}/standups/` 底下今天以前最新的那一份，而且**每次都說出拿哪一份比的**。
+   同一張單描述與留言衝突時留言勝出，且把落差說出來。
+5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR，以及
    `issues/` 底下還沒收斂的單。後者用
    `bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check`
-   （report-only，不搬任何東西）：位置與狀態對不上的會被列出來，併入 TDT candidate。
+   （report-only，不搬任何東西）：位置與狀態對不上的會被列出來，併入今日格 candidate。
    `{單樹根}/OPEN.md` 是同一次重算產出的人看版本，非 release 的單都在那裡，帶著它在哪一格、
    上次動過多久、是不是自己的單。沒有狀態檔又沒有解析器可問的目錄不參與判定，但數量會
    印出來——轉述那個數字，不要當成已檢查過。
-7. 收集 BOS：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
-   `standup-planning-flow.md` 的准入判準——「我在等誰」，自己動得了的是待辦不是 blocker。
-8. 依 `standup-template.md` 組裝四區塊並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
-9. 使用者確認後，寫 local markdown。
-10. 對 local markdown 跑 language gate，通過後 append 到 Confluence page。
-11. 落差清單裡使用者逐條同意的那幾條，才寫回單／PR——同一條紀律：落地成檔案 → 過 gate →
+6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
+   `standup-planning-flow.md` 的准入判準——「我在等誰」加上那張措辭表；自己動得了的是待辦
+   不是卡關。
+7. 依 `standup-template.md` 依 epic 組裝三格並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
+8. 使用者確認後，寫 local markdown。**那一份不是備份，是本體**，也是明天的比對來源。
+9. 對 local markdown 跑 language gate，通過後依宣告的目的地送出。
+10. 落差清單裡使用者逐條同意的那幾條，才寫回單／PR——同一條紀律：落地成檔案 → 過 gate →
     才送。沒點頭的不寫。
 
 ## Data Rules
 
 - Git commits 排除 merge commits。
 - Calendar 不猜 Google Meet link；MCP 沒回傳就不列。
-- Ticket 連結使用 `[KEY title](URL)` markdown，不使用 Confluence smartlink custom tags。
-- Friday standup title 使用 Friday `PRESENT_DATE`；TDT work target 才是 next Monday。
+- Ticket 連結使用 `[KEY title](URL)` markdown，不使用平台專屬的 smartlink custom tags。
+- Friday standup title 使用 Friday `PRESENT_DATE`；今日格的 work target 才是 next Monday。
 - Meeting items 不參與 plan vs actual planned/additional/loss 判斷。
 
 ## Write Rules
 
-- Local markdown 是 Confluence push 前的備份，確認後無條件寫入。
-- Confluence page update 依 `confluence-page-update.md` 做 search、version check、append。
-- Confluence body 是 external write；送出前必須通過 `scripts/validate-language-policy.sh`。
-- 更新完成後回報 Confluence page link 與 local file path。
+- Local markdown 確認後無條件寫入，即使那天沒送出去——明天的 plan vs actual 讀它。
+- 送出是 external write；送出前必須通過 `scripts/validate-language-policy.sh`。
+- 目的地與送出方式依 `resolve-standup-destination.sh` 的宣告；`publish: manual` 表示
+  最後一步由人自己貼上，那不是流程停住。
+- 送出後回報目的地連結與 local file path；沒送出時說出為什麼。
 - standup 內對 PR / release / planning 的描述只能轉述來源系統或 shared state；不得在 standup prose
   中自行宣告「已完成 / 可 release / 可 merge」。
 
 ## Completion
 
-輸出 standup date、YDY/TDT/BOS counts、local file、Confluence status、任何 skipped sources
-與原因。
+輸出 standup date、每張 epic 的三格 counts、local file、送出狀態（含目的地或缺宣告的理由）、
+任何 skipped sources 與原因。
 
 
 <!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->
