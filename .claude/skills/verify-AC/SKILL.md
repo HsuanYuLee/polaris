@@ -41,6 +41,17 @@ bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
 
 任一項不成立就是非 PASS，沒有討論空間。
 
+**一條命令被好幾條斷言共用時，用 `--assertion` 分組，一趟就產出全部證據**：
+
+```bash
+bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
+  --assertion A-P1 --expect-evidence '<A-P1 自己的痕跡>' --evidence-out {issue}/.spine/evidence/A-P1.json \
+  --assertion A-P2 --expect-evidence '<A-P2 自己的痕跡>' --evidence-out {issue}/.spine/evidence/A-P2.json
+```
+
+命令只跑一次，每一組在同一份輸出上**各自判、各自寫**——不是把同一個判定複製 N 份，那會讓
+「這條斷言真的被檢查過」變成假的。一組沒有自己的輸出路徑、或兩組指到同一個檔案，它會停。
+
 `run-hardened-oracle.sh` 會先探工具能力再釘住、要求命令產出證明自己量到東西的輸出、
 並原樣保留 stderr 與 exit code。這是因為工具會說謊：PATH 上較早的 shim、靜默跳過的測試、
 被吞成 generic timeout 的錯誤，三者都能讓一個空的執行看起來像綠的。

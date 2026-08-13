@@ -29,11 +29,22 @@
 # probe, stops the run and names the tool. There is no fallback to the inherited
 # PATH — a silent fallback would reinstate the exact hole being closed.
 #
+# 一條命令，N 條斷言，跑一次（DP-529）。同一條量測命令常常同時是好幾條斷言的量測，而每
+# 條斷言的正向證據不一樣。以前一份 --evidence-out 只能對一條斷言，所以要產 N 份證據就得
+# invoke N 次——而每一次都真的把那條命令再跑一遍。量出來的代價：十六條斷言共用一條 495 秒
+# 的命令，跑十六趟兩小時十分，而十六份證據的 stdout 34 行裡 31 行逐位元組相同。
+#
+# `--assertion <ID>` 開一個分組，後面的 --expect-evidence / --forbid-evidence /
+# --evidence-out 掛在那一組上。命令跑一次，逐組在同一份輸出上各自判、各自寫。
+# **不是把同一份判定複製 N 份**——那會讓「這條斷言真的被檢查過」變成假的。
+# 不給任何 --assertion 時，一切與以前相同。
+#
 # Usage:
 #   run-hardened-oracle.sh --command <cmd>
 #       [--require-tool <name>[:<probe args>]]...
 #       [--expect-evidence <regex>]... [--forbid-evidence <regex>]...
 #       [--evidence-out <path>]
+#       [--assertion <id> [--expect-evidence …]... --evidence-out <path>]...
 #       [--cwd <dir>] [--system-path <dir:dir:...>]
 #
 # Exit codes:
@@ -65,7 +76,12 @@ Usage:
       [--require-tool <name>[:<probe args>]]...
       [--expect-evidence <regex>]... [--forbid-evidence <regex>]...
       [--evidence-out <path>]
+      [--assertion <id> [--expect-evidence …]... --evidence-out <path>]...
       [--cwd <dir>] [--system-path <dir:dir:...>]
+
+  --assertion opens a group: the --expect-evidence / --forbid-evidence /
+  --evidence-out flags that follow belong to it. The command runs once and each
+  group is judged separately against that single run.
 EOF
 }
 
@@ -87,13 +103,44 @@ require_python3() {
   fi
 }
 
+# 分組用三個平行陣列存，索引就是組號。bash 3.2 沒有巢狀陣列，而樣式清單是變長的——
+# 所以每一組的樣式存成一個字串，用換行分隔（樣式本身不會有換行）。
+GROUP_IDS=()
+GROUP_EXPECT=()
+GROUP_FORBID=()
+GROUP_OUT=()
+CURRENT=-1
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --command) COMMAND="${2:-}"; HAVE_COMMAND="yes"; shift 2 ;;
     --require-tool) REQUIRE_TOOLS+=("${2:-}"); shift 2 ;;
-    --expect-evidence) EXPECT_PATTERNS+=("${2:-}"); shift 2 ;;
-    --forbid-evidence) FORBID_PATTERNS+=("${2:-}"); shift 2 ;;
-    --evidence-out) EVIDENCE_OUT="${2:-}"; shift 2 ;;
+    --assertion)
+      [[ -n "${2:-}" ]] || die POLARIS_ORACLE_GROUP_INCOMPLETE "--assertion 要帶一個斷言 ID。"
+      GROUP_IDS+=("$2"); GROUP_EXPECT+=(""); GROUP_FORBID+=(""); GROUP_OUT+=("")
+      CURRENT=$((${#GROUP_IDS[@]} - 1))
+      shift 2 ;;
+    --expect-evidence)
+      if [[ "$CURRENT" -ge 0 ]]; then
+        GROUP_EXPECT[$CURRENT]="${GROUP_EXPECT[$CURRENT]}${GROUP_EXPECT[$CURRENT]:+$'\n'}${2:-}"
+      else
+        EXPECT_PATTERNS+=("${2:-}")
+      fi
+      shift 2 ;;
+    --forbid-evidence)
+      if [[ "$CURRENT" -ge 0 ]]; then
+        GROUP_FORBID[$CURRENT]="${GROUP_FORBID[$CURRENT]}${GROUP_FORBID[$CURRENT]:+$'\n'}${2:-}"
+      else
+        FORBID_PATTERNS+=("${2:-}")
+      fi
+      shift 2 ;;
+    --evidence-out)
+      if [[ "$CURRENT" -ge 0 ]]; then
+        GROUP_OUT[$CURRENT]="${2:-}"
+      else
+        EVIDENCE_OUT="${2:-}"
+      fi
+      shift 2 ;;
     --cwd) CWD="${2:-}"; shift 2 ;;
     --system-path) SYSTEM_PATH="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -102,6 +149,25 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$HAVE_COMMAND" == "yes" && -n "$COMMAND" ]] || { usage; exit 2; }
+
+# 分組不完整就停。一組沒有自己的輸出路徑時沿用別人的，或兩組指到同一個檔案讓後寫的蓋掉
+# 先寫的——兩種都會產出一份看起來正常、但屬於別條斷言的證據。
+if [[ "${#GROUP_IDS[@]}" -gt 0 ]]; then
+  seen_out=""
+  for i in "${!GROUP_IDS[@]}"; do
+    [[ -n "${GROUP_OUT[$i]}" ]] \
+      || die POLARIS_ORACLE_GROUP_INCOMPLETE "斷言 ${GROUP_IDS[$i]} 這一組沒有 --evidence-out。每一組都要有自己的輸出路徑。"
+    case "$seen_out" in
+      *"|${GROUP_OUT[$i]}|"*)
+        die POLARIS_ORACLE_GROUP_DUPLICATE_OUT "斷言 ${GROUP_IDS[$i]} 的 --evidence-out 跟前面某一組指到同一個檔案：${GROUP_OUT[$i]}" ;;
+    esac
+    seen_out="${seen_out}|${GROUP_OUT[$i]}|"
+  done
+  # 分組模式下，散在分組之外的 --evidence-out 沒有歸屬。它要嘛是打錯位置，要嘛是舊呼叫法
+  # 沒清乾淨，兩種都不該安靜地多寫一份。
+  [[ -z "$EVIDENCE_OUT" ]] \
+    || die POLARIS_ORACLE_GROUP_INCOMPLETE "已經用了 --assertion 分組，但還有一個不屬於任何一組的 --evidence-out：${EVIDENCE_OUT}"
+fi
 
 require_python3
 
@@ -187,50 +253,49 @@ cat "$STDERR_FILE" >&2
 combined="$WORK/combined.log"
 cat "$STDOUT_FILE" "$STDERR_FILE" > "$combined"
 
-VERDICT="PASS"
-MARKER=""
-DETAIL=""
-
-if [[ "$COMMAND_EXIT" -ne 0 ]]; then
-  VERDICT="FAIL"
-  MARKER="POLARIS_ORACLE_COMMAND_FAILED"
-  DETAIL="command exited $COMMAND_EXIT"
-fi
-
-if [[ "$VERDICT" == "PASS" ]]; then
-  for pattern in "${EXPECT_PATTERNS[@]:-}"; do
+# Description: 在同一份輸出上判一組正負向樣式。$1 = 換行分隔的正向樣式，$2 = 負向。
+#              判定寫進 verdict / marker / detail 三個變數（呼叫端先宣告成 local）。
+judge_group() {
+  local expect="$1" forbid="$2" pattern
+  verdict="PASS"; marker=""; detail=""
+  if [[ "$COMMAND_EXIT" -ne 0 ]]; then
+    verdict="FAIL"
+    marker="POLARIS_ORACLE_COMMAND_FAILED"
+    detail="command exited $COMMAND_EXIT"
+    return
+  fi
+  while IFS= read -r pattern; do
     [[ -n "$pattern" ]] || continue
     if ! grep -Eq "$pattern" "$combined"; then
-      VERDICT="NOT_PASS"
-      MARKER="POLARIS_ORACLE_NO_POSITIVE_EVIDENCE"
-      DETAIL="command exited 0 but never emitted the positive evidence it was required to produce: /$pattern/"
-      break
+      verdict="NOT_PASS"
+      marker="POLARIS_ORACLE_NO_POSITIVE_EVIDENCE"
+      detail="command exited 0 but never emitted the positive evidence it was required to produce: /$pattern/"
+      return
     fi
-  done
-fi
-
-if [[ "$VERDICT" == "PASS" ]]; then
-  for pattern in "${FORBID_PATTERNS[@]:-}"; do
+  done <<< "$expect"
+  while IFS= read -r pattern; do
     [[ -n "$pattern" ]] || continue
     if grep -Eq "$pattern" "$combined"; then
-      VERDICT="NOT_PASS"
-      MARKER="POLARIS_ORACLE_FORBIDDEN_EVIDENCE"
-      DETAIL="command output matched a pattern that marks a non-measurement: /$pattern/"
-      break
+      verdict="NOT_PASS"
+      marker="POLARIS_ORACLE_FORBIDDEN_EVIDENCE"
+      detail="command output matched a pattern that marks a non-measurement: /$pattern/"
+      return
     fi
-  done
-fi
+  done <<< "$forbid"
+}
 
-if [[ -n "$EVIDENCE_OUT" ]]; then
+# Description: 寫一份證據。$1 = 輸出路徑，$2/$3/$4 = 判定三件，$5/$6 = 這一份自己的樣式。
+write_evidence() {
+  local out="$1" verdict="$2" marker="$3" detail="$4" expect="$5" forbid="$6"
   # 正負向樣式走環境變數，不擠進 argv：那串位置參數已經固定了九個再接一串工具紀錄，
   # 中間插兩個變長的清單要多一組長度欄位，而那正是會被下一個人數錯的東西。
   #
   # 記下來的理由：同一支 selftest 常常同時是好幾條斷言的量測命令，**分開它們的只有這幾個
   # 樣式**。沒有記下來的話，任何要重跑這份證據的人只能重跑那條命令，然後把「它綠了」讀成
   # 「每一條都綠了」。
-  POLARIS_ORACLE_EXPECT="$(printf '%s\n' "${EXPECT_PATTERNS[@]:-}")" \
-  POLARIS_ORACLE_FORBID="$(printf '%s\n' "${FORBID_PATTERNS[@]:-}")" \
-  python3 - "$EVIDENCE_OUT" "$COMMAND" "$COMMAND_EXIT" "$VERDICT" "$MARKER" "$DETAIL" \
+  POLARIS_ORACLE_EXPECT="$expect" \
+  POLARIS_ORACLE_FORBID="$forbid" \
+    python3 - "$out" "$COMMAND" "$COMMAND_EXIT" "$verdict" "$marker" "$detail" \
     "$STDOUT_FILE" "$STDERR_FILE" "$run_dir" "${TOOL_RECORDS[@]:-}" <<'PY'
 import json
 import os
@@ -289,6 +354,43 @@ with open(out, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
 PY
+}
+
+EXPECT_JOINED="$(printf '%s\n' "${EXPECT_PATTERNS[@]:-}")"
+FORBID_JOINED="$(printf '%s\n' "${FORBID_PATTERNS[@]:-}")"
+
+if [[ "${#GROUP_IDS[@]}" -eq 0 ]]; then
+  # 舊的呼叫法：一組樣式、一份證據、一個判定。一個字都沒變。
+  declare verdict marker detail
+  judge_group "$EXPECT_JOINED" "$FORBID_JOINED"
+  VERDICT="$verdict"; MARKER="$marker"; DETAIL="$detail"
+  [[ -z "$EVIDENCE_OUT" ]] \
+    || write_evidence "$EVIDENCE_OUT" "$VERDICT" "$MARKER" "$DETAIL" "$EXPECT_JOINED" "$FORBID_JOINED"
+else
+  # 分組：命令已經跑完了，這裡只是在同一份輸出上逐條判。逐條判是重點——把同一個判定複製
+  # N 份會讓「這條斷言真的被檢查過」變成假的，而那正是這條路要買到的東西。
+  NOT_PASSED=()
+  for i in "${!GROUP_IDS[@]}"; do
+    declare verdict marker detail
+    judge_group "${GROUP_EXPECT[$i]}" "${GROUP_FORBID[$i]}"
+    write_evidence "${GROUP_OUT[$i]}" "$verdict" "$marker" "$detail" \
+      "${GROUP_EXPECT[$i]}" "${GROUP_FORBID[$i]}"
+    if [[ "$verdict" == "PASS" ]]; then
+      echo "PASS: ${GROUP_IDS[$i]} — 這一趟的輸出帶著它要求的正向證據"
+    else
+      NOT_PASSED+=("${GROUP_IDS[$i]}")
+      echo "${GROUP_IDS[$i]}: $marker" >&2
+      echo "  $detail" >&2
+    fi
+  done
+  echo "ORACLE-GROUPS: 一趟執行，${#GROUP_IDS[@]} 條斷言各自判過，非 PASS ${#NOT_PASSED[@]} 條"
+  if [[ "${#NOT_PASSED[@]}" -eq 0 ]]; then
+    exit 0
+  fi
+  # 命令自己紅的時候每一組都是 FAIL，離場碼跟不分組時同一個意思：1 是命令紅了，2 是判定
+  # 沒到。兩者混成一個的話，「跑不起來」與「跑起來但沒證據」在呼叫端分不出來。
+  [[ "$COMMAND_EXIT" -ne 0 ]] && exit 1
+  exit 2
 fi
 
 if [[ "$VERDICT" == "PASS" ]]; then

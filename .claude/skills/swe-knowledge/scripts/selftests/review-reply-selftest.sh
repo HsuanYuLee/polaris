@@ -33,6 +33,12 @@ ok()   { printf '  ✅ %s\n' "$1"; }
 no()   { printf '  ❌ %s — %s\n' "$1" "$2"; RED=1; }
 want() { [[ -z "$ONLY" || "$ONLY" == "$1" ]]; }
 die()  { printf 'UNMEASURABLE %s\n' "$*" >&2; exit 2; }
+# 有一種量不到不該把整支停掉：那一條的前置條件永遠不會再成立（它問的是某一趟交付的
+# diff，而那一趟早就併進主幹了），而其餘幾條每一次都量得到。用 die 的話，一條永久量不到
+# 的斷言會讓這支 selftest 永遠非 0 收場，然後被當成紅的。
+# 它仍然不是綠的——收在 SKIPPED 裡，最後一行印出來。
+SKIPPED=()
+skip() { printf '  ❔ %s — 量不到：%s\n' "$1" "$2"; SKIPPED+=("$1"); }
 
 for f in "$CHECK" "$RESOLVER" "$SKILL_MD" "$FIXTURE_GH"; do
   [[ -f "$f" ]] || die "$f 不在，什麼都量不到。"
@@ -197,6 +203,19 @@ if want A-N3; then
   if [[ -z "$base" ]]; then
     die "A-N3 量不到：算不出跟預設分支的共同祖先"
   fi
+  # 這一條問的是**那一趟交付**動了什麼，而 merge-base 給的是**現在這條分支**動了什麼。
+  # 那張單併進主幹之後，這兩個就不是同一件事了：任何後來動到被守著的那幾個檔案的單，
+  # 都會被這一條當成「那張單改了判定路徑」而判紅——一支永久留在樹裡的 selftest 去審別人
+  # 的交付。判準用這支 selftest 自己：它是在那一趟被加進來的，diff 裡沒有那個新增，這
+  # 條分支就不是它，量不到（不是綠）。
+  own="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  own_rel="${own#"$REPO_ROOT"/}"
+  mine=yes
+  git -C "$REPO_ROOT" diff --name-status "$base"..HEAD 2>/dev/null \
+    | grep -qE "^A[[:space:]]+${own_rel}$" || mine=no
+  if [[ "$mine" == no ]]; then
+    skip A-N3 "這條斷言問的是加進這支 selftest 的那一趟，而現在這條分支不是它"
+  else
   changed=""
   for p in "${judge_paths[@]}"; do
     [[ -f "$REPO_ROOT/$p" ]] || die "A-N3 量不到：$p 不在，樣本不成立"
@@ -209,6 +228,7 @@ if want A-N3; then
   else
     say "MEASURED 判定那條路的 ${#judge_paths[@]} 個檔案，blob 跟共同祖先逐一相同"
     ok A-N3
+  fi
   fi
 fi
 
@@ -346,4 +366,6 @@ if want B-N3; then
   fi
 fi
 
+[[ "${#SKIPPED[@]}" -eq 0 ]] \
+  || say "量不到（不是過）：${SKIPPED[*]}"
 exit "$RED"
