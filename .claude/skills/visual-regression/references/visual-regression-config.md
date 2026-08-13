@@ -133,7 +133,7 @@ polaris-config/{company}/visual-regression/
 | 欄位 | 型別 | 必填 | 說明 |
 |------|------|------|------|
 | `type` | string | 否 | 工具標識（mockoon / prism / json-server）。用於 log，不影響行為 |
-| `runner` | string | 是（如果有 fixtures block） | Toolchain capability command（預設 `fixtures.mockoon.start`）。Skill 在 runtime 組合 `.claude/skills/visual-regression/scripts/polaris-toolchain.sh run fixtures.mockoon.start -- {company_specs_dir}/{EPIC}/tests/mockoon` 啟動 |
+| `runner` | string | 是（如果有 fixtures block） | 啟動 fixture server 的命令（預設 `pnpm --dir tools/polaris-toolchain mockoon:start`）。Skill 在 runtime 把 `-- {company_specs_dir}/{EPIC}/tests/mockoon` 接在它後面 |
 | `stop_command` | string | 是（如果有 fixtures block） | 停止 fixture server 的指令 |
 | `health_ports` | number[] | 否 | 健康檢查端口列表 |
 | `ready_signal` | string | 是（如果有 fixtures block） | 同 server.ready_signal 邏輯 |

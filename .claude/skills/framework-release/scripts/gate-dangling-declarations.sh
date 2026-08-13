@@ -12,11 +12,18 @@
 # 「刪掉一個還被引用的東西」在刪的當下沒有症狀——症狀在下一個人去用它的時候才出現，而那時
 # 候沒有人記得那次刪除。所以它要有機械閘，不能靠刪的人自己記得掃一遍。
 #
-# 只掃兩個地方，而且只掃這兩個：
+# 只掃三個地方，而且只掃這三個：
 #   1. `mise.toml` 的 `[tasks.*] run`
 #   2. `.claude/settings.json` 的 `hooks[].command`
+#   3. `package.json` 的 `scripts`
 #
-# 這兩處的共同點是**它們是入口**：沒有別的東西引用它們，所以沒有別的閘會在它們壞掉時變紅。
+# 第三處是 2026-08-13（DP-518）補的，而它補的方式說明了這支閘原本的問題：判準寫對了、
+# 適用範圍抄漏了。`package.json` 的 `scripts` 完全符合下面那句「它們是入口」——而它整整
+# 十條全部指向被同一次刪除帶走的 `scripts/`，其中三個目標在整棵樹上都不存在，
+# 而這支閘印的是「✅ 5 個執行宣告都指得到現在存在的檔案」。同一次刪除、同一種入口、
+# 同一個 repo，抓到 13 條、漏掉 10 條。
+#
+# 這三處的共同點是**它們是入口**：沒有別的東西引用它們，所以沒有別的閘會在它們壞掉時變紅。
 # 腳本引用腳本那一面已經有 `gate-skill-script-references.sh` 在管（同目錄引用），這裡不重複掃——
 # 兩支閘掃同一件事，遲早會對同一個東西給出不同答案。散文裡提到一個檔名也不算宣告：那是敘述，
 # 把敘述算進來會讓這支閘變成沒有人敢看的雜訊來源。
@@ -86,10 +93,31 @@ if settings.is_file():
                 for p in SCRIPT.findall(hook.get("command", "")):
                     record(".claude/settings.json", 0, p)
 
+pkg_scripts_total = 0
+pkg_scripts_nonpath = []   # 沒有指名任何檔案路徑的（例如代理給 pnpm 的），判不了，但要數
+pkg = root / "package.json"
+if pkg.is_file():
+    data = json.loads(pkg.read_text())
+    for name, command in (data.get("scripts") or {}).items():
+        pkg_scripts_total += 1
+        found = SCRIPT.findall(command)
+        if not found:
+            pkg_scripts_nonpath.append(name)
+        for p in found:
+            record(f"package.json[scripts.{name}]", 0, p)
+
 dangling = [(s, n, r) for s, n, r in declarations if not (root / r).exists()]
 
 note = (f"不掃：腳本引用腳本（gate-skill-script-references 在管）、散文裡的檔名（不是宣告）。"
         f"解不開的帶變數路徑 {len(unresolvable)} 個，不猜。")
+
+# 判不了的那一類要說出數量，不能從輸出裡消失：一條 `pnpm --dir X build` 沒有指名任何檔案，
+# 這道閘對它是空的——它壞掉的時候由 pnpm 自己大聲失敗，不由這裡。把數字印出來，是為了讓
+# 「這道閘看過幾條、放過幾條」是看得見的，而不是讓 5 這個數字看起來像 package.json 全過了。
+if pkg_scripts_total:
+    note += (f" package.json 的 scripts 共 {pkg_scripts_total} 條，其中 "
+             f"{len(pkg_scripts_nonpath)} 條沒有指名檔案路徑、不判定"
+             + (f"（{', '.join(pkg_scripts_nonpath)}）" if pkg_scripts_nonpath else "") + "。")
 
 if dangling:
     print(f"{prefix} 指向不存在的檔案的宣告：", file=sys.stderr)

@@ -16,20 +16,19 @@ Polaris Specs 是本機閱讀介面，用來瀏覽 design plans、ticket specs�
 
 ## Runtime Toolchain
 
-Polaris 的 docs viewer、Mockoon fixtures 與 Playwright verification 是 required runtime tools。初始化或修復環境時使用 root runner：
+Polaris 的 docs viewer、Mockoon fixtures 與 Playwright verification 是 required runtime tools。初始化或修復環境時走 mise 任務：
 
 ```bash
-bash scripts/polaris-toolchain.sh install --required
-bash scripts/polaris-toolchain.sh doctor --required
+mise run bootstrap -- --profile runtime
+mise run doctor -- --profile runtime
 ```
 
-常用入口也可走 root `pnpm` alias；alias 只代理到 framework scripts，不承擔機制實作：
+docs viewer 自己的入口走 root `pnpm` alias；alias 只代理到 `docs-manager`，不承擔機制實作：
 
 ```bash
-pnpm toolchain:doctor
-pnpm viewer:status
-pnpm scripts:check
-pnpm commands:check
+pnpm viewer:dev
+pnpm viewer:build
+pnpm viewer:preview
 ```
 
 Status Dashboard 會顯示 required toolchain 缺失與 repair command。新增或移動 specs 後，
@@ -37,7 +36,7 @@ framework 只更新 canonical files 與 route metadata；docs viewer 的啟動�
 使用者決定。
 
 ```bash
-bash scripts/polaris-toolchain.sh run docs.viewer.dev
+pnpm viewer:dev
 ```
 
 撰寫與檢查內容時使用 dev mode；驗證 production search 行為時使用 preview mode。

@@ -65,7 +65,7 @@ Developers also need:
 
 - Git
 - GitHub CLI (`gh`) authenticated with the organization
-- Local Polaris toolchain readiness through the root public tasks `mise run bootstrap` and `mise run doctor -- --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Legacy compatibility docs may still mention `bash scripts/polaris-toolchain.sh doctor --required`; new workspaces should start with public task commands.
+- Local Polaris toolchain readiness through the root public tasks `mise run bootstrap` and `mise run doctor -- --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Those two tasks are the only entry points; the `scripts/polaris-toolchain.sh` runner older docs mention was retired in DP-518 (its manifest parser had been deleted in an earlier move, so the runner had been dead the whole time).
 
 Optional integrations:
 

@@ -168,16 +168,20 @@ check_path() {
   fi
 }
 
+# DP-518 之前這裡走 `scripts/polaris-toolchain.sh run <capability>`，而那支 runner 的 parser
+# 在 51b8208c 那次搬家被刪掉、沒有跟著搬。所以這兩格 doctor 從那天起每一次都是 fail，
+# 而訊息是「fixtures.mockoon.doctor failed」——讀起來像 mockoon 壞了，不像 runner 不見了。
+# 現在直接下那個 package 自己的 doctor script，少一層自己會失效的間接。
 run_toolchain_doctor() {
-  local capability="$1"
+  local label="$1" script="$2"
   if [[ "$DRY_RUN" == "true" ]]; then
-    info "would run toolchain doctor: $capability"
+    info "would run toolchain doctor: $label"
     return 0
   fi
-  if (cd "$TOOLCHAIN_ROOT" && bash "$TOOLCHAIN_ROOT/scripts/polaris-toolchain.sh" run "$capability"); then
-    pass "$capability passed"
+  if (cd "$TOOLCHAIN_ROOT" && pnpm --dir tools/polaris-toolchain "$script"); then
+    pass "$label passed"
   else
-    fail "$capability failed"
+    fail "$label failed"
   fi
 }
 
@@ -196,8 +200,8 @@ check_runtime() {
   check_mise_tool node "Node"
   check_mise_tool pnpm "pnpm"
   check_path "$PLAYWRIGHT_BROWSERS_PATH" "Playwright browser cache"
-  run_toolchain_doctor fixtures.mockoon.doctor
-  run_toolchain_doctor browser.playwright.doctor
+  run_toolchain_doctor fixtures.mockoon mockoon:doctor
+  run_toolchain_doctor browser.playwright playwright:doctor
 }
 
 check_delivery() {

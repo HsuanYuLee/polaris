@@ -261,10 +261,13 @@ assert_eq "$rc" 0 "一組候選裡有一條命中 → 綠（前兩條落空不�
 #
 # 這一格的判定在 DP-513 施工中被實測推翻過一次，經過留在這裡：原本寫成「唯一的候選落空
 # → 紅」，理由是一條永遠走不到的分支就是這張單在講的病。真樹上立刻噴出一個假紅——
-# `visual-regression/scripts/polaris-toolchain.sh:18` 問的是「這個 skill 目錄自己是不是
-# workspace 根」，在這棵樹上答案就是不是，而 `polaris-toolchain.yaml` 真的存在、在 repo 根。
+# 當時的標本是 `visual-regression/scripts/polaris-toolchain.sh:18`，問的是「這個 skill 目錄
+# 自己是不是 workspace 根」，在那棵樹上答案就是不是，而它要的 manifest 真的存在、在 repo 根。
 # 它跟 `fetch-pr-info.sh` 那種死 fallback 的形狀一模一樣，差別只在意圖。所以只有一個目標的
 # 時候不判定，進 DISCLOSURE——A-N2 明文允許的第二條路，不是靜默縮小管轄。
+#
+# 那個標本本身 DP-518 退場了（parser 在更早一次搬家被刪掉，整支是屍體），所以這一格現在
+# 只剩下面這個 fixture 撐著。判準沒變，撐著它的東西變了。
 repo="$WORK/guard_ifthen"
 make_repo "$repo"
 cat > "$repo/.claude/skills/probe/scripts/caller.sh" <<'EOF'

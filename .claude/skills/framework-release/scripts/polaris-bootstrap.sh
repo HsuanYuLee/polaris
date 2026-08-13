@@ -180,9 +180,14 @@ regenerate_runtime_targets() {
 bootstrap_runtime() {
   require_managed_tool node "Node" || return 1
   require_managed_tool pnpm "pnpm" || return 1
-  run_managed bash scripts/polaris-toolchain.sh run docs.viewer.install
-  run_managed bash scripts/polaris-toolchain.sh run fixtures.mockoon.install
-  run_managed bash scripts/polaris-toolchain.sh run browser.playwright.install-browser
+  # DP-518 之前這三行走 `scripts/polaris-toolchain.sh run <capability>`，而那支 runner 的
+  # parser（scripts/lib/polaris_toolchain_manifest.py）在 51b8208c 那次搬家被刪掉、沒有跟著
+  # 搬。所以 `mise run bootstrap -- --profile runtime` 從那天起就是壞的，而沒有東西會紅。
+  # 現在直接下那三條命令——它們本來就是 manifest 裡那三個 capability 展開後的樣子，
+  # 少一層自己會失效的間接。
+  run_managed pnpm --dir docs-manager install
+  run_managed pnpm --dir tools/polaris-toolchain install
+  run_managed pnpm --dir tools/polaris-toolchain playwright:install
 }
 
 while [[ $# -gt 0 ]]; do

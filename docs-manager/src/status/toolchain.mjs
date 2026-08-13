@@ -7,30 +7,22 @@ const workspaceRoot = path.resolve(docsManagerRoot, '..');
 
 export function inferToolchainHealth(options = {}) {
   const root = path.resolve(options.workspaceRoot ?? workspaceRoot);
+  // DP-518：前兩格檢查的是 `polaris-toolchain.yaml` 與 `scripts/polaris-toolchain.sh`。
+  // 後者從 51b8208c 那次搬家起就不在那個路徑上，所以這個狀態頁的 runner 那一格一直是紅的
+  // ——而它報的是「去 git restore」，一個永遠救不回來的修法。runner 與那份 manifest 已經
+  // 退場（它的 parser 在同一次搬家被刪掉、沒有跟著搬），剩下的三格檢查的是真的還在的東西。
   const checks = [
-    {
-      id: 'manifest',
-      label: 'Root toolchain manifest',
-      ok: fs.existsSync(path.join(root, 'polaris-toolchain.yaml')),
-      repair: 'git restore polaris-toolchain.yaml or rerun DP-087-T1',
-    },
-    {
-      id: 'runner',
-      label: 'Toolchain runner',
-      ok: fs.existsSync(path.join(root, 'scripts/polaris-toolchain.sh')),
-      repair: 'git restore scripts/polaris-toolchain.sh or rerun DP-087-T1',
-    },
     {
       id: 'docs.viewer',
       label: 'docs.viewer dependencies',
       ok: fs.existsSync(path.join(root, 'docs-manager/node_modules')),
-      repair: 'bash scripts/polaris-toolchain.sh run docs.viewer.install',
+      repair: 'pnpm --dir docs-manager install',
     },
     {
       id: 'tools.package',
       label: 'tools/polaris-toolchain package',
       ok: fs.existsSync(path.join(root, 'tools/polaris-toolchain/package.json')),
-      repair: 'bash scripts/polaris-toolchain.sh install --required',
+      repair: 'pnpm --dir tools/polaris-toolchain install',
     },
     {
       id: 'tools.dependencies',
@@ -38,7 +30,7 @@ export function inferToolchainHealth(options = {}) {
       ok:
         fs.existsSync(path.join(root, 'tools/polaris-toolchain/node_modules/.bin/playwright')) &&
         fs.existsSync(path.join(root, 'tools/polaris-toolchain/node_modules/.bin/mockoon-cli')),
-      repair: 'bash scripts/polaris-toolchain.sh install --required',
+      repair: 'pnpm --dir tools/polaris-toolchain install',
     },
   ];
 
@@ -48,7 +40,7 @@ export function inferToolchainHealth(options = {}) {
     workspaceRoot: root,
     checks,
     failures,
-    repairCommand: 'bash scripts/polaris-toolchain.sh install --required && bash scripts/polaris-toolchain.sh doctor --required',
-    navRepairCommand: 'bash scripts/polaris-viewer.sh --reload --port 8080 --host 127.0.0.1 --mode dev',
+    repairCommand: 'mise run bootstrap -- --profile runtime',
+    navRepairCommand: 'pnpm --dir docs-manager dev',
   };
 }

@@ -61,7 +61,7 @@ Polaris 把治理視為 framework 層責任，不是每次 session 臨場決定�
 
 - Git
 - 已通過組織認證的 GitHub CLI (`gh`)
-- Polaris 本機 toolchain readiness：先跑 `bash scripts/polaris-bootstrap.sh`，再跑 `bash scripts/polaris-doctor.sh --profile runtime`。Managed runtime 會涵蓋 Node >= 22.12.0、pnpm 10.10.0、Python 3.12、rg、jq、Playwright、Mockoon 與 docs viewer。Legacy compatibility 文件可能仍提到 `bash scripts/polaris-toolchain.sh doctor --required`；新 workspace 以 bootstrap 和 doctor 為準。
+- Polaris 本機 toolchain readiness：`mise run bootstrap -- --profile runtime`，再跑 `mise run doctor -- --profile runtime`。Managed runtime 會涵蓋 Node >= 22.12.0、pnpm 10.10.0、Python 3.12、rg、jq、Playwright、Mockoon 與 docs viewer。這兩個任務就是唯一的入口；舊文件提到的 `scripts/polaris-toolchain.sh` runner 已於 DP-518 退場——它的 manifest parser 在更早一次搬家就被刪掉，所以那支 runner 整段期間都是死的。
 
 選配整合：
 

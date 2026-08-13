@@ -381,9 +381,13 @@ for rel in listed:
         #
         # 只有一個目標的時候沒有那句話可以拿來對照，**這道閘分不出兩件事**：一條永遠走不到
         # 的 fallback（`fetch-pr-info.sh` 那種，REST 路徑死了幾個月），以及一個本來就該落空
-        # 的探測（`polaris-toolchain.sh:18` 問的是「這個 skill 目錄自己是不是 workspace 根」，
-        # 在這棵樹上答案就是不是，而 `polaris-toolchain.yaml` 真的存在、在 repo 根）。
+        # 的探測（DP-513 當時的標本是 `polaris-toolchain.sh:18`，問的是「這個 skill 目錄自己
+        # 是不是 workspace 根」——在那棵樹上答案就是不是，而 manifest 真的存在、在 repo 根）。
         # 兩者的形狀一模一樣，差別只在意圖。所以這一類不判定，進 DISCLOSURE。
+        #
+        # 那個標本 DP-518 退場了（那支 runner 的 parser 在更早一次搬家就被刪掉，整支是屍體），
+        # 所以這一格的計數現在是 0——樹上活著的實例歸零，紅控只剩 selftest 的 fixture。
+        # 這不改變判準，但它是下一次問「這道閘擋得住什麼」時該先讀到的話。
         if len({m["target"] for m in members}) < 2:
             skipped["只有一條候選而它落空（死 fallback 與該落空的探測分不出來）"] += 1
             continue

@@ -416,11 +416,72 @@ for root, kind in walk_targets:
                 stale_declarations.append(
                     f"{rel_doc}: `{declared_prefix}`（{reason}）沒有對上任何一條路徑")
 
+# ── 腳本檔頭裡的指路（DP-518） ───────────────────────────────────────────────
+# 一支腳本的檔頭寫「細節見 `references/X.md`」也是散文，也是一個會在搬家之後失效的指路，
+# 而它不會炸——註解不被執行——所以它可以這樣待很久。2026-08-13 全樹掃過一次，
+# `.sh`／`.py`／`.mjs` 裡這樣的相對指路約 80 處，斷掉的只有一條，而沒有任何東西說得出來。
+#
+# 只看**檔頭那一段連續註解／docstring**，不看整支檔案。理由是量出來的：那 80 處裡絕大多數
+# 落在 selftest 中間，是造假樹用的字串（`references/gone.md` 本來就該不存在），把它們算進來
+# 這道閘會變成沒有人敢看的雜訊來源。檔頭那一段不一樣——它是這支腳本對讀它的人說的話。
+HEADER_POINTER = re.compile(r'`(references/[A-Za-z0-9_./-]+\.md)`')
+DOC_FENCE = ('"""', "'''")
+
+
+def owning_skill_of(script_path):
+    """往上找第一個帶 SKILL.md 的目錄——那才是「這支腳本屬於哪一支 skill」。
+
+    不用上面那支 skill_dir_of：它回的是 skills_root 底下第一層，而公司 skill 是巢狀的
+    （`skills/{公司}/{skill}/`），那一層會停在公司目錄上。`references/` 是相對「擁有它的
+    那支 skill」寫的，停錯一層就會去撈一個永遠不存在的位置——而那看起來就跟指路真的斷掉
+    一模一樣。
+    """
+    current = os.path.dirname(os.path.abspath(script_path))
+    while current.startswith(skills_root) and current != skills_root:
+        if os.path.isfile(os.path.join(current, "SKILL.md")):
+            return current
+        current = os.path.dirname(current)
+    return None
+
+
+header_scanned = 0
+header_pointers = 0
+for dirpath, dirnames, filenames in os.walk(skills_root):
+    dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", "__pycache__")]
+    for name in filenames:
+        if not name.endswith((".sh", ".py", ".mjs")):
+            continue
+        script = os.path.join(dirpath, name)
+        owner = owning_skill_of(script)
+        if owner is None:
+            continue
+        header_scanned += 1
+        rel_script = os.path.relpath(script, repo_root)
+        # 檔頭 = 從第一行起，到第一行「不是註解、也不在 docstring 裡」為止。
+        header = []
+        in_doc = False
+        for line in read(script).splitlines()[:60]:
+            stripped = line.strip()
+            if stripped.startswith(DOC_FENCE):
+                in_doc = not in_doc
+                header.append(line)
+                continue
+            if in_doc or not stripped or stripped.startswith(("#", "//")):
+                header.append(line)
+                continue
+            break
+        for quoted in HEADER_POINTER.findall("\n".join(header)):
+            header_pointers += 1
+            if not os.path.isfile(os.path.join(owner, quoted)):
+                problems.append(
+                    f"{rel_script}: 檔頭指路 `{quoted}` ——那支 skill 底下沒有這一份")
+
 # 掃了多少一律說出來，紅綠都說。一個什麼都沒掃到的執行與一個掃過了沒問題的執行，
 # 在只印結論的輸出上分不出來。
 COVERAGE = (f"掃過 {scanned_skill_md} 份 SKILL.md ＋ {scanned_reference} 份 reference"
             f" ＋ {scanned_rule} 份 rules（_template/ 的 {skipped_template} 份不掃，"
-            f"它講的是別人將來的 repo）")
+            f"它講的是別人將來的 repo）＋ {header_scanned} 支腳本的檔頭"
+            f"（{header_pointers} 條 references/ 指路；檔頭以外的不掃，那裡多半是 fixture）")
 if scanned_skill_md == 0:
     print(f"{prefix} 空掃：一份 SKILL.md 都沒掃到，這不是「都對得上」", file=sys.stderr)
     sys.exit(2)

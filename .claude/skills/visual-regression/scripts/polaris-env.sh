@@ -15,7 +15,25 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# 工作區根＝往上走，第一個底下有 .claude/skills/ 的那一層。
+#
+# 這裡以前是 `$SCRIPT_DIR/..`，寫的時候這支住在 work/scripts/，所以那個 `..` 剛好是對的。
+# 搬進 .claude/skills/visual-regression/scripts/ 之後它停在 skill 目錄，於是每一次 config
+# 查找都去撈 .claude/skills/visual-regression/{company}/workspace-config.yaml——一個永遠
+# 不存在的路徑。修法不是把 `..` 改成 `../../../..`：那只是把同一個假設寫得更深，下一次
+# 搬家一樣安靜地錯。往上找一個看得見的地標，深度就不再是被寫死的東西。
+find_workspace_root() {
+  local dir="$SCRIPT_DIR"
+  while [[ "$dir" != "/" ]]; do
+    [[ -d "$dir/.claude/skills" ]] && { echo "$dir"; return 0; }
+    dir="$(dirname "$dir")"
+  done
+  echo "ERROR: cannot locate workspace root (no ancestor of $SCRIPT_DIR contains .claude/skills/)" >&2
+  return 1
+}
+
+WORKSPACE_ROOT="$(find_workspace_root)"
 CALLER_CWD="$(pwd)"
 PID_BASE="/tmp/polaris-env"
 

@@ -307,5 +307,73 @@ else
   bad "殼的旗標跟不到，對的散文被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
 fi
 
+# ── 腳本檔頭裡的指路（DP-518） ───────────────────────────────────────────────
+# 正負兩向都要驗，而且要驗「只看檔頭」這條界線本身——一個把整支檔案都掃進來的實作在正向
+# 那一格看起來一樣綠，只有 fixture 那一格分得出來。
+
+repo="$(new_repo header_live '# demo')"
+cat > "$repo/.claude/skills/demo/scripts/pointer.sh" <<'EOF'
+#!/usr/bin/env bash
+# Purpose: 示範一支檔頭指路指得到的腳本。
+# 細節見 `references/real.md`。
+echo hi
+EOF
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "檔頭指路指得到 → 綠"
+else
+  bad "檔頭指路指得到卻判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
+repo="$(new_repo header_dangling '# demo')"
+cat > "$repo/.claude/skills/demo/scripts/pointer.sh" <<'EOF'
+#!/usr/bin/env bash
+# Purpose: 示範一支檔頭指路斷掉的腳本。
+# 細節見 `references/never-existed.md`。
+echo hi
+EOF
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  bad "檔頭指路斷掉卻是綠的"
+else
+  ok "檔頭指路斷掉 → 紅"
+fi
+
+# python 的 docstring 也算檔頭，而且要能找到「最近的那支 skill」——公司 skill 是巢狀的
+# （skills/{公司}/{skill}/），停在公司那一層會去撈一個永遠不存在的位置，看起來就跟真的
+# 斷掉一模一樣。
+repo="$(new_repo header_nested '# demo')"
+mkdir -p "$repo/.claude/skills/acme/inner/scripts" "$repo/.claude/skills/acme/inner/references"
+printf '# inner
+' > "$repo/.claude/skills/acme/inner/SKILL.md"
+echo "reference" > "$repo/.claude/skills/acme/inner/references/note.md"
+cat > "$repo/.claude/skills/acme/inner/scripts/nested.py" <<'EOF'
+#!/usr/bin/env python3
+"""示範一支住在巢狀 skill 底下的腳本。
+
+細節見 `references/note.md`。
+"""
+EOF
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "巢狀 skill 的檔頭指路解得到自己那一層"
+else
+  bad "巢狀 skill 的檔頭指路被判紅：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
+# 檔頭以外的不掃。selftest 造假樹用的 `references/gone.md` 本來就該不存在，掃進來這道閘
+# 會變成沒有人敢看的雜訊來源——這一格就是那條界線的紅控。
+repo="$(new_repo header_body_only '# demo')"
+cat > "$repo/.claude/skills/demo/scripts/fixture.sh" <<'EOF'
+#!/usr/bin/env bash
+# Purpose: 檔頭乾淨，中段有一個故意不存在的路徑（造假樹用的）。
+echo hi
+make_fixture() {
+  echo "expects `references/deliberately-absent.md` to be missing"
+}
+EOF
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  ok "檔頭以外的 references/ 不判定"
+else
+  bad "檔頭以外的被掃進來了：$(bash "$GATE" --repo "$repo" 2>&1)"
+fi
+
 echo "gate-prose-matches-behaviour selftest: PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

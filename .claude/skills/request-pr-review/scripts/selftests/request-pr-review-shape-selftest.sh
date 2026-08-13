@@ -305,19 +305,22 @@ PY
       [[ "$elsewhere" -gt 0 ]] || fail "「${n}」在別的 skill 底下一份都不剩了"
       kept=$((kept + elsewhere))
     done
-    base="$(diff_base)"
-    if [[ -n "$base" ]]; then
-      # 舊名字那個前綴也要排除：目錄整個改了名，所以這張單刪掉的檔案在 diff 裡記的是
-      # 舊路徑。只排新前綴的那一版，會把自己刪自己的東西讀成「刪到別人家去了」。
-      touched="$(git -C "$REPO_ROOT" diff --name-only --diff-filter=D "$base"..HEAD -- ".claude/skills" \
-        | grep -v "^\.claude/skills/${NEW_SKILL_NAME}/" \
-        | grep -v "^\.claude/skills/${OLD_SKILL_NAME}/" | tr '\n' ' ')"
-      [[ -z "$touched" ]] \
-        || fail "這張單在 ${NEW_SKILL_NAME} 以外刪了東西：${touched}"
-      measured "別的 skill 底下留著 ${kept} 份複本；這張單在 ${NEW_SKILL_NAME} 以外沒有刪掉任何檔案（base ${base:0:12}）"
-    else
-      measured "別的 skill 底下留著 ${kept} 份複本（併回主幹之後沒有 diff 可看，刪除那一半量不到，如實說出來）"
-    fi
+    # 這一條原本還有第二半：比 `merge-base(HEAD, main)..HEAD`，只要這張單在本 skill 以外
+    # 刪掉任何檔案就判紅。那一半**拿掉了**，而且不是因為它擋錯人——是因為它問的問題在
+    # 這裡問不出來。
+    #
+    # 「這張單」指的是寫下它的 DP-515。一支常駐的 selftest 手上永遠只有「當下這條分支對
+    # 主幹的 diff」，它分不出那是 DP-515 還是後來的任何一張單。所以 DP-515 併回主幹之後，
+    # 這一半對每一張後來的單都是誤判：DP-518 退場一支死掉的 runner 時被判紅，訊息說
+    # 「這張單在 request-pr-review 以外刪了東西」——那次刪除跟這支 skill 沒有半點關係。
+    #
+    # 「先問 diff 有沒有動到這支 skill，動到才判」也不成立，DP-518 當場試過：改這支
+    # selftest 本身就算動到，於是同一個誤判立刻回來。一條單票範圍的負向斷言沒有辦法用
+    # 常駐 selftest 表達——它的紅控是那張單的 PR diff，由看 diff 的人負責，不由這裡。
+    #
+    # 留下來的是它真正還成立的那一半：那幾份複本現在還在不在。這一條說得出自己只做了
+    # 一半，因為一個安靜地縮水的負向檢查，跟一個完整的負向檢查在輸出上長得一樣。
+    measured "別的 skill 底下留著 ${kept} 份複本（「這張單有沒有刪到別人家」那一半由 PR diff 判，不由常駐 selftest 判——理由見這一格的註解）"
     ;;
 
   B-N2)
