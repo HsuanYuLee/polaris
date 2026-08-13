@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   宣告了留在本地的東西落在會被同步出去的位置。送出去收不回來，而 diff 裡它跟任何一個正常檔案長得一樣。
 # gate-source-destination.sh — 宣告 `workspace` 就是「這批東西不會出去」，這裡驗那句話。
 #
 # `destination` 是人在閘一做的決定，寫在 `{單}/index.md` 的 frontmatter。它值錢的地方在於

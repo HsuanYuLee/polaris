@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   對著一份沒人簽過的成功定義出貨。tag 與 release 推出去收不回來。
 # gate-spine-delivery.sh — the delivery-evidence gate for spine sources.
 #
 # Usage:

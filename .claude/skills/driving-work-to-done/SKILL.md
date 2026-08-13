@@ -269,29 +269,21 @@ routing 照樣把工作分派出去，只是分派到一份從未被讀取的程
 - **不假設領域**。核心的散文裡不出現只有軟體工程才成立的詞——它們屬於 `swe-knowledge`，
   不屬於這裡。
 
-**這三件事各有一行宣告，機器讀得到，量測從那幾行讀、不另外抄一份。** 一行說出「哪些詞」
-與「不得出現在哪」，兩件事在同一行，因為分成兩份就會漂：
+**這三件事沒有閘在守，是刻意的。** 以前有一道 `gate-layer-vocabulary` 掃三行宣告，
+判「哪些詞不得出現在哪幾支 skill 的散文裡」——那是散文斷言散文：它擋不住任何不可逆的事，
+但每一次無關的改動都要付錢。判準留在這裡給寫的人讀，寫錯層的代價由「有人把那一層單獨
+搬走的時候帶不動」承擔，不由一道閘代人承擔。
 
-<!-- PROSE-LAYER: SWE-ONLY-VOCABULARY — 不得出現在 driving-work-to-done,refinement,engineering,verify-ac — branch|pull request|PR|merge|CI|deploy|codecov|lint -->
-<!-- PROSE-LAYER: CORE-ONLY-VOCABULARY — 不得出現在 scope:company-only — assertion_wrong|surfaced_concern|unconverged_cap|unauthorized_action|loop-state.json|凍結塊|POLARIS-FROZEN -->
-<!-- PROSE-LAYER: COMPANY-ONLY-PATTERNS — 不得出現在 swe-knowledge — @company-patterns -->
+三種寫錯層的方式：
 
-三行對應三種寫錯層的方式，缺一種就有一整類的漂沒有人看得到：
-
-- **SWE-ONLY-VOCABULARY**——核心的散文出現只有軟體工程才成立的詞。唯一的例外是凍結用的
-  `git commit`：凍結的簽名就是那個 commit，跟領域無關。這個例外被指名寫在這裡，不是
-  靜默放行——一個沒被說出來的豁免，跟沒有豁免在出事的時候長得一樣。
-- **CORE-ONLY-VOCABULARY**——反過來，核心自己的詞出現在某一個產品的知識裡。一支產品 skill 講起停點
-  怎麼分類、輪次狀態檔叫什麼，那段話就不屬於那支 skill——它在別的產品也成立，複製過去的
-  那一份會跟這裡漂開。例外是**指過來**：說「這件事走 `driving-work-to-done`」是路標，
-  不是複製；判準是它有沒有自己重講一次那些詞的意思。
-- **COMPANY-ONLY-PATTERNS**——領域 pack 出現只有某一家公司才成立的東西。`@company-patterns` 不是
-  一份詞表，是「去問既有的那個權威」：公司樣式由每一家自己的 `workspace-config.yaml`
-  推出來，這裡再抄一份就是第二個答案。
-
-被判的是散文（`.md`），不是腳本。腳本註解裡的同一個詞多半在**否認**那件事——「這裡不知道
-那個字是什麼意思」——對它判紅的閘會在三次之後被關掉。跳過了幾個檔案由量測自己印出來，
-不留給讀的人猜。
+- **核心的散文出現只有軟體工程才成立的詞**（branch、pull request、merge、CI、deploy）。
+  唯一的例外是凍結用的 `git commit`：凍結的簽名就是那個 commit，跟領域無關。
+- **反過來，核心自己的詞出現在某一個產品的知識裡**（停點怎麼分類、輪次狀態檔叫什麼）。
+  一支產品 skill 重講這些，那段話就不屬於它——它在別的產品也成立，複製過去的那一份會跟
+  這裡漂開。例外是**指過來**：說「這件事走 `driving-work-to-done`」是路標，不是複製；
+  判準是它有沒有自己重講一次那些詞的意思。
+- **領域 pack 出現只有某一家公司才成立的東西**。公司樣式由每一家自己的
+  `workspace-config.yaml` 說了算，不在這裡抄第二份。
 
 ## 這裡不做的事
 

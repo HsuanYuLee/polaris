@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   生成的常駐指令過期。它跟著 template 出去，而且之後每個 session 都靜默讀到錯的那一份。
 # Purpose: portable fail-closed push-time gate that enforces runtime-instruction
 #          manifest freshness. The sole verdict source is
 #          `compile-runtime-instructions.sh --check`; if the generated runtime

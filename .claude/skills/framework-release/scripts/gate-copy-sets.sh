@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   同名副本漂開，而其中一份會被同步到 template repo 出去；漂掉的那一刻兩份各自看起來都正常。
 # Purpose: 同一個名字在多支 skill 底下各有一份時，那幾份還一不一樣、說不說得出為什麼。
 # Inputs:  --repo <path>（預設從自己的位置往上找 repo root）、--declaration <path>
 # Outputs: 三類問題各自列出是哪一支、在哪；有任何一類就 exit 1。不在管轄的數量會印出來。

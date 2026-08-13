@@ -37,7 +37,7 @@ SIBLING_SKILLS="review-pr review-inbox ${NEW_SKILL_NAME}"
 # 這張單從這支 skill 底下刪掉的東西，分兩種——它們的「刪對了沒」問法不一樣。
 # 有複本的：別處那幾份要還在而且彼此逐位元組相同（DP-467 H-N1：複本是對的，漂才是病）。
 # 這裡獨有的：全樹要零命中，不然就是刪掉了還有人在找。
-DUPLICATED_ELSEWHERE="gate-pr-language.sh pr-state-snapshot.sh resolve-pr-work-source.sh sync-spec-sidebar-metadata.sh validate-specs-collection-shape.sh specs-root.sh validate_specs_collection_shape_1.py"
+DUPLICATED_ELSEWHERE="pr-state-snapshot.sh resolve-pr-work-source.sh sync-spec-sidebar-metadata.sh validate-specs-collection-shape.sh specs-root.sh validate_specs_collection_shape_1.py"
 UNIQUE_AND_UNREFERENCED="pr-action-classifier.sh pr-review-state-classifier.sh pr-state-contract.md"
 
 # 舊名字不掃這幾處，理由各自不同，逐條印出來——一個沒說出口的豁免，跟沒有豁免在出事的

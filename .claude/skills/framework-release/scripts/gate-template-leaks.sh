@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   live company slug 進公開的 template repo。push 出去收不回來，而它藏在一份正常的 CHANGELOG 裡。
 set -euo pipefail
 
 # gate-template-leaks.sh

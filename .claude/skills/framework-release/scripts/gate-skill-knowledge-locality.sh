@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   一支 skill 靠工作區底下沒有版控的東西才跑得動。帶出去之後別人拿到就是壞的，而在寫下它的人的機器上永遠是綠的。
 # gate-skill-knowledge-locality.sh — 一支 skill 需要的知識，住不住在它自己身上。
 #
 # 為什麼這件事要有閘：skill 目錄是唯一會被帶到 claude.ai 與 Cowork 的東西。一支 skill 到了

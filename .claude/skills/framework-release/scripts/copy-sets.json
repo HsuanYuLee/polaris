@@ -13,7 +13,6 @@
       "why": "DP-462 拆掉共用 `scripts/` 之後，每支要用到的 skill 各自帶一份。這是那次拆解的直接後果，也是「skill 需要的東西都收在 skill 內」這條原則的代價：副本本身是刻意的，沒有東西維持它們一致才是病。這支檢查就是那個「維持一致的東西」。",
       "scripts": [
         "approval-staleness.sh",
-        "gate-pr-language.sh",
         "github-rest.sh",
         "jira-upload-attachment.sh",
         "main-checkout.sh",
@@ -25,8 +24,6 @@
         "specs-root.sh",
         "submit-pr-review.sh",
         "sync-spec-sidebar-metadata.sh",
-        "tool-attribution.sh",
-        "tool-resolution.sh",
         "validate-language-policy.sh",
         "validate-specs-collection-shape.sh",
         "validate_language_policy_1.py",

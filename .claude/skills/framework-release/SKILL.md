@@ -97,7 +97,6 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
 | `gate-skill-script-references.sh` | skill 腳本從自己的位置算起指名一個不存在的東西——搬家留下的洞，執行期才炸。被存在性檢查包住的算候選，整組落空才紅 |
 | `gate-prose-matches-behaviour.sh` | SKILL.md 指名的檔案／子命令／旗標對不上實際行為——同一個洞的散文那一面 |
 | `gate-skill-knowledge-locality.sh` | 一支 skill 靠工作區底下沒有版控的東西才跑得動——在寫下它的人的機器上全綠，別人 clone 下來就是壞的 |
-| `gate-layer-vocabulary.sh` | 一段話寫進錯的層——核心的散文出現領域詞、領域 pack 出現公司樣式、公司 skill 重講核心的機制 |
 | `gate-source-destination.sh` | 宣告了 `destination: workspace`，卻有檔案落在會被同步出去的位置 |
 | `gate-copy-sets.sh` | 同一個名字在多支 skill 底下的那幾份漂開了、或多出一份說不出自己為什麼在那裡——副本是刻意的，沒有東西維持它們一致才是病 |
 

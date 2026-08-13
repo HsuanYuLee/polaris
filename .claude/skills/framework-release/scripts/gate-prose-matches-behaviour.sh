@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   SKILL.md 指名的檔案／子命令／旗標對不上。skill 會被單獨帶到 claude.ai 與 Cowork，那裡的人修不了，而搬家的那個 diff 裡看不到任何一行變紅。
 # gate-prose-matches-behaviour.sh — 散文裡指名的東西，要真的在。
 #
 # 擋三種形狀，都是「讀的人照做、然後自己撞上」的那一類：

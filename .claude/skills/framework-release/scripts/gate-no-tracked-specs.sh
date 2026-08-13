@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   個人的規劃內容進這個 repo，然後跟著 template 出去到公開的地方；混在一批正常檔案裡看不出來。
 set -euo pipefail
 
 # gate-no-tracked-specs.sh

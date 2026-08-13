@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# 為什麼這一道還在（門檻 2026-08-13，見 .claude/instructions/core/bootstrap.md）：
+#   skill 腳本指名一條不存在的路徑。skill 被單獨帶到 claude.ai 與 Cowork，那裡的人修不了它，而在這台機器上它從來不炸。
 # Purpose: 每支 skill 底下的腳本，從自己的位置算起指名另一個東西時，那個東西要真的在。
 #          腳本搬家會把這種寫死的相對路徑一個一個變成執行期才炸的洞。
 # Inputs:  --repo <path>（預設從自己的位置往上找 git 根）、--skill <名字>（只看那一支）
