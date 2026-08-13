@@ -10,6 +10,12 @@
 # 步驟，它的標籤不是路徑，所以「會被同步出去的全集」推不便宜也推不穩。所以這裡只認一個
 # 刻意很小的安全子集——確定不會出去的那幾種——其餘一律判紅。過度嚴格，不過度放行。
 #
+# 安全子集有一部分不是寫在這裡的：sync-to-polaris.sh 自己用 `POLARIS-NOT-SYNCED:` 宣告
+# 哪些位置它確定不複製，這道閘去讀那些宣告。什麼會出去只有那支腳本說了算，這裡再抄一份
+# 就是第二個答案——而 DP-525 之前這裡沒有那條線，於是兩張只改 `.changeset/` 的單被判了
+# 假紅，逼得它們把 destination 宣告成不是它真正的樣子。讀不到那份宣告時判定回到嚴格的
+# 那一邊，並且把「這一次沒讀到」印出來：讀不到不是放行，但它也不該是安靜的。
+#
 # 不對它發言的兩種單，各自說出理由，不混進綠燈裡：
 #   沒有在這個工作區開過輪次   這張單的交付不在這裡（產品 repo 的單就是這樣）
 #   宣告 destination: template  位置沒有限制；內容夠不夠通用是 scan-template-leaks 的問題
@@ -184,8 +190,33 @@ def unsynced_skill_dirs():
     return sorted(found)
 
 
+SYNC_SCRIPT = ".claude/skills/framework-release/scripts/sync-to-polaris.sh"
+DECLARED = re.compile(
+    r"^\s*#\s*<!--\s*POLARIS-NOT-SYNCED:\s*(\S+)\s*(?:—\s*(.*?))?\s*-->\s*$",
+    re.MULTILINE,
+)
+
+
+def declared_not_synced():
+    """去問已經有答案的那一份：同步那支腳本自己宣告了哪些位置不會被複製出去。
+
+    這裡不維護第二份清單。什麼會出去只有一個東西說了算，而它就是那支腳本；閘再抄一份
+    的話，兩份會各自演化，然後對一批確定不會出去的檔案判紅——那正是 DP-525 的來源。
+
+    回 (清單, 讀到了沒)。讀不到的時候清單是空的，判定回到原本的嚴格樣子：未知的位置
+    算不成立。讀不到不是放行，但也不能安靜——所以那個布林值會被印出來。
+    """
+    try:
+        with open(os.path.join(repo, SYNC_SCRIPT), encoding="utf-8") as handle:
+            text = handle.read()
+    except (OSError, UnicodeDecodeError):
+        return [], False
+    return [(m.group(1), (m.group(2) or "").strip()) for m in DECLARED.finditer(text)], True
+
+
 COMPANIES = company_dirs()
 UNSYNCED_SKILLS = unsynced_skill_dirs()
+NOT_SYNCED_PATHS, DECLARATION_READ = declared_not_synced()
 IGNORED = set()
 if changed:
     proc = subprocess.run(["git", "-C", repo, "check-ignore", "--stdin"],
@@ -208,6 +239,10 @@ def workspace_only(path):
     for skill in UNSYNCED_SKILLS:
         if under(path, skill):
             return f"{skill}/ 自己宣告了 company-only／maintainer-only"
+    for declared, why in NOT_SYNCED_PATHS:
+        if under(path, declared):
+            return f"{SYNC_SCRIPT} 宣告 {declared} 不同步：{why}" if why else \
+                   f"{SYNC_SCRIPT} 宣告 {declared} 不同步"
     return None
 
 
@@ -221,6 +256,11 @@ for path in changed:
         reasons.append((path, why))
 
 print(f"{prefix} {issue_dir} 宣告 destination=workspace，清單來自 {source_of_list}")
+if DECLARATION_READ:
+    print(f"{prefix} 不同步的位置讀自 {SYNC_SCRIPT}：{len(NOT_SYNCED_PATHS)} 條宣告")
+else:
+    print(f"{prefix} 讀不到 {SYNC_SCRIPT}，這一次沒有任何「不同步」的宣告可以用；"
+          f"判定回到嚴格的那一邊，認不出來的位置一律算不成立。")
 print(f"{prefix} {len(changed)} 個檔案：留得住 {len(reasons)}、認不出來 {len(offenders)}")
 for path, why in reasons:
     print(f"    ok   {path}  ← {why}")

@@ -691,6 +691,12 @@ if [[ "$PRUNE" == true ]]; then
   # 自己的 npm 發版設定，不是框架的一部分；早期 sync 曾把它整套推進模板，
   # 使每個採用 Polaris 的 workspace 都被迫繼承一套它沒選擇的發版機制。
   # 這裡把模板端殘留的 .changeset/ 整個掃掉。
+  #
+  # 下面這一行是給機器讀的：gate-source-destination.sh 判「宣告 workspace 的單有沒有
+  # 檔案落在會出去的位置」時來讀它，而不是在那道閘裡再抄一份路徑清單。抄兩份會漂，
+  # 而漂掉的那一刻沒有人在看——DP-525 之前那道閘就是因為不知道這件事，對兩張只改
+  # .changeset/ 的單判了假紅，逼得那兩張單把 destination 宣告成不是它真正的樣子。
+  # <!-- POLARIS-NOT-SYNCED: .changeset/ — 本 repo 自己的發版設定，不屬於框架模板；模板端殘留的會被下面這段掃掉 -->
   if [[ -d "$POLARIS_DIR/.changeset" ]]; then
     if [[ "$DRY_RUN" == false ]]; then
       rm -rf "$POLARIS_DIR/.changeset"
