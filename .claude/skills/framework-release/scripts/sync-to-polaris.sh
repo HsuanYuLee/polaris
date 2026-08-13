@@ -282,122 +282,25 @@ copy_file() {
 }
 
 # ── Leak check: scan synced files for company-specific patterns ──
-leak_check() {
-  local polaris_dir="$1"
-  shift
-  local company_dirs=("$@")
 
-  if [[ ${#company_dirs[@]} -eq 0 ]]; then return 0; fi
-
-  # Collect patterns from each company's workspace-config.yaml
-  local patterns=()
-  for company in "${company_dirs[@]}"; do
-    local cfg="$INSTANCE_DIR/$company/workspace-config.yaml"
-    [[ -f "$cfg" ]] || continue
-
-    # JIRA project keys as ticket patterns (e.g., DEMO-\d+, SAMPLE-\d+)
-    # Use ticket format (KEY-123) to avoid false positives on short keys like "GT"
-    while IFS= read -r key; do
-      [[ -n "$key" ]] && patterns+=("${key}-[0-9]+")
-    done < <(python3 -c "
-import yaml, sys
-with open('$cfg') as f:
-    d = yaml.safe_load(f)
-for p in d.get('jira', {}).get('projects', []):
-    k = p.get('key', '')
-    if k and len(k) >= 2:
-        print(k)
-" 2>/dev/null || true)
-
-    # Domain names (e.g., exampleco.com, sit.exampleco.com)
-    while IFS= read -r domain; do
-      [[ -n "$domain" ]] && patterns+=("$domain")
-    done < <(python3 -c "
-import yaml, sys
-with open('$cfg') as f:
-    d = yaml.safe_load(f)
-urls = d.get('web_urls', {})
-for k, v in urls.items():
-    if isinstance(v, str) and '.' in v:
-        # Extract domain from URL
-        import re
-        m = re.search(r'://([^/]+)', v)
-        if m:
-            print(m.group(1))
-ji = d.get('jira', {}).get('instance', '')
-if ji:
-    print(ji)
-" 2>/dev/null || true)
-
-    # Slack channel IDs (e.g., C0123456789)
-    while IFS= read -r ch; do
-      [[ -n "$ch" ]] && patterns+=("$ch")
-    done < <(python3 -c "
-import yaml, sys
-with open('$cfg') as f:
-    d = yaml.safe_load(f)
-channels = d.get('slack', {}).get('channels', {})
-for k, v in channels.items():
-    if isinstance(v, str) and v.startswith('C'):
-        print(v)
-" 2>/dev/null || true)
-
-    # GitHub org (e.g., example-org)
-    while IFS= read -r org; do
-      [[ -n "$org" ]] && patterns+=("$org")
-    done < <(python3 -c "
-import yaml, sys
-with open('$cfg') as f:
-    d = yaml.safe_load(f)
-org = d.get('github', {}).get('org', '')
-if org:
-    print(org)
-" 2>/dev/null || true)
-  done
-
-  if [[ ${#patterns[@]} -eq 0 ]]; then return 0; fi
-
-  # Deduplicate patterns
-  local unique_patterns
-  unique_patterns=$(printf '%s\n' "${patterns[@]}" | sort -u)
-
-  # Build grep pattern (alternation)
-  local grep_pattern
-  grep_pattern=$(echo "$unique_patterns" | paste -sd '|' -)
-
-  # Scan all .md files in the polaris template
-  local hits
-  hits=$(grep -rn -E "$grep_pattern" "$polaris_dir/.claude/" "$polaris_dir/docs/" "$polaris_dir/CLAUDE.md" "$polaris_dir/README.md" "$polaris_dir/README.zh-TW.md" 2>/dev/null | grep -v "Binary file" || true)
-
-  if [[ -n "$hits" ]]; then
-    echo ""
-    echo "⚠  Leak check: company-specific patterns found in template!"
-    echo "   Patterns searched: $(echo "$unique_patterns" | tr '\n' ', ' | sed 's/,$//')"
-    echo ""
-    echo "$hits" | head -20
-    local count
-    count=$(echo "$hits" | wc -l | tr -d ' ')
-    if [[ "$count" -gt 20 ]]; then
-      echo "   ... and $((count - 20)) more matches"
-    fi
-    echo ""
-    echo "   These references survived auto-genericize. Update your company's"
-    echo "   genericize-map.sed / genericize-jira.sed to cover these patterns."
-    echo "   Continuing push (warn only, not blocking)."
-    return 0
-  fi
-
-  return 0
-}
-
+# 同步到公開 template repo 之前的最後一道。掃描器用同目錄的姊妹路徑找——以前這裡寫的是
+# `$INSTANCE_DIR/scripts/scan-template-leaks.sh`（DP-462 之前的佈局），那個檔案不存在，
+# 於是每一次同步都走 else 分支改用一條 warn-only 的 legacy 檢查，`--blocking` 從此沒有作用
+# 過，而那正是內容變成公開的那一刻（DP-524）。
+#
+# **缺席不再有 fallback。** 那條 legacy 路徑自己從 workspace-config.yaml 推第二份樣式清單，
+# 而它已經漂了（少了公司代號自己，那是真掃描器的第一條樣式），結尾還寫著
+# `Continuing push (warn only, not blocking)`。一個把閘降級成警告的 fallback，跟沒有那道閘
+# 的差別只有它會印一行字。人明講的 `--leak-warn-only` 留著——那是有人簽過的選擇。
 run_template_leak_check() {
   [[ ${#COMPANY_DIRS[@]} -gt 0 ]] || return 0
 
-  local scanner="$INSTANCE_DIR/scripts/scan-template-leaks.sh"
+  local scanner="$SCRIPT_DIR/scan-template-leaks.sh"
   if [[ ! -x "$scanner" ]]; then
-    echo "⚠  Template leak scanner missing; falling back to legacy warn-only check."
-    leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
-    return 0
+    echo "POLARIS_TEMPLATE_LEAK_SCANNER_MISSING" >&2
+    echo "sync-to-polaris: 外洩掃描器不在 ${scanner}，同步停下來。" >&2
+    echo "sync-to-polaris: 這一步是內容變成公開之前的最後一道，沒有降級的路徑可以走。" >&2
+    return 2
   fi
 
   echo ""

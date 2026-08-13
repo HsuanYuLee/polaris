@@ -1,5 +1,27 @@
 # Changelog
 
+## [4.43.0] - 2026-08-13
+
+### Changed
+
+- e63d045: DP-524：同步到公開 template repo 之前那道外洩檢查，從 DP-462 之後就沒有作用過
+  `sync-to-polaris.sh` 用 `$INSTANCE_DIR/scripts/scan-template-leaks.sh` 找掃描器——那是
+  DP-462 之前的佈局，`INSTANCE_DIR` 是 repo 根，而那個檔案不存在。所以每一次同步走的都是
+  else 分支：印一行 `⚠ Template leak scanner missing; falling back to legacy warn-only check.`
+  然後改用 `leak_check()`，而它結尾寫著 `Continuing push (warn only, not blocking)` 並
+  `return 0`。**`--blocking` 在真正的釋出路徑上從此沒有作用過，而那正是內容變成公開的那一刻。**
+  - 掃描器改用同目錄的姊妹路徑（`$SCRIPT_DIR/scan-template-leaks.sh`）。這順帶把這條引用挪
+    進 `gate-skill-script-references` 判得到的管轄裡——以前它由變數組出來，落在那道閘自己
+    DISCLOSURE 的「變數的值追不回這支腳本自己的位置」那一格；揭露是對的，只是沒有人讀。
+  - 掃描器不在就停（`POLARIS_TEMPLATE_LEAK_SCANNER_MISSING`），沒有降級的路徑。
+  - 刪掉 `leak_check()`（107 行）。它是第二份「公司樣式是什麼」的答案，而且已經漂了：它從
+    JIRA key／網域／Slack channel／GitHub org 推樣式，唯獨少了公司代號自己——那是真掃描器的
+    第一條樣式。**一個把閘降級成警告的 fallback，跟沒有那道閘的差別只有它會印一行字。**
+  - 人用旗標明講的 `--leak-warn-only` 留著：那是有人簽過的選擇，會出現在命令列上。
+    順帶修掉那個檔案裡三處 `$變數` 後面直接接中文全形字元的寫法——bash 會把多位元組前綴吃進
+    變數名，在 `set -u` 底下變成 `unbound variable`。新寫的那條缺席訊息就是這樣被 selftest
+    抓到的。
+
 ## [4.42.0] - 2026-08-13
 
 ### Changed
