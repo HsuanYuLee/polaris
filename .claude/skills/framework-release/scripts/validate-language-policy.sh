@@ -101,6 +101,23 @@ selftest() {
     fi
   }
 
+  # 有幾條 case 的重點不是離場碼，是它有沒有把自己做的決定說出來。只看離場碼的話，
+  # 「檢查過了，沒事」與「這一次根本沒有東西可檢查」長得一模一樣——而後者若安靜，
+  # 下一個人就會把它讀成前者。$1 = 期望的離場碼，$2 = stderr 裡要出現的字串。
+  assert_rc_says() {
+    local expected="$1" needle="$2"
+    shift 2
+    assert_rc "$expected" "$@"
+    total=$((total + 1))
+    if grep -q -- "$needle" /tmp/language-policy-selftest.err; then
+      pass=$((pass + 1))
+    else
+      fail=$((fail + 1))
+      echo "FAIL [$total]: stderr 裡沒有「$needle」 — $*" >&2
+      sed 's/^/  stderr: /' /tmp/language-policy-selftest.err >&2 || true
+    fi
+  }
+
   cat > "$tmpdir/zh.md" <<'MD'
 # 目標
 
@@ -160,7 +177,11 @@ MD
   assert_rc 0 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --blocking --language en --mode artifact "$tmpdir/en.md"
   assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/root/company/en.md'"
   assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --workspace-root . --mode artifact '$tmpdir/root/company/en.md'"
-  assert_rc 1 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/no-language/zh.md'"
+  # 沒有 language 宣告時它退到英文並放行——那是刻意的（見 lib/validate_language_policy_1.py
+  # 裡的理由：一支 skill 被單獨帶到沒有這個 workspace 的地方時，規則說它照樣工作）。這一條
+  # 以前斷言 rc=1，也就是那個行為改掉之前的樣子；它從 DP-526 之前就一直紅著，而沒有任何
+  # 東西會呼叫這支 selftest，所以沒有人看見。放行要，說出來也要。
+  assert_rc_says 0 'language_default_english' bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/no-language/zh.md'"
   assert_rc 0 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --advisory --mode artifact '$tmpdir/no-language/zh.md'"
   assert_rc 1 bash -c "cd '$tmpdir/linked-worktree/repo-wt' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/linked-worktree/repo-wt/en.md'"
 

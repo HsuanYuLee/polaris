@@ -128,5 +128,67 @@ git -C "$tmp/repo" symbolic-ref -d refs/remotes/origin/HEAD
 printf '#!/usr/bin/env bash\nexit 1\n' > "$tmp/repo/.claude/skills/beta/selftests/beta-selftest.sh"
 check "退回全套之後，紅的照樣紅" 1 "beta-selftest.sh" --since-base
 
+# ── 藏在旗標後面的那一種（DP-526） ────────────────────────────────
+# 自我檢查有第二種形狀：不是一個叫 X-selftest.sh 的檔案，而是一支正常腳本的 --selftest
+# 模式。`validate-language-policy.sh` 就是這樣紅了不知道多久——七份逐位元相同的副本一起
+# 紅，而發現規則只認檔名，所以沒有任何東西呼叫過它們。
+
+# Description: 在 fixture 上再加兩支 skill：gamma 真的提供 --selftest，delta 只在註解與
+#              usage 字串裡提到那個字。兩者的差別就是這條發現規則唯一該分辨的東西。
+embedded_fixture() {
+  reset_fixture
+  mkdir -p "$tmp/repo/.claude/skills/gamma/scripts" "$tmp/repo/.claude/skills/delta/scripts"
+  echo '# gamma' > "$tmp/repo/.claude/skills/gamma/SKILL.md"
+  echo '# delta' > "$tmp/repo/.claude/skills/delta/SKILL.md"
+  cat > "$tmp/repo/.claude/skills/gamma/scripts/thing.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  --selftest) echo "gamma selftest ok"; exit "${GAMMA_SELFTEST_RC:-0}" ;;
+esac
+# 沒帶旗標時它做的是別的事，而且是會失敗的那種——拿正常模式去跑等於什麼都沒驗。
+echo "gamma: 這不是 selftest 模式" >&2
+exit 3
+EOF
+  cat > "$tmp/repo/.claude/skills/delta/scripts/mentions.sh" <<'EOF'
+#!/usr/bin/env bash
+# 這支只是在說明裡提到 --selftest，它自己沒有那個模式。
+# usage: mentions.sh            （對照 thing.sh --selftest）
+echo "delta: 正常模式"
+exit 7
+EOF
+  git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm embedded
+}
+
+embedded_fixture
+check "旗標型的被找到並跑到，兩種來源分開報數" 0 \
+  "跑了 3 支 selftest（獨立檔 2 支、藏在 --selftest 旗標後面的 1 支）" --all
+# 只提到那個字的那一支要留在外面。它的正常模式收場是 7，被當成 selftest 拿去跑就會紅——
+# 所以上面那個綠同時證明了它沒有被跑。
+check "只在註解裡提到 --selftest 的不算" 0 "藏在 --selftest 旗標後面的 1 支" --all
+
+# 拿正常模式去跑也是綠的話，這條發現規則等於沒接上——gamma 不帶旗標時收場是 3。
+embedded_fixture
+GAMMA_SELFTEST_RC=1 bash "$SCRIPT" --repo "$tmp/repo" --all >/dev/null 2>&1 && red_rc=0 || red_rc=$?
+if [[ "$red_rc" == 1 ]]; then
+  echo "PASS 旗標型那一支紅的時候，整支跟著紅"; pass=$((pass+1))
+else
+  echo "FAIL 旗標型那一支紅的時候，整支跟著紅：實際 exit ${red_rc}"; fail=$((fail+1))
+fi
+
+embedded_fixture
+out_named="$(GAMMA_SELFTEST_RC=1 bash "$SCRIPT" --repo "$tmp/repo" --all 2>&1 || true)"
+if [[ "$out_named" == *"thing.sh --selftest"* ]]; then
+  echo "PASS 紅的旗標型被指名時帶著旗標，照著印的那一行重跑得到的是同一件事"; pass=$((pass+1))
+else
+  echo "FAIL 紅的旗標型被指名時帶著旗標"; echo "$out_named" | sed 's/^/     /'; fail=$((fail+1))
+fi
+
+# 既有的獨立檔一支都不能少：上面的「獨立檔 2 支」就是 alpha 與 beta，加上這一條對照。
+embedded_fixture
+check "只動到 gamma 時只跑 gamma 那一支旗標型" 0 \
+  "跑了 1 支 selftest（獨立檔 0 支、藏在 --selftest 旗標後面的 1 支）" \
+  --changed .claude/skills/gamma/SKILL.md
+
 echo "run-selftests selftest: PASS=$pass FAIL=$fail"
 [[ "$fail" == 0 ]]

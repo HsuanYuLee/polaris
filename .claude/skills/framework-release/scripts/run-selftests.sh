@@ -148,7 +148,21 @@ FILES=()
 while IFS= read -r f; do FILES+=("$f"); done < <(
   find "${TARGETS[@]}" -name '*-selftest.sh' -not -path '*/node_modules/*' | sort)
 
+# 自我檢查有第二種形狀：藏在自己的 `--selftest` 旗標後面。檔名不是上面那個樣式，所以上面
+# 那一趟看不見它——`validate-language-policy.sh` 就是這樣紅了不知道多久，七份逐位元相同的
+# 副本一起紅，而沒有任何東西會呼叫它們（DP-526）。
+#
+# 判準是那支腳本真的有那個 case 分支，不是它提到過那個字。註解、說明、字串裡的
+# `--selftest` 到處都是——把它們拿去跑，跑到的是一支沒有那個模式的腳本，收場是 usage 或
+# 更糟的預設行為。
+EMBEDDED=()
+while IFS= read -r f; do
+  grep -qE '^[[:space:]]*(-[^)]*\|)*--selftest\)' "$f" && EMBEDDED+=("$f")
+done < <(
+  find "${TARGETS[@]}" -name '*.sh' -not -name '*-selftest.sh' -not -path '*/node_modules/*' | sort)
+
 RAN=0
+RAN_EMBEDDED=0
 FAILED=()
 UNREADABLE=()
 for f in ${FILES+"${FILES[@]}"}; do
@@ -161,6 +175,16 @@ for f in ${FILES+"${FILES[@]}"}; do
   env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash "$f" >/dev/null 2>&1 || FAILED+=("$f")
 done
 
+# 旗標型的跟上面那些跑法只差一個參數，但重跑的指令不一樣——所以紅的時候要連旗標一起指名，
+# 不然照著印出來的那一行跑，跑到的是那支腳本的正常模式。
+for f in ${EMBEDDED+"${EMBEDDED[@]}"}; do
+  if [[ ! -r "$f" ]]; then UNREADABLE+=("$f"); continue; fi
+  RAN=$((RAN + 1))
+  RAN_EMBEDDED=$((RAN_EMBEDDED + 1))
+  env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE bash "$f" --selftest >/dev/null 2>&1 \
+    || FAILED+=("$f --selftest")
+done
+
 # 該跑的與真的跑了的對不上，就是量不到——不是通過。一支讀不到的 selftest 安靜地被跳過，
 # 跟它綠了在輸出上長得一樣。
 if [[ "${#UNREADABLE[@]}" -gt 0 ]]; then
@@ -171,7 +195,7 @@ fi
 
 scope="全部"
 [[ "$MODE" == all ]] || scope="${#TARGETS[@]} 支動到的 skill"
-echo "$PREFIX 範圍：${scope}，跑了 ${RAN} 支 selftest，紅 ${#FAILED[@]} 支。"
+echo "$PREFIX 範圍：${scope}，跑了 ${RAN} 支 selftest（獨立檔 $((RAN - RAN_EMBEDDED)) 支、藏在 --selftest 旗標後面的 ${RAN_EMBEDDED} 支），紅 ${#FAILED[@]} 支。"
 
 if [[ "${#FAILED[@]}" -gt 0 ]]; then
   printf '%s\n' "$PREFIX 紅的是這幾支，各自跑一次看訊息：" >&2

@@ -348,6 +348,14 @@ PY
     # 不順手改行為：留下來的腳本，這張單只動得了註解。
     base="$(diff_base)"
     [[ -n "$base" ]] || unmeasurable "問不到這張單的 base（併回主幹之後沒有 diff 可看），這一條量不到"
+    # 這一條問的是 **DP-515 那一趟** 動了什麼，而 `merge-base HEAD main` 給的是**現在這條
+    # 分支**動了什麼。DP-515 併進去之後，這兩個就不是同一件事了：任何後來動到這支 skill 的
+    # 單，都會被這一條當成「那張單改了行為」而判紅——一支 selftest 去審別人的交付。
+    # 判準用那一趟自己的指紋：改名。diff 裡沒有它，這條分支就不是 DP-515，量不到。
+    if ! git -C "$REPO_ROOT" diff -M --name-status "$base"..HEAD -- ".claude/skills" 2>/dev/null \
+         | grep -q "${OLD_SKILL_NAME}/"; then
+      unmeasurable "這條斷言問的是 DP-515 那一趟的 diff，而現在這條分支不是它（看不到 ${OLD_SKILL_NAME} → ${NEW_SKILL_NAME} 那次改名）"
+    fi
     # 配對交給 git 自己算（-M --name-status），不用「把新路徑的 skill 名換成舊的」去推。
     # 只給新路徑當 pathspec 的那一版，git 看不到舊路徑，於是每一支都被算成整支新增——
     # 而那看起來會像「每一支都被大改了」。
