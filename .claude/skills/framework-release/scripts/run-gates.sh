@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 九道掃全樹的閘，一次跑完。commit 與 push 兩邊都用這一支。
+# 十道掃全樹的閘，一次跑完。commit 與 push 兩邊都用這一支。
 #
 # 這支以前叫 pre-push-quality-gate.sh，判準是「一旦 push 出去就收不回來，而且發生在 CLI
 # 上」。2026-08-10 量掉了那個判準的前提：那時八道閘掃**整棵樹**合計 1.34 秒。2026-08-12
@@ -39,6 +39,11 @@
 #    一組副本沒有一端擁有它，判給其中任何一份都會在那一份被搬走的時候變綠。這道閘的量測
 #    以前住在釋出封存的證據目錄裡，沒有人叫它，於是判定用的 oracle 兩份漂了 31 行而
 #    整整四天沒有任何東西說話（DP-514）。
+# 六、文件站台收進去的每一份還帶著 schema 要的 frontmatter 嗎：既有那幾道問的都是「宣告指得到
+#    檔案」，沒有一道問「這個入口跑起來會怎樣」。2026-08-13 量到的：三條 viewer alias 接線
+#    全通、astro 真的起來，然後死在一份缺 `title` 的 markdown 上，而所有的閘都是綠的。它
+#    符合這一層的守則——一份 markdown 與一個內容集合的 schema 之間的關係，兩端都不擁有它。
+#    它也是唯一一道對象可能不在這棵樹上的閘，所以它多一個離場碼，見下面呼叫它的那一段。
 
 set -euo pipefail
 
@@ -78,6 +83,14 @@ bash "$GATES/gate-dangling-declarations.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-skill-knowledge-locality.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-layer-vocabulary.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-copy-sets.sh" --repo "$ROOT_DIR" || fail=1
+
+# 第十道跟前九道差一件事：它的對象**不一定存在於這棵樹上**。docs-manager/ 不走 template
+# 通道，所以在那邊跑起來的同一支 run-gates 底下它沒有東西可量——那不是紅，也不是綠，是
+# 「這棵樹沒有這個入口」（離場碼 3）。混進 `|| fail=1` 的話 template repo 每次 commit 都
+# 會紅，而一道每次都紅的閘會在第三次被關掉。
+rc=0
+bash "$GATES/gate-docs-collection.sh" --repo "$ROOT_DIR" || rc=$?
+[[ "$rc" -eq 0 || "$rc" -eq 3 ]] || fail=1
 
 if [[ "$fail" -ne 0 ]]; then
   echo "[polaris run-gates] 上面的閘沒過，停下。" >&2
