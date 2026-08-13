@@ -50,8 +50,8 @@ After a VERSION bump is committed, execute these steps in order — no user conf
 
 0. **One commit for everything** — first write `VERSION` + `CHANGELOG.md`, then run `git add -A` to stage all changes together (framework code + VERSION + CHANGELOG), then commit once. Never run `git add -A` before writing VERSION/CHANGELOG (they won't be staged), and never commit VERSION/CHANGELOG separately while code diffs remain in the working tree
 
-1. **docs-lint** — run `python3 .claude/skills/framework-release/scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
-2. **docs-sync** — if docs-lint reported issues beyond count fixes (phantom skills, missing entries, stale diagrams), invoke `/docs-sync` to fix them. The skill's Step 0 uses docs-lint output + git diff to scope the sync. If changes are found, commit as a separate `docs:` commit
+1. **docs-lint** — run `python3 .claude/skills/framework-release/scripts/readme-lint.py --fix` as a fast deterministic check against `README.md`: skill count, phantom skills (named but no SKILL.md), undocumented skills (SKILL.md but never named). Auto-fixes the count; reports the other two
+2. **改 README** — docs-lint 報的幽靈與缺漏就直接改 `README.md`，沒有第二支 skill 代勞。以前這一格寫「invoke `/docs-sync`」，而那支 skill 在 DP-462 就不在了——指向一個不存在的東西，讀起來跟指向一個權威一模一樣。有改動就單獨一個 `docs:` commit
 3. **backlog-staleness-scan** — scan `issues/` for stale items (see § Backlog Hygiene below)
 4. **同步到 template repo** — 這一步屬釋出尾段，由 `framework-release` 做（它自己帶著那支腳本）。這裡只記它在鏈上的位置。
 

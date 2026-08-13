@@ -22,7 +22,7 @@
 #     (machine-read data tables + selftest/validator fixtures), and scripts/manifest.json
 #   - _template/
 #   - docs-manager/ (framework docs browser app, excluding generated outputs)
-#   - .gitignore, CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
+#   - .gitignore, CHANGELOG.md, VERSION, README.md, CLAUDE.md
 #   - root package metadata: package.json, pnpm-workspace.yaml, pnpm-lock.yaml
 #
 # What it does NOT sync:
@@ -496,6 +496,20 @@ while IFS= read -r script_file; do
   copy_file "$script_file" "$target_path" "$rel_path"
 done < <(find "$INSTANCE_DIR/scripts" \( -name "*.sh" -o -name "*.py" -o -name "*.mjs" -o -name "*.md" -o -name "manifest.json" \) -type f -not -path "*/node_modules/*" -not -path "*/e2e-results/*")
 
+# 這條尾段擁有的頂層檔案。**清單只有這一份**：複製走它，清掉也走它。以前複製是一行
+# 一個 copy_file、清掉沒有人做，於是 2026-08-14 刪掉 README.zh-TW.md 之後，模板那邊
+# 那一份會永遠留著——而模板正是別人 clone 下來讀到的東西。
+TOP_LEVEL_FILES=(
+  ".gitignore"
+  "CHANGELOG.md"
+  "VERSION"
+  "README.md"
+  "CLAUDE.md"
+  "package.json"
+  "pnpm-workspace.yaml"
+  "pnpm-lock.yaml"
+)
+
 # ── Step 6: Sync _template/ ───────────────────────────────────────
 
 echo "Templates..."
@@ -543,15 +557,9 @@ fi
 
 echo "Top-level files..."
 ensure_template_gitignore_allowlist
-copy_file "$INSTANCE_DIR/.gitignore" "$POLARIS_DIR/.gitignore" ".gitignore"
-copy_file "$INSTANCE_DIR/CHANGELOG.md" "$POLARIS_DIR/CHANGELOG.md" "CHANGELOG.md"
-copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
-copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"
-copy_file "$INSTANCE_DIR/README.zh-TW.md" "$POLARIS_DIR/README.zh-TW.md" "README.zh-TW.md"
-copy_file "$INSTANCE_DIR/CLAUDE.md"    "$POLARIS_DIR/CLAUDE.md"    "CLAUDE.md"
-copy_file "$INSTANCE_DIR/package.json" "$POLARIS_DIR/package.json" "package.json"
-copy_file "$INSTANCE_DIR/pnpm-workspace.yaml" "$POLARIS_DIR/pnpm-workspace.yaml" "pnpm-workspace.yaml"
-copy_file "$INSTANCE_DIR/pnpm-lock.yaml" "$POLARIS_DIR/pnpm-lock.yaml" "pnpm-lock.yaml"
+for top_name in "${TOP_LEVEL_FILES[@]}"; do
+  copy_file "$INSTANCE_DIR/$top_name" "$POLARIS_DIR/$top_name" "$top_name"
+done
 
 # ── Step 8b: Sync .github/ (Copilot instructions + workflows) ────
 
@@ -678,6 +686,45 @@ if [[ "$PRUNE" == true ]]; then
     done
   fi
 
+  # 8c-6b: Docs — 來源整個不見了就把目錄一起收掉。少了這一步，模板會留下一個空的
+  # docs/，而一個空目錄看起來像「還沒同步」，不像「那一層被拿掉了」。
+  if [[ -d "$POLARIS_DIR/docs" && ! -d "$INSTANCE_DIR/docs" ]]; then
+    if [[ "$DRY_RUN" == false ]]; then
+      rm -rf "$POLARIS_DIR/docs"
+    fi
+    echo "  ✂ docs/"
+    prune_count=$((prune_count + 1))
+  fi
+
+  # 8c-6c: 頂層的說明文件——模板有、來源沒有的就是漂。**不能只清 TOP_LEVEL_FILES 裡的
+  # 名字**：一個檔案被退休的時候，它正好會從那份清單裡消失，於是模板那一份永遠沒有人
+  # 來收（2026-08-14 刪掉 README.zh-TW.md 就是這個形狀）。所以判準是副檔名不是清單：
+  # 頂層的 .md 由這條尾段擁有，模板自己的東西（LICENSE 之類）沒有副檔名，碰不到。
+  while IFS= read -r -d '' polaris_md; do
+    md_name=$(basename "$polaris_md")
+    if [[ ! -f "$INSTANCE_DIR/$md_name" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -f "$polaris_md"
+      fi
+      echo "  ✂ $md_name"
+      prune_count=$((prune_count + 1))
+    fi
+  done < <(find "$POLARIS_DIR" -maxdepth 1 -type f -name '*.md' -print0 2>/dev/null)
+
+  # 8c-6d: _template/ 底下——同一件事。複製那一步只往前寫，所以退休的範例會留在模板裡。
+  if [[ -d "$POLARIS_DIR/_template" ]]; then
+    while IFS= read -r -d '' polaris_tmpl; do
+      rel_path="${polaris_tmpl#$POLARIS_DIR/_template/}"
+      if [[ ! -e "$INSTANCE_DIR/_template/$rel_path" ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+          rm -f "$polaris_tmpl"
+        fi
+        echo "  ✂ _template/$rel_path"
+        prune_count=$((prune_count + 1))
+      fi
+    done < <(find "$POLARIS_DIR/_template" -type f -print0 2>/dev/null)
+  fi
+
   # 8c-7: Docs-manager — remove retired template app when the source no longer has it.
   if [[ -d "$POLARIS_DIR/docs-manager" && ! -d "$INSTANCE_DIR/docs-manager" ]]; then
     if [[ "$DRY_RUN" == false ]]; then
@@ -769,7 +816,7 @@ if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
         echo "$modified" > "$mdfile"
         genericize_count=$((genericize_count + 1))
       fi
-    done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" \( -name '*.md' -o -name '*.py' -o -name '*.sh' \) -print0 2>/dev/null)
+    done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" \( -name '*.md' -o -name '*.py' -o -name '*.sh' \) -print0 2>/dev/null)
   done
 fi
 

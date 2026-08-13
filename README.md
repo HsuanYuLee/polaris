@@ -1,251 +1,173 @@
-<p align="center">
-  <img src="docs-manager/src/assets/polaris-logo.png" alt="Polaris" width="320">
-</p>
-
 # Polaris
 
-English | [中文](./README.zh-TW.md)
+一組給 coding agent 用的 skill，加上讓它們被找到、被正確迭代的執行環境。
 
-Polaris is a Claude Code / Codex workspace harness for teams that run work through JIRA, GitHub, Slack, and Confluence. It gives your coding agent durable workflow skills, local team context, deterministic gates, and a learning loop so it follows your operating model instead of improvising every session.
+這份文件對兩個讀者說話：**未來的自己**，以及**接手這個 repo 的 LLM**。它只回答三個問題
+——這個 repo 是什麼、一件工作怎麼進來、一支 skill 怎麼被帶走。其餘的都不在這裡：每一支
+skill 的行為住在它自己的 `SKILL.md`，那是唯一的權威。**這份文件不重述任何一支 skill 在做
+什麼**，因為重述就是第二份，而兩份會漂。
 
-Polaris is intentionally an add-on layer. It owns framework instructions, skills, hooks, and ignored local company context under `{company}/`; product repositories keep ownership of their tracked `CLAUDE.md`, `AGENTS.md`, `.github/**`, and repo-owned AI configuration.
+## 這個 repo 是什麼
 
-## What You Can Do
+一個假設：**只要給 LLM 足夠的知識與固定的流程，需要推測的東西越少，它就越能做對。**
+所以知識與流程都裝在 skill 裡，由 LLM 依意圖取用；skill 因此長得像第三方 lib——可獨立
+安裝、可互相依賴、可按需載入。這個 repo 是它們的執行環境。
 
-| Workflow | Prompt | Outcome |
-|---|---|---|
-| Build from a ticket | `work on PROJ-123` / `做 PROJ-123` | Reads JIRA, checks prerequisites, estimates, branches, implements, tests, and opens a PR |
-| Diagnose a bug | `fix bug PROJ-456` / `修 bug PROJ-456` | Finds root cause, proposes the fix, verifies behavior, and delivers the patch |
-| Review a PR | `review PR` / `review 這個 PR` | Reads the diff and leaves inline review comments grounded in project rules |
-| Plan a sprint | `sprint planning` / `排 sprint` | Pulls backlog, checks capacity, detects carry-over, and drafts release planning output |
-| Generate standup | `standup` | Collects JIRA, git, and calendar activity into a team update |
-| Learn from sources | `learn from <url>` / `學習這個 <url>` | Studies external material or merged PRs and turns useful patterns into workspace knowledge |
+`.claude/skills/` 底下一個目錄就是一支 skill，它需要的東西都收在自己身上：腳本、參考
+文件、範例。目錄外只有兩份常駐規則（`.claude/rules/`），因為它們是「只有在這個 repo 裡
+才成立」的知識。
 
-Start with one workflow. The full skill catalog is available in [Developer Workflow Guide](docs/workflow-guide.md) and [Chinese Triggers](docs/chinese-triggers.md).
+## 事情怎麼進來
 
-## How Polaris Works
+**任何會改變程式碼或行為的請求，第一站是 `driving-work-to-done`。** 使用者不需要知道這個
+名字，也不會說出來——「幫我做 X」「這個壞了要修」「想重構 Y」都算。只讀的問題不走這條，
+直接回答。
 
-Polaris organizes agent behavior into three layers:
+那支 skill 是唯一回答「下一步是什麼」的地方。它把工作推過三站，頭尾兩個閘在，中間才可以
+很隨便：
 
-| Layer | Source | Purpose |
-|---|---|---|
-| Workspace | `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` | Shared strategist behavior, skills, hooks, and deterministic rules |
-| Company | ignored `.claude/rules/{company}/`, `{company}/workspace-config.yaml` | Company-specific JIRA, Slack, GitHub, and workflow conventions |
-| Project | ignored `{company}/polaris-config/{project}/handbook/` | Repo handbook, generated scripts, test commands, runtime hints, and local context |
-| User local | ignored `user/tools/` | Personal workstation utilities; not a company and not runtime-discovered |
-
-Skills load only when triggered. Rules and hooks provide the always-on guardrails: language policy, safety checks, PR body validation, task artifact validation, context continuity, and workflow gates.
-
-## Governance Philosophy
-
-Polaris treats governance as a framework concern, not a per-session preference.
-
-- Prefer strong constraints over advisory prose whenever a contract can be enforced mechanically.
-- When a workflow or artifact can share one canonical shape, use one canonical shape across runtimes and lanes.
-- Do not keep special writer paths for the same authoritative surface.
-- When required authority inputs are missing, fail closed instead of improvising.
-
-Proof-of-work markers follow the same rule. Completion-sensitive evidence under `.polaris/evidence/` must be written by the owning producer declared in `scripts/lib/evidence-producers.json`; hooks and gates block direct JSON patching, stale `/tmp`-only pass markers, and auto-pass writing its own proof.
-
-For locked/current DP-backed framework work, `auto-pass DP-NNN` is the canonical main-chain entry. It dispatches `breakdown -> engineering -> verify-AC`, stops at workspace PR ready plus current verification disposition, produces a durable report, and leaves merge, sync-to-Polaris, tagging, GitHub release, and closeout to framework-release.
-
-This is why Polaris keeps pushing quality-critical workflow rules into shared scripts, hooks, validators, and generated runtime targets instead of relying on LLM discipline alone.
-
-## Requirements
-
-Everyone needs:
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or Codex configured with [Polaris for Codex](docs/codex-quick-start.md)
-- Atlassian MCP for JIRA and Confluence
-- Slack MCP for notifications, standups, and review workflows
-
-Use a coding-agent runtime from the workspace root, not the ordinary browser chat. The prompts below are typed into Claude Code or Codex conversations.
-
-Developers also need:
-
-- Git
-- GitHub CLI (`gh`) authenticated with the organization
-- Local Polaris toolchain readiness through the root public tasks `mise run bootstrap` and `mise run doctor -- --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Those two tasks are the only entry points; the `scripts/polaris-toolchain.sh` runner older docs mention was retired in DP-518 (its manifest parser had been deleted in an earlier move, so the runner had been dead the whole time).
-
-Optional integrations:
-
-- Google Calendar MCP for meeting-aware standups
-- Figma MCP for tickets that reference designs
-
-Most multi-step workflows use sub-agents. In Claude Code, that requires the Max plan or API access.
-
-### MCP Setup
-
-Claude Code can connect MCP servers through `/mcp`:
-
-- Slack: `https://mcp.slack.com/mcp`
-- Atlassian: `https://mcp.atlassian.com/v1/mcp`
-
-Codex can mirror the same connectors:
-
-```bash
-codex mcp add claude_ai_Slack --url https://mcp.slack.com/mcp
-codex mcp add claude_ai_Atlassian --url https://mcp.atlassian.com/v1/mcp
-codex mcp login claude_ai_Slack
-codex mcp login claude_ai_Atlassian
-codex mcp list
+```
+driving-work-to-done  ← 唯一決定「現在在哪、下一步是什麼」的地方
+        │
+        ├─ refinement   閘一：把「怎麼算成功」寫成人簽得下去的斷言，凍結
+        ├─ engineering  兩個閘之間：探索、實作、換量測。這裡沒有閘
+        └─ verify-ac    閘二：跑硬化 oracle，判定，寫交付紀錄
+                            │
+                     framework-release  判定過了才走這一段：併 main、壓版、同步、打 tag
 ```
 
-Legacy stdio `npx @anthropic-ai/claude-code-mcp-*` setup is deprecated in this framework.
+`swe-knowledge` 不是一站，是一份知識：「會改到程式碼的工作怎麼算 done」。
+`driving-work-to-done` 判定領域之後把它載進來。
 
-## Quick Start
+**凍結 ＝ 那個 commit，不是那個封條。** 斷言寫在單的 `index.md` 裡一對註解標記之間，
+`verify-ac` 會拿它跟 git 歷史比；重簽不構成授權，真正擋住偷改的是那個有人看得到的 diff。
 
-### 1. Create a workspace
+## 有哪些 skill
 
-Use the [Polaris template repo](https://github.com/HsuanYuLee/polaris) on GitHub, then clone your new workspace:
+這裡有 15 支 skill。**這張表只給名字與一句話**——要知道某一支怎麼運作，去讀它自己的
+`SKILL.md`。
 
-```bash
-git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
-cd ~/polaris-workspace
-```
-
-Choose a dedicated directory name. Avoid `~/work` if you already use that path for product repositories.
-
-Before onboarding, bootstrap and verify the local runtime toolchain through public tasks:
-
-```bash
-mise run bootstrap
-mise run doctor -- --profile runtime
-```
-
-If the doctor reports missing tools, follow its repair command and rerun the doctor:
-
-```bash
-mise run doctor -- --profile runtime
-```
-
-The public task surface is `bootstrap`, `doctor`, `doctor-mise`, `onboard-doctor`, `release-preflight`, `pr-create`, `spec-close-parent`, `script-audit`, `docs-health`, `verify`, and `cross-runtime-sync`.
-
-`mise run bootstrap` also regenerates the four session bootstrap interfaces: `CLAUDE.md`, `AGENTS.md`, `.codex/AGENTS.md`, and `.github/copilot-instructions.md`. These files are generated outputs read directly by their respective agent runtimes at session start; edit `.claude/instructions/**` or `.claude/rules/**`, then regenerate with `mise run bootstrap` or `bash scripts/compile-runtime-instructions.sh`. Use `bash scripts/compile-runtime-instructions.sh --check` to verify freshness without rewriting files.
-
-Root `pnpm` scripts are thin aliases for common framework commands. They do not replace the public task surface; the script manifest and command catalog remain the governance source:
-
-```bash
-pnpm viewer:status
-pnpm scripts:check
-pnpm commands:check
-```
-
-### 2. Onboard your company
-
-Open Claude Code or Codex from the workspace root, then type this into the agent conversation:
-
-```text
-onboard Polaris workspace for my company
-```
-
-The onboard flow detects your GitHub org and repos, creates ignored company context, maps JIRA keys to local repos, and finishes with a readiness dashboard: `ready`, `partial`, or `blocked`.
-
-If the dashboard is not `ready`, run:
-
-```text
-onboard repair
-```
-
-### 3. Try one real workflow
-
-Use a real ticket key from your JIRA project:
-
-```text
-work on PROJ-123
-```
-
-PMs and Scrum Masters can start with:
-
-```text
-standup
-```
-
-For a role-specific setup checklist, see [PM Setup Checklist](docs/pm-setup-checklist.md). For Codex runtime setup, see [Polaris for Codex](docs/codex-quick-start.md).
-
-## Repository Layout
-
-```text
-your-workspace/
-├── CLAUDE.md                  # Strategist instructions
-├── AGENTS.md                  # Generated runtime bootstrap for coding agents
-├── workspace-config.yaml      # Local company routing, ignored by git
-├── .claude/
-│   ├── rules/                 # Universal and company-scoped rules
-│   └── skills/                # Workflow skills
-├── docs/                      # Public guides
-├── scripts/                   # Deterministic gates and workflow helpers
-├── user/                      # Ignored user-local tools, notes, and scratch files
-│   └── tools/
-└── {company}/                 # Ignored local company context
-    ├── workspace-config.yaml
-    ├── polaris-config/
-    │   └── {project}/handbook/
-    └── {project}/             # Product repo; repo-owned files stay owned by the repo
-```
-
-## Guides
-
-| Need | Read |
+| skill | 一句話 |
 |---|---|
-| Full developer lifecycle | [Developer Workflow Guide](docs/workflow-guide.md) |
-| Chinese trigger phrases | [Chinese Triggers](docs/chinese-triggers.md) |
-| PM and non-developer setup | [PM Setup Checklist](docs/pm-setup-checklist.md) |
-| Codex setup | [Polaris for Codex](docs/codex-quick-start.md) |
-| Traditional Chinese quick start | [中文快速上手](docs/quick-start-zh.md) |
+| `driving-work-to-done` | 一件工作的唯一入口，也是唯一回答「下一步」的地方 |
+| `refinement` | 閘一：把成功的定義凍結成斷言 |
+| `engineering` | 兩個閘之間的施工區 |
+| `verify-ac` | 閘二：機械判定 ＋ 不擋人的判斷報告 |
+| `swe-knowledge` | 軟體工程這一類工作共用的「怎麼算 done」 |
+| `framework-release` | 判定過之後的釋出尾段 |
+| `review-pr` | 以 reviewer 身分審別人的單一 PR |
+| `review-inbox` | 掃出一整批等你看的 PR |
+| `request-pr-review` | 自己名下的 PR 現在卡在誰身上 |
+| `pr-pickup` | Slack 那一半：從訊息裡撈出 PR，修完回覆原串 |
+| `standup` | 每日站會報告與下班摘要 |
+| `checkpoint` | 長 session 的存檔與接續 |
+| `learning` | 從外部資源與已合併的 PR 萃取樣式 |
+| `memory-hygiene` | 記憶分層與搬遷 |
+| `visual-regression` | 前後截圖比對的視覺回歸守衛 |
 
-## Customization
+另外有一組 skill 住在一個公司命名空間目錄底下（`.claude/skills/{命名空間}/{名字}/`）。
+它們寫的是某一家公司的 repo、環境與流程，只對那個環境成立，所以不列在這裡。命名空間
+目錄本身不是一支 skill，判準是形狀（底下有沒有 skill）不是名字。
 
-Safe places to customize:
+## 一支 skill 怎麼被帶走
 
-| What | Where |
-|---|---|
-| Company routing and integrations | `{company}/workspace-config.yaml` |
-| Company workflow conventions | `.claude/rules/{company}/` |
-| Project handbook and generated scripts | `{company}/polaris-config/{project}/` |
-| Company-local helper scripts | `{company}/polaris-config/tools/` |
-| Personal workstation utilities | `user/tools/` |
-| New workflow skills | Use `skill-creator` |
+**東西有兩種帶走的方式，範圍不一樣，而這個分別決定每一樣東西住在哪。**
 
-Framework internals such as `.claude/skills/*/SKILL.md`, `.claude/skills/references/`, `.claude/rules/*.md`, hooks, and scripts should only be changed when you are modifying Polaris itself.
-Root `scripts/` is only for framework-supported utilities that are releaseable and governed by the script manifest; company-only helpers and personal utilities belong in the ignored local surfaces above.
+| 通道 | 帶走什麼 | 走這條的 |
+|---|---|---|
+| template repo | `.claude/rules/`、`.claude/hooks/`、`.claude/skills/`、`_template/`、根目錄檔案 | 框架自己整包搬家 |
+| 單支上傳（claude.ai／Cowork） | 只有那一個 skill 目錄 | 要能像第三方 lib 一樣單獨用的 skill |
 
-## Upgrading
+**每一支 skill 在自己的 frontmatter 用 `scope:` 說出它走哪一條**，核心不從名字或位置推導：
 
-To pull framework updates from a Polaris template checkout:
+- `scope: standalone`（沒宣告時的預設）——**幾乎全部。** 判準是一個問題：照這支 skill 自己
+  的描述，把它做成通用、不依賴環境，是不是更好用？幾乎每一次答案都是「是」。
+  想像的使用者不是你：一個不會寫程式、連工作環境都初始化不了的人，由工程師把 skill 匯進
+  他的 Claude Desktop。**在那裡不成立的東西，就不該留在 skill 裡。**
+- `scope: framework`——**這一格幾乎是空的，而且應該保持空的。** 只有照描述做成通用就不
+  成立的東西才屬於這裡：讀這個 repo 的 `.changeset/`、推這個 repo 的 tag、同步到這個人的
+  template repo。
+- `scope: company-only`／`scope: maintainer-only`——不出去。
+
+## 一支 skill 怎麼被改
+
+**走同一條脊椎。** 改 skill 就是改行為，所以它跟任何一件開發工作一樣從
+`driving-work-to-done` 進來、由 `refinement` 簽下斷言、由 `verify-ac` 判定。
+
+兩件跟迭代有關、但不由閘管的事：
+
+- **摩擦要指名是哪一支。** 一趟工作裡某支 skill 幫到或擋到的時候，在那張單的活文件裡留
+  一行 `SKILL-UTILITY` 註解，兩個方向都記。讀它不需要工具，`grep` 就好——**不要為它寫一
+  支腳本**。
+- **路由的評估集跟著 skill 走。** 例如 `review-pr` 帶著自己的 `.claude/skills/review-pr/evals/evals.json`：一組真的
+  會被打出來的話，標好該不該觸發。改 `description` 之前先讀它。
+
+**檢查類腳本的門檻是「預設不要有」。** 每多一道閘、每多一支 selftest，都要先證明它守著一個
+不可逆、或會出去到這個 repo 之外的後果，而且那個後果看 diff 的人看不出來。三個條件同時
+成立才留。散文斷言散文不是檢查，是重複；檢查自己的檢查一律不做。
+
+## 常駐指令是生成的
+
+`CLAUDE.md`、`AGENTS.md`、`.codex/AGENTS.md`、`.github/copilot-instructions.md` 四份都是
+**產出物，不要直接編輯**。來源是 `.claude/instructions/`，組合方式寫在
+`.claude/instructions/manifest.yaml`：
 
 ```bash
-./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template --dry-run
-./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template
+bash .claude/instructions/compile.sh              # 全部重生
+bash .claude/instructions/compile.sh --target claude
 ```
 
-The sync preserves ignored company context, company rules, and project-specific files. Apply mode also runs cross-runtime parity checks for Claude Code and Codex.
+改完沒重生會被釋出尾段的閘擋下來——那一道守的是「之後每個 session 都靜默讀到過期的那一
+份」。
 
-## Security
+## 這台機器要有什麼
 
-Polaris is designed for local-first operation:
+工具由 [mise](https://mise.jdx.dev/) 管，宣告在 `mise.toml`（Node、pnpm、Python、
+ripgrep、jq）。兩個公開任務就是全部的入口：
 
-- No telemetry, analytics, or usage reporting
-- No framework phone-home behavior
-- Local storage for memories, learnings, timelines, and checkpoints
-- Shell-level safety hooks for dangerous commands
-- Workspace language gates before downstream PR, JIRA, Slack, Confluence, commit, and release prose
-- Plaintext skills, rules, and scripts that can be audited in git
+```bash
+mise run bootstrap                 # 裝起來
+mise run doctor                    # 檢查
+```
 
-Network activity comes from tools you explicitly invoke, such as git, `gh`, JIRA, Slack, Confluence, or MCP connectors.
+**工具不存在時停下來說出修法，不要偷偷安裝**——禁止 `brew install`、`npm -g`、
+`pip install`、`curl | sh`，以及任何往 `PATH` 上丟二進位檔的動作。
 
-## Acknowledgements
+接上 git hook（過不了閘的 commit 從來不存在）：
 
-Polaris draws inspiration from these open-source projects:
+```bash
+bash .claude/skills/framework-release/scripts/install-git-hooks.sh
+bash .claude/skills/framework-release/scripts/install-git-hooks.sh --status
+```
 
-| Project | Author | What we learned |
-|---|---|---|
-| [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic skills framework, spec-first development, sub-agent task division |
-| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management, onboarding smartSelect interaction, audit trail |
-| [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering patterns, goal-backward verification, sub-agent completion envelope, complexity tier routing |
-| [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | Pre-LLM security scanning, code block context awareness, severity scoring with false-positive reduction |
-| [Kubernetes](https://github.com/kubernetes/kubernetes), [Vite](https://github.com/vitejs/vite), [VS Code](https://github.com/microsoft/vscode), [Home Assistant](https://github.com/home-assistant/core) | OSS communities | README structure: concise project identity, role-based entry points, short setup path, and links to detailed docs |
+它有代價，而那個代價寫在 `framework-release` 自己的 `SKILL.md` 裡——安裝之前它會說出來。
 
-## License
+## 單住在哪
 
-[MIT](LICENSE)
+`issues/` 是**你自己的 git repo**，這個 repo 忽略它。一張單是一個目錄，位置是狀態的投影
+——流程搬，人不搬：
+
+```
+issues/{命名空間}/backlog/{單}/      立案了，還沒開工
+                 in-progress/       兩個閘之間
+                 in-review/         送審中
+                 done/              做完了，還沒上線
+                 released/{日期}/   真的出去了
+                 closed/{日期}/     不再執行
+                 triage/            推導不出來，在等人歸位
+```
+
+命名空間叫什麼不影響任何判定：沒有註冊表、沒有白名單。手動搬一張單，下一次重算會把它搬
+回它的狀態說的那一格——那是對的。
+
+## 版號與釋出
+
+版號由 `.changeset/` 決定，那是唯一的宣告源。判定過之後由 `framework-release` 走完剩下
+的事：
+
+```bash
+bash .claude/skills/framework-release/scripts/spine-release.sh --issue {單}
+```
+
+**預設是預覽，不加 `--execute` 不會動任何東西。** 它做哪幾件事、被打斷了怎麼辦、每一步
+問哪個系統，全部寫在那支 skill 自己的 `SKILL.md` 裡——這裡不抄第二份。

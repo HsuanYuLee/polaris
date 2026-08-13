@@ -275,7 +275,7 @@ TEXT_SUFFIXES = {
     ".md", ".mdx", ".sh", ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx",
     ".json", ".yaml", ".yml", ".txt", ".example", ".toml",
 }
-TEXT_NAMES = {"CLAUDE.md", "README.md", "README.zh-TW.md", "VERSION", "CHANGELOG.md", "AGENTS.md"}
+TEXT_NAMES = {"CLAUDE.md", "README.md", "VERSION", "CHANGELOG.md", "AGENTS.md"}
 
 
 def is_text_file(path: Path):
@@ -419,7 +419,6 @@ def scan_roots(root: Path, source_name: str):
         "CLAUDE.md",
         "AGENTS.md",
         "README.md",
-        "README.zh-TW.md",
         "CHANGELOG.md",
     ]
     # Gather text-file candidates first (cheap path/suffix filters only), then
