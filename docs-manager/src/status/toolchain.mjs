@@ -20,17 +20,17 @@ export function inferToolchainHealth(options = {}) {
     },
     {
       id: 'tools.package',
-      label: 'tools/polaris-toolchain package',
-      ok: fs.existsSync(path.join(root, 'tools/polaris-toolchain/package.json')),
-      repair: 'pnpm --dir tools/polaris-toolchain install',
+      label: '.claude/skills/visual-regression/toolchain package',
+      ok: fs.existsSync(path.join(root, '.claude/skills/visual-regression/toolchain/package.json')),
+      repair: 'pnpm --dir .claude/skills/visual-regression/toolchain install',
     },
     {
       id: 'tools.dependencies',
       label: 'Playwright and Mockoon dependencies',
       ok:
-        fs.existsSync(path.join(root, 'tools/polaris-toolchain/node_modules/.bin/playwright')) &&
-        fs.existsSync(path.join(root, 'tools/polaris-toolchain/node_modules/.bin/mockoon-cli')),
-      repair: 'pnpm --dir tools/polaris-toolchain install',
+        fs.existsSync(path.join(root, '.claude/skills/visual-regression/toolchain/node_modules/.bin/playwright')) &&
+        fs.existsSync(path.join(root, '.claude/skills/visual-regression/toolchain/node_modules/.bin/mockoon-cli')),
+      repair: 'pnpm --dir .claude/skills/visual-regression/toolchain install',
     },
   ];
 

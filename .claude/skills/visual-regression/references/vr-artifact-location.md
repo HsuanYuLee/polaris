@@ -79,7 +79,7 @@ proxy routing、示範環境這類跨單共用的設定檔不隨單走，存在�
 啟動時把單的 fixtures 目錄指給工具：
 
 ```bash
-pnpm --dir tools/polaris-toolchain mockoon:start -- \
+pnpm --filter polaris-toolchain mockoon:start -- \
   issues/{命名空間}/{單號}/tests/mockoon
 ```
 

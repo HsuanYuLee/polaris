@@ -1,0 +1,18 @@
+{
+  "name": "polaris-toolchain",
+  "private": true,
+  "description": "Polaris runtime toolchain dependencies and command wrappers",
+  "type": "module",
+  "scripts": {
+    "playwright:install": "playwright install chromium",
+    "playwright:doctor": "node src/bin/playwright-doctor.mjs",
+    "mockoon:doctor": "node src/bin/mockoon-doctor.mjs",
+    "mockoon:start": "node src/bin/mockoon-runner.mjs start",
+    "mockoon:stop": "node src/bin/mockoon-runner.mjs stop",
+    "mockoon:status": "node src/bin/mockoon-runner.mjs status"
+  },
+  "devDependencies": {
+    "@mockoon/cli": "^9.6.1",
+    "@playwright/test": "^1.52.0"
+  }
+}

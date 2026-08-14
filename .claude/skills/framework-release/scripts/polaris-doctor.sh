@@ -155,7 +155,8 @@ run_toolchain_doctor() {
     info "would run toolchain doctor: $label"
     return 0
   fi
-  if (cd "$TOOLCHAIN_ROOT" && pnpm --dir tools/polaris-toolchain "$script"); then
+  # 用 package 的名字定位，不用它的路徑——那個路徑住在宣告與 pnpm-workspace.yaml 裡。
+  if (cd "$TOOLCHAIN_ROOT" && pnpm --filter polaris-toolchain "$script"); then
     pass "$label passed"
   else
     fail "$label failed"
@@ -242,7 +243,7 @@ check_declared_tool() {
 # toolchain package 裝的東西不由 mise 管，問它自己的 node_modules/.bin。
 toolchain_provides() {
   local name="$1"
-  local candidate="$TOOLCHAIN_ROOT/tools/polaris-toolchain/node_modules/.bin/$name"
+  local candidate="$TOOLCHAIN_ROOT/.claude/skills/visual-regression/toolchain/node_modules/.bin/$name"
   [[ -x "$candidate" ]] || return 1
   local dir
   dir="$(cd "$(dirname "$candidate")" && pwd)"

@@ -25,7 +25,7 @@ const DICTIONARIES = {
     'toolchain.check.manifest': 'Root toolchain manifest',
     'toolchain.check.runner': 'Toolchain runner',
     'toolchain.check.docs.viewer': 'docs.viewer dependencies',
-    'toolchain.check.tools.package': 'tools/polaris-toolchain package',
+    'toolchain.check.tools.package': '.claude/skills/visual-regression/toolchain package',
     'toolchain.check.tools.dependencies': 'Playwright and Mockoon dependencies',
     'navSync.title': 'Navigation Sync',
     'navSync.message':
@@ -131,7 +131,7 @@ const DICTIONARIES = {
     'toolchain.check.manifest': 'Root toolchain manifest',
     'toolchain.check.runner': 'Toolchain runner',
     'toolchain.check.docs.viewer': 'docs.viewer dependencies',
-    'toolchain.check.tools.package': 'tools/polaris-toolchain package',
+    'toolchain.check.tools.package': '.claude/skills/visual-regression/toolchain package',
     'toolchain.check.tools.dependencies': 'Playwright 與 Mockoon dependencies',
     'navSync.title': '導覽同步',
     'navSync.message':

@@ -336,7 +336,10 @@ bootstrap_runtime() {
   fi
   if printf '%s\n' "$VERIFY_SPECS" | cut -f1 | grep -qx playwright; then
     # 瀏覽器不是套件，是 playwright 自己的後續步驟；沒有人宣告 playwright 就不需要它。
-    run_managed pnpm --dir tools/polaris-toolchain playwright:install
+    #
+    # 用 package 的名字定位，不用它的路徑：路徑寫在宣告那一份（`install: pnpm:<目錄>`）與
+    # `pnpm-workspace.yaml` 裡就夠了，這裡再抄一次就是第三份，而 DP-546 搬家的時候會漏掉它。
+    run_managed pnpm --filter polaris-toolchain playwright:install
   fi
   verify_declared_tools || return 1
 }

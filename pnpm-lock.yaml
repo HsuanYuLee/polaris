@@ -12,6 +12,15 @@ importers:
         specifier: ^2.27.11
         version: 2.31.0(@types/node@25.8.0)
 
+  .claude/skills/visual-regression/toolchain:
+    devDependencies:
+      '@mockoon/cli':
+        specifier: ^9.6.1
+        version: 9.6.1
+      '@playwright/test':
+        specifier: ^1.52.0
+        version: 1.60.0
+
   docs-manager:
     dependencies:
       '@astrojs/starlight':
@@ -20,15 +29,6 @@ importers:
       astro:
         specifier: ^6.1.10
         version: 6.3.3(@types/node@25.8.0)(rollup@4.60.4)(yaml@2.8.3)
-
-  tools/polaris-toolchain:
-    devDependencies:
-      '@mockoon/cli':
-        specifier: ^9.6.1
-        version: 9.6.1
-      '@playwright/test':
-        specifier: ^1.52.0
-        version: 1.60.0
 
 packages:
 

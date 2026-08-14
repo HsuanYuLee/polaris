@@ -1,4 +1,4 @@
 packages:
   - .
   - docs-manager
-  - tools/polaris-toolchain
+  - .claude/skills/visual-regression/toolchain

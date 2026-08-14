@@ -30,7 +30,7 @@ tools:
   - name: playwright
     provision: framework
     why: 截圖比對要一顆瀏覽器
-    install: pnpm:tools/polaris-toolchain
+    install: pnpm:.claude/skills/visual-regression/toolchain
 ---
 
 # Visual Regression

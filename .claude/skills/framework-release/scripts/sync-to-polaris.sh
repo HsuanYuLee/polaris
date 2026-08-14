@@ -332,7 +332,10 @@ copy_dir() {
   if [[ "$DRY_RUN" == false ]]; then
     rm -rf "$dst"
     cp -r "$src" "$dst"
-    find "$dst" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+    # 裝出來的東西不跟著走。DP-546 之後一支 skill 的目錄底下可以有自己的 package
+    # （`visual-regression/toolchain/`），而它的 node_modules 是一堆指回這個工作區的符號
+    # 連結——複製過去是一份壞掉的連結，而模板那邊的 .gitignore 會讓它安靜地不出現在 diff 裡。
+    find "$dst" -type d \( -name '__pycache__' -o -name 'node_modules' \) -prune -exec rm -rf {} + 2>/dev/null || true
     find "$dst" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
   fi
   echo "  + $label/"
@@ -500,17 +503,10 @@ create_symlink "../.claude/skills" "$POLARIS_DIR/.agents/skills" ".agents/skills
 copy_file "$INSTANCE_DIR/.codex/AGENTS.md" \
           "$POLARIS_DIR/.codex/AGENTS.md" "AGENTS.md"
 
-# ── Step 5: Sync scripts (recursive — supports scripts/env/ etc.) ─
-
-echo "Scripts..."
-while IFS= read -r script_file; do
-  # Preserve subfolder structure (e.g., scripts/env/_lib.sh)
-  rel_path="${script_file#"$INSTANCE_DIR"/}"
-  target_path="$POLARIS_DIR/$rel_path"
-  target_dir=$(dirname "$target_path")
-  mkdir -p "$target_dir"
-  copy_file "$script_file" "$target_path" "$rel_path"
-done < <(find "$INSTANCE_DIR/scripts" \( -name "*.sh" -o -name "*.py" -o -name "*.mjs" -o -name "*.md" -o -name "manifest.json" \) -type f -not -path "*/node_modules/*" -not -path "*/e2e-results/*")
+# Step 5（同步 `scripts/`）在 DP-546 拿掉了。那個目錄在 b79b95a9 歸零——每一支腳本都搬進
+# 了需要它的那一支 skill——而這一段留著對它做 find，於是每一次同步都印一行
+# `find: .../scripts: No such file or directory`，然後整支照樣回 0。**那正是這條 DP 線一路
+# 在殺的形狀**：一段對來源已經不存在的東西做的事，錯誤印出來了，離場碼說沒事。
 
 # 這條尾段擁有的頂層檔案。**清單只有這一份**：複製走它，清掉也走它。以前複製是一行
 # 一個 copy_file、清掉沒有人做，於是 2026-08-14 刪掉 README.zh-TW.md 之後，模板那邊

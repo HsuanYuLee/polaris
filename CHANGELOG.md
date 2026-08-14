@@ -1,5 +1,35 @@
 # Changelog
 
+## [4.55.0] - 2026-08-14
+
+### Changed
+
+- 5229328: DP-546：一支 skill 的東西住在它自己身上
+  `tools/polaris-toolchain`（Playwright 與 Mockoon 那個 package）搬進
+  `.claude/skills/visual-regression/toolchain/`。它是「每一支 skill 自己帶著它需要的東西」
+  這條判準成立之前的殘留——**唯一一個把某支 skill 的相依放在工作區根目錄的東西**，而那個位置
+  兩條通道都帶不走它：
+  ```
+  ~/polaris（模板 clone）：
+  沒有人裝 playwright：說它由 tools/polaris-toolchain 裝，而那底下沒有 package.json
+  BLOCKED_ENV blocker_class=declared-uninstallable
+  ```
+  `sync-to-polaris.sh` 從來沒有一段帶 `tools/`，而它帶走的 `pnpm-workspace.yaml` 指名那個
+  成員——所以模板那一份是自相矛盾的。搬家之後它跟著 `.claude/skills/` 一起走，兩條通道都成立。
+  **位置不再被抄成第三份。** `init` 與 `doctor` 改用 `pnpm --filter polaris-toolchain`——package
+  的名字定位得到它，路徑只住在宣告（`install: pnpm:<目錄>`）與 `pnpm-workspace.yaml` 裡。
+  順手清掉同一批殘留：
+  - **`playwright:verify` 刪掉。** 它指向 `../../scripts/e2e/playwright.config.ts`，而 `scripts/`
+    在 `b79b95a9` 就歸零了。
+  - **同步的 Step 5 拿掉。** 它對同一個消失的 `scripts/` 做 `find`，每次同步印一行
+    `No such file or directory`，然後整支回 0——這條 DP 線一路在殺的形狀。
+  - **skill 目錄裡最後 10 條寫死的機器路徑清掉。** `cwv-page-investigation` 的八支探針靠
+    `createRequire('/Users/…/work/tools/polaris-toolchain/package.json')` 借 Playwright，換一台
+    機器就是壞的；改成相對於腳本自己位置解析。報告 builder 的兩個素材常數（某台機器的暫存
+    目錄、某個人的下載資料夾，兩個都已經不存在）改成相對於它自己。
+  - **同步不再把裝出來的東西帶走。** 一支 skill 的目錄底下現在可以有自己的 package，而它的
+    `node_modules` 是一堆指回這個工作區的符號連結。
+
 ## [4.54.0] - 2026-08-14
 
 ### Changed
