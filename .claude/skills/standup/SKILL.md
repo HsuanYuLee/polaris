@@ -69,7 +69,8 @@ workflow authority。這條有兩個方向，兩個都要擋：
 5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR。
 6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
    `standup-planning-flow.md` 的准入判準——「我在等誰」加上那張措辭表；自己動得了的是待辦
-   不是卡關。
+   不是卡關。**延續過來的那一類還要先問一次它今天的來源**，判準寫在同一份的
+   〈第二個來源要帶今天的根據〉那一節。
 7. 依 `standup-template.md` 依 epic 組裝三格並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
 8. 使用者確認後，寫 local markdown。**那一份不是備份，是本體**，也是明天的比對來源。
 9. 對 local markdown 跑 language gate，通過後依宣告的目的地送出。

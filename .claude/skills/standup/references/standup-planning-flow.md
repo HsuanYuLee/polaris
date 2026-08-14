@@ -1,6 +1,6 @@
 ---
 title: "Standup Planning Flow"
-description: "standup 的昨日 merge/dedup、plan vs actual、今日 candidates、PR status、Polaris backlog 與卡關 collection。"
+description: "standup 的昨日 merge/dedup、plan vs actual、今日 candidates、PR status 與卡關 collection。"
 ---
 
 # Standup Planning Contract
@@ -116,3 +116,26 @@ Review-requested PRs 有結果時，加入今日格的 PR Review 項目。
 
 判準收窄或放寬的都是**什麼進得去**，不擴張**從哪裡找**——這三個來源不因為判準而增加。
 每一個來源撈出來的東西仍然要逐一過上面那張表。
+
+### 第二個來源要帶今天的根據
+
+<!-- STANDUP-CONTRACT: carried-over-blocker-needs-today-evidence -->
+
+**「昨天那一格裡有它」不是它今天還在的根據。** 前兩個來源不一樣：`DISCUSS` 與口述都是
+今天問到的，而延續是昨天問到的——它唯一的依據就是它自己。所以一條要延續的卡關，今天要
+先問一次它的來源，然後照答案分三種走：
+
+| 今天問到什麼 | 怎麼寫 |
+|---|---|
+| 來源系統有新痕跡（新留言、狀態變了、對方回了） | 照常留在卡關格，**並說出那個痕跡是什麼** |
+| 來源系統問得到，但跟昨天一樣沒有動靜 | 留在卡關格，**說出它從哪一天開始沒有動靜** |
+| 來源系統今天問不到（工具不在、查詢逾時、逐字稿是雜訊） | 留著並**標成待驗**：「昨天寫的，今天沒有查證到」。不當成還在，也不當成收掉了 |
+| 使用者說它已經收掉了 | 拿掉。口頭收掉的結論不會出現在任何一個系統裡 |
+
+這是〈狀態不是意圖〉與〈問不到就說出來〉那兩節套在這一個來源上的樣子，判準本身寫在
+`standup-data-collection-flow.md`，這裡不重講一次。
+
+這一條是量出來的：2026-08-13 那份把「等某位同事回一則 comment 的三個選項」寫進卡關，當天
+會議上已經有結論但沒有人寫回單上；三個來源當天一個都答不了（單上最新留言是我自己前一天
+留的、那條 PR 兩天沒有新 comment、會議逐字稿是辨識失敗的雜訊）。於是隔天那份原樣照抄，
+被使用者當場退回。**沒有這張表的時候，那幾種答案在報告上長得一模一樣。**
