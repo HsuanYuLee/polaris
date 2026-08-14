@@ -21,10 +21,6 @@ importers:
         specifier: ^6.1.10
         version: 6.3.3(@types/node@25.8.0)(rollup@4.60.4)(yaml@2.8.3)
 
-  scripts/e2e: {}
-
-  scripts/mockoon: {}
-
   tools/polaris-toolchain:
     devDependencies:
       '@mockoon/cli':

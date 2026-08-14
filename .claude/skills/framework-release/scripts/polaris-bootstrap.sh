@@ -171,6 +171,142 @@ bootstrap_core() {
   run_mise install
 }
 
+mise_declares_key() {
+  # Description: whether mise.toml's [tools] table declares this exact key.
+  # Args: $1 = key as written in the declaration (quotes in the toml are stripped)
+  # Returns: 0 when declared.
+  local key="$1"
+  awk -v key="$key" '
+    /^\[/ { in_tools = ($0 == "[tools]"); next }
+    in_tools {
+      line = $0
+      sub(/[ \t]*=.*/, "", line)
+      gsub(/^[ \t]+|[ \t]+$/, "", line)
+      gsub(/^"|"$/, "", line)
+      if (line == key) found = 1
+    }
+    END { exit(found ? 0 : 1) }
+  ' "$TOOLCHAIN_ROOT/mise.toml"
+}
+
+resolve_installer() {
+  # Description: which step installs this declared tool.
+  # Args: $1 = tool name, $2 = declared `install` value ("" when not declared)
+  # Outputs: "<kind>|<arg>" on stdout, or the reason on stdout with a non-zero return.
+  #   理由走 stdout 而不是一個變數：呼叫端用命令替換接它，而命令替換是子行程——在那裡設的
+  #   變數回不到呼叫端，於是失敗的原因會靜靜地變成空字串。
+  local name="$1" install="$2" key dir other
+  case "$install" in
+    "")
+      # 不填的意思是「跟工具同名的那個安裝項」——推得出來的不必寫死。但它要被驗過：
+      # 一個推出來、然後沒有人裝的名字，跟沒有宣告一樣。
+      if mise_declares_key "$name"; then printf 'mise|%s\n' "$name"; return 0; fi
+      printf '%s\n' "mise.toml 的 [tools] 沒有同名的鍵，而宣告也沒說是誰裝它——補一行 install:"
+      return 1 ;;
+    mise:*)
+      key="${install#mise:}"
+      if mise_declares_key "$key"; then printf 'mise|%s\n' "$key"; return 0; fi
+      printf '%s\n' "說它由 mise 的 ${key} 裝，而 mise.toml 的 [tools] 沒有那個鍵"
+      return 1 ;;
+    pnpm:*)
+      dir="${install#pnpm:}"
+      if [[ -f "$TOOLCHAIN_ROOT/$dir/package.json" ]]; then printf 'pnpm|%s\n' "$dir"; return 0; fi
+      printf '%s\n' "說它由 ${dir} 裝，而那底下沒有 package.json"
+      return 1 ;;
+    uv)
+      if [[ -f "$TOOLCHAIN_ROOT/pyproject.toml" ]]; then printf 'uv|\n'; return 0; fi
+      printf '%s\n' "說它由 uv 裝，而這個工作區沒有 pyproject.toml"
+      return 1 ;;
+    with:*)
+      other="${install#with:}"
+      # 跟著另一個工具來的（npx 跟著 node），由那一個負責；那一個自己也會被解析一次。
+      if printf '%s\n' "$DECLARED_NAMES" | grep -qx -- "$other"; then
+        printf 'with|%s\n' "$other"; return 0
+      fi
+      printf '%s\n' "說它跟著 ${other} 一起來，而沒有人宣告 ${other}"
+      return 1 ;;
+    *)
+      printf '%s\n' "不認得的安裝者：${install}（只認得 mise:<鍵>、pnpm:<目錄>、uv、with:<工具>）"
+      return 1 ;;
+  esac
+}
+
+plan_declared_tools() {
+  # Description: turn every `provision: framework` declaration into the step that installs it.
+  # Side effects: sets PNPM_DIRS / NEED_UV / VERIFY_SPECS; exits 1 naming any tool nobody installs.
+  #
+  # 這一步在裝任何東西之前跑。一個說「這裡裝得起來」而沒有人裝的宣告，會讓 doctor 指著
+  # `mise run bootstrap`，而這條命令什麼都不會做——DP-540 修掉的是同一個形狀的上一層。
+  local reader="$SCRIPT_DIR/lib/skill_tools.py"
+  local skills_root="$TOOLCHAIN_ROOT/.claude/skills"
+  local listing status=0 name provision fix probe install wanted resolved unresolved=0
+  PNPM_DIRS=""
+  NEED_UV=false
+  VERIFY_SPECS=""
+  [[ -f "$reader" && -d "$skills_root" ]] || {
+    log "讀不到工具宣告（$reader / $skills_root），這一步跳過"
+    return 0
+  }
+  listing="$("${PYTHON_BIN:-python3}" "$reader" list "$skills_root" 2>&1)" || status=$?
+  if [[ "$status" == "2" || -z "$listing" ]]; then
+    blocked_env "declarations-unreadable" "讀不到任何工具宣告（${listing}）"
+    return 1
+  fi
+  DECLARED_NAMES="$(printf '%s\n' "$listing" | cut -f1)"
+  while IFS=$'\t' read -r name provision fix probe install wanted; do
+    [[ -n "$name" ]] || continue
+    [[ "$provision" == "framework" ]] || continue
+    [[ "$install" == "-" ]] && install=""
+    [[ "$probe" == "-" ]] && probe=""
+    if ! resolved="$(resolve_installer "$name" "$install")"; then
+      unresolved=$((unresolved + 1))
+      printf '[polaris-bootstrap] 沒有人裝 %s：%s（要它的：%s）\n' "$name" "$resolved" "$wanted" >&2
+      continue
+    fi
+    case "${resolved%%|*}" in
+      pnpm) PNPM_DIRS="${PNPM_DIRS}${resolved#*|}"$'\n' ;;
+      uv) NEED_UV=true ;;
+    esac
+    VERIFY_SPECS="${VERIFY_SPECS}${name}	${resolved}	${probe}"$'\n'
+  done <<< "$listing"
+  PNPM_DIRS="$(printf '%s' "$PNPM_DIRS" | sort -u)"
+  if [[ "$unresolved" != "0" ]]; then
+    blocked_env "declared-uninstallable" "有 ${unresolved} 個宣告說「這裡裝得起來」，而沒有任何一步會裝它。"
+    return 1
+  fi
+  log "宣告解析完成：$(printf '%s\n' "$VERIFY_SPECS" | grep -c .) 個由框架提供的工具都指得出安裝者"
+  return 0
+}
+
+verify_declared_tools() {
+  # Description: after installing, every framework-provided tool must actually be there.
+  # Returns: 1 naming each one that is still missing.
+  local name resolved probe kind arg missing=0
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "would verify $(printf '%s\n' "$VERIFY_SPECS" | grep -c .) declared tool(s)"
+    return 0
+  fi
+  while IFS=$'\t' read -r name resolved probe; do
+    [[ -n "$name" ]] || continue
+    kind="${resolved%%|*}"
+    arg="${resolved#*|}"
+    if [[ -n "$probe" ]]; then
+      bash -c "$probe" >/dev/null 2>&1 && continue
+    elif [[ "$kind" == "pnpm" ]]; then
+      [[ -x "$TOOLCHAIN_ROOT/$arg/node_modules/.bin/$name" ]] && continue
+    else
+      POLARIS_WORKSPACE_ROOT="$TOOLCHAIN_ROOT" polaris_require_mise_tool "$name" >/dev/null 2>&1 && continue
+    fi
+    missing=$((missing + 1))
+    printf '[polaris-bootstrap] 裝完之後 %s 還是不在（%s）\n' "$name" "$resolved" >&2
+  done <<< "$VERIFY_SPECS"
+  if [[ "$missing" != "0" ]]; then
+    blocked_env "declared-still-missing" "${missing} 個由框架提供的工具在安裝之後仍然不在。"
+    return 1
+  fi
+  return 0
+}
+
 regenerate_runtime_targets() {
   local compiler="$TOOLCHAIN_ROOT/.claude/instructions/compile.sh"
   [[ -f "$compiler" ]] || die "runtime instruction compiler missing: $compiler"
@@ -178,16 +314,29 @@ regenerate_runtime_targets() {
 }
 
 bootstrap_runtime() {
+  local dir
   require_managed_tool node "Node" || return 1
   require_managed_tool pnpm "pnpm" || return 1
-  # DP-518 之前這三行走 `scripts/polaris-toolchain.sh run <capability>`，而那支 runner 的
+  # DP-518 之前這幾行走 `scripts/polaris-toolchain.sh run <capability>`，而那支 runner 的
   # parser（scripts/lib/polaris_toolchain_manifest.py）在 51b8208c 那次搬家被刪掉、沒有跟著
   # 搬。所以 `mise run bootstrap -- --profile runtime` 從那天起就是壞的，而沒有東西會紅。
-  # 現在直接下那三條命令——它們本來就是 manifest 裡那三個 capability 展開後的樣子，
-  # 少一層自己會失效的間接。
+  #
+  # docs-manager 不從宣告推出來，因為它不是任何一支 skill 的工具——它是這個 repo 的站台。
   run_managed pnpm --dir docs-manager install
-  run_managed pnpm --dir tools/polaris-toolchain install
-  run_managed pnpm --dir tools/polaris-toolchain playwright:install
+  while read -r dir; do
+    [[ -n "$dir" ]] || continue
+    run_managed pnpm --dir "$dir" install
+  done <<< "$PNPM_DIRS"
+  if [[ "$NEED_UV" == "true" ]]; then
+    # uv 把 pyproject.toml 宣告的相依裝進這個工作區自己的 .venv（mise 的 [env] 建它）。
+    # 這是「框架提供一個函式庫」唯一不去動宿主直譯器的做法。
+    run_managed uv sync
+  fi
+  if printf '%s\n' "$VERIFY_SPECS" | cut -f1 | grep -qx playwright; then
+    # 瀏覽器不是套件，是 playwright 自己的後續步驟；沒有人宣告 playwright 就不需要它。
+    run_managed pnpm --dir tools/polaris-toolchain playwright:install
+  fi
+  verify_declared_tools || return 1
 }
 
 while [[ $# -gt 0 ]]; do
@@ -226,6 +375,7 @@ log "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
 run_cmd mkdir -p "$POLARIS_TOOLCHAIN_ROOT/.polaris/toolchain"
 regenerate_runtime_targets
 require_mise || exit 1
+plan_declared_tools || exit 1
 
 case "$PROFILE" in
   core)

@@ -20,16 +20,17 @@ metadata:
 scope: standalone
 tools:
   - name: PyYAML
-    provision: manual
     why: 讀 workspace-config.yaml 與 SKILL.md 的 frontmatter
-    probe: python3 -c "import yaml"
-    fix: 讓跑這些腳本的那個 python3 帶著 PyYAML（repo 根的 pyproject.toml 宣告了版本，但目前沒有任何一步會去裝它）
+    provision: framework
+    probe: ${PYTHON_BIN:-python3} -c "import yaml"
+    install: uv
   - name: pnpm
     provision: framework
     why: 跑 toolchain package 與產品 repo 的指令
   - name: playwright
     provision: framework
     why: 截圖比對要一顆瀏覽器
+    install: pnpm:tools/polaris-toolchain
 ---
 
 # Visual Regression

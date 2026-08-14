@@ -1,5 +1,34 @@
 # Changelog
 
+## [4.53.0] - 2026-08-14
+
+### Changed
+
+- 73a690d: DP-541：修法指向一條不會做那件事的命令
+  DP-540 讓檢查那一面從宣告推出來，安裝那一面沒有跟上。種一支宣告 `provision: framework`
+  的新工具，doctor 說「shellcheck 不在，但這裡裝得起來——`mise run bootstrap`」，而那條命令的
+  dry-run 提到 shellcheck 的行數是 **0**。**照著修法做，什麼都不會發生。**
+  `polaris-bootstrap.sh` 現在在裝任何東西之前先把每一個宣告解析成「哪一步會裝它」，解不出來
+  就指名它、說出理由、拒絕往下走。宣告端多一個選填的 `install`：
+  ```yaml
+  - name: rg
+  provision: framework
+  install: mise:aqua:BurntSushi/ripgrep
+  ```
+  四種寫法——`mise:<鍵>`、`pnpm:<目錄>`、`uv`、`with:<工具>`——而不填的意思是「跟工具同名的
+  那個安裝項」，**推出來的名字仍然要被驗過**。這個對照以前不存在於任何地方：`rg` 的 mise 鍵是
+  `aqua:BurntSushi/ripgrep`、`npx` 根本沒有自己的安裝項（跟著 `node` 來）。機制第一次跑就抓到
+  第三個沒有人注意到的——`jq` 的鍵是 `aqua:jqlang/jq`，也不同名。
+  **PyYAML 從人補那一格移回框架。** 它以前標 `manual`，`fix` 誠實地寫著「目前沒有任何一步會去
+  裝它」——而 `uv`、`pyproject.toml`、`uv.lock` 都在，它不是裝不起來，是沒有人接線。現在
+  `mise.toml` 收編 uv 並用 `[env] _.python.venv` 建這個工作區自己的 `.venv`，bootstrap 跑
+  `uv sync` 把 `pyproject.toml` 宣告的相依裝進去，而 `polaris_require_python` 優先解到那一份。
+  **這是「框架提供一個函式庫」唯一不去動宿主直譯器的做法**——問 PATH 拿到的那個 python3 帶不帶
+  yaml 是巧合，這件事以前一直是綠的就是因為 homebrew 與 macOS 的 python3 剛好都帶著它。
+  沒有 `.venv` 的環境（一支被單獨帶到 claude.ai 或 Cowork 的 skill）退回 PATH，行為不變。
+  裝完之後每一個由框架提供的工具都被驗一次；驗不到就紅在 bootstrap 自己身上，不新增任何閘。
+  `playwright:install`（瀏覽器）也不再寫死——沒有人宣告 playwright 就不跑那一步。
+
 ## [4.52.0] - 2026-08-14
 
 ### Changed

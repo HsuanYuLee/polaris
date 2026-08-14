@@ -24,6 +24,7 @@ tools:
   - name: jq
     provision: framework
     why: 解析 API 回應的 JSON
+    install: mise:aqua:jqlang/jq
   - name: node
     provision: framework
     why: 跑 toolchain package 底下的 .mjs
@@ -33,11 +34,12 @@ tools:
   - name: npx
     provision: framework
     why: 叫 changeset 那類只裝在 node_modules 裡的執行檔
+    install: with:node
   - name: PyYAML
-    provision: manual
     why: 讀 workspace-config.yaml 與 SKILL.md 的 frontmatter
-    probe: python3 -c "import yaml"
-    fix: 讓跑這些腳本的那個 python3 帶著 PyYAML（repo 根的 pyproject.toml 宣告了版本，但目前沒有任何一步會去裝它）
+    provision: framework
+    probe: ${PYTHON_BIN:-python3} -c "import yaml"
+    install: uv
 ---
 
 # framework-release — 釋出尾段

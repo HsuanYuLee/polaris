@@ -19,7 +19,10 @@ tools:
 `provision` 只有兩個值，而它們的分界是**這個環境有沒有辦法自己把它裝起來**：
 
 - `framework`——裝得起來（root mise 或 toolchain package）。缺了的修法是跑 bootstrap，
-  所以不必每支都重寫一次 `fix`。
+  所以不必每支都重寫一次 `fix`。**選填的 `install` 說出是哪一步會裝它**：不填的話用「跟工具
+  同名的那個安裝項」，而名字對不上的時候必須填——`rg` 的 mise 鍵是
+  `aqua:BurntSushi/ripgrep`、`npx` 根本沒有自己的安裝項（跟著 `node` 來）。這個對照以前不
+  存在於任何地方，靠的是有人記得。四種寫法：`mise:<鍵>`、`pnpm:<目錄>`、`uv`、`with:<工具>`。
 - `manual`——裝不起來，要人。三類會落在這裡：**要憑證才算數的**（`gh` 裝得了二進位檔、
   登不了入）、**本身就是宿主環境的**（docker daemon）、**別的 repo 擁有的**。這一類
   `fix` 是必填：一個說不出修法的「要人補」跟沒有宣告一樣沒用。
@@ -79,7 +82,7 @@ def declared_tools(skill_md):
         skill_md: SKILL.md 的路徑。
 
     Returns:
-        一串 dict，每個有 `name`、`provision`、`why`、`fix`、`probe`。沒有 `tools:` 就回空串列
+        一串 dict，每個有 `name`、`provision`、`why`、`fix`、`probe`、`install`。沒有 `tools:` 就回空串列
         ——**那是「這支不需要任何外部工具」，不是「還沒填」**。兩者在這裡分不出來是刻意的：
         分得出來就要有第三種處置，而一支 skill 說不出自己要什麼的時候，能做的事跟不需要
         任何東西是一樣的。
@@ -92,10 +95,11 @@ def declared_tools(skill_md):
         head = _ENTRY.match(line)
         if head:
             entries.append({"name": head.group(1), "provision": "", "why": "",
-                            "fix": "", "probe": ""})
+                            "fix": "", "probe": "", "install": ""})
             continue
         field = _FIELD.match(line)
-        if field and entries and field.group(1) in ("provision", "why", "fix", "probe"):
+        if field and entries and field.group(1) in ("provision", "why", "fix", "probe",
+                                                    "install"):
             entries[-1][field.group(1)] = _unquote(field.group(2))
     for entry in entries:
         if entry["provision"] == "framework" and not entry["fix"]:
@@ -133,7 +137,7 @@ def aggregate(skills_root):
     """整棵樹宣告的工具，一個工具一筆，記下是哪幾支要它。
 
     Returns:
-        dict：工具名 → {`provision`, `fix`, `wanted_by`: [skill 名]}。同一個工具被兩支
+        dict：工具名 → {`provision`, `fix`, `probe`, `install`, `wanted_by`: [skill 名]}。同一個工具被兩支
         宣告成不同的 `provision` 時，**保留較嚴的那一個**（`manual`）並把兩邊都記進
         `wanted_by`——寬鬆的那一份會讓檢查說「這裡裝得起來」，而它裝不起來。
     """
@@ -143,9 +147,10 @@ def aggregate(skills_root):
         for entry in declared_tools(path):
             slot = merged.setdefault(entry["name"], {
                 "provision": entry["provision"], "fix": entry["fix"],
-                "probe": entry["probe"], "wanted_by": []})
+                "probe": entry["probe"], "install": entry["install"], "wanted_by": []})
             slot["wanted_by"].append(skill)
             slot["probe"] = slot["probe"] or entry["probe"]
+            slot["install"] = slot["install"] or entry["install"]
             if entry["provision"] == "manual":
                 slot["provision"] = "manual"
                 slot["fix"] = entry["fix"] or slot["fix"]
@@ -155,7 +160,8 @@ def aggregate(skills_root):
 def main(argv):
     """CLI：`skill_tools.py list <skills_root>` 印聚合清單，一行一個工具。
 
-    每行是 tab 分隔的 `name`、`provision`、`fix`、`probe`、`wanted_by`（逗號相連），給 bash 讀。
+    每行是 tab 分隔的 `name`、`provision`、`fix`、`probe`、`install`、`wanted_by`（逗號相連），
+    給 bash 讀。
     空欄位印 `-` 而不是留空：tab 是 IFS 的空白字元，連續兩個會被 `read` 收成一個分隔符，
     於是一個空欄位會把它後面那一欄整個吃掉——而那個錯讀起來像宣告本身有問題。
     宣告不合法時（`provision` 不在值域裡、`manual` 沒給 `fix`）以離場碼 1 指名它——
@@ -175,7 +181,8 @@ def main(argv):
         elif slot["provision"] == "manual" and not slot["fix"]:
             bad.append(f"{name}: provision=manual 但沒有 fix")
         print("\t".join([name, slot["provision"], slot["fix"] or "-",
-                          slot["probe"] or "-", ",".join(slot["wanted_by"])]))
+                          slot["probe"] or "-", slot["install"] or "-",
+                          ",".join(slot["wanted_by"])]))
     for line in bad:
         print(f"SKILL-TOOLS 宣告不合法：{line}", file=sys.stderr)
     return 1 if bad else 0

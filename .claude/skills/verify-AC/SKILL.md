@@ -17,6 +17,7 @@ tools:
   - name: jq
     provision: framework
     why: selftest 讀 JSON 輸出裡的欄位
+    install: mise:aqua:jqlang/jq
 ---
 
 # verify-ac — 閘二：執行 oracle

@@ -30,6 +30,7 @@ tools:
   - name: jq
     provision: framework
     why: 解析 API 回應的 JSON
+    install: mise:aqua:jqlang/jq
 ---
 
 # review-pr

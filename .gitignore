@@ -42,6 +42,7 @@
 
 /.polaris/
 /.pnpm-store/
+/.venv/
 /.pytest_cache/
 /.ruff_cache/
 /docs-manager/.astro/

@@ -18,6 +18,7 @@ tools:
   - name: jq
     provision: framework
     why: 解析 API 回應的 JSON
+    install: mise:aqua:jqlang/jq
 ---
 
 # Standup — 每日站立會議報告產生器

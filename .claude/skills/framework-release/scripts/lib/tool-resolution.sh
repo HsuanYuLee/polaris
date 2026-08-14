@@ -130,7 +130,16 @@ polaris_require_delivery_tool() {
 }
 
 polaris_require_python() {
-  local python_bin
+  local python_bin root
+  # 這個工作區自己那一份優先。`uv sync` 把 pyproject.toml 宣告的相依裝進它，所以「框架提供
+  # 的 PyYAML」只有透過這一份才成立——問 PATH 拿到的是宿主的直譯器，它帶不帶 yaml 是巧合。
+  # 沒有那一份就退回 PATH：一支被單獨帶到別的環境的 skill 不該因為這裡沒有 venv 而停掉。
+  root="$(polaris_workspace_root)"
+  if [[ -x "$root/.venv/bin/python3" ]]; then
+    export PYTHON_BIN="$root/.venv/bin/python3"
+    printf '%s\n' "$PYTHON_BIN"
+    return 0
+  fi
   if python_bin="$(command -v python3 2>/dev/null)"; then
     export PYTHON_BIN="$python_bin"
     printf '%s\n' "$PYTHON_BIN"

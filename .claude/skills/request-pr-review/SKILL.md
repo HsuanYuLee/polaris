@@ -21,6 +21,7 @@ tools:
   - name: jq
     provision: framework
     why: 解析 API 回應的 JSON
+    install: mise:aqua:jqlang/jq
 ---
 
 # request-pr-review — 請人來看已經開好的 PR

@@ -23,9 +23,11 @@ tools:
   - name: jq
     provision: framework
     why: 解析 API 回應的 JSON
+    install: mise:aqua:jqlang/jq
   - name: rg
     provision: framework
     why: 掃樹用；這支的 selftest 缺了它就跑不完
+    install: mise:aqua:BurntSushi/ripgrep
 ---
 
 # Review Inbox — 批次 Review 待審 PR
