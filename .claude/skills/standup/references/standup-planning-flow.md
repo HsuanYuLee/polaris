@@ -72,12 +72,6 @@ Sorting：
 
 Review-requested PRs 有結果時，加入今日格的 PR Review 項目。
 
-## Polaris Backlog
-
-讀取 `issues/` 底下還沒收斂的單。最多列 top 3，放進 `其他（無 Epic）` 的今日格。
-
-若 framework skills/rules 有 uncommitted changes，提醒有框架改動未 commit。
-
 ## 卡關
 
 ### 准入判準：我在等誰

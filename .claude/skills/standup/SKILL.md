@@ -10,9 +10,6 @@ description: |
 metadata:
   author: Polaris
   version: 3.0.0
-  requires:
-    - skill: driving-work-to-done
-      why: 收今日格 candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
 scope: standalone
 tools:
   - name: jq
@@ -40,6 +37,12 @@ workflow authority。這條有兩個方向，兩個都要擋：
 
 這條原本只寫了第一個方向，而 2026-08-12 的四次校正有兩次是第二個方向。
 
+**它不報產生它的那套工具自己的進度。** 來源就是它被設定去看的那幾樣——公司的單、PR、
+行事曆、使用者口述。以前這裡有一步會去翻開發這套流程用的那些紀錄，把它們併進今日格並提醒
+有東西還沒提交；2026-08-14 那份因此在對同事講一整排跟他們無關的號碼與版本，是人工事後
+刪掉的。**讀者是誰決定了報告寫什麼**——而那一步指名的目錄與腳本，在這支 skill 被單獨帶走
+的環境裡一個都不存在。
+
 **送出去之前必須等待使用者確認。** 沒有卡關的項目時保留那一格，不寫「無」。
 
 **目的地不寫在這支 skill 裡。** 送到哪、什麼形狀、誰按下送出，問
@@ -63,13 +66,7 @@ workflow authority。這條有兩個方向，兩個都要擋：
 4. Merge and deduplicate 昨日，並做 plan vs actual comparison——比對來源是
    `{base_dir}/standups/` 底下今天以前最新的那一份，而且**每次都說出拿哪一份比的**。
    同一張單描述與留言衝突時留言勝出，且把落差說出來。
-5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR，以及
-   `issues/` 底下還沒收斂的單。後者用
-   `bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check`
-   （report-only，不搬任何東西）：位置與狀態對不上的會被列出來，併入今日格 candidate。
-   `{單樹根}/OPEN.md` 是同一次重算產出的人看版本，非 release 的單都在那裡，帶著它在哪一格、
-   上次動過多久、是不是自己的單。沒有狀態檔又沒有解析器可問的目錄不參與判定，但數量會
-   印出來——轉述那個數字，不要當成已檢查過。
+5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR。
 6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
    `standup-planning-flow.md` 的准入判準——「我在等誰」加上那張措辭表；自己動得了的是待辦
    不是卡關。
