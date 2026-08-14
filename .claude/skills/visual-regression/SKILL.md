@@ -11,7 +11,8 @@ description: |
   要用截圖前後比對確認畫面沒跑版。例如「跑 visual regression」「檢查畫面」
   「有沒有跑版」「畫面壞了嗎」。
 
-  不用於：單元測試（走 unit-test）、效能或 Core Web Vitals（走該公司自己的 CWV 調查 skill）。
+  不用於：單元測試（那是「這一類工作怎麼算 done」的一部分，走 swe-knowledge）、
+  效能或 Core Web Vitals（走該公司自己的 CWV 調查 skill）。
 metadata:
   requires:
     - skill: driving-work-to-done

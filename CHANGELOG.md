@@ -1,5 +1,30 @@
 # Changelog
 
+## [4.51.2] - 2026-08-14
+
+### Changed
+
+- 740c28b: 清掉這棵樹上沒有任何東西指名、而且指向的目標已經不存在的檔案。最大的一塊不是空殼，是一整個
+  測試套件。
+  `tests/` 底下 19 個檔、3,333 行 pytest，**連 collect 都過不了**——它 import
+  `scripts/lib/confirm_dp420_self_iteration_certification.py`，而 `scripts/lib/` 是脊椎之前那一層，
+  DP-462 拆掉了。同一批測試指名的 `script_layer_audit.py`、`parse_task_md.py`、
+  `release_closeout_helpers.py` 也一樣。**沒有任何流程會去跑它**：`run-selftests.sh` 只找
+  `*-selftest.sh`，閘不跑 pytest，`mise.toml` 裝了 pytest 但沒有任何 task 叫它。所以它壞了多久
+  沒有人知道，而 `check-spine-legacy-layers.sh` 存在的整個理由就是斷言舊層沒有在撐著東西。
+  跟著走的是它留下的宣告：`pyproject.toml` 的 `[tool.pytest.ini_options]`、`mise.toml` 的
+  `pipx:pytest`。`pnpm-workspace.yaml` 另外列著 `scripts/e2e` 與 `scripts/mockoon`，而根目錄
+  根本沒有 `scripts/`。
+  **兩條路標寫在 `description` 裡，那是路由的權威**：`visual-regression` 說「單元測試走
+  `unit-test`」、`kibana-logs` 說「use `systematic-debugging` for local issues」，兩支 skill 都
+  不存在。前者是 `scope: standalone`，那句話會跟著 template repo 出去、也會跟著單支上傳到
+  claude.ai 與 Cowork——在那裡更沒有 `unit-test`。改法是指到真的在管那件事的地方
+  （`swe-knowledge` 與 `web-dev-env`），不是把句子刪掉。
+  還有 7 個 `.claude/skills/` 底下沒有 SKILL.md 的目錄（737K），裡面每一個檔案都是 `.pyc`，
+  版控裡 0 個檔案——被刪掉的 skill 留下的。同步預演每次為它們印 7 行「no SKILL.md, skipped」。
+  `pyproject.toml` 本身留著：它宣告的 `PyYAML>=6.0.2` 是 `scan-template-leaks.sh` 真的需要的，
+  **拿掉宣告會讓一個真的相依從有宣告變成沒宣告，比留著爛設定糟。**
+
 ## [4.51.1] - 2026-08-14
 
 ### Changed
