@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Bootstrap Polaris-owned root runtime tools and package-local assets.
+# 拿到這份東西之後的第一個命令：把每一支 skill 宣告的工具都裝齊。入口是 `mise run init`。
 
 set -euo pipefail
 
 # POLARIS_SAFE_CLI_INTROSPECTION_BEGIN
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   command printf '%s\n' 'Usage:'
-  command printf '%s\n' '  scripts/polaris-bootstrap.sh [--profile core|runtime|delivery|full] [--dry-run]'
-  command printf '%s\n' '  scripts/polaris-bootstrap.sh --help'
+  command printf '%s\n' '  scripts/polaris-init.sh [--profile core|runtime|delivery|full] [--dry-run]'
+  command printf '%s\n' '  scripts/polaris-init.sh --help'
   command printf '%s\n' ''
   command printf '%s\n' 'Bootstraps Polaris framework runtime dependencies from repo-owned contracts.'
   exit 0
@@ -17,8 +17,8 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/polaris-bootstrap.sh [--profile core|runtime|delivery|full] [--dry-run]
-  scripts/polaris-bootstrap.sh --help
+  scripts/polaris-init.sh [--profile core|runtime|delivery|full] [--dry-run]
+  scripts/polaris-init.sh --help
 
 Bootstraps Polaris framework runtime dependencies from repo-owned contracts:
   - mise.toml for managed runtimes and native tools
@@ -40,17 +40,17 @@ source "$SCRIPT_DIR/lib/tool-resolution.sh"
 MAIN_CHECKOUT_RESOLVER="resolve_main_checkout"
 
 log() {
-  printf '[polaris-bootstrap] %s\n' "$*"
+  printf '[polaris-init] %s\n' "$*"
 }
 
 blocked_env() {
   local blocker_class="$1"
   local message="$2"
-  printf '[polaris-bootstrap] BLOCKED_ENV blocker_class=%s %s\n' "$blocker_class" "$message" >&2
+  printf '[polaris-init] BLOCKED_ENV blocker_class=%s %s\n' "$blocker_class" "$message" >&2
 }
 
 die() {
-  printf '[polaris-bootstrap] ERROR: %s\n' "$*" >&2
+  printf '[polaris-init] ERROR: %s\n' "$*" >&2
   exit 1
 }
 
@@ -79,14 +79,14 @@ resolve_toolchain_root() {
 
 print_mise_repair_hints() {
   cat >&2 <<'EOF'
-[polaris-bootstrap] mise is required before bootstrap can install managed tools.
+[polaris-init] mise is required before init can install managed tools.
 
 Repair:
   1. Install mise using the official installation path for your platform:
      https://mise.jdx.dev/getting-started.html
   2. Re-open your shell so `mise` is on PATH.
   3. Re-run:
-     bash scripts/polaris-bootstrap.sh
+     mise run init
 
 Notes:
   - Homebrew is optional, not a Polaris prerequisite.
@@ -201,12 +201,14 @@ resolve_installer() {
       # 不填的意思是「跟工具同名的那個安裝項」——推得出來的不必寫死。但它要被驗過：
       # 一個推出來、然後沒有人裝的名字，跟沒有宣告一樣。
       if mise_declares_key "$name"; then printf 'mise|%s\n' "$name"; return 0; fi
-      printf '%s\n' "mise.toml 的 [tools] 沒有同名的鍵，而宣告也沒說是誰裝它——補一行 install:"
+      printf '%s\n' "mise.toml 的 [tools] 沒有同名的鍵，而宣告也沒說是誰裝它。要嘛補一行 install: 指出安裝者，要嘛先登記：mise use ${name}@<版本>"
       return 1 ;;
     mise:*)
       key="${install#mise:}"
       if mise_declares_key "$key"; then printf 'mise|%s\n' "$key"; return 0; fi
-      printf '%s\n' "說它由 mise 的 ${key} 裝，而 mise.toml 的 [tools] 沒有那個鍵"
+      # 印出要跑的那一條，不是只說「沒有那個鍵」。這是「加了新工具要先登記」唯一不會被
+      # 跳過的表面——它只在該知道的那一刻出現，而且它是紅的。
+      printf '%s\n' "還沒有人登記它。先跑：mise use ${key}@<版本>　然後重跑 mise run init"
       return 1 ;;
     pnpm:*)
       dir="${install#pnpm:}"
@@ -236,7 +238,7 @@ plan_declared_tools() {
   # Side effects: sets PNPM_DIRS / NEED_UV / VERIFY_SPECS; exits 1 naming any tool nobody installs.
   #
   # 這一步在裝任何東西之前跑。一個說「這裡裝得起來」而沒有人裝的宣告，會讓 doctor 指著
-  # `mise run bootstrap`，而這條命令什麼都不會做——DP-540 修掉的是同一個形狀的上一層。
+  # `mise run init`，而這條命令什麼都不會做——DP-540 修掉的是同一個形狀的上一層。
   local reader="$SCRIPT_DIR/lib/skill_tools.py"
   local skills_root="$TOOLCHAIN_ROOT/.claude/skills"
   local listing status=0 name provision fix probe install wanted resolved unresolved=0
@@ -260,7 +262,7 @@ plan_declared_tools() {
     [[ "$probe" == "-" ]] && probe=""
     if ! resolved="$(resolve_installer "$name" "$install")"; then
       unresolved=$((unresolved + 1))
-      printf '[polaris-bootstrap] 沒有人裝 %s：%s（要它的：%s）\n' "$name" "$resolved" "$wanted" >&2
+      printf '[polaris-init] 沒有人裝 %s：%s（要它的：%s）\n' "$name" "$resolved" "$wanted" >&2
       continue
     fi
     case "${resolved%%|*}" in
@@ -271,7 +273,7 @@ plan_declared_tools() {
   done <<< "$listing"
   PNPM_DIRS="$(printf '%s' "$PNPM_DIRS" | sort -u)"
   if [[ "$unresolved" != "0" ]]; then
-    blocked_env "declared-uninstallable" "有 ${unresolved} 個宣告說「這裡裝得起來」，而沒有任何一步會裝它。"
+    blocked_env "declared-uninstallable" "有 ${unresolved} 個宣告說「這裡裝得起來」，而沒有任何一步會裝它。登記完重跑 mise run init。"
     return 1
   fi
   log "宣告解析完成：$(printf '%s\n' "$VERIFY_SPECS" | grep -c .) 個由框架提供的工具都指得出安裝者"
@@ -298,7 +300,7 @@ verify_declared_tools() {
       POLARIS_WORKSPACE_ROOT="$TOOLCHAIN_ROOT" polaris_require_mise_tool "$name" >/dev/null 2>&1 && continue
     fi
     missing=$((missing + 1))
-    printf '[polaris-bootstrap] 裝完之後 %s 還是不在（%s）\n' "$name" "$resolved" >&2
+    printf '[polaris-init] 裝完之後 %s 還是不在（%s）\n' "$name" "$resolved" >&2
   done <<< "$VERIFY_SPECS"
   if [[ "$missing" != "0" ]]; then
     blocked_env "declared-still-missing" "${missing} 個由框架提供的工具在安裝之後仍然不在。"
@@ -319,7 +321,7 @@ bootstrap_runtime() {
   require_managed_tool pnpm "pnpm" || return 1
   # DP-518 之前這幾行走 `scripts/polaris-toolchain.sh run <capability>`，而那支 runner 的
   # parser（scripts/lib/polaris_toolchain_manifest.py）在 51b8208c 那次搬家被刪掉、沒有跟著
-  # 搬。所以 `mise run bootstrap -- --profile runtime` 從那天起就是壞的，而沒有東西會紅。
+  # 搬。所以 `mise run init -- --profile runtime`（當時叫 bootstrap）從那天起就是壞的，而沒有東西會紅。
   #
   # docs-manager 不從宣告推出來，因為它不是任何一支 skill 的工具——它是這個 repo 的站台。
   run_managed pnpm --dir docs-manager install
@@ -398,4 +400,4 @@ case "$PROFILE" in
     ;;
 esac
 
-log "bootstrap complete"
+log "都齊了：每一支 skill 宣告的工具都裝好而且驗過"

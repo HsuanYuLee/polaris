@@ -1,0 +1,11 @@
+[project]
+name = "polaris-framework-root"
+version = "0.0.0"
+description = "Root Python dependency contract for Polaris framework scripts."
+requires-python = ">=3.12"
+dependencies = [
+  "PyYAML>=6.0.2,<7",
+]
+
+[tool.uv]
+package = false

@@ -197,7 +197,7 @@ check_declared() {
   if [[ "$status" != "0" ]]; then
     fail "有宣告不合法：$(printf '%s' "$listing" | grep '^SKILL-TOOLS' || true)"
   fi
-  # install 這一欄是給安裝那一面讀的（polaris-bootstrap.sh 用它決定跑哪一步）；
+  # install 這一欄是給安裝那一面讀的（polaris-init.sh 用它決定跑哪一步）；
   # 這裡只需要接住它，不接的話它會被讀成 wanted_by。
   local name provision fix probe install wanted
   while IFS=$'\t' read -r name provision fix probe install wanted; do

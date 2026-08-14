@@ -49,7 +49,7 @@ polaris_classify_tool() {
       [[ "$declared_fix" == "-" ]] && declared_fix=""
       if [[ "$declared_provision" == "framework" ]]; then
         polaris_tool_attr_json "$tool" framework root_mise "mise exec -- $tool --version" "N/A" \
-          core true "${declared_fix:-mise run bootstrap}"
+          core true "${declared_fix:-mise run init}"
       else
         polaris_tool_attr_json "$tool" user manual_user_action "$tool --version" "N/A" \
           delivery false "$declared_fix"

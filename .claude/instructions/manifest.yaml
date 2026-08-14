@@ -1,0 +1,42 @@
+version: 1
+source_of_truth: ".claude/instructions/manifest.yaml"
+manual_edit_policy: "Generated runtime targets must not be edited directly."
+targets:
+  claude:
+    path: "CLAUDE.md"
+    runtime: "claude"
+    ownership: "workspace-owned"
+    line_budget: 200
+    includes:
+      - ".claude/instructions/core/bootstrap.md"
+      - ".claude/instructions/runtime/claude.md"
+  agents:
+    path: "AGENTS.md"
+    runtime: "agent-neutral"
+    ownership: "workspace-owned"
+    includes:
+      - ".claude/instructions/core/bootstrap.md"
+      - ".claude/instructions/runtime/codex.md"
+  codex:
+    path: ".codex/AGENTS.md"
+    runtime: "codex"
+    ownership: "workspace-owned-local-generated"
+    includes:
+      - ".claude/instructions/core/bootstrap.md"
+      - ".claude/instructions/runtime/codex.md"
+  copilot:
+    path: ".github/copilot-instructions.md"
+    runtime: "copilot"
+    ownership: "workspace-owned"
+    includes:
+      - ".claude/instructions/core/bootstrap.md"
+      - ".claude/instructions/runtime/copilot.md"
+scope_policy:
+  global_targets_must_not_inline:
+    - ".claude/rules/{company}/**"
+    - "{company}/polaris-config/**"
+    - "{company}/polaris-config/{project}/handbook/**"
+  universal_rules_reference_only: ".claude/rules/*.md"
+config_root:
+  canonical: "{company}/polaris-config/"
+  legacy_root_removed: true

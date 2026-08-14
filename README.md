@@ -120,18 +120,34 @@ bash .claude/instructions/compile.sh --target claude
 改完沒重生會被釋出尾段的閘擋下來——那一道守的是「之後每個 session 都靜默讀到過期的那一
 份」。
 
-## 這台機器要有什麼
+## 拿到這份東西之後
 
-工具由 [mise](https://mise.jdx.dev/) 管，宣告在 `mise.toml`（Node、pnpm、Python、
-ripgrep、jq）。兩個公開任務就是全部的入口：
+**clone 完跑這一行，每一支 skill 需要的工具就齊了**：
 
 ```bash
-mise run bootstrap                 # 裝起來
-mise run doctor                    # 檢查
+mise trust && mise run init
+```
+
+`mise trust` 是 [mise](https://mise.jdx.dev/) 自己要的——一份沒被信任過的設定檔，它會直接
+拒絕讀。`mise run init` 之後的每一步都由**各支 skill 自己的宣告**推出來：裝 `mise.toml`
+`[tools]` 裡的東西、裝各 package、`uv sync`，最後逐一驗它們真的在。**任何一段沒跑到就是
+非 0**，不會裝了一半回報完成。
+
+想知道現在缺什麼：
+
+```bash
+mise run doctor
 ```
 
 **工具不存在時停下來說出修法，不要偷偷安裝**——禁止 `brew install`、`npm -g`、
 `pip install`、`curl | sh`，以及任何往 `PATH` 上丟二進位檔的動作。
+
+### 加了新工具的時候
+
+一支 skill 需要什麼，寫在**它自己的 frontmatter**（格式與四種 `install` 寫法見
+`.claude/skills/framework-release/scripts/lib/skill_tools.py` 的檔頭）。新的安裝項要先登記
+回 `mise.toml` 再重跑一次 `mise run init`——**而你不需要記得這件事**：`init` 遇到一個沒有人
+裝的宣告會停下來，並且把要跑的那一條 `mise use` 印給你。
 
 接上 git hook（過不了閘的 commit 從來不存在）：
 

@@ -32,6 +32,15 @@ tools:
 不在。這種就自己帶一條問法（`python3 -c "import yaml"`），回 0 就算在。
 
 讀的人拿到的是聚合過的清單，所以「這台機器缺什麼」問一次就有答案，不必逐支翻。
+
+## 加了一筆宣告之後
+
+**新的安裝項要先登記回 `mise.toml`，再重跑一次 `mise run init`。** 登記用 mise 自己的命令
+（`mise use <鍵>@<版本>`），這裡不發明第二套——版號是這個環境的決定，不是宣告的一部分，
+所以那一步由人點頭。
+
+這條準則不另外寫一份散文放在別處：`mise run init` 遇到一個沒有人登記的宣告會停下來，並且
+把要跑的那一條印出來。**那是唯一不會被跳過的表面**——它只在該知道的那一刻出現，而且它是紅的。
 """
 
 import os
@@ -42,7 +51,7 @@ import sys
 PROVISIONS = ("framework", "manual")
 
 #: `provision: framework` 缺了的時候的修法。宣告端不必每支重寫一次。
-FRAMEWORK_FIX = "mise run bootstrap"
+FRAMEWORK_FIX = "mise run init"
 
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\s*$", re.DOTALL | re.MULTILINE)
 # 頂層鍵：行首沒有空白。縮排在別的鍵底下的不算宣告（跟 skill_scope.py 同一條規矩）。

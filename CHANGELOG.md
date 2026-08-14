@@ -1,5 +1,41 @@
 # Changelog
 
+## [4.54.0] - 2026-08-14
+
+### Changed
+
+- 03c22b6: DP-545：clone 下來，跑那一行，東西就齊了
+  README 現在只寫一行：
+  ```bash
+  mise trust && mise run init
+  ```
+  之後的每一步都由**各支 skill 自己的宣告**推出來——裝 `mise.toml` `[tools]` 裡的東西、裝各
+  package、`uv sync`，最後逐一驗它們真的在。`bootstrap` 這個名字退場（`[tasks.bootstrap]` →
+  `[tasks.init]`，`polaris-bootstrap.sh` → `polaris-init.sh`），因為同一件事有兩個名字就會漂。
+  **入口本來想做成 `mise install` ＋ `[hooks] postinstall`，量測把它擋掉了。** hook 可行、實驗
+  旗標寫在專案自己的 `mise.toml` 就夠、而且沒有遞迴——但：
+  ```
+  hook 沒啟用   → mise install rc=0（只有 WARN）
+  hook 自己失敗 → mise install rc=0（只有 WARN）
+  ```
+  **離場碼在只做了一半的時候照樣是 0。** 那正是這條 DP 線一路在殺的形狀，所以入口改成
+  `mise run init`：離場碼就是 init 自己的，不需要實驗功能，也沒有說謊的綠燈。順帶量到的：
+  一份沒被信任過的 clone 跑任何 mise 命令都會先撞 `Config files ... are not trusted`，所以
+  `mise trust` 那半行躲不掉——它跟入口取什麼名字無關。
+  **那份契約現在跟著模板一起走。** `sync-to-polaris.sh` 多帶 `mise.toml`、`pyproject.toml`、
+  `uv.lock` 三個頂層檔案與整個 `.claude/instructions/`。少了它們，一個 clone 了模板的人跑
+  `init` 會死在 `runtime instruction compiler missing`，跨過去也會對七個 `provision: framework`
+  的宣告全部回「`mise.toml` 的 `[tools]` 沒有那個鍵」——2026-08-14 在 `~/polaris` 實測過那個
+  死法。DP-544 記的是同一件事，併進來並關閉。
+  **「加了新工具要先登記」不再是一份要人先讀的散文。** `init` 遇到一個沒有人登記的安裝項時
+  停下來，並且把要跑的那一條印出來：
+  ```
+  還沒有人登記它。先跑：mise use aqua:foo/bar@<版本>　然後重跑 mise run init
+  ```
+  登記用 mise 自己的 `mise use`，不發明第二套——版號是這個環境的決定，不是宣告的一部分，所以
+  那一步由人點頭。準則的散文只有一份，寫在 `lib/skill_tools.py` 的檔頭，也就是加宣告的人當下
+  一定會讀到的那一段。
+
 ## [4.53.0] - 2026-08-14
 
 ### Changed

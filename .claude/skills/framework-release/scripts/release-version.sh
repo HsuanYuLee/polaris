@@ -262,7 +262,7 @@ run_changeset_version() {
       return
     fi
   fi
-  echo "POLARIS_TOOL_MISSING:changeset (declared devDependency @changesets/cli is not installed in this checkout/worktree; run 'mise run bootstrap' from the Polaris workspace root, or run from a worktree set that has node_modules/.bin/changeset)" >&2
+  echo "POLARIS_TOOL_MISSING:changeset (declared devDependency @changesets/cli is not installed in this checkout/worktree; run 'mise run init' from the Polaris workspace root, or run from a worktree set that has node_modules/.bin/changeset)" >&2
   return 1
 }
 

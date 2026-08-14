@@ -19,7 +19,7 @@ Polaris Specs 是本機閱讀介面，用來瀏覽 design plans、ticket specs�
 Polaris 的 docs viewer、Mockoon fixtures 與 Playwright verification 是 required runtime tools。初始化或修復環境時走 mise 任務：
 
 ```bash
-mise run bootstrap -- --profile runtime
+mise run init -- --profile runtime
 mise run doctor -- --profile runtime
 ```
 

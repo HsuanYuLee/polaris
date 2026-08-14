@@ -483,6 +483,16 @@ copy_file "$INSTANCE_DIR/.claude/settings.local.json.example" \
 copy_file "$INSTANCE_DIR/.claude/settings.local.json.sub-repo-example" \
           "$POLARIS_DIR/.claude/settings.local.json.sub-repo-example" "settings.local.json.sub-repo-example"
 
+echo "Runtime instruction sources..."
+# 生成 CLAUDE.md / AGENTS.md 那四個常駐介面的來源與編譯器。`mise run init` 第一步就是叫
+# compile.sh；它不在的話，模板那邊的 init 死在比工具宣告更早的地方（2026-08-14 實測）。
+while IFS= read -r src_file; do
+  rel_path="${src_file#"$INSTANCE_DIR"/}"
+  target_path="$POLARIS_DIR/$rel_path"
+  mkdir -p "$(dirname "$target_path")"
+  copy_file "$src_file" "$target_path" "$rel_path"
+done < <(find "$INSTANCE_DIR/.claude/instructions" -type f -not -path "*/node_modules/*")
+
 # ── Step 4b: Sync Codex generated outputs / runtime alias ──────────
 
 echo "Codex compatibility..."
@@ -514,6 +524,12 @@ TOP_LEVEL_FILES=(
   "package.json"
   "pnpm-workspace.yaml"
   "pnpm-lock.yaml"
+  # 下面三個是「哪些工具、由誰裝、哪一版」那份契約。少了它們，一個 clone 了模板的人跑
+  # `mise run init` 會對每一個 provision: framework 的宣告回「mise.toml 的 [tools] 沒有
+  # 那個鍵」——而 README 上寫著那一行就會齊。2026-08-14 實測過那個死法。
+  "mise.toml"
+  "pyproject.toml"
+  "uv.lock"
 )
 
 # ── Step 6: Sync _template/ ───────────────────────────────────────
