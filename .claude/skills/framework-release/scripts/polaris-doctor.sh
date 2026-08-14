@@ -5,7 +5,6 @@ set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT_DIR="$WORKSPACE_ROOT/scripts"
-MISE_CHECK="$SCRIPT_DIR/doctor-mise-check.sh"
 PROFILE="core"
 DRY_RUN=false
 SIMULATE_NO_VSCODE_PATH=false
@@ -18,14 +17,17 @@ source "$SCRIPT_DIR/lib/tool-resolution.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  .claude/skills/codex-mcp-setup/scripts/polaris-doctor.sh [--profile core|runtime|delivery|full] [--dry-run] [--simulate-no-vscode-path]
-  .claude/skills/codex-mcp-setup/scripts/polaris-doctor.sh --help
+  .claude/skills/framework-release/scripts/polaris-doctor.sh [--profile core|runtime|delivery|full] [--dry-run] [--simulate-no-vscode-path]
+  .claude/skills/framework-release/scripts/polaris-doctor.sh --help
 
 Profiles:
-  core      bash, git, Python stdlib, mise-managed rg and jq
-  runtime   core + Node, pnpm, package-local deps, Playwright cache, Mockoon
-  delivery  core + gh binary and auth
+  core      這一層的地板：bash、git、Python stdlib、mise 本身。它們要先在，宣告才讀得到
+  runtime   core + 宣告的工具 + Playwright cache、Mockoon runner
+  delivery  core + 宣告的工具
   full      runtime + delivery
+
+「宣告的工具」不寫在這支腳本裡——它逐支讀 SKILL.md 的 tools:，所以新增一支宣告了新工具
+的 skill 不需要編輯這裡。宣告的形狀見 lib/skill_tools.py。
 EOF
 }
 
@@ -128,31 +130,6 @@ check_command() {
   fi
 }
 
-check_mise_tool() {
-  local command_name="$1"
-  local label="$2"
-  local output=""
-  local status=""
-  local blocker_class=""
-  local tool_path=""
-  if [[ "$DRY_RUN" == "true" ]]; then
-    info "would check mise-managed $label: $command_name"
-    return 0
-  fi
-  if [[ ! -x "$MISE_CHECK" ]]; then
-    fail "mise check helper missing: $MISE_CHECK"
-    return 0
-  fi
-  if tool_path="$(POLARIS_WORKSPACE_ROOT="$TOOLCHAIN_ROOT" polaris_require_mise_tool "$command_name" 2>/dev/null)"; then
-    pass "mise-managed $label available: $command_name${tool_path:+ at $tool_path}"
-  else
-    if ! polaris_find_mise >/dev/null 2>&1; then
-      blocked_env "mise-missing" "mise missing; cannot verify managed $label ($command_name)"
-    else
-      blocked_env "mise-managed:${command_name}" "mise-managed $label missing: $command_name"
-    fi
-  fi
-}
 
 check_path() {
   local path="$1"
@@ -185,41 +162,113 @@ run_toolchain_doctor() {
   fi
 }
 
+# core 是地板：這幾樣要先在，宣告才讀得到（讀宣告本身就要 python3）。它們刻意不從
+# SKILL.md 推——一個「還沒讀到宣告」的階段需要一組先驗的東西，而那組東西不會長。
 check_core() {
   echo "[core]"
   check_command bash "bash"
   check_command git "git"
   check_command python3 "Python stdlib"
   check_command mise "mise runtime manager" "mise-missing"
-  check_mise_tool rg "ripgrep"
-  check_mise_tool jq "jq"
+}
+
+# 逐項回答每一個被宣告的工具。清單不寫在這裡——它從每一支 skill 自己的 frontmatter 讀，
+# 所以新增一支宣告了新工具的 skill 不需要編輯這支腳本。
+check_declared() {
+  echo "[declared]"
+  local reader="$SCRIPT_DIR/lib/skill_tools.py"
+  # TOOLCHAIN_ROOT 是工作區根，已經解過了；再自己往上爬會多算一層而且靜靜地算錯。
+  local skills_root="$TOOLCHAIN_ROOT/.claude/skills"
+  local listing="" status=0
+  if [[ "$DRY_RUN" == "true" ]]; then
+    info "would check every tool declared by a skill"
+    return 0
+  fi
+  if [[ ! -f "$reader" ]]; then
+    fail "宣告讀取器不在：$reader"
+    return 0
+  fi
+  listing="$("${PYTHON_BIN:-python3}" "$reader" list "$(cd "$skills_root" && pwd)" 2>&1)" || status=$?
+  if [[ "$status" == "2" || -z "$listing" ]]; then
+    # 讀不到宣告是第三態，不是「沒有工具要查」。說出來，不要靜靜地跳過。
+    fail "讀不到任何工具宣告（${listing}）"
+    return 0
+  fi
+  if [[ "$status" != "0" ]]; then
+    fail "有宣告不合法：$(printf '%s' "$listing" | grep '^SKILL-TOOLS' || true)"
+  fi
+  local name provision fix probe wanted
+  while IFS=$'\t' read -r name provision fix probe wanted; do
+    [[ -n "$name" ]] || continue
+    [[ "$name" == SKILL-TOOLS* ]] && continue
+    [[ "$fix" == "-" ]] && fix=""
+    [[ "$probe" == "-" ]] && probe=""
+    check_declared_tool "$name" "$provision" "$fix" "$probe" "$wanted"
+  done <<< "$listing"
+}
+
+# 一個被宣告的工具的三種結果：在、不在但這裡裝得起來、不在且只能人補。
+check_declared_tool() {
+  local name="$1" provision="$2" fix="$3" probe="$4" wanted="$5"
+  local where=""
+  # 自己帶了問法的，就問它自己的問法——不是每一個相依都是 PATH 上的一個命令。
+  if [[ -n "$probe" ]]; then
+    if bash -c "$probe" >/dev/null 2>&1; then
+      pass "$name 在（自己帶的問法：${probe}；要它的：${wanted}）"
+    else
+      blocked_env "declared-probe:${name}" "$name 不在——${fix}（要它的：${wanted}）"
+    fi
+    return 0
+  fi
+  if [[ "$provision" == "framework" ]]; then
+    if where="$(polaris_require_mise_tool "$name" 2>/dev/null)"; then
+      pass "$name 由 mise 提供：${where}（要它的：${wanted}）"
+    elif where="$(toolchain_provides "$name")"; then
+      pass "$name 由 toolchain package 提供：${where}（要它的：${wanted}）"
+    else
+      blocked_env "declared-missing:${name}" "$name 不在，但這裡裝得起來——${fix}（要它的：${wanted}）"
+    fi
+    return 0
+  fi
+  if where="$(command -v "$name" 2>/dev/null)"; then
+    pass "$name 在：${where}（人補的，要它的：${wanted}）"
+  else
+    blocked_env "declared-manual:${name}" "$name 不在，而且框架裝不了——${fix}（要它的：${wanted}）"
+  fi
+}
+
+# toolchain package 裝的東西不由 mise 管，問它自己的 node_modules/.bin。
+toolchain_provides() {
+  local name="$1"
+  local candidate="$TOOLCHAIN_ROOT/tools/polaris-toolchain/node_modules/.bin/$name"
+  [[ -x "$candidate" ]] || return 1
+  local dir
+  dir="$(cd "$(dirname "$candidate")" && pwd)"
+  printf '%s/%s\n' "$dir" "$name"
 }
 
 check_runtime() {
   echo "[runtime]"
-  check_mise_tool node "Node"
-  check_mise_tool pnpm "pnpm"
   check_path "$PLAYWRIGHT_BROWSERS_PATH" "Playwright browser cache"
   run_toolchain_doctor fixtures.mockoon mockoon:doctor
   run_toolchain_doctor browser.playwright playwright:doctor
 }
 
+# 「gh 在不在」由宣告那一節問過了，這裡只問它答不出來的那一半：**登入了沒**。
+# 那正是 gh 被標成 provision: manual 的理由——二進位檔裝得起來，登入只有人做得到。
 check_delivery() {
   echo "[delivery]"
   if [[ "$DRY_RUN" == "true" ]]; then
-    check_command gh "GitHub CLI" "gh-missing"
     info "would check gh auth status"
     return 0
   fi
   if ! command -v gh >/dev/null 2>&1; then
-    blocked_env "gh-missing" "GitHub CLI command missing: gh"
+    info "gh 不在，登入無從問起——見上面 [declared] 那一行"
     return 0
   fi
   if polaris_require_delivery_tool gh >/dev/null 2>&1; then
-    pass "GitHub CLI command found: $(command -v gh)"
     pass "gh auth status passed"
   else
-    pass "GitHub CLI command found: $(command -v gh)"
     blocked_env "gh-unauth" "gh auth status failed or gh is not logged in"
   fi
 }
@@ -278,17 +327,21 @@ echo
 case "$PROFILE" in
   core)
     check_core
+    check_declared
     ;;
   runtime)
     check_core
+    check_declared
     check_runtime
     ;;
   delivery)
     check_core
+    check_declared
     check_delivery
     ;;
   full)
     check_core
+    check_declared
     check_runtime
     check_delivery
     ;;

@@ -11,6 +11,14 @@ metadata:
   author: Polaris
   version: 3.1.0
 scope: standalone
+tools:
+  - name: gh
+    provision: manual
+    why: 開 PR、讀 review、建 release、查 CI
+    fix: 裝 GitHub CLI 並完成 `gh auth login`——二進位檔裝得起來，登入只有人做得到
+  - name: jq
+    provision: framework
+    why: 解析 API 回應的 JSON
 ---
 
 # learning

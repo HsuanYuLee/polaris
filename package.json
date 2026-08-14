@@ -1,6 +1,6 @@
 {
   "name": "polaris-framework-workspace",
-  "version": "4.51.2",
+  "version": "4.52.0",
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "engines": {

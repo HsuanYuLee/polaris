@@ -15,6 +15,17 @@ metadata:
     - skill: review-pr
       why: 本支的輸入解析（resolve-pr-work-source.sh、pr-state-snapshot.sh）整個在它那裡；沒有它就拿不到要看的那個 PR
 scope: standalone
+tools:
+  - name: gh
+    provision: manual
+    why: 開 PR、讀 review、建 release、查 CI
+    fix: 裝 GitHub CLI 並完成 `gh auth login`——二進位檔裝得起來，登入只有人做得到
+  - name: jq
+    provision: framework
+    why: 解析 API 回應的 JSON
+  - name: rg
+    provision: framework
+    why: 掃樹用；這支的 selftest 缺了它就跑不完
 ---
 
 # Review Inbox — 批次 Review 待審 PR

@@ -98,8 +98,12 @@ polaris_require_mise_tool() {
     return 1
   fi
   root="$(polaris_workspace_root)"
-  tool_path="$(cd "$root" && "$mise_bin" exec -- bash -lc "command -v $(printf '%q' "$tool")" 2>/dev/null || true)"
-  if [[ -z "$tool_path" ]]; then
+  # 問 mise 自己「你管的那一份在哪」，不是問「PATH 上有沒有」。以前這裡跑
+  # `mise exec -- bash -lc "command -v X"`：`-l` 是 login shell，會重讀 profile，於是解到
+  # 系統那一份——對 mise 從未宣告過的工具（實測 curl）也回 rc=0，而回報的字樣是
+  # 「mise-managed X available」。那個綠在一台完全沒有 mise 管過它的機器上長得一模一樣。
+  tool_path="$(cd "$root" && "$mise_bin" which "$tool" 2>/dev/null || true)"
+  if [[ -z "$tool_path" || ! -x "$tool_path" ]]; then
     polaris_tool_missing "$tool" "$attr_json"
     return 1
   fi

@@ -1,5 +1,45 @@
 # Changelog
 
+## [4.52.0] - 2026-08-14
+
+### Changed
+
+- 5ed1bbb: DP-540：工具沒有人宣告，而檢查它的那個綠燈在說謊
+  `polaris_require_mise_tool` 印的是「mise-managed X available」，而它跑的是
+  `mise exec -- bash -lc "command -v X"`——`-l` 是 login shell，會重讀 profile，於是解到系統
+  那一份。實測 `polaris_require_mise_tool curl` 回 `/usr/bin/curl` rc=0，而 mise 從來沒有宣告
+  過 curl；`jq` 解到 `/usr/bin/jq`，而 `mise which jq` 指的是 `…/aqua-jqlang-jq/1.7.1/jq`。
+  所以那句話真正的意思是「X 在 PATH 上某個地方」，版本鎖是裝飾性的——**在一台從來沒有 mise
+  管過那個工具的機器上，它會給出一模一樣的綠**。改成問 `mise which`：不是它管的就紅。
+  同一件事的另一半是宣告在錯的層。24 支 skill 沒有任何一支說得出自己需要什麼；需求寫在
+  `lib/tool-attribution.sh` 一個寫死的 `case` 裡，而那支 lib 住在 `framework-release` 底下。
+  一支 `scope: standalone` 的 skill 被單獨上傳到 claude.ai 或 Cowork 時，**帶走的東西裡完全
+  沒有「我需要 gh」**，而那些環境沒有這個 repo 的任何一個檔案。
+  現在宣告寫在需要它的那一支 skill 自己的 frontmatter，跟 `scope:` 同一層：
+  ```yaml
+  tools:
+    - name: gh
+  provision: manual
+  why: 開 PR、讀 review
+  fix: 裝 GitHub CLI 並完成 gh auth login
+  ```
+  `provision` 只有兩個值，分界是**這個環境有沒有辦法自己把它裝起來**：`framework` 裝得起來
+  （修法固定是 `mise run bootstrap`），`manual` 裝不起來、要人，所以 `fix` 必填——一個說不出
+  修法的「要人補」跟沒有宣告一樣沒用。選填的 `probe` 給那些不是命令的相依：PyYAML 是函式庫，
+  `command -v PyYAML` 永遠答不出來，而答不出來會被讀成不在。
+  `lib/skill_tools.py` 是唯一讀它的地方，聚合成一份清單並記下是哪幾支要它。`polaris-doctor.sh`
+  的 `[declared]` 那一格從那份清單推出來，逐項回答在／裝得起來／只能人補；`tool-attribution.sh`
+  也改成先問宣告，只有 bootstrap 的地板（bash、git、python3、mise）與沒人宣告過的工具才落回
+  它自己的 `case`。**加一支宣告了新工具的 skill，doctor 不必被編輯就會問到它**——實測種一支
+  假 skill 宣告一個不存在的工具，doctor 直接指名它並說出是誰要的。
+  15 支 skill 補上宣告，聚出 9 個工具：`jq`／`node`／`npx`／`playwright`／`pnpm`／`rg` 是
+  framework，`gh`（登入只有人做得到）／`docker`（daemon 是宿主環境）／`PyYAML` 是 manual。
+  doctor 的 `core` 縮回真正的地板，`delivery` 縮回只查授權，`runtime` 不再寫死 node/pnpm。
+  掉出範圍、留給下一張的兩件事：`pyproject.toml` 宣告了 PyYAML 但沒有任何一步會去裝它
+  （bootstrap 與 doctor 都不碰 `pyproject.toml`／uv），所以它的 `fix` 現在誠實地說出這件事；
+  `tools/polaris-toolchain` 的 `playwright:verify` 仍指向 `../../scripts/e2e/playwright.config.ts`，
+  那個路徑在 DP-539 之後不存在。
+
 ## [4.51.2] - 2026-08-14
 
 ### Changed

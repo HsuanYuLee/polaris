@@ -20,6 +20,10 @@ metadata:
     - "列出存檔"
   version: 1.2.0
 scope: standalone
+tools:
+  - name: jq
+    provision: framework
+    why: 解析 API 回應的 JSON
 ---
 
 # Checkpoint

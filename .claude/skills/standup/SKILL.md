@@ -14,6 +14,10 @@ metadata:
     - skill: driving-work-to-done
       why: 收今日格 candidate 那一步真的跑它的 place-issues-by-state.sh --check；沒有它，「還沒收斂的單」那一整塊是空的
 scope: standalone
+tools:
+  - name: jq
+    provision: framework
+    why: 解析 API 回應的 JSON
 ---
 
 # Standup — 每日站立會議報告產生器

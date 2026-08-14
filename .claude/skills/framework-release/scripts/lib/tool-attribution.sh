@@ -24,11 +24,38 @@ print(json.dumps(values, ensure_ascii=False, sort_keys=True))
 PY
 }
 
+# 這支 lib 住在 {skills}/framework-release/scripts/lib/，往上三層就是 skills 根。
+polaris_skills_root() {
+  (cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)
+}
+
 polaris_classify_tool() {
   local tool="${1:-}"
   if [[ -z "$tool" ]]; then
     echo "POLARIS_TOOL_MISSING tool=<empty> owner=unknown install_authority=manual_user_action hint=tool name is required" >&2
     return 2
+  fi
+
+  # 先問宣告：一支 skill 需要什麼寫在它自己的 frontmatter 裡（見 lib/skill_tools.py）。
+  # 底下那個 case 是這份資料的舊家，現在只剩兩個角色：bootstrap 地板那幾樣（它們在讀得到
+  # 宣告之前就要在，所以不能由宣告提供），以及問不到宣告時的落點。
+  local declared_line declared_provision declared_fix
+  if [[ -f "${POLARIS_SKILL_TOOLS_READER:-}" || -f "${BASH_SOURCE[0]%/*}/skill_tools.py" ]]; then
+    declared_line="$("${PYTHON_BIN:-python3}" "${POLARIS_SKILL_TOOLS_READER:-${BASH_SOURCE[0]%/*}/skill_tools.py}" \
+      list "$(polaris_skills_root)" 2>/dev/null | awk -F'\t' -v t="$tool" '$1 == t {print; exit}')" || true
+    if [[ -n "$declared_line" ]]; then
+      declared_provision="$(printf '%s' "$declared_line" | cut -f2)"
+      declared_fix="$(printf '%s' "$declared_line" | cut -f3)"
+      [[ "$declared_fix" == "-" ]] && declared_fix=""
+      if [[ "$declared_provision" == "framework" ]]; then
+        polaris_tool_attr_json "$tool" framework root_mise "mise exec -- $tool --version" "N/A" \
+          core true "${declared_fix:-mise run bootstrap}"
+      else
+        polaris_tool_attr_json "$tool" user manual_user_action "$tool --version" "N/A" \
+          delivery false "$declared_fix"
+      fi
+      return 0
+    fi
   fi
 
   case "$tool" in

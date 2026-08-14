@@ -15,6 +15,11 @@ description: |
 metadata:
   version: 1.0.0
 scope: standalone
+tools:
+  - name: gh
+    provision: manual
+    why: 開 PR、讀 review、建 release、查 CI
+    fix: 裝 GitHub CLI 並完成 `gh auth login`——二進位檔裝得起來，登入只有人做得到
 ---
 
 # swe-knowledge — 軟體工程的 Definition of Done

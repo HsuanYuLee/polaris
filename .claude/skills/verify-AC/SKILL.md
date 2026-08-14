@@ -13,6 +13,10 @@ description: |
 metadata:
   version: 3.0.0
 scope: standalone
+tools:
+  - name: jq
+    provision: framework
+    why: selftest 讀 JSON 輸出裡的欄位
 ---
 
 # verify-ac — 閘二：執行 oracle
