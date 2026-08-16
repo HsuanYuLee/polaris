@@ -24,22 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--adapter",
         choices=("main_session_sequential", "constrained_code_reviewer"),
-        default="main_session_sequential",
-        help="Runtime adapter contract for the plan.",
-    )
-    parser.add_argument(
-        "--auto-adapter",
-        action="store_true",
-        help="Select adapter from candidate count, cluster size, raw diff lines, and quality evidence.",
-    )
-    parser.add_argument("--candidate-threshold", type=int, default=5, help="Auto adapter candidate-count threshold.")
-    parser.add_argument("--cluster-threshold", type=int, default=3, help="Auto adapter cluster-size threshold.")
-    parser.add_argument("--diff-lines-threshold", type=int, default=5000, help="Auto adapter total raw diff line threshold.")
-    parser.add_argument(
-        "--adapter-evidence",
-        choices=("missing", "failed", "passed"),
-        default="missing",
-        help="T7 dual-run quality evidence status for constrained_code_reviewer.",
+        default="constrained_code_reviewer",
+        help="Runtime adapter contract for the plan. The reviewer envelope is the default.",
     )
     return parser.parse_args()
 
@@ -83,6 +69,7 @@ def safe_int(value: Any, default: int = 0) -> int:
 
 
 def raw_diff_lines(candidate: dict[str, Any]) -> int:
+    """一張 PR 的 raw diff 行數，供 plan 的 summary 使用（不再參與 adapter 選擇）。"""
     for key in ("raw_diff_lines", "diff_lines", "changed_lines"):
         value = safe_int(candidate.get(key), 0)
         if value > 0:
@@ -90,77 +77,24 @@ def raw_diff_lines(candidate: dict[str, Any]) -> int:
     return safe_int(candidate.get("additions"), 0) + safe_int(candidate.get("deletions"), 0)
 
 
-def select_adapter(
-    candidates: list[dict[str, Any]],
-    requested_adapter: str,
-    auto_adapter: bool,
-    candidate_threshold: int,
-    cluster_threshold: int,
-    diff_lines_threshold: int,
-    adapter_evidence: str,
-) -> tuple[str, dict[str, Any]]:
-    candidate_count = len(candidates)
-    max_cluster_size = max([safe_int(item.get("cluster_size"), 1) for item in candidates] or [0])
-    total_raw_diff_lines = sum(raw_diff_lines(item) for item in candidates)
-    threshold_hit = (
-        candidate_count >= candidate_threshold
-        or max_cluster_size >= cluster_threshold
-        or total_raw_diff_lines > diff_lines_threshold
-    )
+def select_adapter(requested_adapter: str) -> tuple[str, dict[str, Any]]:
+    """決定 plan 要求哪一個 adapter，並說出為什麼不是 reviewer envelope。
 
-    if not auto_adapter:
-        return requested_adapter, {
-            "auto_adapter": False,
-            "selected_adapter": requested_adapter,
-            "fallback_reason": "",
-            "candidate_threshold": candidate_threshold,
-            "cluster_threshold": cluster_threshold,
-            "diff_lines_threshold": diff_lines_threshold,
-            "adapter_evidence": adapter_evidence,
-            "max_cluster_size": max_cluster_size,
-            "total_raw_diff_lines": total_raw_diff_lines,
-            "threshold_hit": threshold_hit,
-        }
+    以前這裡還有兩層閘：一份 T7 dual-run 證據，以及 candidate count / cluster size /
+    raw diff 行數三個門檻。兩層都是為了省 token 而設的，而它們擋掉的正好是 review 真正
+    有價值的那一段——把接線追到消費端、對照姊妹 repo、讀未改動的區域。那份 T7 證據屬
+    DP-113 的舊層、早就不存在，所以那道閘實際上是一個永遠傳 missing 的旗標。
 
-    if adapter_evidence != "passed":
-        return "main_session_sequential", {
-            "auto_adapter": True,
-            "selected_adapter": "main_session_sequential",
-            "fallback_reason": "T7 dual-run quality evidence is not passed.",
-            "candidate_threshold": candidate_threshold,
-            "cluster_threshold": cluster_threshold,
-            "diff_lines_threshold": diff_lines_threshold,
-            "adapter_evidence": adapter_evidence,
-            "max_cluster_size": max_cluster_size,
-            "total_raw_diff_lines": total_raw_diff_lines,
-            "threshold_hit": threshold_hit,
-        }
-
-    if threshold_hit:
-        return "constrained_code_reviewer", {
-            "auto_adapter": True,
-            "selected_adapter": "constrained_code_reviewer",
-            "fallback_reason": "",
-            "candidate_threshold": candidate_threshold,
-            "cluster_threshold": cluster_threshold,
-            "diff_lines_threshold": diff_lines_threshold,
-            "adapter_evidence": adapter_evidence,
-            "max_cluster_size": max_cluster_size,
-            "total_raw_diff_lines": total_raw_diff_lines,
-            "threshold_hit": threshold_hit,
-        }
-
-    return "main_session_sequential", {
-        "auto_adapter": True,
-        "selected_adapter": "main_session_sequential",
-        "fallback_reason": "Candidate count, cluster size, and raw diff lines are below auto-adapter thresholds.",
-        "candidate_threshold": candidate_threshold,
-        "cluster_threshold": cluster_threshold,
-        "diff_lines_threshold": diff_lines_threshold,
-        "adapter_evidence": adapter_evidence,
-        "max_cluster_size": max_cluster_size,
-        "total_raw_diff_lines": total_raw_diff_lines,
-        "threshold_hit": threshold_hit,
+    現在只剩一個問題：呼叫端指名了什麼。執行期沒有 reviewer adapter 時的降級由
+    orchestrator 做，而它必須把降級說出來——一個安靜的降級下一次就會被當成沒有降級。
+    """
+    if requested_adapter == "constrained_code_reviewer":
+        return requested_adapter, {"fallback_reason": ""}
+    return requested_adapter, {
+        "fallback_reason": (
+            "呼叫端以 --adapter main_session_sequential 指名主 session 執行；"
+            "reviewer envelope 讀 diff 以外檔案的範圍在主 session 不適用。"
+        )
     }
 
 
@@ -256,21 +190,14 @@ def build_plan(
     return {
         "schema": "review-inbox-runtime-plan.v1",
         "adapter_policy": {
-            "requested_adapter": "auto" if adapter_decision["auto_adapter"] else adapter,
+            "requested_adapter": adapter,
             "selected_adapter": adapter,
             "general_purpose_subagent_allowed": False,
             "allowed_adapters": ["main_session_sequential", "constrained_code_reviewer"],
             "fallback": "main_session_sequential",
             "fallback_reason": adapter_decision["fallback_reason"],
             "reason": "DP-094 AC1 showed general-purpose Agent envelope dominates per-PR token cost.",
-            "auto_adapter": adapter_decision["auto_adapter"],
-            "adapter_evidence": adapter_decision["adapter_evidence"],
-            "candidate_threshold": adapter_decision["candidate_threshold"],
-            "cluster_threshold": adapter_decision["cluster_threshold"],
-            "diff_lines_threshold": adapter_decision["diff_lines_threshold"],
-            "max_cluster_size": adapter_decision["max_cluster_size"],
-            "total_raw_diff_lines": adapter_decision["total_raw_diff_lines"],
-            "threshold_hit": adapter_decision["threshold_hit"],
+            "total_raw_diff_lines": sum(raw_diff_lines(item) for item in indexed),
         },
         "summary": {
             "candidate_count": len(indexed),
@@ -295,15 +222,7 @@ def main() -> int:
         return 2
 
     manifest = load_json_array(args.manifest)
-    adapter, adapter_decision = select_adapter(
-        candidates,
-        args.adapter,
-        args.auto_adapter,
-        args.candidate_threshold,
-        args.cluster_threshold,
-        args.diff_lines_threshold,
-        args.adapter_evidence,
-    )
+    adapter, adapter_decision = select_adapter(args.adapter)
     plan = build_plan(candidates, manifest, adapter, adapter_decision)
     payload = json.dumps(plan, ensure_ascii=False, indent=2)
     if args.out:

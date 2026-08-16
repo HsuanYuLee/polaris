@@ -76,12 +76,11 @@ Runtime plan contract：
 - `build-review-runtime-plan.py` 讀 annotated candidates + manifest，輸出
   `review-inbox-runtime-plan.v1`。
 - Plan 的 `adapter_policy.general_purpose_subagent_allowed` 必須是 `false`。
-- Plan step 的 `execution_mode` 預設為 `main_session_sequential`；只有 runtime 提供精簡
-  code-reviewer adapter 時才可改為 `constrained_code_reviewer`。
-- `--auto-adapter` 只能在 T7 dual-run quality evidence PASS 後選擇
-  `constrained_code_reviewer`。Evidence 未通過、缺失，或 candidate count / cluster size /
-  raw diff lines 未達 threshold 時，必須 fallback `main_session_sequential` 並寫入
-  `adapter_policy.fallback_reason`。
+- Plan step 的 `execution_mode` **預設為 `constrained_code_reviewer`**：蒐證放在 sub-agent
+  那一層，主 session 的 per-PR 預算才不會被 diff 灌爆。
+- 降級成 `main_session_sequential` 有兩種原因——呼叫端用 `--adapter` 指名，或執行期沒有精簡
+  code-reviewer adapter——**兩種都要寫進 `adapter_policy.fallback_reason`**。一個安靜的降級
+  下一次就會被當成沒有降級：主 session 那一層讀不到 diff 以外的檔案，而 review 看起來一樣完整。
 - Main session sequential fallback 執行時，完成一個 PR 後只保留 Completion Envelope summary
   在主 context，完整 findings 留在 Detail artifact。
 

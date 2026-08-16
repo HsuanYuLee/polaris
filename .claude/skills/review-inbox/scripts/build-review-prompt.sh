@@ -212,10 +212,18 @@ ${HANDBOOK_BLOCK}
 - 主 session raw diff output 對單 PR 累積上限為 100 行。超過後本 PR 維持 hunk-only / sample-only 到 review 完成。
 - 完整 diff（上面那條釘住 sha 的命令取回來的）優先存到 \`/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff\`，後續用 \`inspect-pr-section.sh\` 取 bounded section，不要用 Read 工具回讀完整 diff。
 - 在 constrained reviewer envelope 內，若那份 diff 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
-- 單檔 diff 小於 200 行只適用於 constrained reviewer envelope；大檔只 sample changed hunks。遇到 import/export、routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file 風險時，才讀相關檔案全文。
+- 單檔 diff 小於 200 行只適用於 constrained reviewer envelope；大檔只 sample changed hunks。
+- **在 constrained reviewer envelope 內，讀 diff 以外的檔案不需要先落進某一類風險。** 以前這裡
+  列著一張七類的白名單（import/export、routing、API contract、schema、test expectation、
+  security/auth、payment/booking），而那張表擋掉的正好是最有價值的一類：把元件的 prop 或事件
+  接線追到消費端、對照姊妹 repo 的同一段、讀**未改動**的區域確認註解與行為是否一致。判準改成
+  一句話——**追到答案為止**：一個結論需要哪幾個檔案才站得住，就讀哪幾個。讀了什麼要在 Detail
+  artifact 裡列出來。這一條只在 sub-agent 那一層成立，主 session 仍然受上面那條 100 行的限制。
 - ${CI_ROLLUP_RULE}
-- Existing comments metadata-only: inline comments 只抓 dedup metadata，不把完整 comment body 放進 context。使用：
+- Existing comments: **主 session 只拿 dedup metadata**，完整 comment body 不進主 context：
   \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
+  **constrained reviewer envelope 內讀得到完整的 comment body**——接續別人的意見往下推（「上面
+  那則講的其實也會一起解掉」）需要讀得懂別人在說什麼，而 80 個字讀不出來。
 - Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
 
 **Cluster / Model Tier Rules**：
@@ -224,6 +232,9 @@ ${HANDBOOK_BLOCK}
 - \`cluster_sibling\`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL:-N/A}。Lead summary = ${CLUSTER_LEAD_SUMMARY:-N/A}。
   先比較 sibling changed-file list / sampled diff 與 lead PR 的差異，再判斷 lead findings 是否仍適用。
   若行為、平台、API contract、測試範圍或風險不一致，或 lead summary 缺失且無法 confidence 判斷，將 result 設為 COMMENT 並在 summary 標記 needs_standard_review。
+  **「兩邊不一致」本身就是一個發現，不是只是一個要標記的例外。** 姊妹 repo 的同一段是這一邊的
+  對照組——兩端行為對不上的時候，先問哪一邊是對的，再把那個答案寫成意見；不要只回報「不一致所以
+  需要標準 review」。
 - \`standalone\`：正常 review。
 
 **執行步驟**：

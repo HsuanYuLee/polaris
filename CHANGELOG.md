@@ -1,5 +1,21 @@
 # Changelog
 
+## [4.56.0] - 2026-08-16
+
+### Changed
+
+- d6347c7: DP-547：review 的蒐證搬進 sub-agent envelope，追得下去
+  `review-inbox` 的 review 品質拉不到同事的水準，量到的原因不是缺規則，是既有的省 token 限制
+  正好擋掉高價值的那一類——把元件接線追到消費端、對照姊妹 repo、讀未改動的區域確認註解對不對
+  得上。
+  - `constrained_code_reviewer` 成為 runtime plan 的預設，拿掉那道指向 DP-113 舊層、永遠傳
+    missing 的 `--adapter-evidence` 前置與三個 threshold。降級要說出理由。
+  - reviewer envelope 內讀 diff 以外的檔案不再需要先落進七類風險白名單之一；既有 comment 的
+    完整 body 也讀得到。**主 session 的 per-PR 15K 目標與 100 行 raw diff 上限不變。**
+  - `dispatch-context-bundle.md` 補上真正要看的那幾件：可達性、dead code、註解／PR 描述與程式碼
+    是否一致、同 pattern 其他出現處、姊妹 repo 當對照組、測試是不是恆真。
+  - severity 標籤仍決定 submit event，但不再是 comment 正文的樣板。
+
 ## [4.55.2] - 2026-08-14
 
 ### Changed

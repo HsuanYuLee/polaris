@@ -86,13 +86,16 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
 7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
 8. 先用 `build-review-prompt.sh` 產生 review packets + manifest，再用
    `build-review-runtime-plan.py` 產生 runtime plan。Plan 必須禁止 general-purpose sub-agent；
-   若無 constrained code-reviewer adapter，主 session 依 sequential plan 執行。
+   `constrained_code_reviewer` 是預設——**蒐證放在 sub-agent 那一層**，主 session 的 per-PR
+   預算才不會被 diff 灌爆。沒有那個 adapter 而降級成 sequential 時，**要說出來**，不要靜靜
+   走完：主 session 那一層讀不到 diff 以外的檔案，而 review 看起來一樣完整。
 9. 依 batch size / runtime plan 執行 per-PR review packets；prompt 必須使用
    deterministic handbook resolver 列出已存在的 project handbook paths，空清單時明確標示
    no project handbook。Prompt 必須要求執行者先讀 changed-file names，再依 diff size
-   sampling；existing inline comments 只能以 metadata-only dedup，不把完整 comment body 放進
-   context。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
-   `small_fast` model class hint，不確定時標記 `needs_standard_review`。
+   sampling；existing inline comments 的完整 body 不進**主 session**，reviewer envelope 內
+   讀得到。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
+   `small_fast` model class hint，不確定時標記 `needs_standard_review`——但**兩端行為對不上
+   本身就是一個發現**，不是只是一個要標記的例外。
 10. 收斂結果，依來源模式發 Slack summary 或 thread replies。
 11. 跑 `measure-review-inbox-session.sh` 產生 telemetry JSON，並用
     `polaris-learnings.sh add --type telemetry --tag review-inbox` 寫入

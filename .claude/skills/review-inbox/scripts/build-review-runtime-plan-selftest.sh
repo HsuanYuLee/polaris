@@ -113,21 +113,8 @@ if steps[3]["general_purpose_subagent_allowed"] is not False:
     raise SystemExit("standalone also must disable general-purpose subagent")
 PY
 
-"$planner" --auto-adapter --adapter-evidence missing --manifest "$manifest" --out "$plan" < "$candidates"
-python3 - "$plan" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-plan = json.loads(Path(sys.argv[1]).read_text())
-policy = plan["adapter_policy"]
-if policy["selected_adapter"] != "main_session_sequential":
-    raise SystemExit(f"missing evidence must fallback: {policy}")
-if "T7 dual-run quality evidence" not in policy["fallback_reason"]:
-    raise SystemExit(f"missing fallback reason: {policy}")
-PY
-
-"$planner" --auto-adapter --adapter-evidence passed --manifest "$manifest" --out "$plan" < "$candidates"
+# 不帶任何旗標：reviewer envelope 就是預設，沒有東西要先 PASS
+"$planner" --manifest "$manifest" --out "$plan" < "$candidates"
 python3 - "$plan" <<'PY'
 import json
 import sys
@@ -136,11 +123,26 @@ from pathlib import Path
 plan = json.loads(Path(sys.argv[1]).read_text())
 policy = plan["adapter_policy"]
 if policy["selected_adapter"] != "constrained_code_reviewer":
-    raise SystemExit(f"expected constrained adapter: {policy}")
-if not policy["threshold_hit"]:
-    raise SystemExit(f"expected threshold hit: {policy}")
+    raise SystemExit(f"reviewer envelope must be the default: {policy}")
+if policy["fallback_reason"]:
+    raise SystemExit(f"default must not carry a fallback reason: {policy}")
 if any(step["execution_mode"] != "constrained_code_reviewer" for step in plan["steps"]):
     raise SystemExit("all steps should use constrained adapter")
+PY
+
+# 指名走主 session：降級要被說出來，不得靜靜 fallback
+"$planner" --adapter main_session_sequential --manifest "$manifest" --out "$plan" < "$candidates"
+python3 - "$plan" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+plan = json.loads(Path(sys.argv[1]).read_text())
+policy = plan["adapter_policy"]
+if policy["selected_adapter"] != "main_session_sequential":
+    raise SystemExit(f"explicit adapter must be honoured: {policy}")
+if not policy["fallback_reason"]:
+    raise SystemExit(f"downgrade must state why: {policy}")
 PY
 
 echo "build-review-runtime-plan selftest: PASS"
