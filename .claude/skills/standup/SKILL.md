@@ -54,8 +54,12 @@ workflow authority。這條有兩個方向，兩個都要擋：
 | Situation | Load |
 |---|---|
 | Any run | `standup-data-collection-flow.md`, `workspace-config.yaml` |
-| 今日格 / planning | `standup-planning-flow.md`, `session-timeline.md` when useful |
+| 今日格 / planning | `standup-planning-flow.md`, `standup-template.md`, `session-timeline.md` when useful |
 | Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `scripts/resolve-standup-destination.sh`, `scripts/validate-language-policy.sh` |
+
+**`standup-template.md` 在兩列都出現，是因為它管兩件事**：形狀是排版時要的，而〈怎麼寫：
+產出物精簡，證據不精簡〉那五條管的是**內容**——三格的長度與語氣在第 3–6 步就決定了，等到
+排版才載它，那五條從來沒有在該生效的時候在手上。
 
 ## Flow
 
@@ -68,9 +72,11 @@ workflow authority。這條有兩個方向，兩個都要擋：
    同一張單描述與留言衝突時留言勝出，且把落差說出來。
 5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR。
 6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
-   `standup-planning-flow.md` 的准入判準——「我在等誰」加上那張措辭表；自己動得了的是待辦
-   不是卡關。**延續過來的那一類還要先問一次它今天的來源**，判準寫在同一份的
-   〈第二個來源要帶今天的根據〉那一節。
+   `standup-planning-flow.md` 的准入判準——「我現在還有沒有下一步動作可做」加上那張措辭表；
+   自己動得了的是待辦不是卡關。**「等 review」預設不是卡關**，判準與三種被退回的形狀寫在
+   同一份的〈「等 review」預設不是卡關〉那一節。**延續過來的那一類還要先問一次它今天的來源**，
+   寫在〈第二個來源要帶今天的根據〉那一節。
+   兩次 standup 之間才發現的卡關寫回本地那份檔案，見〈兩次 standup 之間發現的卡關，落在哪〉。
 7. 依 `standup-template.md` 依 epic 組裝三格並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
 8. 使用者確認後，寫 local markdown。**那一份不是備份，是本體**，也是明天的比對來源。
 9. 對 local markdown 跑 language gate，通過後依宣告的目的地送出。
