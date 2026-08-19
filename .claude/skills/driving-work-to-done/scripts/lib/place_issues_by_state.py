@@ -55,6 +55,18 @@ UNDATED = "undated"
 # 轉場期還會遇到的舊格子。它不是一個狀態，是上一版投影留下的形狀。
 LEGACY_SLOT = "archive"
 
+# 母單層的前綴。一張單屬於誰，以前只寫在單裡面——要先知道自己在找哪一張才查得到，而翻樹
+# 的人正好是還不知道的那個。所以歸屬要長在路徑上。
+#
+# **前綴存在的理由是它必須跟單名不會撞。** 一張單同時是母單也是子單很常見（它自己在
+# `in-progress`，底下還掛著三張），那時候同一格裡要同時有它的卡片與它的群組。單號一律是
+# `{大寫字母}{數字}` 開頭，所以一個 ASCII 前綴就足夠區分，不需要任何猜測——而這一層的判定
+# 一旦要用「有沒有 .spine」之外的東西去猜，就會重演日期層那次「整批安靜消失」。
+PARENT_LAYER_PREFIX = "_"
+
+# 母單層資料夾名字裡帶多少標題。名字太長在檔案樹裡會被截掉，等於沒寫。
+PARENT_LAYER_TITLE_CHARS = 40
+
 # 會動到 code 的工作才走得到 in-review。這個訊號已經記在單的狀態裡（開輪次時決定的領域），
 # 不需要另外標一次。
 CODE_PACK = "swe-knowledge"
@@ -116,12 +128,46 @@ def namespaces(issues_root: str) -> list[str]:
                   and os.path.isdir(os.path.join(issues_root, name)))
 
 
+def parent_layer(detail: dict) -> str | None:
+    """這張單的母單層叫什麼。沒有母單就回 None——沒有母單的單不多一層。
+
+    母單是誰由那個命名空間的解析器回答（`parent`／`parent_title`），核心不認得任何一個
+    外部系統的欄位名，它只是把答案原樣接住。解析器不回這一項的單照原本的方式擺，重算不
+    因此停掉——一個問不到的歸屬不得讓一張問得到狀態的單失去位置。
+    """
+    key = (detail.get("parent") or "").strip()
+    if not key:
+        return None
+    title = (detail.get("parent_title") or "").strip()
+    name = f"{PARENT_LAYER_PREFIX}{key}"
+    if title:
+        # 路徑裡放不下的字元換掉就好，其餘原樣——標題是中文的時候，轉成 ASCII slug 會把
+        # 整個名字磨成空的，那正好磨掉了這一層存在的理由。
+        safe = re.sub(r"[/\\\x00-\x1f]+", " ", title).strip()
+        if len(safe) > PARENT_LAYER_TITLE_CHARS:
+            safe = safe[:PARENT_LAYER_TITLE_CHARS].rstrip()
+        if safe:
+            name = f"{name}-{safe}"
+    return name
+
+
 def tickets(issues_root: str) -> list[tuple[str, str]]:
     """每一張單：回 (命名空間, 單的絕對路徑)。
 
     什麼算一張單：命名空間底下，**不是格子名**的那一層目錄。格子名這支自己認得（七格加上
-    轉場期的 `archive`），`released/` 底下還多一層日期。這是唯一知道版面長怎樣的地方——
-    其餘每一個消費端都改成問狀態檔，不再各自猜路徑。
+    轉場期的 `archive`）。格底下還可能有兩種**不是單**的層，兩種都往下走一層：
+
+        released/{日期}/{單}            日期層——`released/` 與 `closed/` 專用
+        {格}/_{母單}-{標題}/{單}         母單層——任何一格都可能有
+
+    兩種層的判準不一樣，而且都不靠深度。日期層沿用原本那條：那一層自己帶著 `.spine/` 就是
+    一張單（多一格日期層是分批發生的事，中間那段時間同一格底下兩種形狀並存）。母單層看
+    前綴：單號不會以它開頭，所以不會誤判，而且**一個目錄可以同時是單也是母單層**——
+    一張單自己有狀態、底下也掛著別人的單，兩件事都要成立。
+
+    用深度猜的話，還沒分日期的那些會被當成日期層，而它們底下沒有單，於是整批安靜地從總數
+    裡消失——實測一次弄丟 100 張。母單層再疊一層之後這個坑只會更深，所以這裡逐層說出自己
+    在看哪一種層，不數層數。
     """
     found = []
     for namespace in namespaces(issues_root):
@@ -133,23 +179,30 @@ def tickets(issues_root: str) -> list[tuple[str, str]]:
             if name not in SLOTS and name != LEGACY_SLOT:
                 found.append((namespace, path))
                 continue
-            for inner in sorted(os.listdir(path)):
-                inner_path = os.path.join(path, inner)
-                if inner.startswith(".") or not os.path.isdir(inner_path):
-                    continue
-                # released/ 與 closed/ 底下多一層日期——但**不靠深度判斷**。這一層自己
-                # 帶著 .spine/ 就是一張單（多一格日期層是分批發生的事，中間那段時間同一格
-                # 底下兩種形狀並存）。用深度猜的話，還沒分日期的那些會被當成日期層，而它們
-                # 底下沒有單，於是整批安靜地從總數裡消失——實測一次弄丟 100 張。
-                if name not in DATED_SLOTS or os.path.isdir(
-                        os.path.join(inner_path, ".spine")):
-                    found.append((namespace, inner_path))
-                    continue
-                for leaf in sorted(os.listdir(inner_path)):
-                    leaf_path = os.path.join(inner_path, leaf)
-                    if not leaf.startswith(".") and os.path.isdir(leaf_path):
-                        found.append((namespace, leaf_path))
+            _walk_slot(namespace, path, name, found, dated=name in DATED_SLOTS)
     return found
+
+
+def _walk_slot(namespace: str, path: str, slot: str, found: list, dated: bool) -> None:
+    """一格底下逐個看。`dated` 表示這一格還可能有日期層——走過一次就沒有了。"""
+    for name in sorted(os.listdir(path)):
+        inner = os.path.join(path, name)
+        if name.startswith(".") or not os.path.isdir(inner):
+            continue
+        if name.startswith(PARENT_LAYER_PREFIX):
+            # 母單層底下一律是單，不會再有日期層。
+            _walk_slot(namespace, inner, slot, found, dated=False)
+            continue
+        if dated and not os.path.isdir(os.path.join(inner, ".spine")):
+            _walk_slot(namespace, inner, slot, found, dated=False)
+            continue
+        found.append((namespace, inner))
+        # 一個目錄可以同時是單也是母單層：它自己有狀態，底下還掛著別人的單。
+        for child in sorted(os.listdir(inner)):
+            if child.startswith(PARENT_LAYER_PREFIX) and os.path.isdir(
+                    os.path.join(inner, child)):
+                _walk_slot(namespace, os.path.join(inner, child), slot, found,
+                           dated=False)
 
 
 def release_record(ticket_dir: str) -> dict | None:
@@ -447,13 +500,18 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
 
 def target_dir(issues_root: str, namespace: str, ticket_dir: str,
                slot: str, detail: dict) -> str:
-    """這張單該住哪。`released/` 與 `closed/` 底下多一層日期。"""
+    """這張單該住哪。`released/` 與 `closed/` 底下多一層日期，有母單的再多一層母單。"""
     name = os.path.basename(ticket_dir)
     parts = [issues_root, namespace, slot]
     if slot == RELEASED:
         parts.append(detail["released_on"])
     elif slot == CLOSED:
         parts.append(detail.get("closed_on") or UNDATED)
+    # 母單層在日期層之下、單之上。順序固定，所以 `released/` 既有的形狀不變——多出來的那
+    # 一層只出現在真的有母單的單身上。
+    layer = parent_layer(detail)
+    if layer:
+        parts.append(layer)
     parts.append(name)
     return os.path.join(*parts)
 
