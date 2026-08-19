@@ -229,4 +229,82 @@ bash "$FENCE" seal "$NOGIT/untracked.md" --by human >/dev/null
 assert_marker "fence outside git" POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE \
   bash "$FENCE" verify "$NOGIT/untracked.md"
 
+
+# --- Case 13: `seal --block` only touches that one block ---------------------
+# 一張單裝得下好幾組具名的 fence，而它們是一組一組簽下去的。`--block` 若是重寫整份
+# assertions_hash，前面簽過的那幾格會靜靜地消失——封條看起來仍然自洽，直到有人去 verify
+# 另一格才發現它「沒有封條」。三種輸入各驗一次。
+write_blocks() {
+  # Description: write a document with the given fence block keys, one assertion each.
+  # Args: $1 = target path, $2.. = block keys
+  local path="$1"
+  shift
+  printf -- '---\ntitle: "fixture"\ndescription: "multi-block fence fixture"\n---\n\n' > "$path"
+  local key
+  for key in "$@"; do
+    printf -- '<!-- POLARIS-FROZEN-%s-BEGIN -->\n- **%s-P1 assertion**：when X happens, Y follows.\n<!-- POLARIS-FROZEN-%s-END -->\n\n' \
+      "$key" "$key" "$key" >> "$path"
+  done
+}
+
+sealed_keys() {
+  # Description: print the sealed block keys recorded in frontmatter, one per line.
+  # Args: $1 = document path
+  python3 - "$1" <<'PYKEYS'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+block = re.search(r"^assertions_hash:\n((?:  \S+: \S+\n)*)", text, re.M)
+for line in (block.group(1).splitlines() if block else []):
+    print(line.strip().split(":", 1)[0])
+PYKEYS
+}
+
+MULTI="$WORK/multi"
+mkdir -p "$MULTI"
+
+# (a) 其他格已經簽過：只簽 C，A 與 B 要還在。
+write_blocks "$MULTI/others-sealed.md" A B C
+bash "$FENCE" seal "$MULTI/others-sealed.md" --by tester --block A >/dev/null
+bash "$FENCE" seal "$MULTI/others-sealed.md" --by tester --block B >/dev/null
+bash "$FENCE" seal "$MULTI/others-sealed.md" --by tester --block C >/dev/null
+got="$(sealed_keys "$MULTI/others-sealed.md" | tr '\n' ' ')"
+[[ "$got" == "A B C " ]] \
+  || fail "seal --block C dropped the other sealed blocks; kept: ${got:-<none>}"
+
+# 每一格都要真的驗得過，而不只是鍵名還在。
+for key in A B C; do
+  bash "$FENCE" verify "$MULTI/others-sealed.md" --block "$key" >/dev/null \
+    || fail "block $key did not verify after sealing all three one at a time"
+done
+
+# (b) 同一格重簽：只有那一格的值會變，其他格原封不動。
+before_b="$(sealed_keys "$MULTI/others-sealed.md")"
+bash "$FENCE" seal "$MULTI/others-sealed.md" --by tester --block B >/dev/null
+[[ "$(sealed_keys "$MULTI/others-sealed.md")" == "$before_b" ]] \
+  || fail "re-sealing one block changed which blocks are sealed"
+
+# (c) 完全沒有 assertions_hash：`--block` 只寫那一格，不因為缺欄位就整份重算。
+write_blocks "$MULTI/fresh.md" A B
+bash "$FENCE" seal "$MULTI/fresh.md" --by tester --block B >/dev/null
+got="$(sealed_keys "$MULTI/fresh.md" | tr '\n' ' ')"
+[[ "$got" == "B " ]] \
+  || fail "seal --block B on an unsealed document wrote the wrong key set: ${got:-<none>}"
+
+# --- Case 14: 不帶 `--block` 的整份 seal 仍然清掉沒有 fence 的舊 key ----------
+# 合併只屬於 `--block`。整份重簽是「這份文件現在有哪幾格」的宣告，所以 fence 被刪掉之後
+# 那個 key 必須跟著消失——留著的話它會永遠指向一段不存在的文字。
+write_blocks "$MULTI/prune.md" A B C
+bash "$FENCE" seal "$MULTI/prune.md" --by tester >/dev/null
+python3 - "$MULTI/prune.md" <<'PYDROP'
+import re, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+text = re.sub(r"<!-- POLARIS-FROZEN-B-BEGIN -->.*?<!-- POLARIS-FROZEN-B-END -->\n\n", "", text, flags=re.S)
+open(path, "w", encoding="utf-8").write(text)
+PYDROP
+bash "$FENCE" seal "$MULTI/prune.md" --by tester >/dev/null
+got="$(sealed_keys "$MULTI/prune.md" | tr '\n' ' ')"
+[[ "$got" == "A C " ]] \
+  || fail "a full seal kept a key whose fence is gone; got: ${got:-<none>}"
+
 echo "PASS: frozen-assertion-fence-selftest.sh"

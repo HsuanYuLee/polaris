@@ -357,11 +357,15 @@ cmd_seal() {
   [[ -n "$file" && -f "$file" ]] || die "POLARIS_FROZEN_FENCE_INPUT_UNREADABLE" "file not readable: ${file:-<missing>}"
   [[ -n "$signer" ]] || die "POLARIS_FROZEN_FENCE_SIGNER_MISSING" "seal requires --by <signer>; only a human can freeze a fence"
 
-  local keys
+  # `--block` 只動一格，不帶就是重算全部。這個分別要傳給下面寫 frontmatter 的那一段：
+  # 只有「重算全部」才有資格把這次沒算到的 key 清掉。
+  local keys scope
   if [[ -n "$block" ]]; then
     keys="$block"
+    scope="block"
   else
     keys="$(list_blocks "$file")"
+    scope="all"
   fi
   [[ -n "$keys" ]] || die "POLARIS_FROZEN_FENCE_NO_BLOCK" "no POLARIS-FROZEN fence found in $file"
 
@@ -383,11 +387,11 @@ cmd_seal() {
   [[ -n "$at" ]] || at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   require_python3
-  python3 - "$file" "$signer" "$at" "$ASSERTIONS_HASH_RECIPE" "${pairs[@]}" <<'PY'
+  python3 - "$file" "$signer" "$at" "$ASSERTIONS_HASH_RECIPE" "$scope" "${pairs[@]}" <<'PY'
 import sys
 
-path, signer, frozen_at, recipe = sys.argv[1:5]
-pairs = [item.split(":", 1) for item in sys.argv[5:]]
+path, signer, frozen_at, recipe, scope = sys.argv[1:6]
+pairs = [item.split(":", 1) for item in sys.argv[6:]]
 
 text = open(path, encoding="utf-8").read()
 lines = text.split("\n")
@@ -407,10 +411,18 @@ body = lines[end:]
 
 SEAL_KEYS = ("frozen_by:", "frozen_at:", "assertions_hash:", "assertions_hash_recipe:")
 
+# 既有的 map 要先讀出來再寫回去。`--block K` 只重算 K，而 seal 過去是把整段
+# assertions_hash 丟掉、用本次的 pairs 重建——於是其他區塊的封條被靜靜刪掉，而 seal
+# 回的是綠的（DP-548，2026-08-17 在一張三區塊的單上真的發生過）。
+existing: "dict[str, str]" = {}
 kept = []
 skipping_nested = False
 for line in front:
     if skipping_nested and line.startswith((" ", "\t")):
+        entry = line.strip()
+        if ":" in entry:
+            key, value = entry.split(":", 1)
+            existing[key.strip()] = value.strip()
         continue
     skipping_nested = False
     stripped = line.lstrip()
@@ -419,8 +431,16 @@ for line in front:
         continue
     kept.append(line)
 
+merged = dict(existing)
+merged.update({key: f"sha256:{digest}" for key, digest in pairs})
+
+# 整份 seal 是重算全部，所以這一次沒算到的 key 就是 fence 已經不在檔案裡的——留著會讓
+# verify 去驗一個不存在的東西。`--block` 只動一格，不做這件事。
+if scope == "all":
+    merged = {key: merged[key] for key, _ in pairs}
+
 seal = [f"frozen_by: {signer}", f"frozen_at: {frozen_at}", "assertions_hash:"]
-seal += [f"  {key}: sha256:{digest}" for key, digest in pairs]
+seal += [f"  {key}: {value}" for key, value in merged.items()]
 seal.append(f'assertions_hash_recipe: "{recipe}"')
 
 open(path, "w", encoding="utf-8").write("\n".join(["---"] + kept + seal + body))

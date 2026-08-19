@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.56.1] - 2026-08-19
+
+### Changed
+
+- 850305e: `frozen-assertion-fence.sh seal --block K` 現在只寫 K 那一格，不再把其他區塊已經簽好的 hash 一起清掉。
+  一張單裝得下好幾組具名的凍結塊，而它們是一組一組簽下去的。舊的寫法每次都重寫整份
+  `assertions_hash`，所以簽第二格的那一刻，第一格的封條就靜靜地消失了——`verify` 那一格會回
+  `POLARIS_FROZEN_FENCE_SEAL_MISSING`，而中間沒有任何一步說過話。
+  不帶 `--block` 的整份 seal 行為不變：它是「這份文件現在有哪幾格」的宣告，所以 fence 被刪掉
+  之後那個 key 仍然要跟著消失。
+
 ## [4.56.0] - 2026-08-16
 
 ### Changed
