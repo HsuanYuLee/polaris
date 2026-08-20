@@ -67,6 +67,49 @@ fi
 # touched a company handbook. The premise was mine and was never measured; the
 # wiring is gone rather than worked around.
 
+# 追蹤範圍裡有沒有一支宣告不在表上的 skill。
+#
+# 這一段折進這道閘，不另開閘檔：它守的是同一條邊界（追蹤範圍 → 公開 repo），而且這道閘
+# 本來就每次 commit 掃全部追蹤檔。同步那一端已經是正向表列了，所以一支宣告拼錯的 skill
+# 不會出去——**看不出來的是它為什麼沒出去**。宣告錯的那一刻它就在 diff 裡；不指名的話，
+# 下一次有人問「這支怎麼沒同步過去」，答案要從一份沉默裡挖出來。
+echo "$PREFIX checking tracked SKILL.md declarations..." >&2
+if ! python3 - "$REPO_ROOT" "$PREFIX" <<'DECLCHECK'
+import os
+import subprocess
+import sys
+
+root, prefix = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(
+    root, ".claude", "skills", "framework-release", "scripts", "lib"))
+from skill_scope import declared_scope, WORKSPACE_FACING  # noqa: E402
+
+listed = subprocess.run(
+    ["git", "-C", root, "ls-files", "-z", "--", ".claude/skills/"],
+    check=True, capture_output=True).stdout.decode()
+paths = [p for p in listed.split("\0")
+         if p and os.path.basename(p) == "SKILL.md"]
+if not paths:
+    # 掃到 0 個檔案跟「全部都對」在輸出上長得一樣。這是第三態，說出來。
+    print(f"{prefix} 量不到：追蹤範圍裡一個 SKILL.md 都沒有。", file=sys.stderr)
+    raise SystemExit(1)
+
+table = ", ".join(sorted(WORKSPACE_FACING))
+bad = [(rel, declared_scope(os.path.join(root, rel))) for rel in paths]
+bad = [(rel, scope) for rel, scope in bad if scope not in WORKSPACE_FACING]
+for rel, scope in bad:
+    said = f"宣告 {scope}" if scope else "沒有宣告 scope"
+    print(f"{prefix}   {rel} — {said}，不在表上（{table}）", file=sys.stderr)
+if bad:
+    print(f"{prefix} BLOCKED: {len(bad)} 支 skill 的宣告不在表上。`scope:` 只回答"
+          f"「帶到哪」，值就是上面那幾個——補上或改對再 commit。", file=sys.stderr)
+    raise SystemExit(1)
+print(f"{prefix} \u2705 {len(paths)} 支 skill 的宣告都在表上。", file=sys.stderr)
+DECLCHECK
+then
+  exit 1
+fi
+
 echo "$PREFIX scanning workspace tracked files for template leaks..." >&2
 "$SCAN" --workspace "$REPO_ROOT" --source workspace --blocking && scan_rc=0 || scan_rc=$?
 

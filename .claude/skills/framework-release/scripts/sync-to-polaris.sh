@@ -280,9 +280,25 @@ goes_to_template() {
   python3 "$SKILL_SCOPE" template-facing "$1"
 }
 
-# 這支 skill 自己宣告的通道，沒宣告時是空字串。只拿來印給人看。
+# 這一份自己宣告的通道，沒宣告時是空字串。只拿來印給人看。
 declared_scope() {
   python3 "$SKILL_SCOPE" scope "$1"
+}
+
+# 為什麼這一份不出去。會出去的回空字串。
+#
+# 擋下來的東西要逐個看得見，而「看得見」不是印一個數字：一個被漏掉的宣告與一個刻意留在
+# 本地的宣告，在「skipped: 12」那一行上長得一模一樣。所以每一項都印出自己的名字、宣告了
+# 什麼、以及為什麼被擋。
+block_reason() {
+  python3 "$SKILL_SCOPE" reason "$1"
+}
+
+# 一份被擋下來的東西怎麼印。三段都在：名字、宣告、理由。
+report_blocked() {
+  local label="$1" file="$2" scope
+  scope="$(declared_scope "$file")"
+  echo "  ~ $label (宣告: ${scope:-無}) — $(block_reason "$file")"
 }
 
 copy_file() {
@@ -442,7 +458,7 @@ for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
   # 一次透過符號連結（有 SKILL.md，擋在這裡），一次是 {company}/ 命名空間目錄（上面那格
   # 已經擋掉）。用目錄名排除只擋得到兩種形狀裡的一種。
   if ! goes_to_template "$skill_dir/SKILL.md"; then
-    echo "  ~ $skill_name/ ($(declared_scope "$skill_dir/SKILL.md"), skipped)"
+    report_blocked "$skill_name/" "$skill_dir/SKILL.md"
     continue
   fi
 
@@ -462,9 +478,17 @@ done
 
 # ── Step 3: Sync L1 rules (root only, skip company subdirs) ───────
 
+# 以前這個迴圈把 `.claude/rules/*.md` 整批複製過去，一個字都不問。skill 那一格問了、
+# 這一格沒問，而兩格的目的地是同一個公開 repo——所以「哪些東西出得去」實際上有兩套答案，
+# 其中一套是「全部」。現在兩格問的是同一份宣告。
 echo "L1 Rules..."
 for rule_file in "$INSTANCE_DIR"/.claude/rules/*.md; do
+  [[ -f "$rule_file" ]] || continue
   rule_name=$(basename "$rule_file")
+  if ! goes_to_template "$rule_file"; then
+    report_blocked "$rule_name" "$rule_file"
+    continue
+  fi
   copy_file "$rule_file" "$POLARIS_DIR/.claude/rules/$rule_name" "$rule_name"
 done
 
@@ -475,6 +499,10 @@ mkdir -p "$POLARIS_DIR/.claude/hooks" 2>/dev/null || true
 for hook_file in "$INSTANCE_DIR"/.claude/hooks/*.sh; do
   [[ -f "$hook_file" ]] || continue
   hook_name=$(basename "$hook_file")
+  if ! goes_to_template "$hook_file"; then
+    report_blocked "$hook_name" "$hook_file"
+    continue
+  fi
   copy_file "$hook_file" "$POLARIS_DIR/.claude/hooks/$hook_name" "$hook_name"
 done
 

@@ -81,7 +81,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, sys.argv[1])
-from skill_scope import declared_scope, NOT_TEMPLATE_FACING
+from skill_scope import declared_scope, TEMPLATE_FACING
 
 try:
     import yaml
@@ -382,7 +382,12 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
         for depth in (2, 3):
             if len(parts) > depth:
                 scope = skill_scope(root, "/".join(parts[2:depth + 1]))
-                if scope in NOT_TEMPLATE_FACING:
+                # 解不到（那一層根本不是一支 skill）與「宣告了不出去」是兩件事。這裡只
+                # 認第二件——`scope not in TEMPLATE_FACING` 會把前者也算進去，而 depth 3
+                # 對 `skills/{name}/{檔案}` 永遠解不到，於是第三層以下的每一個檔案都會
+                # 跳過洩漏掃描。這一支的預設方向跟同步那一支相反：**掃過頭沒有代價，
+                # 漏掃一個公司字串會出去到公開 repo。**
+                if scope and scope not in TEMPLATE_FACING:
                     return True
     if rel.startswith(".claude/rules/"):
         rule_scope = parts[2] if len(parts) > 2 else ""

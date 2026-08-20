@@ -9,19 +9,27 @@
 | template repo | `.claude/rules/`、`.claude/hooks/`、`.claude/skills/`、`_template/`、根目錄檔案 | 框架自己整包搬家 |
 | claude.ai／Cowork 單支上傳 | 只有那一個 skill 目錄 | 要能像第三方 lib 一樣單獨用的 skill |
 
-**每一支 skill 在自己的 frontmatter 用 `scope:` 說出它走哪一條**，核心不從名字或位置推導：
+**每一份東西自己說出它走哪一條**，核心不從名字或位置推導：skill 寫在 frontmatter 的
+`scope:`，`.claude/rules/` 與 `.claude/hooks/` 沒有 frontmatter 可放，寫成一行
+`POLARIS-SCOPE:` 標記。兩種寫法問的是同一份表——`skill_scope.py` 的 `TEMPLATE_FACING`。
+
+**那份表是正向表列：只有列名的才出得去。** 沒宣告的、宣告了表上沒有的值的、拼錯的，
+三種都不出去。以前這裡是黑名單加一個「沒宣告就當 standalone」的預設，而同步的目的地是
+一個公開 repo——第三類（個人的、還沒想清楚的）出現的那一天，它會靜靜地出去。
 
 - `scope: framework`——**這一格幾乎是空的，而且應該保持空的。** 只有那些照描述做成通用
   就不成立的東西才屬於這裡：釋出尾段讀這個 repo 的 `.changeset/`、推這個 repo 的 tag、
   同步到這個人的 template repo，換一個環境它就沒有意義。
-- `scope: standalone`（沒宣告時的預設）——**其餘全部。** 判準是一個問題：**照這支
+- `scope: standalone`——**其餘全部。** 判準是一個問題：**照這支
   skill 自己的描述，把它做成通用、不依賴環境，是不是更好用？** 幾乎每一次答案都是「是」。
 
   想像的使用者不是你：一個不會寫程式、沒有維護能力、連工作環境都初始化不了的人，
   由工程師把 skill 匯進他的 Claude Desktop。**在那裡不成立的東西，就是不該留在 skill
   裡的東西**——「主 checkout 在哪」「這個 workspace 的設定在哪」在那裡沒有答案，所以
   一支 standalone skill 要嘛不問這些問題，要嘛問不到的時候說出來並照樣工作。
-- `scope: company-only`／`scope: maintainer-only`——不出去。
+- `scope: company-only`／`scope: maintainer-only`——留在這個工作區，不進 template repo。
+  它們仍然在表上，只是在另一格：這個 repo 的追蹤範圍收得下它們，`gate-template-leaks.sh`
+  對兩格以外的宣告判紅並指名。
 
 以前這裡寫的是「沒有共用的腳本目錄，因為只有 skill 目錄會被帶走」。**那句話是假的**：
 template repo 追蹤 `.claude/rules/` 與 `.claude/hooks/`，skill 目錄從來不是唯一會被帶走

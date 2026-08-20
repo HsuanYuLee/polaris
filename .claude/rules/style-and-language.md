@@ -78,3 +78,5 @@ Node，純 bash 能解的不要拉 Python——啟動成本會在 aggregate 跑�
 
 不要在這裡抄 repo 的知識。需要某個 repo 的規範時，去問管那件事的 skill——它自己的目錄裡
 帶著它需要的東西。
+
+<!-- POLARIS-SCOPE: standalone — 本文開頭那句「這一份必須到哪裡都成立」就是這個宣告的內容 -->

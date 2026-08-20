@@ -1,5 +1,20 @@
 # Changelog
 
+## [4.59.2] - 2026-08-20
+
+### Changed
+
+- 3011682: 同步到 template repo 的判定從黑名單換成正向表列：只有宣告落在 `TEMPLATE_FACING`（`framework`、
+  `standalone`）的 skill、rule 與 hook 才出得去。沒宣告的、宣告了表上沒有的值的、拼錯的，三種都
+  不出去，而且每一項被擋下來時都印出自己的名字、宣告了什麼、為什麼被擋。
+  以前的方向在只有「框架」與「公司」兩類的時候是對的：漏宣告一支公司 skill，最壞是多一份在自己
+  的 template repo。第三類（個人的、還沒想清楚的）出現之後它就反了——`scope: personal` 在舊的
+  判定下回「會出去」，而目的地是一個公開 repo。
+  `.claude/rules/*.md` 與 `.claude/hooks/*.sh` 以前整批複製、一個字都不問，現在跟 skill 問同一份
+  表；它們沒有 frontmatter 可放宣告，所以用一行 `POLARIS-SCOPE:` 標記。`gate-template-leaks.sh`
+  折進一段檢查：追蹤範圍裡出現宣告不在表上的 skill 就判紅並指名路徑、宣告與理由。
+  現存的去向不變——49 項複製集合逐項相同。
+
 ## [4.59.1] - 2026-08-20
 
 ### Changed

@@ -21,6 +21,11 @@
 # 拿掉它會怎樣：四支 skill 照常成立，只是被叫起來的機率回到裁量。所以它是這個 repo 的便利，
 # 不是流程的前提——搬去 claude.ai / Cowork 時不需要跟著搬。
 #
+# 這一行是宣告，不是註解：同步問「這個 hook 出不出得去」時讀的就是它。指路的內容
+# 沒有一個字綁這台機器或這家公司，所以是 standalone；上面那段說的「不需要跟著搬」
+# 指的是 claude.ai / Cowork 那條通道，那條通道從來不收 hook。
+# POLARIS-SCOPE: standalone
+#
 # Input:  stdin JSON，欄位 user_prompt（或 prompt）
 # Stdout: 一行 context
 # Exit:   永遠 0——這是提示，不擋使用者的話
