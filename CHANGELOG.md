@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.59.1] - 2026-08-20
+
+### Changed
+
+- 906a386: review-inbox 的取 diff 時機寫進主流程讀的那一份：每張 PR 的 head 與完整 diff 在那張 PR 的 review 開始的那一刻才取，計畫時不整批預取。
+  DP-459 那條「先取 head、diff 對它取」2026-08-10 就有了，但它只寫在 executor 讀的那一層
+  （`dispatch-context-bundle.md` 與產出的 packet）。**決定何時去取的是主 session**，而它讀的
+  `SKILL.md` 與 `review-inbox-batch-review-flow.md` 一個字都沒提到 head——後者唯一的取 diff
+  規則是「完整 diff 必須先存到 …」，那句沒有時機，「先」讀起來完全可以是「批次開始前先全部
+  備好」。2026-08-19 的批次就那樣做了，其中一張的 diff 在被 review 時已經舊了 22 分鐘。
+  規則本體沒有第二份：新增的那一節只回答「什麼時候」，取哪一顆、diff 對誰取仍然指回原處。
+
 ## [4.59.0] - 2026-08-19
 
 ### Changed

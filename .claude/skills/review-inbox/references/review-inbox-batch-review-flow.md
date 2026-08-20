@@ -104,14 +104,38 @@ Cluster scheduling：
   result 用 `COMMENT` 並在 summary 標記 `needs_standard_review`，主流程再用
   `standard_coding` 重跑該 PR。
 
+## 什麼時候取那份 diff
+
+<!-- REVIEW-INBOX-CONTRACT: fetch-at-review-time -->
+
+**每張 PR 的 head 與完整 diff，都在那張 PR 的 review 開始的那一刻才取。批次計畫時不整批
+預取。** 這一條約束的是主流程——決定「什麼時候去拿」的是它，不是執行 packet 的那一端。
+
+規則本體不在這裡：**這一次 review 依據哪一顆 sha、diff 對誰取、送出時綁哪一顆**，寫在
+`dispatch-context-bundle.md` 的 Reviewed Head 那一段，`build-review-prompt.sh` 把它原樣放進
+每個 packet。這裡只回答一個它沒有回答的問題——**那一刻是什麼時候**。
+
+2026-08-19 的 run `20260819-160509`（17 張 PR、約 52 分鐘）量到的形狀：16:10:15 一口氣把
+17 顆 head 寫進一個檔、16:10:17 落下 `pr-2965.diff`，全部在計畫時；那張 PR 的作者之後又
+push 了一版，而它排到 46 分鐘後才被 review。手上的 diff 已經舊了 22 分鐘，缺了整批 store
+改動與一支 208 行的測試。**接到是因為執行的人自己多抓了一次，不是因為流程要求。**
+
+對著舊 diff 寫出來的 review 沒有任何外觀特徵——它跟正常的 review 一模一樣，而它落在別人的
+PR 上。一個 52 分鐘的批次裡有 7 張 PR 的 head 動過，命中率隨批次長度上升。
+
+**擋這件事不需要新的機制**：不加腳本、不加閘、不加 artifact 格式。晚一點才取那一份，手上就
+只會有一顆 sha——沒有第二顆要跟它比對，所以也沒有要不要停下來問人的問題。
+
 Token budget rules：
 
 - 先執行 `gh pr diff <PR_URL> --name-only` 取得完整 changed-file list。
 - 主 session raw diff output 以單 PR 累積 100 行為 hard cap。超過後該 PR 立即進入
   hunk-only / sample-only，直到該 PR review 完成前不得 reset；這不是單次工具呼叫額度，
   也不是整批共享額度。
-- 完整 diff 必須先存到 `/tmp/review-inbox-runs/{run_id}/pr-{number}.diff`。後續 line range
-  inspection 用 `inspect-pr-section.sh` 輸出 bounded section，不用 Read 工具回讀完整 diff。
+- 完整 diff 取回來之後先落到 `/tmp/review-inbox-runs/{run_id}/pr-{number}.diff`，再用
+  `inspect-pr-section.sh` 取 bounded section，不用 Read 工具回讀完整 diff。**這個「先」是
+  「先落檔再讀片段」，不是「批次開始前先全部備好」**——什麼時候去取寫在〈什麼時候取那份
+  diff〉那一節。
 - Debug 也受同一條 raw evidence policy 約束。不得在 main session 執行
   `gh pr diff ... 2>&1` 或任何會把 full diff 直接印回 stdout/stderr 的命令；錯誤診斷必須把
   full output redirect 到 artifact，再只輸出 bounded summary。

@@ -89,7 +89,9 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
    `constrained_code_reviewer` 是預設——**蒐證放在 sub-agent 那一層**，主 session 的 per-PR
    預算才不會被 diff 灌爆。沒有那個 adapter 而降級成 sequential 時，**要說出來**，不要靜靜
    走完：主 session 那一層讀不到 diff 以外的檔案，而 review 看起來一樣完整。
-9. 依 batch size / runtime plan 執行 per-PR review packets；prompt 必須使用
+9. 依 batch size / runtime plan 執行 per-PR review packets。**每張 PR 的 head 與完整 diff
+   在那張 PR 的 review 開始的那一刻才取，計畫時不整批預取**——理由與量到的形狀寫在
+   `review-inbox-batch-review-flow.md` 的〈什麼時候取那份 diff〉。Prompt 必須使用
    deterministic handbook resolver 列出已存在的 project handbook paths，空清單時明確標示
    no project handbook。Prompt 必須要求執行者先讀 changed-file names，再依 diff size
    sampling；existing inline comments 的完整 body 不進**主 session**，reviewer envelope 內
