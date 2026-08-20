@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.59.3] - 2026-08-20
+
+### Changed
+
+- d3cf897: 通用層只留沒有人認領的東西：`style-and-language` 的〈程式碼〉與 fail-stop 併進
+  `swe-knowledge`（doc-comment 從兩處變一處），〈工具不存在時〉移進 `bootstrap.md`，
+  `document-flow` 的位置判準併進 `driving-work-to-done`。三處寫死的量測值換成重跑得出
+  它的命令。
+
 ## [4.59.2] - 2026-08-20
 
 ### Changed
