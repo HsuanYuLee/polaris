@@ -55,17 +55,14 @@ UNDATED = "undated"
 # 轉場期還會遇到的舊格子。它不是一個狀態，是上一版投影留下的形狀。
 LEGACY_SLOT = "archive"
 
-# 母單層的前綴。一張單屬於誰，以前只寫在單裡面——要先知道自己在找哪一張才查得到，而翻樹
-# 的人正好是還不知道的那個。所以歸屬要長在路徑上。
-#
-# **前綴存在的理由是它必須跟單名不會撞。** 一張單同時是母單也是子單很常見（它自己在
-# `in-progress`，底下還掛著三張），那時候同一格裡要同時有它的卡片與它的群組。單號一律是
-# `{大寫字母}{數字}` 開頭，所以一個 ASCII 前綴就足夠區分，不需要任何猜測——而這一層的判定
-# 一旦要用「有沒有 .spine」之外的東西去猜，就會重演日期層那次「整批安靜消失」。
-PARENT_LAYER_PREFIX = "_"
+# 舊形狀留下來的群組層。**只認得、不再產生**：它們是 DP-551 那一版的疤，重算會把底下的
+# 單搬到它們該去的地方，空掉之後 `prune_empty` 自己收掉。認得它是為了在轉場期間不掉單。
+LEGACY_PARENT_PREFIX = "_"
 
-# 母單層資料夾名字裡帶多少標題。名字太長在檔案樹裡會被截掉，等於沒寫。
-PARENT_LAYER_TITLE_CHARS = 40
+# 上游快照寫在單的 `index.md` 裡，夾在這兩行之間。**只有這中間會被重寫**——一張自己的單
+# 裡面寫的東西是人寫的，重算不得碰它。
+UPSTREAM_BEGIN = "<!-- POLARIS-UPSTREAM-BEGIN -->"
+UPSTREAM_END = "<!-- POLARIS-UPSTREAM-END -->"
 
 # 會動到 code 的工作才走得到 in-review。這個訊號已經記在單的狀態裡（開輪次時決定的領域），
 # 不需要另外標一次。
@@ -128,46 +125,32 @@ def namespaces(issues_root: str) -> list[str]:
                   and os.path.isdir(os.path.join(issues_root, name)))
 
 
-def parent_layer(detail: dict) -> str | None:
-    """這張單的母單層叫什麼。沒有母單就回 None——沒有母單的單不多一層。
+def chain_of(detail: dict) -> list[str]:
+    """這張單掛在哪幾張單底下——鏈頂在前，直接母單在後。沒有母單就回空的。
 
-    母單是誰由那個命名空間的解析器回答（`parent`／`parent_title`），核心不認得任何一個
-    外部系統的欄位名，它只是把答案原樣接住。解析器不回這一項的單照原本的方式擺，重算不
-    因此停掉——一個問不到的歸屬不得讓一張問得到狀態的單失去位置。
+    鏈由那個命名空間的解析器回答，核心不認得任何一個外部系統的欄位名，也不認得「Epic」
+    這個詞：它只把這串名字原樣接成路徑上的幾層。解析器不回這一項的單就住在格子底下，
+    重算不因此停掉——一個問不到的歸屬不得讓一張問得到狀態的單失去位置。
     """
-    key = (detail.get("parent") or "").strip()
-    if not key:
-        return None
-    title = (detail.get("parent_title") or "").strip()
-    name = f"{PARENT_LAYER_PREFIX}{key}"
-    if title:
-        # 路徑裡放不下的字元換掉就好，其餘原樣——標題是中文的時候，轉成 ASCII slug 會把
-        # 整個名字磨成空的，那正好磨掉了這一層存在的理由。
-        safe = re.sub(r"[/\\\x00-\x1f]+", " ", title).strip()
-        if len(safe) > PARENT_LAYER_TITLE_CHARS:
-            safe = safe[:PARENT_LAYER_TITLE_CHARS].rstrip()
-        if safe:
-            name = f"{name}-{safe}"
-    return name
+    chain = detail.get("chain") or []
+    if isinstance(chain, str):
+        chain = [chain]
+    return [str(k).strip() for k in chain if str(k).strip()]
 
 
 def tickets(issues_root: str) -> list[tuple[str, str]]:
     """每一張單：回 (命名空間, 單的絕對路徑)。
 
-    什麼算一張單：命名空間底下，**不是格子名**的那一層目錄。格子名這支自己認得（七格加上
-    轉場期的 `archive`）。格底下還可能有兩種**不是單**的層，兩種都往下走一層：
+    命名空間底下，**不是格子名**的那一層目錄就是單。格底下還可能有兩種不是單的層：
 
         released/{日期}/{單}            日期層——`released/` 與 `closed/` 專用
-        {格}/_{母單}-{標題}/{單}         母單層——任何一格都可能有
+        {格}/_{母單}-{標題}/{單}         舊的群組層——只認得，不再產生
 
-    兩種層的判準不一樣，而且都不靠深度。日期層沿用原本那條：那一層自己帶著 `.spine/` 就是
-    一張單（多一格日期層是分批發生的事，中間那段時間同一格底下兩種形狀並存）。母單層看
-    前綴：單號不會以它開頭，所以不會誤判，而且**一個目錄可以同時是單也是母單層**——
-    一張單自己有狀態、底下也掛著別人的單，兩件事都要成立。
+    而**單底下也可以有單**（`{格}/{母單}/{子單}/{孫單}`），那是這棵樹的主軸：位置說的是
+    歸屬。單底下哪些目錄才是單，判準寫在 `_walk_ticket`——不是「每一個」。
 
     用深度猜的話，還沒分日期的那些會被當成日期層，而它們底下沒有單，於是整批安靜地從總數
-    裡消失——實測一次弄丟 100 張。母單層再疊一層之後這個坑只會更深，所以這裡逐層說出自己
-    在看哪一種層，不數層數。
+    裡消失——實測一次弄丟 100 張。所以這裡逐層說出自己在看哪一種層。
     """
     found = []
     for namespace in namespaces(issues_root):
@@ -178,31 +161,51 @@ def tickets(issues_root: str) -> list[tuple[str, str]]:
                 continue
             if name not in SLOTS and name != LEGACY_SLOT:
                 found.append((namespace, path))
+                _walk_ticket(namespace, path, found)
                 continue
-            _walk_slot(namespace, path, name, found, dated=name in DATED_SLOTS)
+            _walk_slot(namespace, path, found, dated=name in DATED_SLOTS)
     return found
 
 
-def _walk_slot(namespace: str, path: str, slot: str, found: list, dated: bool) -> None:
+def _walk_slot(namespace: str, path: str, found: list, dated: bool) -> None:
     """一格底下逐個看。`dated` 表示這一格還可能有日期層——走過一次就沒有了。"""
     for name in sorted(os.listdir(path)):
         inner = os.path.join(path, name)
         if name.startswith(".") or not os.path.isdir(inner):
             continue
-        if name.startswith(PARENT_LAYER_PREFIX):
-            # 母單層底下一律是單，不會再有日期層。
-            _walk_slot(namespace, inner, slot, found, dated=False)
+        if name.startswith(LEGACY_PARENT_PREFIX):
+            _walk_slot(namespace, inner, found, dated=False)
             continue
         if dated and not os.path.isdir(os.path.join(inner, ".spine")):
-            _walk_slot(namespace, inner, slot, found, dated=False)
+            _walk_slot(namespace, inner, found, dated=False)
             continue
         found.append((namespace, inner))
-        # 一個目錄可以同時是單也是母單層：它自己有狀態，底下還掛著別人的單。
-        for child in sorted(os.listdir(inner)):
-            if child.startswith(PARENT_LAYER_PREFIX) and os.path.isdir(
-                    os.path.join(inner, child)):
-                _walk_slot(namespace, os.path.join(inner, child), slot, found,
-                           dated=False)
+        _walk_ticket(namespace, inner, found)
+
+
+def _walk_ticket(namespace: str, ticket_dir: str, found: list) -> None:
+    """一張單底下**帶著 `.spine/` 的**那些目錄是另一張單。其餘的不是，穿過去也不看。
+
+    這裡不能寫成「單底下的每一個目錄都是另一張單」。真實的樹上不成立：舊層在單裡放過
+    `tasks/`、`T1/`、`evidence/`、`scripts/`、`migrations/` 這些目錄，實測 259 個。把它們
+    當成單的那一版，會替每一個算出一個 `{命名空間}/triage/tasks` 之類的目的地——一個不是
+    單號的層，而且好幾張單的 `T1` 全部指向同一個地方。
+
+    判準跟 A-P5 問的是同一件事（「有 `.spine/` 的單」），而且它不需要認得任何外部系統的
+    命名慣例：樹裡的巢狀只由重算自己造出來，而它造的時候一定會把推導結果寫回那張單的
+    `.spine/`。轉場期還會撞到舊的群組層，那一種穿過去。
+    """
+    for name in sorted(os.listdir(ticket_dir)):
+        inner = os.path.join(ticket_dir, name)
+        if name.startswith(".") or not os.path.isdir(inner):
+            continue
+        if name.startswith(LEGACY_PARENT_PREFIX):
+            _walk_slot(namespace, inner, found, dated=False)
+            continue
+        if not os.path.isdir(os.path.join(inner, ".spine")):
+            continue
+        found.append((namespace, inner))
+        _walk_ticket(namespace, inner, found)
 
 
 def release_record(ticket_dir: str) -> dict | None:
@@ -481,7 +484,7 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
             if mine:
                 owner = "是"
             elif mine is False:
-                owner = f"不是（{detail['assignee']}）" if detail.get("assignee") else "不是"
+                owner = f"不是（{detail['owner']}）" if detail.get("owner") else "不是"
             else:
                 owner = "不知道"
             lines.append(f"| `{row['namespace']}/{row['name']}` | {slot} | "
@@ -498,22 +501,66 @@ def write_index(issues_root: str, rows: list[dict]) -> str:
     return path
 
 
-def target_dir(issues_root: str, namespace: str, ticket_dir: str,
-               slot: str, detail: dict) -> str:
-    """這張單該住哪。`released/` 與 `closed/` 底下多一層日期，有母單的再多一層母單。"""
-    name = os.path.basename(ticket_dir)
+def target_dir(issues_root: str, namespace: str, name: str,
+               slot: str, detail: dict, chain: list[str] | None = None) -> str:
+    """這張單該住哪。
+
+    `{命名空間}/{格}/[{日期}/]{鏈頂}/…/{直接母單}/{它自己}`。**格與日期說的是鏈頂那張單**
+    ——同一個母單底下的子單狀態各不相同是常態，讓每一張各自搬家的話那個母單就被切成好幾
+    塊，而它正是人拿來理解工作的單位。子單自己的狀態沒有消失，它在 `placement.json` 與
+    人看的那份清單上。
+
+    呼叫端算好鏈頂的格與日期之後把 `slot`／`detail` 換成鏈頂那張的；`chain` 是這張單到
+    鏈頂之間的那幾層。兩者都沒有給的時候，它就是自己的鏈頂。
+    """
     parts = [issues_root, namespace, slot]
     if slot == RELEASED:
         parts.append(detail["released_on"])
     elif slot == CLOSED:
         parts.append(detail.get("closed_on") or UNDATED)
-    # 母單層在日期層之下、單之上。順序固定，所以 `released/` 既有的形狀不變——多出來的那
-    # 一層只出現在真的有母單的單身上。
-    layer = parent_layer(detail)
-    if layer:
-        parts.append(layer)
+    parts.extend(chain if chain is not None else chain_of(detail))
     parts.append(name)
     return os.path.join(*parts)
+
+
+def write_upstream(ticket_dir: str, detail: dict) -> None:
+    """把上游的樣子寫進這張單的 `index.md`，夾在兩行標記之間。
+
+    **只有標記之間會被重寫。** 一張自己的單裡面是人寫的東西，重算碰它就不是重算了。檔案
+    還不存在（母單被重算長出來的那一種）就只有這一塊。
+
+    鍵是解析器給的標籤，核心原樣印——它不知道哪一個是標題、哪一個是狀態，也不該知道。
+    """
+    upstream = detail.get("upstream") or {}
+    text = (detail.get("upstream_text") or "").strip()
+    if not upstream and not text:
+        return
+    block = [UPSTREAM_BEGIN, ""]
+    for label, value in upstream.items():
+        block.append(f"- **{label}**：{value}")
+    if text:
+        block += ["", "> 上游描述的快照。改了就是這個檔案的一次改動——", "",
+                  "\n".join(f"> {line}" if line.strip() else ">"
+                             for line in text.splitlines())]
+    block += ["", UPSTREAM_END]
+    rendered = "\n".join(block)
+
+    path = os.path.join(ticket_dir, "index.md")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            body = handle.read()
+    except OSError:
+        body = ""
+    if UPSTREAM_BEGIN in body and UPSTREAM_END in body:
+        head = body[:body.index(UPSTREAM_BEGIN)]
+        tail = body[body.index(UPSTREAM_END) + len(UPSTREAM_END):]
+        body = head + rendered + tail
+    else:
+        title = f"# {os.path.basename(ticket_dir)}\n\n"
+        body = (title + rendered + "\n") if not body else (rendered + "\n\n" + body)
+    os.makedirs(ticket_dir, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(body)
 
 
 def move(ticket_dir: str, destination: str) -> None:
@@ -537,50 +584,134 @@ def prune_empty(issues_root: str) -> None:
             os.rmdir(dirpath)
 
 
-def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> list[dict]:
-    """每一張單現在在哪、該在哪、依據是什麼。不動任何東西。
+def _resolve(issues_root: str, namespace: str, ticket_dir: str, name: str,
+             resolvers: dict[str, str]) -> tuple[str, str, dict] | None:
+    """一張單的 (格子, 依據, 細節)。兩層都問不到就回 None。
 
     兩層：走過脊椎的單看它自己的狀態檔，這一層不需要問任何人。沒有狀態檔的才往下問那個
     命名空間宣告出來的解析器。順序不能反——脊椎的答案是本地的、確定的，讓一次網路往返有
     機會覆蓋它，等於把權威交給一個會逾時的東西（S-N3）。
+    """
+    derived = slot_from_spine(ticket_dir) if ticket_dir else None
+    if derived is None:
+        command = resolvers.get(namespace)
+        if not command:
+            return None
+        slot, basis, detail = slot_from_resolver(command, name)
+    else:
+        slot, basis, detail = derived
+    if ticket_dir:
+        # 解析器問得到上游上次動的時間，那比 git 準——一張掛在 Code Review 兩個月的單，
+        # 本機那個目錄可能昨天才被 commit 碰過。問不到的才退回 git。
+        detail.setdefault("updated", last_touched(
+            issues_root, os.path.relpath(ticket_dir, issues_root), name))
+    return slot, basis, detail
+
+
+def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[list, list]:
+    """每一張單現在在哪、該在哪、依據是什麼。不動任何東西。
 
     **兩層都問不到的不參與判定**，回在第二個清單裡。理由是量出來的：`framework/archive/`
     底下有 460 個舊層搬進來的目錄，它們在脊椎存在之前就結束了，沒有狀態檔也沒有人能問。
     把它們掃進 `triage/`，那一格會裝 467 張，而 `triage/` 存在的意義是「機器問過了，答不
     出來，等人歸位」——一個沒人看得完的抽屜等於沒有這一格。留在原地、把數量印出來，是
     `document-flow.md` 本來就寫下的規矩。
+
+    鏈上出現、但樹裡還沒有目錄的那些單號會被補成一張單（`create`）。**那一條直接回答
+    「上游不屬於我，我還是要讀得到上層資訊」**：一個只當路徑用、沒有內容的母單層，翻樹的
+    人在它身上讀不到任何東西。
     """
     if resolvers is None:
         resolvers = declared_resolvers()
-    rows, abstained = [], []
+    entries, abstained = [], []
+    known: dict[tuple[str, str], int] = {}
     for namespace, ticket_dir in tickets(issues_root):
-        derived = slot_from_spine(ticket_dir)
-        if derived is None:
-            command = resolvers.get(namespace)
-            if not command:
-                abstained.append({"namespace": namespace,
-                                  "name": os.path.basename(ticket_dir),
-                                  "current": os.path.relpath(ticket_dir, issues_root)})
+        name = os.path.basename(ticket_dir)
+        got = _resolve(issues_root, namespace, ticket_dir, name, resolvers)
+        if got is None:
+            abstained.append({"namespace": namespace, "name": name,
+                              "current": os.path.relpath(ticket_dir, issues_root)})
+            continue
+        slot, basis, detail = got
+        known[(namespace, name)] = len(entries)
+        entries.append({"namespace": namespace, "name": name, "slot": slot,
+                        "basis": basis, "detail": detail, "from_dir": ticket_dir})
+
+    # 鏈上出現但樹裡沒有的，補。往上補出來的那一張自己也可能有母單，所以是一個佇列。
+    queue, referred_by = [], {}
+    for entry in list(entries):
+        for key in chain_of(entry["detail"]):
+            referred_by.setdefault((entry["namespace"], key), entry["name"])
+            queue.append((entry["namespace"], key))
+    while queue:
+        namespace, key = queue.pop(0)
+        if (namespace, key) in known:
+            continue
+        got = _resolve(issues_root, namespace, "", key, resolvers)
+        if got is None:
+            continue  # 沒有解析器就問不到這個號，不猜一張單出來
+        slot, basis, detail = got
+        known[(namespace, key)] = len(entries)
+        entries.append({"namespace": namespace, "name": key, "slot": slot,
+                        "basis": basis, "detail": detail, "from_dir": None})
+        for k in chain_of(detail):
+            referred_by.setdefault((namespace, k), key)
+            queue.append((namespace, k))
+
+    # **母單問不到，不得讓底下那張問得到的單失去位置。** 它照樣要有一格（不然子單沒有地方
+    # 可以住），那一格取自引用它的那張單——不是 `triage/`。丟進 triage 的話，一次問不到會把
+    # 整條鏈拖進那個抽屜，而抽屜的意義是「機器問過了，答不出來，等人歸位」，不是「它底下
+    # 問得到的單也一起等」。沒有任何人引用的那些才屬於那裡，它們不進這一輪。
+    #
+    # **這一輪對樹裡的每一張單做，不只對剛補出來的那幾張。** 補出來的那一張，下一次重算就
+    # 是樹裡的一個目錄了——它走的是上面第一段那條路，不是佇列那條。只在補的時候處理，等於
+    # 這條規則只成立一次，第二次重算就把整條鏈拖回 triage/。
+    #
+    # 判準是 `basis`，不是格子名：解析器答得出「這張就是 triage」時那是一個答案，不是一次
+    # 問不到。失敗的那幾種 basis 都帶 `resolver-` 前綴，成功的那一種是光的 `resolver`。
+    for _ in range(len(entries) + 1):
+        adopted = False
+        for entry in entries:
+            if entry["slot"] != TRIAGE or not entry["basis"].startswith("resolver-"):
                 continue
-            slot, basis, detail = slot_from_resolver(command,
-                                                     os.path.basename(ticket_dir))
-        else:
-            slot, basis, detail = derived
-        # 解析器問得到 JIRA 上次動的時間，那比 git 準——一張掛在 Code Review 兩個月的單，
-        # 本機那個目錄可能昨天才被 commit 碰過。問不到的才退回 git。
-        detail.setdefault("updated", last_touched(
-            issues_root, os.path.relpath(ticket_dir, issues_root),
-            os.path.basename(ticket_dir)))
-        destination = target_dir(issues_root, namespace, ticket_dir, slot, detail)
+            referrer = referred_by.get((entry["namespace"], entry["name"]), "")
+            at = known.get((entry["namespace"], referrer))
+            if at is None or entries[at]["slot"] == TRIAGE:
+                continue
+            entry["slot"] = entries[at]["slot"]
+            entry["basis"] = "chain-head-unresolved"
+            entry["detail"] = dict(entry["detail"])
+            entry["detail"].pop("chain", None)
+            entry["detail"]["why"] = (entry["detail"].get("why") or "這次沒問到") + \
+                f"——所以它跟著 {entries[at]['name']} 擺在 {entry['slot']}"
+            adopted = True
+        if not adopted:
+            break
+
+    # 格與日期取鏈頂那張的。鏈頂問不到的話（解析器沒回它）就用自己的，不讓一張單因為它的
+    # 母單問不到而失去位置。
+    rows = []
+    for entry in entries:
+        chain = chain_of(entry["detail"])
+        head = entry
+        if chain:
+            at = known.get((entry["namespace"], chain[0]))
+            if at is not None:
+                head = entries[at]
+        destination = target_dir(issues_root, entry["namespace"],
+                                 entry["name"], head["slot"], head["detail"], chain)
         rows.append({
-            "namespace": namespace,
-            "name": os.path.basename(ticket_dir),
-            "current": os.path.relpath(ticket_dir, issues_root),
+            "namespace": entry["namespace"],
+            "name": entry["name"],
+            "current": (os.path.relpath(entry["from_dir"], issues_root)
+                        if entry["from_dir"] else None),
             "target": os.path.relpath(destination, issues_root),
-            "slot": slot,
-            "basis": basis,
-            "detail": detail,
-            "from_dir": ticket_dir,
+            "slot": entry["slot"],
+            "head_slot": head["slot"],
+            "chain": chain,
+            "basis": entry["basis"],
+            "detail": entry["detail"],
+            "from_dir": entry["from_dir"],
             "to_dir": destination,
         })
     return rows, abstained
@@ -593,7 +724,8 @@ def render(rows: list[dict], abstained: list[dict], moved: int, mode: str) -> st
     lines.append("PLACE-ISSUES-BY-STATE " + "／".join(
         f"{slot} {counts[slot]}" for slot in SLOTS) + f"（共 {len(rows)} 張）")
 
-    off = [r for r in rows if r["current"] != r["target"]]
+    created = [r for r in rows if r["current"] is None]
+    off = [r for r in rows if r["current"] is not None and r["current"] != r["target"]]
     if mode.startswith("execute"):
         # 「原本就在對的位置」要從搬之前那次調查算。搬完再算的話它等於總數，於是報告會同時
         # 說「搬了 7 張」與「原本就有 7 張在對的位置」。
@@ -607,6 +739,24 @@ def render(rows: list[dict], abstained: list[dict], moved: int, mode: str) -> st
                      f"（依據 {row['basis']}）")
     if len(off) > 40:
         lines.append(f"  …還有 {len(off) - 40} 張")
+
+    if created:
+        # 鏈上出現、樹裡還沒有的母單。**不印出來的話它們會安靜地長出來**，而那正是
+        # 「上游不屬於我」的那幾張——最需要有人看一眼的就是它們。
+        lines.append(f"鏈上出現、樹裡還沒有的母單 {len(created)} 張"
+                     + ("（會補出來）" if mode.startswith("execute") else "（要補出來）") + "：")
+        for row in created[:40]:
+            lines.append(f"  {row['target']}")
+        if len(created) > 40:
+            lines.append(f"  …還有 {len(created) - 40} 張")
+
+    deep = [r for r in rows if r["chain"]]
+    if deep:
+        depths: dict[int, int] = {}
+        for row in deep:
+            depths[len(row["chain"])] = depths.get(len(row["chain"]), 0) + 1
+        lines.append("掛在母單底下的 " + str(len(deep)) + " 張，鏈長分佈："
+                     + "、".join(f"{d} 層 {n} 張" for d, n in sorted(depths.items())))
 
     triaged = [r for r in rows if r["slot"] == TRIAGE]
     lines.append(f"落 {TRIAGE}/ 的 {len(triaged)} 張，逐張說出為什麼：")
@@ -674,10 +824,33 @@ def main(argv=None) -> int:
 
     moved = 0
     if args.execute:
+        # 一、鏈上出現、樹裡還沒有的母單，先長出來。它們是別人的落腳處，晚一步的話那些
+        #     子單就沒有地方可以搬。
         for row in rows:
-            if row["current"] == row["target"]:
+            if row["current"] is None:
+                os.makedirs(row["to_dir"], exist_ok=True)
+
+        # 二、搬。**母單先搬，而且要記得它搬去哪**——一張單搬走的時候底下的子單跟著一起
+        #     走，於是那些子單記著的來源路徑當場失效。重新調查一次可以修好，但那是七百次
+        #     子行程，所以這裡自己把路徑改寫過來。
+        remap: list[tuple[str, str]] = []
+
+        def current_path(path: str) -> str:
+            for old_dir, new_dir in remap:
+                if path == old_dir or path.startswith(old_dir + os.sep):
+                    return new_dir + path[len(old_dir):]
+            return path
+
+        for row in sorted((r for r in rows if r["from_dir"]),
+                          key=lambda r: r["from_dir"].count(os.sep)):
+            source = current_path(row["from_dir"])
+            if source == row["to_dir"] or not os.path.isdir(source):
                 continue
-            move(row["from_dir"], row["to_dir"])
+            if os.path.exists(row["to_dir"]):
+                # 已經有東西了：覆蓋掉的是別人的單，那不是搬家是刪除。
+                continue
+            move(source, row["to_dir"])
+            remap.append((source, row["to_dir"]))
             moved += 1
         prune_empty(issues_root)
         rows, abstained = survey(issues_root, resolvers)
@@ -686,6 +859,7 @@ def main(argv=None) -> int:
         # 被預覽寫出來的推導結果，會讓下一個讀它的程式以為那次搬家發生過。
         for row in rows:
             write_placement(row["to_dir"], row["slot"], row["basis"], row["detail"])
+            write_upstream(row["to_dir"], row["detail"])
         # 清單只在問過解析器的那種執行裡重寫。spine-only 看不到靠解析器回答的那些命名空間，
         # 讓它重寫等於每記一輪就把清單上的那些單全部刪掉一次。
         if not args.spine_only:
@@ -696,7 +870,8 @@ def main(argv=None) -> int:
     if args.spine_only:
         mode += "+spine-only"
     print(render(rows, abstained, moved, mode))
-    if args.check and any(r["current"] != r["target"] for r in rows):
+    if args.check and any(r["current"] is None or r["current"] != r["target"]
+                          for r in rows):
         return 1
     return 0
 
