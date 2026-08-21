@@ -416,15 +416,25 @@ def _ask_resolver(command: str, ticket_name: str) -> tuple[str, str, dict]:
     answer = (result.stdout or "").strip().splitlines()
     reason = (result.stderr or "").strip().splitlines()
     note = reason[-1][:160] if reason else ""
-    if result.returncode != 0 or not answer:
-        # exit 2 與 exit 1 是兩件事，報告上也必須是兩件事：「這次沒問到」的下一次可能問得到，
-        # 「問到了但對照不到」是對照表不夠用。第一版把兩者都寫成同一句，於是一個連不上的
-        # 早上跟一張表漏了一列，在報告上長得一模一樣。
-        if result.returncode == RESOLVER_COULD_NOT_ASK or not answer:
-            return TRIAGE, "resolver-unreachable", {
-                "why": f"這次沒問到——{note}" if note else "這次沒問到，而且解析器沒說為什麼"}
+    # exit 2 與 exit 1 是兩件事，報告上也必須是兩件事：「這次沒問到」的下一次可能問得到，
+    # 「問到了但對照不到」是對照表不夠用。**判是哪一種只看離場碼。**
+    #
+    # 上一版多寫了一個 `or not answer`，於是第二條 return 永遠到不了：解析器答不出來時是用
+    # `die()` 收場的，而 `die()` 只寫 stderr，所以任何一種失敗的 stdout 都是空的。那一句
+    # 短路把自己上面那段註解取消掉了——2026-08-21 真樹上，「上游說沒有這張單」與「對照表
+    # 漏了一列」印出來都是 `這次沒問到——…`，而第一種讀起來自相矛盾。
+    if result.returncode == RESOLVER_COULD_NOT_ASK:
+        return TRIAGE, "resolver-unreachable", {
+            "why": f"這次沒問到——{note}" if note else "這次沒問到，而且解析器沒說為什麼"}
+    if result.returncode != 0:
         return TRIAGE, "resolver-no-answer", {
             "why": note or f"解析器說不出這張單在哪一格（exit {result.returncode}）"}
+    if not answer:
+        # 回 0 表示它宣稱成功，卻什麼都沒印。那不是「沒問到」——沒問到的下一次可能問得到，
+        # 而這一種是解析器壞了，每一次都會這樣。當成沒問到的話，一支壞掉的解析器會被讀成
+        # 一個連不上的早上。
+        return TRIAGE, "resolver-unparseable", {
+            "why": f"解析器回 0 卻什麼都沒印{'——' + note if note else ''}"}
 
     try:
         detail = json.loads(answer[-1])
