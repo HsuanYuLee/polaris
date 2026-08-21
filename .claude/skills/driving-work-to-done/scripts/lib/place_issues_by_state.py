@@ -263,6 +263,27 @@ def last_touched(issues_root: str, relative: str, name: str) -> str | None:
     return answer
 
 
+def touched_at(issues_root: str, relative: str) -> str | None:
+    """**這個路徑**上的活文件，上次真的被改過是哪一天。問不到回 None。
+
+    不走 `last_touched`：那一支照**單名**記住答案，而這裡問的正好是同一個單號的兩個不同
+    路徑——共用一份按名字記的快取，兩邊會拿到同一個日期，而那個日期正是要拿來分辨它們的。
+
+    「不知道」與「今天」是兩件事。問不到就回 None，讓報告寫「不知道」——把記帳那天填進去
+    的話，一個看得出來的空白會變成一個看不出來的謊。
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", issues_root, "log", "--follow", "--format=%cs", "--numstat",
+             "--", os.path.join(relative, "index.md")],
+            capture_output=True, text=True, timeout=RESOLVER_TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return first_commit_that_changed_lines(result.stdout)
+
+
 def first_commit_that_changed_lines(log: str) -> str | None:
     """`git log --format=%cs --numstat` 的輸出裡，第一個真的改過行數的 commit 的日期。
 
@@ -717,8 +738,16 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
     return rows, abstained
 
 
-def render(rows: list[dict], abstained: list[dict], moved: int, mode: str) -> str:
-    """報告。每一格都有數字——包括 0，一個安靜的空格子跟一個沒被檢查的格子長得一樣。"""
+def render(rows: list[dict], abstained: list[dict], moved: int, mode: str,
+           planned: int = 0, skipped: list[dict] | None = None,
+           carried: int = 0, vanished: list[dict] | None = None) -> str:
+    """報告。每一格都有數字——包括 0，一個安靜的空格子跟一個沒被檢查的格子長得一樣。
+
+    真的搬過的那一種要三個數字：**打算搬幾張、真的搬了幾張、撞到東西沒搬成幾張**。少了
+    第三個，被跳過的那些會被「原本就在對的位置」吸收——2026-08-21 那一次寫的是「搬了 0 張，
+    原本就在對的位置的 710 張」，緊接著逐行列出 24 張位置不對的單。兩個數字互相矛盾，而讀
+    的人只會看第一行。
+    """
     lines = []
     counts = {slot: sum(1 for r in rows if r["slot"] == slot) for slot in SLOTS}
     lines.append("PLACE-ISSUES-BY-STATE " + "／".join(
@@ -729,7 +758,28 @@ def render(rows: list[dict], abstained: list[dict], moved: int, mode: str) -> st
     if mode.startswith("execute"):
         # 「原本就在對的位置」要從搬之前那次調查算。搬完再算的話它等於總數，於是報告會同時
         # 說「搬了 7 張」與「原本就有 7 張在對的位置」。
-        lines.append(f"搬了 {moved} 張，原本就在對的位置的 {len(rows) - moved} 張")
+        stuck, gone = skipped or [], vanished or []
+        lines.append(f"打算搬 {planned} 張＝真的搬了 {moved} 張"
+                     f"＋跟著母單一起走 {carried} 張"
+                     f"＋撞到已經存在的目的地沒搬成 {len(stuck)} 張"
+                     f"＋來源不見了 {len(gone)} 張；"
+                     f"原本就在對的位置的 {len(rows) - planned} 張")
+        if gone:
+            lines.append(f"來源不見了的 {len(gone)} 張：")
+            for row in gone[:40]:
+                lines.append(f"  {row['from']} ↛ {row['to']}")
+        if stuck:
+            # **沒搬成不得只是一個數字。** 撞到的那個位置多半是一個空殼，而那張單的內容還
+            # 留在舊路徑上——同一個單號在樹裡出現兩次，沒有東西會喊。
+            lines.append(f"沒搬成的 {len(stuck)} 張，逐張說出撞到什麼、哪一份比較新：")
+            for row in stuck[:40]:
+                here = row.get("from_touched") or "不知道"
+                there = row.get("to_touched") or "不知道"
+                lines.append(f"  {row['from']} ↛ {row['to']}（那個位置已經有東西了）")
+                lines.append(f"    上次動過：這一份 {here}／那一份 {there}"
+                             "——哪一份留下來由人決定")
+            if len(stuck) > 40:
+                lines.append(f"  …還有 {len(stuck) - 40} 張")
     else:
         lines.append(f"位置與狀態對不上的 {len(off)} 張，對得上的 {len(rows) - len(off)} 張"
                      + ("（--check，不動任何東西）" if mode == "check"
@@ -822,7 +872,9 @@ def main(argv=None) -> int:
         print("POLARIS_ISSUES_TREE_EMPTY\n一張單都沒有掃到——這不是「全部都在對的位置」")
         return 2
 
-    moved = 0
+    moved, planned, carried = 0, 0, 0
+    skipped: list[dict] = []
+    vanished: list[dict] = []
     if args.execute:
         # 一、鏈上出現、樹裡還沒有的母單，先長出來。它們是別人的落腳處，晚一步的話那些
         #     子單就沒有地方可以搬。
@@ -841,13 +893,36 @@ def main(argv=None) -> int:
                     return new_dir + path[len(old_dir):]
             return path
 
-        for row in sorted((r for r in rows if r["from_dir"]),
-                          key=lambda r: r["from_dir"].count(os.sep)):
+        # **排序用目的地的深度，不用來源的。** 來源的深度回答不了「誰要先搬」：一張單與它
+        # 的子單可以來自同樣深的兩個地方，而目的地一個在另一個底下。深度相同就沒有順序，
+        # 交給清單的排列——子單先搬的話，`move()` 會把母單的目的地當成路徑造出來，輪到母單
+        # 自己的時候那個路徑已經存在，於是它的搬動被跳過，內容永遠留在舊路徑上。
+        #
+        # 實測：2026-08-21 對真實單樹跑一次遷移，遷移前 0 組同號重複，遷移後 12 組。
+        movable = [r for r in rows if r["from_dir"] and r["current"] != r["target"]]
+        planned = len(movable)
+        for row in sorted(movable, key=lambda r: r["to_dir"].count(os.sep)):
             source = current_path(row["from_dir"])
-            if source == row["to_dir"] or not os.path.isdir(source):
+            if source == row["to_dir"]:
+                # 母單搬走的時候它整個目錄一起走，底下的子單已經到位了。**這不是「沒搬」，
+                # 也不是「原本就在對的位置」**——它本來不在，是這一次被帶過去的。
+                carried += 1
+                continue
+            if not os.path.isdir(source):
+                # 來源不見了。正常不會發生（remap 就是為了這件事），發生了要有人看見。
+                vanished.append({"from": row["current"], "to": row["target"],
+                                 "name": row["name"]})
                 continue
             if os.path.exists(row["to_dir"]):
-                # 已經有東西了：覆蓋掉的是別人的單，那不是搬家是刪除。
+                # 已經有東西了：覆蓋掉的是別人的單，那不是搬家是刪除。**但也不得安靜地
+                # 跳過**——排完順序還撞到，代表樹裡本來就有兩個同號的目錄，那要有人看見。
+                # **「哪一份是權威」只有一個線索機械答得出來：兩邊各自上次動過。** 重算
+                # 不替人決定留哪一份——它答得出「哪一邊比較新」，答不出「哪一邊是對的」。
+                skipped.append({
+                    "from": row["current"], "to": row["target"], "name": row["name"],
+                    "from_touched": touched_at(issues_root, row["current"]),
+                    "to_touched": touched_at(issues_root, row["target"]),
+                })
                 continue
             move(source, row["to_dir"])
             remap.append((source, row["to_dir"]))
@@ -869,7 +944,7 @@ def main(argv=None) -> int:
     mode = "check" if args.check else ("execute" if args.execute else "preview")
     if args.spine_only:
         mode += "+spine-only"
-    print(render(rows, abstained, moved, mode))
+    print(render(rows, abstained, moved, mode, planned, skipped, carried, vanished))
     if args.check and any(r["current"] is None or r["current"] != r["target"]
                           for r in rows):
         return 1
