@@ -1,5 +1,18 @@
 # Changelog
 
+## [4.61.3] - 2026-08-21
+
+### Changed
+
+- 8325bb5: 一份 changeset 現在在它被寫下的地方就被看見，不用等它被壓進變更紀錄。
+  兩件事疊起來會產生一個看 diff 看不出來的後果：`destination: workspace` 的釋出不壓版，
+  所以它留下的 changeset 沒有人會消化；而 `.changeset/` 以前不在 template-leak 掃描的
+  範圍內。於是一份帶著 live 公司樣式的 changeset 在那裡完全安全，被下一張 template-bound
+  的單壓進 `CHANGELOG.md` 的那一刻才變紅——而那份 CHANGELOG 會同步到公開的 repo，紅的還是
+  別人的 commit。
+  改兩處：`.changeset/` 收進掃描範圍（`CHANGELOG.md` 早就在範圍內，這是同一條規矩早一步
+  套用）；`workspace` 那條路徑的版號那一行說出待處理的份數與它們的去向。**只說不擋**。
+
 ## [4.61.2] - 2026-08-21
 
 ### Changed

@@ -100,6 +100,12 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
    **壓完版號就要促進到 main，不停在中間。** 一個壓了版號卻沒進 main 的 commit，是一個宣稱
    已經發生、但任何人 clone 下來都看不到的版本。這兩步之間沒有停點。
 4. **同步 template** —— 只有 `destination: template` 的單才做。`workspace` 的到第 3 步為止。
+
+   **但 `workspace` 那條路徑要說出它留下了什麼。** 它不壓版，所以它寫的 changeset 沒有人
+   會消化——那幾份會躺在 `.changeset/` 裡，等下一張 `template` 的單釋出時被壓進
+   `CHANGELOG.md`，而那份 CHANGELOG 會同步到一個公開的 repo。第 2 步在這條路徑上因此
+   多說一句：待處理的有幾份、它們會去哪裡。**只說不擋**——一份 changeset 到底該不該留，
+   是人的判斷。
 5. **打 tag、建 release** —— **兩件事，各問各的系統。** tag 問 `git ls-remote --tags origin`，
    release 問 `gh release view`。用一個判斷答兩件事的那一版，在「tag 推出去了、release 還
    沒建」那個中斷點重跑會印「already on origin」然後回報出貨完成，而那個 release 從來沒有
@@ -115,7 +121,7 @@ template checkout 自己問同步——所以做過的會被跳過，沒做的�
 | 閘 | 擋什麼 |
 |---|---|
 | `gate-spine-delivery.sh` | 交付紀錄不存在、或釘的是另一個 commit |
-| `gate-template-leaks.sh` | live company slug 進公開的 template repo |
+| `gate-template-leaks.sh` | live company slug 進公開的 template repo。掃描的範圍含 `.changeset/`——那個目錄的內容注定會被壓進 `CHANGELOG.md`，而少了這一格的話，帶著樣式的那一份要等到被壓進去才變紅，那時候紅的是別人的 commit |
 | `gate-runtime-instruction-manifest.sh` | 生成的常駐指令過期——之後每個 session 都會靜默讀到錯的那份 |
 | `gate-no-tracked-specs.sh` | 個人的規劃內容混進這個 repo |
 | `gate-skill-script-references.sh` | skill 腳本從自己的位置算起指名一個不存在的東西——搬家留下的洞，執行期才炸。被存在性檢查包住的算候選，整組落空才紅 |

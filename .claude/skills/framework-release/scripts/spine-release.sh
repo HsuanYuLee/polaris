@@ -291,7 +291,15 @@ status_report() {
   pending="$(pending_changesets)"
   version="$(cat "$REPO_PATH/VERSION" 2>/dev/null || echo unknown)"
   if [[ "${DESTINATION}" != "template" ]]; then
-    say 版號 不適用 "destination=${DESTINATION}，這條路徑不壓版"
+    # 這條路徑不壓版，所以它留下來的 changeset 沒有人會消化——它會躺在 .changeset/ 裡，
+    # 等下一張 template-bound 的單釋出時被壓進 CHANGELOG.md。那份 CHANGELOG 會同步到
+    # 公開的 template repo，於是它宣告了一件從來沒有出去的事，而紅的是別人的 commit。
+    # 說出來就好，不擋：一份 changeset 到底該不該留，是人的判斷。
+    if [[ "${pending}" == "0" ]]; then
+      say 版號 不適用 "destination=${DESTINATION}，這條路徑不壓版；沒有待處理的 changeset"
+    else
+      say 版號 不適用 "destination=${DESTINATION}，這條路徑不壓版；但 .changeset/ 裡有 ${pending} 份待處理，它們會被下一次 template 的釋出壓進 CHANGELOG.md"
+    fi
   elif [[ "${pending}" == "0" ]]; then
     say 版號 壓過了 "VERSION=${version}，沒有待處理的 changeset"
   else

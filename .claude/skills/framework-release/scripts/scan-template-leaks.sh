@@ -405,6 +405,10 @@ def scan_roots(root: Path, source_name: str):
         ".claude",
         ".codex",
         ".github",
+        # `.changeset/` 的內容注定會被壓進 CHANGELOG.md，而 CHANGELOG.md 早就在這張表上。
+        # 少了這一格的話，一份帶著 live 樣式的 changeset 在這裡完全安全，被壓進去的那一刻
+        # 才變成紅燈——而那時候紅的是別人的 commit，修法是回頭改一份已經被消化掉的檔案。
+        ".changeset",
         "scripts",
         "docs",
         "docs-manager",
