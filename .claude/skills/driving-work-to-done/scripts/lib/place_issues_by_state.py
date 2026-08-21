@@ -184,7 +184,7 @@ def _walk_slot(namespace: str, path: str, found: list, dated: bool) -> None:
 
 
 def _walk_ticket(namespace: str, ticket_dir: str, found: list) -> None:
-    """一張單底下**帶著 `.spine/` 的**那些目錄是另一張單。其餘的不是，穿過去也不看。
+    """一張單底下**帶著 `.spine/` 的**那些目錄是另一張單。其餘的不是——但還是要穿過去。
 
     這裡不能寫成「單底下的每一個目錄都是另一張單」。真實的樹上不成立：舊層在單裡放過
     `tasks/`、`T1/`、`evidence/`、`scripts/`、`migrations/` 這些目錄，實測 259 個。把它們
@@ -194,6 +194,16 @@ def _walk_ticket(namespace: str, ticket_dir: str, found: list) -> None:
     判準跟 A-P5 問的是同一件事（「有 `.spine/` 的單」），而且它不需要認得任何外部系統的
     命名慣例：樹裡的巢狀只由重算自己造出來，而它造的時候一定會把推導結果寫回那張單的
     `.spine/`。轉場期還會撞到舊的群組層，那一種穿過去。
+
+    **「什麼是單」與「要不要穿過去」是兩個問題。** 上一版用同一個答案答了兩個：不是單就
+    不遞迴，於是一個只當路徑用的中間層——沒有 `.spine/`、沒有正文，只有一個子單目錄，
+    `move()` 建目的地時順手造出來的——會把遞迴停在那裡。2026-08-21 真樹上因此漏掉 19 張
+    深度 3 的孫單，而那是一個穩定的不動點：孫單看不見 → 它的鏈沒有人讀 → 中間那個號永遠
+    不會被補成一張單 → 孫單繼續看不見。
+
+    穿過去不會多算出東西：算成單的判準沒有變（要有 `.spine/`），而 2026-08-21 全樹實測，
+    沒有任何 `.spine/` 埋在舊層的工作目錄底下。真有一個的話它會變成一張單——那是吵的，
+    不是安靜的，而安靜正是這一條在修的東西。
     """
     for name in sorted(os.listdir(ticket_dir)):
         inner = os.path.join(ticket_dir, name)
@@ -202,9 +212,8 @@ def _walk_ticket(namespace: str, ticket_dir: str, found: list) -> None:
         if name.startswith(LEGACY_PARENT_PREFIX):
             _walk_slot(namespace, inner, found, dated=False)
             continue
-        if not os.path.isdir(os.path.join(inner, ".spine")):
-            continue
-        found.append((namespace, inner))
+        if os.path.isdir(os.path.join(inner, ".spine")):
+            found.append((namespace, inner))
         _walk_ticket(namespace, inner, found)
 
 
