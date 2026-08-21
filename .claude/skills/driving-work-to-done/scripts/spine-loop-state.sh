@@ -1018,42 +1018,58 @@ cmd_next() {
   # 地方，正是這張單在拆的形狀。
   if [[ -n "$ACROSS_ISSUES" ]]; then
     require_python3
-    python3 - "$ACROSS_ISSUES" "$STATIONS" <<'PY'
+    local libdir
+    libdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/lib"
+    python3 - "$ACROSS_ISSUES" "$STATIONS" "$libdir" <<'PY'
 import json
 import os
 import sys
 
-def find_states(root):
-    """這棵樹底下每一張單的 loop-state.json，**不預設它埋在第幾層**。
+root, stations, libdir = sys.argv[1], sys.argv[2].split(), sys.argv[3]
 
-    以前這裡寫死兩種深度（`*/*/` 與 `*/*/*/`），對應「活躍區」與「archive/」兩格。多開一格
-    資料夾就要回來各補一條，而漏掉的那一條不會爆炸——glob 掃不到只是少算，少算的方向還剛好
-    是「看起來還有比較多事沒做」，沒有人會抱怨。所以改成問一個不含深度的問題：這棵樹底下
-    哪些目錄裡有 .spine/loop-state.json。
+# 「這棵樹有幾張單」不在這裡再推導一次。位置重算那一支是唯一知道版面長什麼樣的地方，
+# 它認得的那組單就是分母——自己 os.walk 一次 `.spine/` 的話，這裡與那裡會各自演化，
+# 而兩份答案漂開的那一刻，讀的人沒有辦法說出哪一份錯。
+sys.path.insert(0, libdir)
+try:
+    import place_issues_by_state as placer
+except ImportError:
+    sys.stderr.write(
+        f"POLARIS_SPINE_PLACER_UNAVAILABLE: {libdir} 底下找不到位置重算那一支。"
+        "沒有它就數不出整棵樹有幾張單，而一個少算的答案跟一個完整的答案長得一模一樣。\n")
+    raise SystemExit(2)
 
-    `.git` 要跳過：單樹自己是一個 git repo，而 .git 底下的東西不是單。
-    """
-    found = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d != ".git"]
-        if os.path.basename(dirpath) == ".spine" and "loop-state.json" in filenames:
-            found.append(os.path.join(dirpath, "loop-state.json"))
-    return sorted(found)
-
-
-root, stations = sys.argv[1], sys.argv[2].split()
+ticket_dirs = [issue_dir for _, issue_dir in placer.tickets(root)]
 # 排序只靠狀態，不靠路徑：命名空間叫什麼、單號多大，都不參與判定。往後站的先做——
 # 一張已經在 verify-ac 的單離交付最近，把它放著去開新的單，就是把在製品堆高。
 rank = {name: index for index, name in enumerate(stations)}
 rows, unreadable = [], 0
-for path in find_states(root):
+# 狀態不在這裡的那些單。它們不是壞掉的單，是狀態的權威在別的系統——重算問過那個系統、
+# 把答案寫回 `{單}/.spine/placement.json`，所以這裡讀那一份就好。**不從資料夾名推**：
+# 路徑是狀態的投影，投影不是第二個權威。
+elsewhere, settled_elsewhere, unplaced = 0, 0, 0
+for issue_dir in ticket_dirs:
+    name = os.path.relpath(issue_dir, root)
+    path = os.path.join(issue_dir, ".spine", "loop-state.json")
+    if not os.path.isfile(path):
+        try:
+            slot = json.load(
+                open(os.path.join(issue_dir, ".spine", "placement.json"),
+                     encoding="utf-8")).get("slot")
+        except (OSError, ValueError):
+            slot = None
+        if slot is None:
+            unplaced += 1
+        elif slot in placer.SETTLED_SLOTS:
+            settled_elsewhere += 1
+        else:
+            elsewhere += 1
+        continue
     try:
         data = json.load(open(path, encoding="utf-8"))
     except (OSError, ValueError):
         unreadable += 1
         continue
-    issue_dir = os.path.dirname(os.path.dirname(path))
-    name = os.path.relpath(issue_dir, root)
     station = data.get("station", "engineering")
     stop = data.get("stop")
     if data.get("status") == "escalated" and not stop:
@@ -1110,8 +1126,22 @@ for row in sorted((r for r in movable if not r["sealed"]), key=lambda r: r["name
     print(f"seed:{row['name']} 還沒簽斷言——先走 refinement")
 # 已交付與收斂的不列成清單，但要有數字。不被判定的第三態如果安靜，下一次就會有人
 # 以為那些也被看過了。
+settled = len(rows) - len(live)
 print(f"counted: live={len(live)} movable={len(movable)} blocked={len(blocked)} "
-      f"settled={len(rows) - len(live)} unreadable={unreadable}")
+      f"settled={settled} unreadable={unreadable}")
+# 逐張的清單只有一份，在 OPEN.md——同一次重算產出的。這裡指過去，不抄第二遍：兩份清單
+# 會漂，而這張單要修的正是「同一個問題有兩個答案」。
+if elsewhere or settled_elsewhere:
+    print(f"elsewhere: {elsewhere + settled_elsewhere} 張的狀態不在這裡"
+          f"（其中 {elsewhere} 張還在中間態）——逐張看 {os.path.join(root, 'OPEN.md')}")
+if unplaced:
+    print(f"unplaced: {unplaced} 張既沒有輪次、重算也推導不出位置——兩層都問不到，等人歸位")
+# 分母寫出來，讓「加起來對不對」不必靠讀的人自己算。少算的方向剛好是「看起來事情比較少」，
+# 沒有人會抱怨，所以它必須是一個看得見的等式。
+print(f"tree: {len(ticket_dirs)} 張＝live {len(live)}＋settled {settled}"
+      f"＋讀不動 {unreadable}＋狀態在別處 {elsewhere}"
+      f"＋狀態在別處而且已經有結論 {settled_elsewhere}＋兩層都問不到 {unplaced}"
+      "（movable／blocked 是 live 的細分，不另計）")
 PY
     return 0
   fi
