@@ -496,7 +496,10 @@ done
 
 echo "Hooks..."
 mkdir -p "$POLARIS_DIR/.claude/hooks" 2>/dev/null || true
-for hook_file in "$INSTANCE_DIR"/.claude/hooks/*.sh; do
+# 以前這裡只掃 *.sh。一支用 python 寫的 hook 因此靜靜地留在本地，而 settings.json 照樣
+# 出去並指向它——目的地拿到一份指向不存在檔案的設定。搬運看的是副檔名，而 hook 是什麼語言
+# 寫的跟它該不該出去無關。**資料檔不在這個迴圈裡**：詞表那一類屬於某一個工作區自己。
+for hook_file in "$INSTANCE_DIR"/.claude/hooks/*.sh "$INSTANCE_DIR"/.claude/hooks/*.py; do
   [[ -f "$hook_file" ]] || continue
   hook_name=$(basename "$hook_file")
   if ! goes_to_template "$hook_file"; then
@@ -679,7 +682,7 @@ if [[ "$PRUNE" == true ]]; then
   done
 
   # 8c-4: Hooks — remove hook files in polaris that don't exist in instance
-  for polaris_hook in "$POLARIS_DIR"/.claude/hooks/*.sh; do
+  for polaris_hook in "$POLARIS_DIR"/.claude/hooks/*.sh "$POLARIS_DIR"/.claude/hooks/*.py; do
     [[ -f "$polaris_hook" ]] || continue
     hook_name=$(basename "$polaris_hook")
     if [[ ! -f "$INSTANCE_DIR/.claude/hooks/$hook_name" ]]; then
