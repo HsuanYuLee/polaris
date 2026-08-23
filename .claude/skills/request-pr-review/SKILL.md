@@ -86,6 +86,7 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 | 何時讀 | Reference | 用途 |
 |--------|-----------|------|
 | 產出報告、加 label、組通知訊息時 | `references/request-pr-review-reporting.md` | 報告表格、label 處理、訊息要說出哪幾件事 |
+| 那份報告要分哪幾段、每一段寫什麼 | `references/report-format.md` | 交出去給人讀的報告共用的段落骨架 |
 | 判讀 approval / stale 語意前 | `references/stale-approval-detection.md` | stale approval 的權威定義 |
 | 訊息送出前 | `.claude/rules/style-and-language.md` | 語言閘 |
 

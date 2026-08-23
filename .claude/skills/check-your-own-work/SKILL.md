@@ -115,6 +115,10 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 **兩者都沒有的 finding 存在時，這次自檢還沒跑完。** 一條被列出來然後沒有人碰的 finding，
 比沒有列出來更糟：它讓這份清單看起來被處理過了。
 
+清單要交給別人看的時候（貼進 PR、貼進討論串、寫成一份自檢結果），照
+`references/report-format.md` 的段落骨架寫，第 3 段走「檢查結果」那一格。留在自己手上
+邊看邊改的那一輪不必套——那個當下沒有第二個讀者。
+
 ## 它不做的事
 
 - **不判紅、不擋人。** 沒有「不通過就不能往下」的形狀。真正該擋人的是不可逆、會出去到這個
