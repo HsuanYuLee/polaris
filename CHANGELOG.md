@@ -1,5 +1,25 @@
 # Changelog
 
+## [4.64.0] - 2026-08-24
+
+### Changed
+
+- 17cfbce: 中文回應檢查拔掉，改成指向外面在用的兩份標準。
+  `.claude/hooks/reply-guard.py` 掛在 Stop 上，抓到就用離場碼 2 把訊息交回模型要它重講一次。
+  那條路徑在設計上就是「擋下來、重講」，而重講在使用者那一端的樣子是同一件事被講了兩次。
+  防無限迴圈的 `stop_hook_active` 擋得住第三次，擋不住第二次，而第二次就是使用者看到的那一則。
+  拔掉的是三處：`settings.json` 的 `Stop` 宣告、`reply-guard.py`、`reply-guard-words.json`。
+  `.claude/rules/style-and-language.md`〈中文寫成什麼樣子〉改成指向兩份外部標準，並把要照做
+  的條目寫出來，讀的人不用開網頁：
+  - [《中文技術文件寫作規範》](https://github.com/ruanyf/document-style-guide)（公共領域）的
+    〈文本〉與〈段落〉——單句長度、簡單句、肯定句、主動語態、代詞唯一、段落中心句。
+  - [Google developer documentation style guide](https://developers.google.com/style/) 的
+    voice and tone 與 highlights——不用比喻、不說「很簡單」、第二人稱、條件寫在指令前面。
+    這一節試過兩版自己發明的東西：八條徵兆清單（讀過就忘），與一支自己養詞表的 hook（認得詞、
+    認不出比喻）。兩份外部標準由別人維護，有正反例，不需要這裡再養一份。
+    檔頭那份「哪幾節有閘在守」的清單跟著改：〈中文寫成什麼樣子〉現在跟〈回覆的形狀〉同一類，
+    只靠被讀到而生效。
+
 ## [4.63.0] - 2026-08-24
 
 ### Changed
