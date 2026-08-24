@@ -9,7 +9,7 @@ description: |
   不用於：一張單走到哪（走 driving-work-to-done）、工時補登（走該公司自己的 worklog skill）。
 metadata:
   author: Polaris
-  version: 3.0.0
+  version: 3.1.0
 scope: standalone
 tools:
   - name: jq
@@ -43,7 +43,11 @@ workflow authority。這條有兩個方向，兩個都要擋：
 刪掉的。**讀者是誰決定了報告寫什麼**——而那一步指名的目錄與腳本，在這支 skill 被單獨帶走
 的環境裡一個都不存在。
 
-**送出去之前必須等待使用者確認。** 沒有卡關的項目時保留那一格，不寫「無」。
+**送出去之前必須等待使用者確認，而產出與送出是兩段。** 本地檔寫完、過完 gate 之後停下來，
+把要送出去的**逐字全文**交給人，等一句同意才送。**工具的授權不是內容的授權**——使用者授權
+了瀏覽器、Slack 或某個 API，授的是那個工具，那一份要貼出去的東西他還沒看過。細節與
+2026-08-24 的標本在 `standup-format-publish-flow.md` 的〈產出與送出是兩段〉。沒有卡關的
+項目時保留那一格，不寫「無」。
 
 **目的地不寫在這支 skill 裡。** 送到哪、什麼形狀、誰按下送出，問
 `scripts/resolve-standup-destination.sh`；宣告缺席時說出來、報告照常產出並寫在本地，
@@ -69,6 +73,7 @@ workflow authority。這條有兩個方向，兩個都要擋：
    收到的 review comment、CI 狀態）、Calendar meetings。視窗綁在查詢那一層，不是事後過濾。
 4. Merge and deduplicate 昨日，並做 plan vs actual comparison——比對來源是
    `{base_dir}/standups/` 底下今天以前最新的那一份，而且**每次都說出拿哪一份比的**。
+   **比的是內容不是號碼**，而且空的今日格不算一個計畫——規則在 `standup-planning-flow.md`。
    同一張單描述與留言衝突時留言勝出，且把落差說出來。
 5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR。
 6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
@@ -78,8 +83,12 @@ workflow authority。這條有兩個方向，兩個都要擋：
    寫在〈第二個來源要帶今天的根據〉那一節。
    兩次 standup 之間才發現的卡關寫回本地那份檔案，見〈兩次 standup 之間發現的卡關，落在哪〉。
 7. 依 `standup-template.md` 依 epic 組裝三格並呈現給使用者確認，附上〈發現 N 處與現況不符〉。
+   **epic 的 assignee 不是自己時，三格寫的是自己名下那幾張子單**，不寫成整張 epic 由自己
+   推進——判定與標本在 `standup-data-collection-flow.md` 的〈這張 epic 是我的，還是我只有
+   底下的單〉。
 8. 使用者確認後，寫 local markdown。**那一份不是備份，是本體**，也是明天的比對來源。
-9. 對 local markdown 跑 language gate，通過後依宣告的目的地送出。
+9. 對 local markdown 跑 language gate，通過後**把要送出去的逐字全文交給人、等一句同意**，
+   才依宣告的目的地送出。`publish: manual` 表示最後一步由人自己貼上。
 10. 落差清單裡使用者逐條同意的那幾條，才寫回單／PR——同一條紀律：落地成檔案 → 過 gate →
     才送。沒點頭的不寫。
 

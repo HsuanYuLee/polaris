@@ -109,6 +109,29 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 **而且要說出來。** 報告裡不要只寫贏的那一版，要讓看的人知道單上還躺著一段舊的——那一段
 就是下面〈落差〉那一節的輸入。
 
+### 這張 epic 是我的，還是我只有底下的單
+
+<!-- STANDUP-CONTRACT: epic-ownership -->
+
+一張 epic 有兩種跟我有關的方式，而它們的三格要寫得不一樣：
+
+| epic 的 assignee | 三格寫什麼 |
+|---|---|
+| 就是我 | 整張 epic 的進度，主詞是這張 epic |
+| 別人 | **我名下那幾張子單的進度**，主詞是子單 |
+
+**判定用 epic 自己的 assignee，不用子單的。** 子單都掛在我身上不使那張 epic 變成我的——
+2026-08-24 的標本：EPIC-100 的 assignee 是一個**已經停用的帳號**（`active: false`），
+EPIC-200 的 assignee 是另一位同事，而兩張底下我名下的子單各有三張與兩張。報告對五張待辦
+epic 一律寫了「開始確認細節，今天有餘裕就動工」，等於在別人的 epic 上宣告我要開工，
+使用者當場抓到。
+
+所以**收集階段就要把 assignee 帶出來**，不要等到排版才發現。查 epic 時多要一個 `assignee`
+欄位就有；`active: false` 也要說出來——一個停用的 owner 表示那張 epic 現在沒有人在管，
+那是要讓人知道的事，不是一個可以無視的欄位。
+
+**epic 的 owner 不是我的時候，今日格不寫以整張 epic 為主詞的動工句。**
+
 ## Branch And PR Activity
 
 <!-- STANDUP-CONTRACT: ydy-includes-pr -->
