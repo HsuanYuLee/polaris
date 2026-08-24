@@ -9,7 +9,7 @@ description: |
   不用於：一張單走到哪（走 driving-work-to-done）、工時補登（走該公司自己的 worklog skill）。
 metadata:
   author: Polaris
-  version: 3.1.0
+  version: 4.0.0
 scope: standalone
 tools:
   - name: jq
@@ -21,7 +21,10 @@ tools:
 # Standup — 每日站立會議報告產生器
 
 從 git、JIRA、Calendar、PR status 與使用者補充資料，產出**以 epic 為主體、每張 epic 三格
-（昨日／今日／卡關）**的報告。使用者確認後寫 local markdown，再依公司宣告的目的地送出。
+（昨日／今日／卡關）**的報告。使用者確認後寫 local markdown，然後把內容列出來。
+
+**它只收集與列出，不送出。** 這支寫得到的只有那一份本地檔案，其餘什麼都不碰——不貼看板、
+不打 API、不改任何一張單。要把列出來的東西送到哪裡去，是使用它的人自己的事。
 
 ## Contract
 
@@ -43,15 +46,12 @@ workflow authority。這條有兩個方向，兩個都要擋：
 刪掉的。**讀者是誰決定了報告寫什麼**——而那一步指名的目錄與腳本，在這支 skill 被單獨帶走
 的環境裡一個都不存在。
 
-**送出去之前必須等待使用者確認，而產出與送出是兩段。** 本地檔寫完、過完 gate 之後停下來，
-把要送出去的**逐字全文**交給人，等一句同意才送。**工具的授權不是內容的授權**——使用者授權
-了瀏覽器、Slack 或某個 API，授的是那個工具，那一份要貼出去的東西他還沒看過。細節與
-2026-08-24 的標本在 `standup-format-publish-flow.md` 的〈產出與送出是兩段〉。沒有卡關的
-項目時保留那一格，不寫「無」。
+**這支不知道目的地，也不該知道。** 沒有宣告、沒有解析、沒有預設值——它組出三格、寫成
+本地檔、把內容列給人看，到這裡就結束。沒有卡關的項目時保留那一格，不寫「無」。
 
-**目的地不寫在這支 skill 裡。** 送到哪、什麼形狀、誰按下送出，問
-`scripts/resolve-standup-destination.sh`；宣告缺席時說出來、報告照常產出並寫在本地，
-不猜也不沿用。判準與四種離場碼在 `standup-format-publish-flow.md` 的〈送到哪〉。
+這件事以前是反過來的：這支自己去問一個宣告、自己按下送出，於是「要送到哪裡」變成一支通用
+skill 的問題，而那個答案只有某一家公司才有。**送出是一個人在一家公司的行為，收集與列出
+不是**——把兩者放在同一支裡面，通用的那一半就被綁在特定環境上。
 
 ## Reference Loading
 
@@ -59,7 +59,7 @@ workflow authority。這條有兩個方向，兩個都要擋：
 |---|---|
 | Any run | `standup-data-collection-flow.md`, `workspace-config.yaml` |
 | 今日格 / planning | `standup-planning-flow.md`, `standup-template.md`, `session-timeline.md` when useful |
-| Formatting / publish | `standup-format-publish-flow.md`, `standup-template.md`, `scripts/resolve-standup-destination.sh`, `scripts/validate-language-policy.sh` |
+| Formatting | `standup-format-flow.md`, `standup-template.md`, `scripts/validate-language-policy.sh` |
 
 **`standup-template.md` 在兩列都出現，是因為它管兩件事**：形狀是排版時要的，而〈怎麼寫：
 產出物精簡，證據不精簡〉那五條管的是**內容**——三格的長度與語氣在第 3–6 步就決定了，等到
@@ -87,10 +87,8 @@ workflow authority。這條有兩個方向，兩個都要擋：
    推進——判定與標本在 `standup-data-collection-flow.md` 的〈這張 epic 是我的，還是我只有
    底下的單〉。
 8. 使用者確認後，寫 local markdown。**那一份不是備份，是本體**，也是明天的比對來源。
-9. 對 local markdown 跑 language gate，通過後**把要送出去的逐字全文交給人、等一句同意**，
-   才依宣告的目的地送出。`publish: manual` 表示最後一步由人自己貼上。
-10. 落差清單裡使用者逐條同意的那幾條，才寫回單／PR——同一條紀律：落地成檔案 → 過 gate →
-    才送。沒點頭的不寫。
+9. 對 local markdown 跑 language gate，通過後把那份**逐字全文**列出來。流程到此結束——
+   要不要送、送到哪、由誰按下送出，不在這支裡面。
 
 ## Data Rules
 
@@ -102,15 +100,13 @@ workflow authority。這條有兩個方向，兩個都要擋：
 
 ## Write Rules
 
-- Local markdown 確認後無條件寫入，即使那天沒送出去——明天的 plan vs actual 讀它。
-- 送出是 external write；送出前必須通過 `scripts/validate-language-policy.sh`。
-- 目的地與送出方式依 `resolve-standup-destination.sh` 的宣告；`publish: manual` 表示
-  最後一步由人自己貼上，那不是流程停住。
-- 送出後回報目的地連結與 local file path；沒送出時說出為什麼。
+- Local markdown 確認後無條件寫入——明天的 plan vs actual 讀它。
+- **本地那一份是這支唯一會寫的東西。** 沒有第二個寫入目標，也不代人改任何一張單或 PR。
+- 本地檔要通過 `scripts/validate-language-policy.sh` 才算產出完成。
 - standup 內對 PR / release / planning 的描述只能轉述來源系統或 shared state；不得在 standup prose
   中自行宣告「已完成 / 可 release / 可 merge」。
 
 ## Completion
 
-輸出 standup date、每張 epic 的三格 counts、local file、送出狀態（含目的地或缺宣告的理由）、
+輸出 standup date、每張 epic 的三格 counts、local file path、那份檔案的逐字全文、
 任何 skipped sources 與原因。
