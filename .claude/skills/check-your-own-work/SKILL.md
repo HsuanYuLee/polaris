@@ -17,7 +17,7 @@ description: |
   不用於：判定某個交付達不達標——這支不判紅、不擋人，它產出一份要被處置的清單。
 metadata:
   version: 1.0.0
-scope: standalone
+scope: universal
 ---
 
 # check-your-own-work — 交出去之前，先對一次自己寫的東西

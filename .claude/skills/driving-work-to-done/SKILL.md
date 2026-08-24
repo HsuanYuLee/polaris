@@ -22,7 +22,7 @@ metadata:
       why: 兩個閘之間那一站；本支只說「去那裡」，不說怎麼做
     - skill: verify-ac
       why: 判定達成那一站；本支明文不做判定
-scope: standalone
+scope: universal
 ---
 
 # driving-work-to-done — 一件工作、一個入口、一個下一步

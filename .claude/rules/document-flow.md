@@ -73,4 +73,4 @@ DP-462 之前的交付層留下兩堆，分開放：
 
 **不要為了「比較好找」而複製一份。** 兩份會漂，而漂掉的那一刻通常沒有人在看。
 
-<!-- POLARIS-SCOPE: framework — 這一份講的是這個 repo 自己的單樹長什麼樣；換一個環境它沒有對象。跟著 template repo 走，不進 skill 目錄——理由寫在本文開頭 -->
+<!-- POLARIS-SCOPE: universal — 這一份講的是這個 repo 自己的單樹長什麼樣；換一個環境它沒有對象。跟著 template repo 走，不進 skill 目錄——理由寫在本文開頭 -->

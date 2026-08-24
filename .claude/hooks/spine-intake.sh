@@ -24,7 +24,7 @@
 # 這一行是宣告，不是註解：同步問「這個 hook 出不出得去」時讀的就是它。指路的內容
 # 沒有一個字綁這台機器或這家公司，所以是 standalone；上面那段說的「不需要跟著搬」
 # 指的是 claude.ai / Cowork 那條通道，那條通道從來不收 hook。
-# POLARIS-SCOPE: standalone
+# POLARIS-SCOPE: universal
 #
 # Input:  stdin JSON，欄位 user_prompt（或 prompt）
 # Stdout: 一行 context

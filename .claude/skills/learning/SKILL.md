@@ -10,7 +10,7 @@ description: |
 metadata:
   author: Polaris
   version: 3.1.0
-scope: standalone
+scope: universal
 tools:
   - name: gh
     provision: manual

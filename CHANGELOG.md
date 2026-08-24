@@ -1,5 +1,31 @@
 # Changelog
 
+## [5.0.0] - 2026-08-24
+
+### Changed
+
+- 5e0b996: skill 分成三類，repo 的檢查搬回 repo，`framework-release` 移出
+  **分類問的是「這支工具是誰的」**，目的地是結果不是定義：
+  | 類別 | 是誰的 | 進哪裡 |
+  |---|---|---|
+  | `universal` | 大家的 | 公司 repo ＋ template repo |
+  | `company` | 某一家公司的 | 只進公司 repo |
+  | `personal` | 我的 | 哪裡都不進 |
+  以前那張表是拿兩把尺量出來的：`framework` 與 `standalone` 講東西流到哪裡，`company-only`
+  與 `maintainer-only` 講東西屬於誰。同一張表回答兩個問題，於是一支個人的 skill 只能挑一個
+  不是它的格子，而那一格的方向是往外。
+  `standalone` 退場，因為它講的「不依賴環境」變成所有 skill 的開發準則，不區分任何東西。
+  `maintainer-only` 收掉，逐支數過零個使用者。
+  **repo 的檢查是 repo 自己的。** 8 支 gate、`run-gates`、`run-selftests`、githooks、壓版、
+  language gate、doctor、init、`lib/` 從 `framework-release/` 底下搬到 `<repo>/scripts/`，
+  `core.hooksPath` 跟著改。它們掛在 commit 上，本來就不屬於一支只在出貨那一刻用的 skill。
+  **`framework-release` 宣告 `personal`，移出這個 repo**，只留 merge ＋ 同步。它需要的 repo
+  檢查改成從它正在釋出的那個 repo 求值。
+  **升級要做的事**：`scope: standalone` → `universal`、`scope: company-only` → `company`、
+  `scope: framework` 與 `maintainer-only` 各自改判成 `universal` 或 `personal`；
+  `git config core.hooksPath scripts/githooks`；指向 `.claude/skills/framework-release/scripts/`
+  的引用改指 `scripts/`。
+
 ## [4.66.0] - 2026-08-24
 
 ### Changed

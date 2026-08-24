@@ -17,7 +17,7 @@ metadata:
   requires:
     - skill: driving-work-to-done
       why: VR 產出住在單的目錄裡，而那個目錄會被它的 place-issues-by-state.sh 依狀態搬走；不知道這件事的人會手動擺放，下一次重算就把它們搬丟
-scope: standalone
+scope: universal
 tools:
   - name: PyYAML
     why: 讀 workspace-config.yaml 與 SKILL.md 的 frontmatter

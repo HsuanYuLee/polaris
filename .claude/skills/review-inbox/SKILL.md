@@ -14,7 +14,7 @@ metadata:
   requires:
     - skill: review-pr
       why: 本支的輸入解析（resolve-pr-work-source.sh、pr-state-snapshot.sh）整個在它那裡；沒有它就拿不到要看的那個 PR
-scope: standalone
+scope: universal
 tools:
   - name: gh
     provision: manual

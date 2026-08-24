@@ -9,34 +9,53 @@
 
 一組 skill。每支 skill 自己的目錄裡帶著它需要的東西——腳本、參考文件、範例。
 
-**東西有兩種帶走的方式，而它們帶走的範圍不一樣。** 這個分別決定每一樣東西住在哪：
+**框架維護 skill，這是它的立場。** 只有非常輕量的個人習慣留在框架裡，其餘都不是它的事。
+一次工作要擴到 skill 以外之前，那是使用者的決定，不是推導得出來的結論。
 
-| 通道 | 帶走什麼 | 走這條的 |
+**一個名字不是根據。** 某支腳本、某個欄位、某個目錄的名字看起來像在做某件事，不使它就是
+那件事。要拿它當根據，先讀它真正被誰呼叫、回答什麼問題。2026-08-24 的標本：使用者要的是
+「skill 分類」，而 `skill_scope.py` 這個名字被當成了那件事的權威——它五個呼叫者問的全部是
+「這份東西會不會同步到 polaris」，沒有一個在問 skill 是哪一類。**接下來三步全錯**：拿那支
+腳本碰得到的東西（rules、hooks、gate）當成範圍、宣布使用者的分類少一格、然後回頭改寫
+使用者的指示。起點只是一個名字。
+
+**skill 分成三類，問的是同一個問題：這支工具是誰的。** 目的地是類別的結果，不是類別的
+定義：
+
+| 類別 | 是誰的 | 進哪裡 |
 |---|---|---|
-| template repo | `.claude/rules/`、`.claude/hooks/`、`.claude/skills/`、`_template/`、根目錄檔案 | 框架自己整包搬家 |
-| claude.ai／Cowork 單支上傳 | 只有那一個 skill 目錄 | 要能像第三方 lib 一樣單獨用的 skill |
+| `universal` | 大家的 | 公司 repo ＋ template repo |
+| `company` | 某一家公司的 | 只進公司 repo |
+| `personal` | 我的 | 哪裡都不進，留在 `~/.claude/skills/` |
 
-**每一份東西自己說出它走哪一條**，核心不從名字或位置推導：skill 寫在 frontmatter 的
+**每一份東西自己說出它是哪一類**，核心不從名字或位置推導：skill 寫在 frontmatter 的
 `scope:`，`.claude/rules/` 與 `.claude/hooks/` 沒有 frontmatter 可放，寫成一行
-`POLARIS-SCOPE:` 標記。兩種寫法問的是同一份表——`skill_scope.py` 的 `TEMPLATE_FACING`。
+`POLARIS-SCOPE:` 標記。兩種寫法問的是同一份表——`scripts/lib/skill_scope.py`。
 
 **那份表是正向表列：只有列名的才出得去。** 沒宣告的、宣告了表上沒有的值的、拼錯的，
-三種都不出去。以前這裡是黑名單加一個「沒宣告就當 standalone」的預設，而同步的目的地是
-一個公開 repo——第三類（個人的、還沒想清楚的）出現的那一天，它會靜靜地出去。
+三種都不出去。同步的目的地是一個公開 repo，讀寬了收不回來。
 
-- `scope: framework`——**這一格幾乎是空的，而且應該保持空的。** 只有那些照描述做成通用
-  就不成立的東西才屬於這裡：釋出尾段讀這個 repo 的 `.changeset/`、推這個 repo 的 tag、
-  同步到這個人的 template repo，換一個環境它就沒有意義。
-- `scope: standalone`——**其餘全部。** 判準是一個問題：**照這支
-  skill 自己的描述，把它做成通用、不依賴環境，是不是更好用？** 幾乎每一次答案都是「是」。
+**「不依賴環境」不是其中一格，它是所有 skill 的開發準則。** 每一支都要問同一個問題：
+照這支 skill 自己的描述，把它做成通用、不依賴環境，是不是更好用？想像的使用者不是你，
+是一個不會寫程式、連工作環境都初始化不了的人，由工程師把 skill 匯進他的 Claude Desktop。
+**在那裡不成立的東西，就是不該留在 skill 裡的東西**——「主 checkout 在哪」「這個 workspace
+的設定在哪」在那裡沒有答案，所以一支 skill 要嘛不問這些問題，要嘛問不到的時候說出來並
+照樣工作。
 
-  想像的使用者不是你：一個不會寫程式、沒有維護能力、連工作環境都初始化不了的人，
-  由工程師把 skill 匯進他的 Claude Desktop。**在那裡不成立的東西，就是不該留在 skill
-  裡的東西**——「主 checkout 在哪」「這個 workspace 的設定在哪」在那裡沒有答案，所以
-  一支 standalone skill 要嘛不問這些問題，要嘛問不到的時候說出來並照樣工作。
-- `scope: company-only`／`scope: maintainer-only`——留在這個工作區，不進 template repo。
-  它們仍然在表上，只是在另一格：這個 repo 的追蹤範圍收得下它們，`gate-template-leaks.sh`
-  對兩格以外的宣告判紅並指名。
+**個人的東西不進公司 repo。** 這個 repo 的 origin 是一個公司的 GitHub，所以「留在 local」
+的意思是留在使用者自己的地方。宣告了 `personal` 卻躺在這個 repo 裡，
+`gate-template-leaks.sh` 會擋下來並指名。
+
+## 東西住哪，看它負責誰
+
+**框架只負責它自己，一張單的工作只在 `issues/` 那張單裡，skill 只負責 skill 自己。**
+沒有「慣例」這種理由：一個位置要嘛推導得出來，要嘛是錯的。
+
+| 這個東西負責誰 | 住哪 |
+|---|---|
+| 整個 repo（每次 commit 掃全樹的那些檢查、git hooks、壓版） | `<repo>/scripts/` |
+| 某一支 skill | 那支 skill 自己的目錄 |
+| 某一張單（一次性的驗證、探測、注入腳本） | `issues/{那張單}/` |
 
 以前這裡寫的是「沒有共用的腳本目錄，因為只有 skill 目錄會被帶走」。**那句話是假的**：
 template repo 追蹤 `.claude/rules/` 與 `.claude/hooks/`，skill 目錄從來不是唯一會被帶走

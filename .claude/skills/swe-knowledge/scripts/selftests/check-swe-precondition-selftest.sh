@@ -132,7 +132,7 @@ fi
 # 沒接上的 checkout，它的每個 commit 與每次 push 一道閘都不會跑，而且不會有任何東西說。
 # 這是只有開工前擋得住的那一種——發現的時候那些 commit 已經在歷史裡了。
 
-HOOKS_REL=".claude/skills/framework-release/githooks"
+HOOKS_REL="scripts/githooks"
 
 # Description: 造一個宣告了版控 hook 目錄的 repo（已經站在 feature 分支上）。
 # Args: $1 = case 名字

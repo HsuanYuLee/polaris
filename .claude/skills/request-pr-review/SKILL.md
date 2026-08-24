@@ -12,7 +12,7 @@ description: |
 metadata:
   author: ""
   version: 4.0.0
-scope: standalone
+scope: universal
 tools:
   - name: gh
     provision: manual

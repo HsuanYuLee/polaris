@@ -325,7 +325,8 @@ PY
 
   B-N2)
     # 不留指向不存在的東西的話。兩道閘就是問這件事的，跑它們，不自己寫第二套。
-    gates_dir="$SKILLS_ROOT/framework-release/scripts"
+    # 它們是 repo 自己的檢查，住在 repo 自己的層（`<repo>/scripts/`），不住在任何一支 skill 底下。
+    gates_dir="$SKILLS_ROOT/../../scripts"
     ran=0
     for g in gate-skill-script-references.sh gate-prose-matches-behaviour.sh; do
       [[ -f "$gates_dir/$g" ]] || continue

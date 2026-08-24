@@ -13,7 +13,7 @@ metadata:
   requires:
     - skill: driving-work-to-done
       why: 輪次狀態由它保管（spine-loop-state.sh init/advance）；沒有它，斷言簽完沒有地方記
-scope: standalone
+scope: universal
 ---
 
 # refinement — 閘一：凍結斷言

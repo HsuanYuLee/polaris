@@ -20,7 +20,7 @@ description: |
 metadata:
   author: Polaris
   version: 1.0.0
-scope: standalone
+scope: universal
 ---
 
 # pr-pickup

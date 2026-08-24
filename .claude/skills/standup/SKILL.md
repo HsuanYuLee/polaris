@@ -10,7 +10,7 @@ description: |
 metadata:
   author: Polaris
   version: 4.0.0
-scope: standalone
+scope: universal
 tools:
   - name: jq
     provision: framework
