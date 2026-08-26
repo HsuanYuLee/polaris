@@ -1,36 +1,33 @@
 ---
 title: "Standup Format Flow"
-description: "standup 的三格格式、local markdown backup、language gate。送出不在這裡，這支不送。"
+description: "standup 的四區塊格式、local markdown、language gate、送到宣告的目的地。"
 ---
 
 # Standup Format Contract
 
-這份 reference 負責格式、確認與本地備份。**送出不在這裡，這支 skill 不送。**
+這份 reference 負責格式、確認、本地檔案，以及送到宣告的目的地。
 
 ## Required Sections
 
-Standup entry 的主體是 epic，每一張 epic 三格：**昨日**、**今日**、**卡關**。沒有 epic 的
-東西集中在一筆 `其他（無 Epic）`。`口頭同步` 放在所有 epic 之後、分隔線之前，**只留在
-本地**。
+Standup entry 一天一筆，每筆四塊：**YDY**、**TDT**、**BOS**、**口頭同步**，順序固定。
+分組（Epic、主題、沒有單號的工作、會議）掛在區塊底下。
 
-舊的四區塊（YDY／TDT／BOS／口頭同步）與這三格的對映只有一份，寫在
-`standup-template.md` 的〈形狀〉那一節，這裡不抄第二份。格式一律遵守那份模板。
+形狀與每一塊收什麼寫在 `standup-template.md`，這裡不抄第二份。格式一律遵守那份模板。
 
 ## Grouping Rules
 
-排序以 epic 為主體。同一張 epic 底下的 ticket 依序縮排在它自己的格裡。
+同一個區塊底下依分組排，Epic → Task → Sub-task 依序縮排。
 
 Sub-task 全部通過時折成一行，例如 N/N 驗證子單通過；有失敗才展開。
 
-NO-JIRA 項目用一行摘要帶過，放進 `其他（無 Epic）`。
+沒有單號的項目用一行摘要帶過，掛在自己的分組底下。
 
 ## Confirmation
 
 呈現 draft 後等待使用者確認。使用者可新增、刪除、改寫任何一格。只有使用者說 OK、確認等
 明確同意後，才寫本地檔案。
 
-**這支不送出任何東西。** 三格組好、寫成本地檔、把內容列出來，到這裡就結束。要把它貼到
-哪個看板、由誰按下送出，是使用它的人自己的事，不在這支裡面。
+確認之後才寫本地檔，寫完才談送出——送到哪由宣告決定，見〈送到哪裡去〉。
 
 ## 落差：看得見，但不會被自己寫掉
 
@@ -76,6 +73,15 @@ NO-JIRA 項目用一行摘要帶過，放進 `其他（無 Epic）`。
 
 對 local markdown 執行 `scripts/validate-language-policy.sh` 指定的 blocking artifact gate。
 Gate fail 時修正自然語言並重跑；沒過 gate 的那一份不算產出完成，也不要列給人看。
+
+## 送到哪裡去
+
+本地檔寫完、language gate 過了之後，讀目的地宣告。四種結果的行為寫在 `SKILL.md` 的
+〈送到哪裡去〉那張表，這裡不抄第二份。
+
+**送出前把那份逐字全文列出來，等一句同意。** 授權工具不等於授權內容——人說「你可以開
+瀏覽器」授的是瀏覽器，那份要貼出去的東西他還沒看過。送出去之後才發現要改，改動的全文
+再列一次、再等一次同意，不要直接重送。
 
 ## Link Rules
 

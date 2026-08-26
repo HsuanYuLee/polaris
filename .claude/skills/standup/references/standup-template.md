@@ -1,58 +1,73 @@
 # Standup Entry 模板
 
-每日 standup entry 的完整格式範例。產出時依此模板填入實際資料。
+每日 standup entry 的完整格式範例，外加**每一塊收什麼**的判準。產出時依此模板填入實際資料。
 
-## 形狀：以 epic 為主體，一張 epic 三格
+## 形狀：四個區塊，分組掛在區塊底下
 
-<!-- STANDUP-CONTRACT: epic-three-cells -->
+<!-- STANDUP-CONTRACT: four-blocks -->
 
-**產出的主體是 epic，不是區塊。** 每一張 epic 一筆，每一筆帶三格：**昨日**、**今日**、
-**卡關**。站會被問到的就是這三件事，所以報告直接長成那個形狀——不先產一份別的東西再
-現場翻譯一次。
+一天一筆，每筆四塊：**YDY**（昨天做了什麼）、**TDT**（今天要做什麼）、**BOS**（被什麼
+卡住）、**口頭同步**。分組（Epic、主題、沒有單號的工作、會議）掛在區塊底下，不是反過來
+以 epic 為主體。
 
-以前這裡是四個區塊（YDY／TDT／BOS／口頭同步）加團隊分組。**那四個名字沒有消失，它們
-變成格**，對映關係只有這一份：
+**這是這支 skill 自己的形狀，不是任何一個平台的。** 某個看板、某個表單要的是別的樣子時，
+由拿它去填的那一步自己轉。2026-08-13 這裡曾經反過來——為了對齊一個平台的表單，形狀被改成
+一張 epic 三格——結果是「每一塊收什麼」沒有人寫，填的人只能照 PR 的機械狀態填。
 
-| 舊區塊 | 現在在哪 |
-|---|---|
-| YDY – Yesterday I Did | 每張 epic 的 **昨日** 格 |
-| TDT – Today's Tasks | 每張 epic 的 **今日** 格 |
-| BOS – Blockers or Struggles | 每張 epic 的 **卡關** 格 |
-| 口頭同步 | **只留在本地那份檔案**——它是講給人聽的，不是報告的一格 |
+`口頭同步` 是講給人聽的，不是寫進報告主體的。它跟著本地那份檔案走。
 
-**這張表是唯一一份說法。** 兩套形狀並存的話，下一個人不知道該照哪一套產出，而兩套都
-看起來像現行版本。
+## 每一塊收什麼
 
-**沒有 epic 的東西不散落。** 獨立 ticket、NO-JIRA 的工作、會議，全部集中在最後一筆
-具名的非 epic 條目（`### 其他（無 Epic）`）底下，一樣是三格。它們不會因為沒有 epic 就
-掉出報告。
+<!-- STANDUP-CONTRACT: block-admission -->
 
-**本地檔案就是產出物本身。** 列給人看的內容跟寫進檔案的是同一個東西，中間沒有第二次
-翻譯——唯一的差別是 `口頭同步` 那一段是講的，不是寫進報告主體的。
+形狀不會告訴人一件事該進哪一塊。這一節會。
+
+### YDY——做完了的
+
+**判準是「這件事在我這邊結束了沒」，不是「它有沒有出現在別人的清單上」。**
+
+- **發出 PR 就是那件事做完了。** 之後有沒有人看、看了說什麼，是另一件事。
+- 一張單推進到下一個狀態、一份報告交出去、一個問題查出答案——都是做完。
+- **不要把工具的狀態當成工作的狀態。** 「commit 還在本機沒推」「PR 的 reviewDecision 是
+  CHANGES_REQUESTED」講的是工具現在長什麼樣，不是這個人昨天做了什麼。昨天處理完那些意見
+  並推上去，那就是做完了。
+
+### TDT——我自己動得了的下一步
+
+- **沒有人看我的 PR，下一步是去請人看。** 那是 TDT，不是 BOS。
+- 收到意見要改、CI 紅了要修、資料被誤設要清——都是 TDT，我自己動得了。
+- 已經 approved 還沒合，下一步是去合——TDT。
+
+### BOS——我自己動不了的
+
+准入判準與逐條措辭表在 `standup-planning-flow.md` 的〈准入判準：我在等誰〉，這裡不抄第二
+份。一句話：**我現在還有沒有下一步動作可做**。有，就是 TDT；沒有，才是 BOS。
+
+**空著是一個答案。** 沒有符合的就留白，不寫「無」，也不要把 TDT 搬過來填。
 
 ## 格式規則
 
 1. **日期標題**：`## YYYYMMDD`（無斜線、無空格）
-2. **每張 epic 一個 `### [KEY 標題](URL)`**，沒有 epic 的集中在 `### 其他（無 Epic）`
-3. **三格用 `* **昨日**` / `* **今日**` / `* **卡關**`**，順序固定，一格都不省略
-4. **格底下是 ticket 或一行摘要**，依序縮排
-5. **Sub-task 折疊**：同一 Task 下 sub-task 全部通過時，折成一行 `（N/N 驗證子單通過）`；
+2. **大區塊**：`* **粗體標題**`（YDY / TDT / BOS / 口頭同步），順序固定
+3. **分組**：`* **群組名**`——Epic、主題、沒有單號的工作、會議
+4. **巢狀**：Epic → Task → Sub-task，依序縮排
+5. **Sub-task 折疊**：同一 Task 下 sub-task 全部通過時折成一行 `（N/N 驗證子單通過）`；
    有失敗或 blocker 的才展開
-6. **空的格留白**：那一張 epic 昨天沒動就 `* **昨日**` 底下留白，不寫「無」
-7. **口頭同步**：用 `_斜體_`，放在所有 epic 之後、分隔線之前，標明是口頭講的
-8. **每段結尾**：加 `---` 分隔線
+6. **口頭同步**：用 `_斜體_`，放在所有區塊之後、分隔線之前
+7. **每段結尾**：加 `---` 分隔線
+8. **空的區塊留標題**：那一塊沒東西就只留標題，不寫「無」
 
 ## 怎麼寫：產出物精簡，證據不精簡
 
 <!-- STANDUP-CONTRACT: terse-output -->
 
-站會的每一格是給人掃一眼的，不是給人讀的。五條規則，全部只管**產出物**：
+站會的每一塊是給人掃一眼的，不是給人讀的。五條規則，全部只管**產出物**：
 
 1. **第一句就是可以動手的事。** 不是背景、不是計劃。「請大家看 PR #2917」不是「PR #2917
    完成了修法並開好了」。
 2. **留下一件兩分鐘內做得到的事。** 還沒收掉的東西，指名一件小到現在就能做的下一步；
    「打開那個檔案」也算。
-3. **一格講一件事。** 第二件事另外開一格或另外提，不夾在第一件的句子裡。
+3. **一件事講一次。** 第二件事另外列一條，不夾在第一件的句子裡。
 4. **清單超過五項就切。** 切成「現在做／之後」或「必須／可以」，不要給人一串十一項。
 5. **沒有開場白、沒有回顧、沒有收尾客套。** 從答案開始，答案講完就停。
 
@@ -65,9 +80,8 @@
 
 | 拿來掃的（套五條） | 拿來驗的（不套） |
 |---|---|
-| 站會報告的三格 | 單上的量測留言 |
-| 看板欄位（昨日／今日／卡關） | root cause 推導 |
-| 口頭同步 | 驗證紀錄與對照表 |
+| 站會報告的四個區塊 | 單上的量測留言 |
+| 口頭同步 | root cause 推導與驗證紀錄 |
 
 **精簡不得丟掉可追的東西**：單號、連結、數字、命令字串在任何精簡之後都還在。精簡砍的是
 鋪陳，不是憑據。
@@ -77,38 +91,30 @@
 ```markdown
 ## YYYYMMDD
 
-### [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100)
+* **YDY – Yesterday I Did**（週X MM-DD）
 
-* **昨日**
-    * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) Task 標題 — 動作摘要 ✅（N/N 驗證子單通過）`✅ planned`
-    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) Task 標題 — 動作摘要 `🟢 additional`
-* **今日**
-    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 計畫動作
-* **卡關**
-    * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 等 PM 拍板兩個方案選哪個
+    * **Epic 或主題名**
 
-### [EPIC-200 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-200)
+        * [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100)
+            * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) Task 標題 — 動作摘要 ✅（N/N 驗證子單通過）`✅ planned`
+            * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) Task 標題 — 動作摘要 `🟢 additional`
 
-* **昨日**
-    * [TASK-ddd](https://your-domain.atlassian.net/browse/TASK-ddd) Task 標題 — 完成 ✅ `✅ planned`
-* **今日**
-    * [TASK-eee](https://your-domain.atlassian.net/browse/TASK-eee) — 計畫動作
-* **卡關**
+    * **沒有單號的工作** — 一行摘要描述改了什麼 `🟢 additional`
+    * **會議** — 會議名稱、會議名稱
 
-### 其他（無 Epic）
+* **TDT – Today's Tasks**（週X MM-DD）
 
-* **昨日**
-    * [TASK-fff](https://your-domain.atlassian.net/browse/TASK-fff) 獨立 Task 標題 — 動作摘要 `🟢 additional`
-    * AI 工具改善（NO-JIRA）：一行摘要描述改了什麼 `🟢 additional`
-    * 會議名稱
-      M月 D日 (星期X) · 上午/下午H:MM - H:MM
-* **今日**
-    * 會議名稱
-      M月 D日 (星期X) · 上午/下午H:MM - H:MM
-      地點：XXX
-* **卡關**
+    * **Epic 或主題名**
 
-* **口頭同步**（口頭講的，不進報告主體）
+        * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 計畫動作
+
+    * **會議** — 會議名稱
+
+* **BOS – Blockers or Struggles**
+
+    * [TASK-ccc](https://your-domain.atlassian.net/browse/TASK-ccc) — 等 PM 拍板兩個方案選哪個
+
+* **口頭同步**
 
     * _昨天主要把 XXX 做完了，YYY 成果_
     * _AAA 佔滿下午，BBB 延後_
@@ -134,27 +140,27 @@
     * [PROJ-3495](URL) [驗證] Hydration mismatch — ❌ 失敗，待排查
 ```
 
-## NO-JIRA 項目精簡規則
+## 沒有單號的項目
 
-無 JIRA ticket 的工作（AI 工具改善、文件更新等）用**一行摘要**帶過，不逐一列出。
+無 ticket 的工作（工具改善、文件更新等）用**一行摘要**帶過，不逐一列出。
 
 **精簡**：
 ```markdown
-* AI 工具改善（NO-JIRA）：Claude Code skills + workspace docs 更新 `🟢 additional`
+* **內部開發工具** — 工作流升版三版，收掉兩條治理修正 `🟢 additional`
 ```
 
 **不要這樣**：
 ```markdown
-* AI 工具 / Skills 改善（NO-JIRA）
-    * Claude Code skills 多項強化：驗證流程、parallel Explore subagent pattern... `🟢 additional`
-    * Workspace CLAUDE.md 更新：Explore-then-Implement / Plan-first / batch Worktree 規則 `🟢 additional`
+* **內部開發工具**
+    * 多項強化：驗證流程、subagent pattern、workspace 文件更新⋯ `🟢 additional`
+    * 又一條⋯ `🟢 additional`
 ```
 
 ## Plan vs Actual 標記
 
-標在**昨日**格的每一項後面：
+標在 **YDY** 每一項後面：
 
-- `✅ planned` — 前一份 standup 的今日格有計畫、實際有做
+- `✅ planned` — 前一份 standup 的 TDT 有計畫、實際有做
 - `🟢 additional` — 前一份沒計畫、額外做的
 - `🔴 loss: [原因]` — 前一份有計畫但沒做（問使用者原因）
 - 會議項目不標記

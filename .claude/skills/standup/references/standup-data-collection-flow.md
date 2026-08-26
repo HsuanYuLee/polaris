@@ -41,7 +41,7 @@ Standup 有三個日期：
 |---|---|
 | `PRESENT_DATE` | 報告標題日期與當天會議來源 |
 | `YDY_DATE` | 收集 git / JIRA / Calendar activity 的日期 |
-| `TDT_PLAN_DATE` | 今日格工作項目的規劃目標日 |
+| `TDT_PLAN_DATE` | TDT工作項目的規劃目標日 |
 
 週一：`YDY_DATE` 是上週五；`PRESENT_DATE` 與 `TDT_PLAN_DATE` 是週一。
 
@@ -82,7 +82,7 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 
 - 補 git 沒抓到的 status-only work。
 - 補 ticket title。
-- 提供今日格的 fallback candidates。
+- 提供TDT的 fallback candidates。
 
 ### 留言：一張單最新的話在這裡
 
@@ -92,7 +92,7 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 
 這一段是量出來的，不是預防性的：2026-08-12 寫當天的 standup 時，EPIC-100 的描述寫著「尚未
 量到 opendate／有場次／多規格三種 flow，需在部署環境上補看」，而**同一晚 01:00 與 02:21
-兩則留言已經把三格都補上了**（有場次 0.1575 → 0.0344、多規格 0.1575 → 0、opendate 0 → 0）。
+兩則留言已經把三個數字都補上了**（有場次 0.1575 → 0.0344、多規格 0.1575 → 0、opendate 0 → 0）。
 報告照描述寫成「今日要補量」，被使用者當場退回。
 
 ### 描述與留言打架時，留言贏
@@ -113,9 +113,9 @@ JIRA response 過大被落檔時，用 deterministic parser 提取 key、summary
 
 <!-- STANDUP-CONTRACT: epic-ownership -->
 
-一張 epic 有兩種跟我有關的方式，而它們的三格要寫得不一樣：
+一張 epic 有兩種跟我有關的方式，而它們要寫得不一樣：
 
-| epic 的 assignee | 三格寫什麼 |
+| epic 的 assignee | 寫什麼 |
 |---|---|
 | 就是我 | 整張 epic 的進度，主詞是這張 epic |
 | 別人 | **我名下那幾張子單的進度**，主詞是子單 |
@@ -130,7 +130,7 @@ epic 一律寫了「開始確認細節，今天有餘裕就動工」，等於在
 欄位就有；`active: false` 也要說出來——一個停用的 owner 表示那張 epic 現在沒有人在管，
 那是要讓人知道的事，不是一個可以無視的欄位。
 
-**epic 的 owner 不是我的時候，今日格不寫以整張 epic 為主詞的動工句。**
+**epic 的 owner 不是我的時候，TDT不寫以整張 epic 為主詞的動工句。**
 
 ## Branch And PR Activity
 
@@ -138,13 +138,13 @@ epic 一律寫了「開始確認細節，今天有餘裕就動工」，等於在
 
 **昨天發生的事包含分支上的事**，不是只算今天還沒做完的部分。YDY_DATE 視窗內要收三類：
 
-| 收什麼 | 為什麼它進昨日格而不是今日格 |
+| 收什麼 | 為什麼它進YDY而不是TDT |
 |---|---|
 | 被 merge 的 PR | 那是昨天真正完成的交付。少了它，一張已經結束的單會被寫成「還在進行」 |
 | 收到的 review comment | 別人昨天對我的東西說了什麼，是昨天發生在我身上的事 |
 | CI 狀態變化 | 昨天推上去的東西綠了還是紅了，決定今天第一件事是什麼 |
 
-`standup-planning-flow.md` 的 §PR Status Supplements 收的是**自己還開著的** PR → 今日格。
+`standup-planning-flow.md` 的 §PR Status Supplements 收的是**自己還開著的** PR → TDT。
 兩者不重疊：那一節回答「今天還要處理什麼」，這一節回答「昨天發生了什麼」。2026-08-12 缺的
 就是這一節——EPIC-200 / EPIC-300 兩條分支昨天各自被 merge，而報告一開始把它們寫成還在進行中。
 
@@ -189,8 +189,8 @@ epic 一律寫了「開始確認細節，今天有餘裕就動工」，等於在
 
 ## Calendar Activity
 
-用 Calendar MCP 分別讀 YDY_DATE 與 PRESENT_DATE。YDY_DATE 的會議放進昨日格；PRESENT_DATE
-的會議放進今日格。週五今日格的會議仍是週五當天會議，不是下週一。
+用 Calendar MCP 分別讀 YDY_DATE 與 PRESENT_DATE。YDY_DATE 的會議放進YDY；PRESENT_DATE
+的會議放進TDT。週五TDT的會議仍是週五當天會議，不是下週一。
 
 過濾 all-day events。列出 meeting title、日期、weekday、time range、timezone、location
 when available。Calendar MCP 沒有 `conferenceData` 時，不猜 Meet URL。
