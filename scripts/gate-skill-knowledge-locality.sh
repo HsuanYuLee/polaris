@@ -88,6 +88,11 @@ INSTALLED = "node_modules"
 # DP-467 對十支腳本修過同一個形狀。整道閘的每一次 git 呼叫都要用這份環境。
 GIT_ENV = {k: v for k, v in os.environ.items()
            if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+# `check-ignore` 也讀使用者的 global ignore，而那是「這台機器才有」的東西——正是這道閘
+# 宣稱要避開的東西。2026-08-19 實測：`~/.gitignore` 的 `*.log` / `*.bak` / `[Ll]ogs` 讓
+# 11 條腳本裡的暫存檔名被判成「往版控之外的引用」，換一台沒有那份 global ignore 的機器
+# 就一條都沒有。答案要只由這個 repo 被追蹤的 `.gitignore` 決定。
+GIT_ENV["GIT_CONFIG_GLOBAL"] = os.devnull
 
 
 def git(*args: str) -> str:
@@ -135,15 +140,30 @@ def excluded_by_version_control(candidates: list[str]) -> set[str]:
     # `docs-manager/dist` 在有那個目錄的機器上是 IGNORED、在沒有的機器上不是。結尾那個斜線
     # 把「它是目錄」直接說出來，答案就只剩下 `.gitignore` 的內容在決定。
     bare = [c.rstrip("/") for c in candidates]
-    ignored = subprocess.run(
-        ["git", "-C", repo, "check-ignore", "--stdin"],
-        input="\n".join(bare + [c + "/" for c in bare]),
-        capture_output=True, text=True, env=GIT_ENV)
-    # 0 = 有命中、1 = 一條都沒命中，其餘是真的壞了——不得靜靜當成「沒有東西被排除」。
-    if ignored.returncode not in (0, 1):
-        print(f"{prefix} 量不到：git check-ignore 回 {ignored.returncode}"
-              f"（{ignored.stderr.strip()}）。", file=sys.stderr)
-        sys.exit(2)
+    # 索引裡的 symlink 上面已經濾掉了，但本機還會有沒被追蹤的（指向產品 checkout 的捷徑）。
+    # git 對穿過它們的路徑一律 fatal，而且一條就讓整批回 128——整支閘因此量不到。所以撞到
+    # 一條就把它丟出候選再問一次，並把丟掉的逐條說出來：不判定不等於沒有那些東西。
+    beyond_symlink = re.compile(r"pathspec '([^']+)' is beyond a symbolic link")
+    dropped: list[str] = []
+    while True:
+        ignored = subprocess.run(
+            ["git", "-C", repo, "check-ignore", "--stdin"],
+            input="\n".join(bare + [c + "/" for c in bare]),
+            capture_output=True, text=True, env=GIT_ENV)
+        # 0 = 有命中、1 = 一條都沒命中，其餘是真的壞了——不得靜靜當成「沒有東西被排除」。
+        if ignored.returncode in (0, 1):
+            break
+        hit = beyond_symlink.search(ignored.stderr)
+        if not hit:
+            print(f"{prefix} 量不到：git check-ignore 回 {ignored.returncode}"
+                  f"（{ignored.stderr.strip()}）。", file=sys.stderr)
+            sys.exit(2)
+        bad = hit.group(1).rstrip("/")
+        dropped.append(bad)
+        bare = [c for c in bare if c != bad]
+    if dropped:
+        print(f"{prefix} DISCLOSURE 這幾條穿過本機的 symlink，git 答不出它們算不算被排除，"
+              f"這道閘沒有判它們：{', '.join(sorted(dropped))}", file=sys.stderr)
     hits = {p.rstrip("/") for p in ignored.stdout.splitlines() if p}
     return {h for h in hits if h not in TRACKED}
 

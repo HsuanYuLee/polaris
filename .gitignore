@@ -28,6 +28,11 @@
 # 公司目錄按名字逐個列，不用 `*/polaris-config/` 這種形狀規則。「頂層任何一個資料夾都算
 # 公司」是用位置判斷身分，多一個資料夾就多一個看不見的豁免；名字寫出來才會出現在 diff 裡。
 /kkday/
+
+# 指向本機產品 checkout 的捷徑 symlink。只有這台機器上成立，而且指到的東西各自有自己的 repo。
+/kkday-b2c-web
+/kkday-member-ci
+/kkday-mobile-member-ci
 /user/
 /workspace-config.yaml
 /.vscode/
@@ -36,6 +41,11 @@
 /.claude/active-thread.md
 /.claude/checkpoints/
 /.claude/projects/
+/.claude/polaris-backlog.md
+
+# skill 腳本被 OMC 包住跑的時候，它會在腳本旁邊留一份 state。那是工具的暫存，不是這個
+# repo 的東西，而它會抄下跑過的命令——裡面有公司名與 ticket key。
+.omc/
 
 # === class: regenerable ===
 # 刪掉之後跑一次就會回來的執行期產物。
