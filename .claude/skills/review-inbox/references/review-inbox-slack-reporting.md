@@ -34,7 +34,7 @@ Label source 發一則 channel summary 到 PR channel。內容按 repo 分組，
 Slack source 不發 channel-wide summary。使用 discovery mapping 找回每個 PR 原始 thread，
 並回覆到該 thread。
 
-先依 `github-slack-user-mapping.md` 查 GitHub username -> Slack user ID。此 skill 可以使用
+先依 `../review-pr/references/github-slack-user-mapping.md` 查 GitHub username -> Slack user ID。此 skill 可以使用
 context match，因為 discovery 已讀過 PR channel messages。
 
 依 `(thread_ts, author)` 分組；同一 thread 同一作者的多個 PR 合成一則 message。不同作者

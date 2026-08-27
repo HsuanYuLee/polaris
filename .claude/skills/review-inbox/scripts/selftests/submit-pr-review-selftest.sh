@@ -209,8 +209,8 @@ else
   drifted=()
   # 比三處：scripts/、selftests/、references/。
   # selftests/ 要比，因為這支儀器自己就是兩份副本，漏掉它等於量測本身可以安靜地漂。
-  # references/ 要比，因為 submit flow 也是兩份——改了一邊忘了另一邊，散文那半就會
-  # 各說各話，而這在寫這一條的當下真的發生過一次。
+  # references/ 這一輪只剩兩邊都有的那幾份會被比到——DP-575 把 review-inbox 底下那 6 份
+  # review-pr 的副本刪了，只有一份的東西沒有可以漂的對象，下面那個 -f 判斷自己會跳過。
   for f in "$a"/scripts/*.sh "$a"/scripts/selftests/*.sh "$a"/references/*.md; do
     [[ -f "$f" ]] || continue
     rel="${f#"$a"/}"
@@ -225,10 +225,13 @@ else
 fi
 
 # ── H-P5：consumer 的 submit 面對稱改線 ──────────────────────────────────────
-# 散文那一半：兩支 skill 各自帶著同一份 submit flow，所以這一格在哪一側都跑得到。
-FLOW="$SKILL/references/review-pr-submit-flow.md"
+# 散文那一半只有一份，住在 review-pr 那一支（DP-575 把 review-inbox 底下的副本刪了）。
+# 兩支的這份 selftest 逐位元組相同，所以路徑一律指到那一份——在 review-pr 這一側它就是
+# 自己。旁邊沒有 review-pr 時量不到，那要說出來，不能安靜地算通過。
+FLOW="$SKILLS_ROOT/review-pr/references/review-pr-submit-flow.md"
 if [[ ! -f "$FLOW" ]]; then
-  fail "H-P5 submit flow 寫出取 head、對它取 diff、綁同一顆送出" "找不到 $FLOW"
+  skip "H-P5 submit flow 寫出取 head、對它取 diff、綁同一顆送出" \
+       "這一側沒有 submit flow，旁邊也沒有 review-pr——單獨下載時量不到這一格。"
 else
   flow_text="$(cat "$FLOW")"
   missing=()

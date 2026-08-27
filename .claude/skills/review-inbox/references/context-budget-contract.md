@@ -1,6 +1,6 @@
 ---
 title: "Context Budget Contract"
-description: "High-volume skill 的 main-session context budget、raw evidence routing、runtime plan 與 telemetry contract。"
+description: "High-volume skill 的 main-session context budget、raw evidence routing 與 telemetry contract。"
 ---
 
 # Contract
@@ -22,8 +22,8 @@ sample，或受限 reviewer envelope。
 | `main_session_budget` | 定義 per item / per batch budget、計算單位、超限行為，以及何時 reset。 |
 | `raw_evidence_policy` | 定義哪些 raw evidence 禁止直接進 main context，以及 artifact / summary / sample path。 |
 | `reference_compilation` | 定義 bounded dispatch bundle、bundle size、forbidden reread checks。 |
-| `runtime_plan` | 定義 batch execution 前的 plan schema、adapter choice、fallback reason。 |
-| `telemetry` | 定義 completion 後要寫入的 estimator、count、runtime plan kind、artifact volume。 |
+| `dispatch_facts` | 定義派工前要交給執行者的事實有哪些，以及哪些判斷刻意不做。 |
+| `telemetry` | 定義 completion 後要寫入的 estimator、count、artifact volume。 |
 | `verify_report` | 定義 pilot / rollout 完成後如何證明 contract 有效。 |
 
 ## Ownership Boundary
@@ -46,9 +46,10 @@ Concrete instance PASS 條件：
    `pending_pilot_evidence`。
 4. `main_session_budget` 必須說明計算單位，例如 per PR、per batch、per tool output。
 5. `raw_evidence_policy` 必須列出 forbidden raw evidence 與替代 route。
-6. `runtime_plan` 必須有 fallback reason，不能只寫 adapter 名稱。
+6. `dispatch_facts` 只列事實，不得規定用哪一種 sub-agent——要求與禁止都算。一支
+   `scope: universal` 的 skill 指名一個它不 ship 的東西，換一個環境就不成立。
 7. `telemetry` 必須能被 deterministic query 找回。
-8. `verify_report` 必須連到 telemetry、runtime plan、artifact、quality evidence。
+8. `verify_report` 必須連到 telemetry、artifact、quality evidence。
 
 ## Review-Inbox Contract Instance
 
@@ -58,10 +59,10 @@ Concrete instance PASS 條件：
 |---|---|
 | `main_session_budget` | Per PR 主 session delta 目標 ≤ 15K tokens；batch overhead 目標 ≤ `N * 15K + 50K`。主 session raw diff output 以單 PR 累積 100 行為 hard cap；觸發後該 PR 維持 hunk-only / sample-only 到 review 完成。Pilot 實測值：`pending_pilot_evidence`。 |
 | `raw_evidence_policy` | Full diff、raw comments、PASS CI rollup、raw Slack channel messages 不得直接進 main context。Full diff 存 `/tmp/review-inbox-runs/{run_id}/pr-{number}.diff`；raw Slack messages 由 discovery sub-agent / script 轉 filtered artifacts；comments 只允許 metadata-only dedup。 |
-| `reference_compilation` | Review packet 只注入 `review-inbox/dispatch-context-bundle.md` inline bundle 與 verified handbook paths；不得要求 reviewer 重讀完整 review-inbox / review-pr skill stack。Bundle size target 沿用 DP-094；本 DP 不重算 bundle size。 |
-| `runtime_plan` | `build-review-runtime-plan.py` 產生 `review-inbox-runtime-plan.v1`。**預設 `constrained_code_reviewer`**——蒐證放在 sub-agent 那一層，主 session 的 per-PR 預算才不會被 diff 灌爆。呼叫端指名 `--adapter main_session_sequential`、或執行期沒有 reviewer adapter 時降級，兩種都必須寫進 `adapter_policy.fallback_reason`。以前這裡還有一道「T7 dual-run evidence PASS 後」的前置與三個 threshold，2026-08-14 拿掉了：那份證據屬 DP-113 的舊層、早就不存在，所以那道閘實際上是一個永遠傳 missing 的旗標，而它擋掉的正是 review 真正有價值的那一段。 |
-| `telemetry` | Completion 後以 line-count proxy 產生 run metrics，並透過 `polaris-learnings.sh add --type telemetry --tag review-inbox --metadata '{"review_inbox_run": ...}'` 寫入。Required keys：`run_id`, `candidate_count`, `reviewed_count`, `main_session_input_tokens`, `main_session_output_tokens`, `sub_agent_tokens`, `runtime_plan_kind`, `duration_seconds`, `estimator_kind`。 |
-| `verify_report` | Pilot 完成後產生 `docs-manager/src/content/docs/specs/design-plans/DP-113-review-inbox-main-session-token-budget/verify-report.md`（<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 舊層的證據留在 specs 那個 repo，不搬進來 -->），（見上方 external-paths 宣告）至少包含 token、raw evidence routing、artifact sufficiency、quality、telemetry、runtime plan、rollout candidate list。 |
+| `reference_compilation` | Review packet 自帶 `review-inbox/dispatch-context-bundle.md` inline bundle 與 verified handbook paths，執行者不讀任何 skill 就做得完。另附延伸參考的**路徑**，讀不讀由執行者判斷——review-inbox 底下不再放 review-pr 那幾份的副本（DP-575 刪掉 6 個檔、453 行）。Bundle size target 沿用 DP-094；本 DP 不重算 bundle size。 |
+| `dispatch_facts` | 每張 PR 一個 sub-agent。Packet 交出去的是事實——`cluster_role`、`cluster_size`、`model_tier`、送出授權狀態、延伸參考的路徑——不是結論：用哪一種 agent、幾個並行、先跑哪一張，由執行的人當下判斷。以前這一格是 `runtime_plan`，規定了預設 adapter、禁用 general-purpose sub-agent、以及一份 `build-review-runtime-plan.py` 產生的 plan；DP-575 把三層一起拿掉，理由與量到的數字寫在 `review-inbox-batch-review-flow.md`。**那條禁令代理的「主 session 不讀完整 diff」由本表的 `main_session_budget` 與 `raw_evidence_policy` 直接規定，不隨禁令消失。** |
+| `telemetry` | Completion 後以 line-count proxy 產生 run metrics，並透過 `polaris-learnings.sh add --type telemetry --tag review-inbox --metadata '{"review_inbox_run": ...}'` 寫入。Required keys：`run_id`, `candidate_count`, `reviewed_count`, `main_session_input_tokens`, `main_session_output_tokens`, `sub_agent_tokens`, `duration_seconds`, `estimator_kind`。 |
+| `verify_report` | Pilot 完成後產生 `docs-manager/src/content/docs/specs/design-plans/DP-113-review-inbox-main-session-token-budget/verify-report.md`（<!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 舊層的證據留在 specs 那個 repo，不搬進來 -->），（見上方 external-paths 宣告）至少包含 token、raw evidence routing、artifact sufficiency、quality、telemetry、rollout candidate list。 |
 
 `type=telemetry` 不是 technical learning，不應進入一般 preamble learning。`polaris-learnings.sh`
 預設 query 會排除 telemetry；只有明確傳入 `--type telemetry` 或 `--tag review-inbox` 時才查詢

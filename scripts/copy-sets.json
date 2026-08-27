@@ -40,17 +40,11 @@
    ]
   },
   {
-   "why": "散文的副本跟腳本同一個理由，但代價更高：兩支 skill 的 SKILL.md 各自把自己那一份指名為某件事的權威定義，而兩份權威定義彼此不同，讀的人不會知道自己讀到的是哪一份。2026-08-12 量到兩組已經漂了（stale-approval-detection.md 差在正規實作的路徑、testing-and-verification.md 差在一個 skill 名前綴），兩組都是「這一份提到自己所在的位置」造成的——所以副本裡不寫只有其中一份成立的位置。",
+   "why": "散文的副本跟腳本同一個理由，但代價更高：兩支 skill 的 SKILL.md 各自把自己那一份指名為某件事的權威定義，而兩份權威定義彼此不同，讀的人不會知道自己讀到的是哪一份。2026-08-12 量到兩組已經漂了（stale-approval-detection.md 差在正規實作的路徑、testing-and-verification.md 差在一個 skill 名前綴），兩組都是「這一份提到自己所在的位置」造成的——所以副本裡不寫只有其中一份成立的位置。 2026-08-26（DP-575）把 review-inbox 底下那六份 review-pr 的副本刪掉了：那一組副本擋在「packet 自帶一切」這條路上，而 review-inbox 早就宣告了 requires: review-pr——相依已經成立，副本只買到兩份會漂的東西。改成 packet 附上路徑，讀不讀由執行的人判斷。",
    "scripts": [
     "cross-repo-dependencies.md",
-    "github-slack-user-mapping.md",
     "polaris-project-dir.md",
-    "pr-input-resolver.md",
     "review-lesson-extraction.md",
-    "review-pr-analysis-flow.md",
-    "review-pr-entry-fetch-flow.md",
-    "review-pr-rereview-learning-flow.md",
-    "review-pr-submit-flow.md",
     "session-timeline.md",
     "stale-approval-detection.md",
     "testing-and-verification.md"

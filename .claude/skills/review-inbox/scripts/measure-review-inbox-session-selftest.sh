@@ -45,7 +45,6 @@ required = {
     "main_session_input_tokens",
     "main_session_output_tokens",
     "sub_agent_tokens",
-    "runtime_plan_kind",
     "duration_seconds",
     "estimator_kind",
     "artifact_count",

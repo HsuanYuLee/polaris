@@ -121,7 +121,7 @@ required = [
     "PASS checks must be omitted",
     "inspect-pr-section.sh",
     "Existing comments: **主 session 只拿 dedup metadata**",
-    "constrained reviewer envelope 內讀得到完整的 comment body",
+    "sub-agent envelope 內讀得到完整的 comment body",
     "(.body // \"\")[:80]",
     "追到答案為止",
     "What To Actually Look For",
@@ -132,8 +132,9 @@ required = [
     "Ticket key: APP-3901",
     "Root ticket key: APP-3900",
     "Slack thread_ts: 1776130982.981829",
-    "Runtime adapter policy: Do not dispatch this packet through a general-purpose sub-agent.",
     "Code Reviewer review packet",
+    "送出授權：沒有授權。",
+    "AUTHORIZATION_MISSING",
 ]
 for item in required:
     if item not in prompt:
@@ -147,13 +148,9 @@ for item in [
 ]:
     if item not in api_prompt:
         raise SystemExit(f"missing sibling prompt content: {item}")
-for forbidden in [
-    "review-pr/SKILL.md",
-    "review-pr-entry-fetch-flow.md",
-    "review-pr-analysis-flow.md",
-    "review-pr-submit-flow.md",
-    "repo-handbook.md",
-]:
+# packet 現在刻意附上延伸參考的「路徑」（DP-575 C-P3），所以擋的不再是那幾個檔名，
+# 而是「叫執行者去讀 skill 本體」——那是 packet 自足這件事真正的反面。
+for forbidden in ["review-pr/SKILL.md", "repo-handbook.md"]:
     if forbidden in prompt:
         raise SystemExit(f"forbidden reference leaked into prompt: {forbidden}")
 PY
@@ -167,7 +164,30 @@ PY
   --out-dir "$out_without_handbook" \
   < "$candidates" >/tmp/build-review-prompt-selftest-empty.out
 
-rg -q "No project handbook" "$out_without_handbook/review-prompt-acme-web-101.txt"
+grep -qF "No project handbook" "$out_without_handbook/review-prompt-acme-web-101.txt"
+
+# ── D-P1：人的授權要到得了執行送出的那一層 ────────────────────────────────
+# 反面（未授權）已經在上面的 required 清單裡量過了，這裡量正面：授權帶著來源進 packet。
+out_authorized="$tmp/prompts-authorized"
+"$builder" \
+  --my-user reviewer \
+  --base-dir "$base_dir" \
+  --workspace "$workspace" \
+  --company acme \
+  --project acme-web \
+  --authorized-by tester \
+  --authorization-quote '全送' \
+  --out-dir "$out_authorized" \
+  < "$candidates" >/tmp/build-review-prompt-selftest-authorized.out
+
+authorized_prompt="$out_authorized/review-prompt-acme-web-101.txt"
+grep -qF "送出授權：已授權。" "$authorized_prompt"
+grep -qF "授權的人：tester" "$authorized_prompt"
+grep -qF "原話：「全送」" "$authorized_prompt"
+if grep -qF "AUTHORIZATION_MISSING" "$authorized_prompt"; then
+  echo "authorized packet 仍帶著未授權指示" >&2
+  exit 1
+fi
 
 out_show_all="$tmp/prompts-show-all"
 "$builder" \
@@ -180,6 +200,6 @@ out_show_all="$tmp/prompts-show-all"
   --out-dir "$out_show_all" \
   < "$candidates" >/tmp/build-review-prompt-selftest-show-all.out
 
-rg -q -- "--show-all-checks override is enabled" "$out_show_all/review-prompt-acme-web-101.txt"
+grep -qF -- "--show-all-checks override is enabled" "$out_show_all/review-prompt-acme-web-101.txt"
 
 echo "build-review-prompt selftest: PASS"

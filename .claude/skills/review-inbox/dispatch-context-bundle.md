@@ -36,8 +36,28 @@ continue without scanning repo guideline folders.
 Prioritize bugs, regressions, security, type safety, key rule violations, and
 missing tests. `must-fix` requires evidence from code, diff, or an explicit rule.
 Unverified library behavior or style preference is at most `should-fix`. Do not
-repeat existing reviewer comments with the same meaning. Suggested changes are
-allowed only when the diff range can be replaced exactly.
+repeat existing reviewer comments with the same meaning.
+
+**嚴重度由執行期行為決定的時候，實際跑一次再判。** 上面那條說「沒驗過的 library 行為最多
+`should-fix`」——那條的另一半是：**驗它通常只要一行。** repo 裡就有那個 library，`node -e`／
+`php -r` 跑一次就知道那個值是 `undefined` 還是 `null`，而那一個字的差別就是 nit 與 must-fix
+的差別。
+
+2026-08-26 與 2026-08-27 對同一顆 sha 各跑一次同一張 PR，量到的：`get(obj, path, null)` 這處
+兩次都被看到，但只有跑過 lodash 的那一次追到「商品價格會塌成 0」而判 must-fix；沒跑的那一次
+把它寫成「註解與程式碼自相矛盾」的 nit。**同一個發現，一個會擋 merge，一個不會。**
+
+所以看到一個改動的對錯取決於某個運算式在執行期回什麼，不要用讀的推——跑它，然後把輸出貼進
+意見裡。
+
+**`suggestion` 區塊只能貼在它真的要取代的那幾行上。** 貼之前對兩件事各驗一次，2026-08-26
+兩次都差一點送出去：
+
+- **意見錨在哪一行，取代的就要是哪一行。** 錨在 `:78` 的 docblock、程式碼要換的是
+  `:183-185`，掛成 `suggestion` 會覆蓋錯的行。錨與取代範圍對不上就改成一般的程式碼區塊
+  （改用 ```ts 這種一般的圍籬），不要用 `suggestion`。
+- **錨的那一行必須是 diff 裡的 added line。** 掛在 context line 上 GitHub 會回 422，整則
+  review 送不出去。往下移到最近的 added line，或用 `start_line` 把範圍框起來。
 
 **severity 決定 submit event，不決定 comment 長什麼樣子。** 它是給第 `## Submit Action`
 那一步用的分類，不是每則 comment 開頭要貼的標籤。強度寫在句子裡就好——「這支不擋，但⋯」

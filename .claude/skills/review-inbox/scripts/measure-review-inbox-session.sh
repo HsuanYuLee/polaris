@@ -9,7 +9,6 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 RUN_ID="review-inbox-$(date +%Y%m%d%H%M%S)"
 CANDIDATE_COUNT=0
 REVIEWED_COUNT=0
-RUNTIME_PLAN_KIND="unknown"
 DURATION_SECONDS=0
 SUB_AGENT_TOKENS=0
 INPUT_FILE=""
@@ -28,7 +27,6 @@ Options:
   --run-id ID
   --candidate-count N
   --reviewed-count N
-  --runtime-plan-kind KIND
   --duration-seconds N
   --sub-agent-tokens N
   --input-file PATH
@@ -46,7 +44,9 @@ while [[ $# -gt 0 ]]; do
     --run-id) RUN_ID="$2"; shift 2 ;;
     --candidate-count) CANDIDATE_COUNT="$2"; shift 2 ;;
     --reviewed-count) REVIEWED_COUNT="$2"; shift 2 ;;
-    --runtime-plan-kind) RUNTIME_PLAN_KIND="$2"; shift 2 ;;
+    # DP-575：這個欄位記的是呼叫端自己傳進去的字串，10 筆歷史裡已經有一筆是假的。
+    # 規定怎麼派的那一層不在了，欄位跟著走；舊的呼叫端傳過來時吃掉不報錯。
+    --runtime-plan-kind) shift 2 ;;
     --duration-seconds) DURATION_SECONDS="$2"; shift 2 ;;
     --sub-agent-tokens) SUB_AGENT_TOKENS="$2"; shift 2 ;;
     --input-file) INPUT_FILE="$2"; shift 2 ;;
@@ -67,7 +67,7 @@ for number in "$CANDIDATE_COUNT" "$REVIEWED_COUNT" "$DURATION_SECONDS" "$SUB_AGE
   fi
 done
 
-payload=$(python3 - "$RUN_ID" "$CANDIDATE_COUNT" "$REVIEWED_COUNT" "$RUNTIME_PLAN_KIND" \
+payload=$(python3 - "$RUN_ID" "$CANDIDATE_COUNT" "$REVIEWED_COUNT" \
   "$DURATION_SECONDS" "$SUB_AGENT_TOKENS" "$INPUT_FILE" "$OUTPUT_FILE" "$ARTIFACT_DIR" <<'PY'
 import json
 import math
@@ -79,7 +79,6 @@ from pathlib import Path
     run_id,
     candidate_count,
     reviewed_count,
-    runtime_plan_kind,
     duration_seconds,
     sub_agent_tokens,
     input_file,
@@ -119,7 +118,6 @@ print(json.dumps({
     "main_session_input_tokens": input_tokens,
     "main_session_output_tokens": output_tokens,
     "sub_agent_tokens": int(sub_agent_tokens),
-    "runtime_plan_kind": runtime_plan_kind,
     "duration_seconds": int(duration_seconds),
     "estimator_kind": "line_count_proxy",
     "artifact_count": artifact_count,

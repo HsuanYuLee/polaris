@@ -18,9 +18,6 @@ description: "review-inbox 的 Label、Slack、Thread discovery、bundled script
 | Slack PR channel | Slack mode scan source and notification target |
 | need review label | Label mode |
 | approval threshold | approve status summary |
-| batch size | maximum PRs reviewed this run |
-| concurrency | parallel review count only when a constrained code-reviewer adapter exists |
-| confirm | list-only confirmation behavior |
 
 Current GitHub username 必須動態取得，並排除自己的 PR。
 

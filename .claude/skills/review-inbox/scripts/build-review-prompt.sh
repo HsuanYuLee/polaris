@@ -11,6 +11,9 @@
 #         --out-dir <output directory for prompt files> (default: /tmp/review-prompts)
 #         --manifest <manifest output path> (default: /tmp/review-prompt-manifest.json)
 #         --show-all-checks (include PASS CI rollup in packet instructions; default failure/error only)
+#         --authorized-by <人> / --authorization-quote <原話>
+#                 送出授權。兩個都給，packet 才帶著「可以送出」與它的來源；缺一個就
+#                 明講未授權，執行者產出 payload 但不送出。轉述不算授權——D-N1。
 #
 # Output: One file per PR in out-dir: review-prompt-{repo}-{number}.txt
 #         Also writes manifest with [{file, pr_url, number, repo}]
@@ -40,6 +43,8 @@ BUNDLE_PATH="$SCRIPT_DIR/../dispatch-context-bundle.md"
 OUT_DIR="/tmp/review-prompts"
 MANIFEST_PATH="/tmp/review-prompt-manifest.json"
 SHOW_ALL_CHECKS=false
+AUTHORIZED_BY=""
+AUTHORIZATION_QUOTE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +58,8 @@ while [[ $# -gt 0 ]]; do
     --out-dir) OUT_DIR="$2"; shift 2 ;;
     --manifest) MANIFEST_PATH="$2"; shift 2 ;;
     --show-all-checks) SHOW_ALL_CHECKS=true; shift ;;
+    --authorized-by) AUTHORIZED_BY="$2"; shift 2 ;;
+    --authorization-quote) AUTHORIZATION_QUOTE="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -123,6 +130,41 @@ else:
 PY
 )
 
+# 送出授權：兩個都在才算授權，而且要帶著來源——一句沒有來源的「使用者已同意」在對外
+# 寫入面前不成立，2026-08-26 有一個 sub-agent 因此拒絕送出，它是對的。
+if [[ -n "$AUTHORIZED_BY" && -n "$AUTHORIZATION_QUOTE" ]]; then
+  AUTHORIZATION_BLOCK="**送出授權：已授權。**
+- 授權的人：${AUTHORIZED_BY}
+- 原話：「${AUTHORIZATION_QUOTE}」
+- 適用範圍：這一輪 review-inbox 的每一張 PR，包含本張。
+依〈執行步驟〉第 6 步送出 GitHub review。"
+else
+  AUTHORIZATION_BLOCK="**送出授權：沒有授權。**
+不要送出。做完 review 之後把 event、body、comments 各寫成一個檔案，路徑放進 Completion
+Envelope 的 Detail，然後回報 \`AUTHORIZATION_MISSING\`。**宣告檔案寫好之前自己 \`ls\` 驗一次**
+——2026-08-26 有一次宣告完成而檔案不存在，原因是命令在 parse 階段就死了而 exit code 被
+讀成部分失敗。"
+fi
+
+# 延伸參考：只給路徑，讀不讀、讀多少由執行者判斷。以前 review-inbox 底下躺著這幾份
+# 逐字相同的第二份（453 行），DP-575 刪掉了——相依早就寫在 frontmatter 的 requires 裡。
+REVIEW_PR_REFS="$(cd "$SCRIPT_DIR/../../review-pr/references" 2>/dev/null && pwd || true)"
+EXTRA_REFS=""
+for f in review-pr-analysis-flow.md review-pr-entry-fetch-flow.md \
+         review-pr-rereview-learning-flow.md review-pr-submit-flow.md \
+         pr-input-resolver.md github-slack-user-mapping.md; do
+  [[ -n "$REVIEW_PR_REFS" && -f "$REVIEW_PR_REFS/$f" ]] && EXTRA_REFS+="- ${REVIEW_PR_REFS}/${f}
+"
+done
+if [[ -z "$EXTRA_REFS" ]]; then
+  EXTRA_REFS_BLOCK="旁邊沒有 review-pr 這支 skill，所以沒有延伸參考可讀。上面的 inline dispatch
+context 本來就自足，照它做完即可。"
+else
+  EXTRA_REFS_BLOCK="上面的 inline dispatch context 已經自足，下面這幾份是**延伸**——卡住的時候
+可以讀，讀不讀、讀多少由你判斷，不需要全部讀完：
+${EXTRA_REFS}"
+fi
+
 MANIFEST="["
 
 for i in $(seq 0 $((COUNT - 1))); do
@@ -188,16 +230,21 @@ Ticket key: ${TICKET_KEY:-N/A}
 Root ticket key: ${ROOT_TICKET_KEY:-N/A}
 Root topic key: ${ROOT_TOPIC_KEY:-N/A}
 Slack thread_ts: ${SLACK_THREAD_TS:-N/A}
-Runtime adapter policy: Do not dispatch this packet through a general-purpose sub-agent. Use a constrained code-reviewer adapter or execute sequentially in the main session from the runtime plan.
 
 你正在執行 Code Reviewer review packet。請直接依照以下 inline dispatch context 執行 review。
-不要讀完整 review skill / reference stack；不要掃 repo guideline folders。
+這份 packet 自足——不需要讀任何 skill 就做得完；不要掃 repo guideline folders。
 
 **Inline Dispatch Context**：
 ${BUNDLE_TEXT}
 
+**送出授權**：
+${AUTHORIZATION_BLOCK}
+
 **Project Handbook**：
 ${HANDBOOK_BLOCK}
+
+**延伸參考**：
+${EXTRA_REFS_BLOCK}
 
 **Reviewed Head（先做，其餘每一步都綁在它上面）**：
 - 這一次 review 依據哪一顆 sha，由這一行決定，之後不要再重算：
@@ -211,9 +258,9 @@ ${HANDBOOK_BLOCK}
 - Diff sampling: 先執行 \`gh pr diff ${URL} --name-only\` 取得完整 changed-file list。
 - 主 session raw diff output 對單 PR 累積上限為 100 行。超過後本 PR 維持 hunk-only / sample-only 到 review 完成。
 - 完整 diff（上面那條釘住 sha 的命令取回來的）優先存到 \`/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff\`，後續用 \`inspect-pr-section.sh\` 取 bounded section，不要用 Read 工具回讀完整 diff。
-- 在 constrained reviewer envelope 內，若那份 diff 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
-- 單檔 diff 小於 200 行只適用於 constrained reviewer envelope；大檔只 sample changed hunks。
-- **在 constrained reviewer envelope 內，讀 diff 以外的檔案不需要先落進某一類風險。** 以前這裡
+- 在 sub-agent envelope 內，若那份 diff 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
+- 單檔 diff 小於 200 行只適用於 sub-agent envelope；大檔只 sample changed hunks。
+- **在 sub-agent envelope 內，讀 diff 以外的檔案不需要先落進某一類風險。** 以前這裡
   列著一張七類的白名單（import/export、routing、API contract、schema、test expectation、
   security/auth、payment/booking），而那張表擋掉的正好是最有價值的一類：把元件的 prop 或事件
   接線追到消費端、對照姊妹 repo 的同一段、讀**未改動**的區域確認註解與行為是否一致。判準改成
@@ -222,14 +269,21 @@ ${HANDBOOK_BLOCK}
 - ${CI_ROLLUP_RULE}
 - Existing comments: **主 session 只拿 dedup metadata**，完整 comment body 不進主 context：
   \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
-  **constrained reviewer envelope 內讀得到完整的 comment body**——接續別人的意見往下推（「上面
+  **sub-agent envelope 內讀得到完整的 comment body**——接續別人的意見往下推（「上面
   那則講的其實也會一起解掉」）需要讀得懂別人在說什麼，而 80 個字讀不出來。
 - Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
+- **送出之前把 existing comments 再抓一次。** 你 review 的期間別人可能也留了意見——2026-08-26 的 #3009 就是這樣重複了兩則。
 
 **Cluster / Model Tier Rules**：
-- Model class hint 是 dispatch 給 runtime adapter 的語意類別；若 adapter 不支援指定類別，回退到 inherit 或 standard_coding。
+- Model class hint 是一個事實，不是一道指令：它說的是這張 PR 的規模與風險等級。派工的人拿它判斷，adapter 認不認得這個類別由那一層決定。
 - \`cluster_lead\`：完整 review 本 PR，Detail artifact 必須留下可被 sibling PR 使用的一句 lead review summary。
 - \`cluster_sibling\`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL:-N/A}。Lead summary = ${CLUSTER_LEAD_SUMMARY:-N/A}。
+  **Lead summary 是起點不是全部——lead PR 自己的 description 要去讀一次。** 它講的是 lead 找到
+  什麼，而 lead 對「哪些情況不歸我管」的宣稱只寫在它自己的 description 裡，不會出現在 summary
+  上。那種宣稱正是 sibling 拿來對照的東西：lead 說「這一類我不做，因為上游沒有 X」，而 sibling
+  正好只做那一類、而且它解 X 解得出來——兩張就不可能都對。
+  2026-08-26 與 2026-08-27 對同一顆 sha 各跑一次同一張 sibling：讀了 lead description 的那一次
+  抓到這個矛盾並判 must-fix，只看 lead summary 的那一次整條漏掉。
   先比較 sibling changed-file list / sampled diff 與 lead PR 的差異，再判斷 lead findings 是否仍適用。
   若行為、平台、API contract、測試範圍或風險不一致，或 lead summary 缺失且無法 confidence 判斷，將 result 設為 COMMENT 並在 summary 標記 needs_standard_review。
   **「兩邊不一致」本身就是一個發現，不是只是一個要標記的例外。** 姊妹 repo 的同一段是這一邊的

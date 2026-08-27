@@ -10,7 +10,7 @@ description: |
   單一個 PR URL → review-pr。
 metadata:
   author: Polaris
-  version: 2.2.0
+  version: 3.0.0
   requires:
     - skill: review-pr
       why: 本支的輸入解析（resolve-pr-work-source.sh、pr-state-snapshot.sh）整個在它那裡；沒有它就拿不到要看的那個 PR
@@ -60,19 +60,24 @@ Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awa
 |---|---|
 | Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `stale-approval-detection.md`, `workspace-config.yaml` |
 | Batch review execution | `review-inbox-batch-review-flow.md`, `.claude/skills/review-inbox/dispatch-context-bundle.md` |
-| Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `scripts/validate-language-policy.sh` |
+| Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `../review-pr/references/github-slack-user-mapping.md`, `scripts/validate-language-policy.sh` |
 
-Slack channel scan 可以派 read-only sub-agent。Per-PR review 不得使用 Claude Code
-general-purpose sub-agent；只有 runtime 提供 constrained code-reviewer adapter 時才可平行
-dispatch。否則依 `build-review-runtime-plan.py` 產生的 `main_session_sequential` plan，一次執行
-一個 review packet，完成後只把 Completion Envelope summary 留在主 context。Batch review
-dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃縮後的 review flow inline
-注入每個 review packet；不得要求執行者重讀完整 review skill / reference stack。
+**每張 PR 交給一個 sub-agent 執行。** 用哪一種 agent、幾個並行、先跑哪一張，由執行的人
+當下判斷——這一支提供判斷需要的事實（姊妹單關係、規模、風險等級、授權狀態），不提供結論。
+它不指名任何一種 agent 型別，要求與禁止都不指名：一支 `scope: universal` 的 skill 指名一個
+它不 ship 的東西，換一個環境就不成立。
+
+**主 session 不讀完整 diff。** 這一條與怎麼派無關，它由 `context-budget-contract.md` 直接
+規定，任何 sub-agent 都滿足它。以前這件事由一條「禁用 general-purpose sub-agent」的規定
+代理，那條規定引用的證據從來沒有產出過（DP-575）；代理拿掉了，被代理的沒有。
+
+Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次，把它 inline 注入
+每個 review packet。**Packet 自帶執行 review 需要的全部內容**；另外附上延伸參考的路徑，
+要不要讀、讀多少由 sub-agent 自己判斷。
 
 ## Flow
 
-1. 讀 workspace config 與 defaults，取得 GitHub org、PR channel、approval threshold、
-   batch size、concurrency、confirm setting。
+1. 讀 workspace config 與 defaults，取得 GitHub org、PR channel、approval threshold。
 2. 解析 mode：Thread 優先，其次 explicit Label，其餘走 Slack。
 3. 取得 current GitHub username，作為 exclude author 與 review-status 判定依據。
 4. 依 discovery reference 產生 candidates JSON；scan snapshot 超過 60 秒不可沿用。
@@ -83,26 +88,29 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
    topic，使用 `root_topic_key`；最後才 fallback 到每張 PR 自己的 ticket。
 6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
-7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
-8. 先用 `build-review-prompt.sh` 產生 review packets + manifest，再用
-   `build-review-runtime-plan.py` 產生 runtime plan。Plan 必須禁止 general-purpose sub-agent；
-   `constrained_code_reviewer` 是預設——**蒐證放在 sub-agent 那一層**，主 session 的 per-PR
-   預算才不會被 diff 灌爆。沒有那個 adapter 而降級成 sequential 時，**要說出來**，不要靜靜
-   走完：主 session 那一層讀不到 diff 以外的檔案，而 review 看起來一樣完整。
-9. 依 batch size / runtime plan 執行 per-PR review packets。**每張 PR 的 head 與完整 diff
+7. 顯示排序後清單，然後全部進入 review。**不問「先看哪一批」、不問「要不要送」、不因為
+   張數多或 diff 大自行縮小範圍。** 這一支只在兩種情況停下來，而且要說出是哪一種：來源
+   拿不到，或是需要授權而授權不存在。
+8. 用 `build-review-prompt.sh` 產生 review packets + manifest。人已經授權送出時，把授權
+   一起傳進去（`--authorized-by` 與 `--authorization-quote`），packet 才有一條到得了執行
+   那一層的路——**沒有這兩個參數時 packet 明講「未授權」**，sub-agent 產出 payload 但不送出。
+   **蒐證放在 sub-agent 那一層**：主 session 的 per-PR 預算不會被 diff 灌爆，而讀 diff 以外
+   的檔案（追消費端、對照姊妹 repo、實跑驗證）只有在那一層做得到。
+9. 執行 per-PR review packets，一張都不留。**每張 PR 的 head 與完整 diff
    在那張 PR 的 review 開始的那一刻才取，計畫時不整批預取**——理由與量到的形狀寫在
    `review-inbox-batch-review-flow.md` 的〈什麼時候取那份 diff〉。Prompt 必須使用
    deterministic handbook resolver 列出已存在的 project handbook paths，空清單時明確標示
    no project handbook。Prompt 必須要求執行者先讀 changed-file names，再依 diff size
    sampling；existing inline comments 的完整 body 不進**主 session**，reviewer envelope 內
    讀得到。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
-   `small_fast` model class hint，不確定時標記 `needs_standard_review`——但**兩端行為對不上
+   `small_fast` model class hint（那是一個事實，不是一道指令——adapter 認不認得由執行的人判斷），不確定時標記 `needs_standard_review`——但**兩端行為對不上
    本身就是一個發現**，不是只是一個要標記的例外。
-10. 收斂結果，依來源模式發 Slack summary 或 thread replies。
+10. 收斂結果，依來源模式發 Slack summary 或 thread replies。**跟 review 一樣做完就回**，
+    不在這裡再問一次要不要送。
 11. 跑 `measure-review-inbox-session.sh` 產生 telemetry JSON，並用
     `polaris-learnings.sh add --type telemetry --tag review-inbox` 寫入
     `metadata.review_inbox_run`。若無法取得完整 transcript，仍需用 line-count proxy
-    記錄 candidate count、reviewed count、runtime plan kind 與 artifact volume。
+    記錄 candidate count、reviewed count 與 artifact volume。
 12. 在對話中回報每個 PR 的 review result、approve status 與 telemetry run_id。
 
 ## Write And Notification Rules
