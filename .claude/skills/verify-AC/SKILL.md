@@ -141,6 +141,22 @@ bash .claude/skills/verify-ac/scripts/render-evidence-report.sh --issue {issue}
 bash .claude/skills/verify-ac/scripts/render-evidence-report.sh --issue {issue} --publish
 ```
 
+**量完之後又落了 commit 的時候。** 證據綁在它量到的那個 head 上，而交付之前常常還會有東西
+落下去——單自己的散文、`.spine/` 底下的紀錄。那時候直接跑會逐條判「量在 X，要交付 Y」，
+報告尾巴還會多一行 BLOCKER。**那不是判定壞掉，是沒有人說過那段差異碰了什麼：**
+
+```bash
+bash .claude/skills/verify-ac/scripts/render-evidence-report.sh --issue {issue} \
+  --head <要交付的 head> --delta-allows issues/ --delta-allows {issue}/
+```
+
+`--delta-allows` 可以給很多次，每次一條路徑前綴。**它驗證你的主張，不代你宣告**：那段差異
+真的只碰了指名的路徑才放行，碰到別的就逐條判 FAIL 並指名是哪幾個檔案，兩個 commit 沒有樹
+看得到就判 unmeasurable——問不到不放行。所以它擴不出「把整棵樹指名進去就全過」這種用法，
+指名整棵樹的人自己會在報告上看到那段差異碰了什麼。
+
+**沒有 `--head` 就沒有那段差異可言**，所以只給 `--delta-allows` 會被拒絕。
+
 它產兩個檔案，因為讀的人有兩種：`report.md` 給人看，`manifest.json` 給機器讀（逐條的判定、
 綁的 head、量測命令、要跟著一起送出去的檔案）。要一起送圖之類的東西，把它們放進
 `{issue}/.spine/attachments/`——一個目錄的存在與否就是答案，不需要多一個設定。

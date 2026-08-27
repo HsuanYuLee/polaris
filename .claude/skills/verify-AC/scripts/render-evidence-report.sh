@@ -6,6 +6,10 @@
 # Inputs:  --issue <單的目錄>       必要
 #          --out <目錄>             預設 {單}/.spine/report
 #          --head <sha>             要交付的 head（預設由證據自己說它量的是哪一棵）
+#          --delta-allows <path>    可重複。證據量在別的 head 上時，指名放行的路徑前綴——
+#                                   它驗證呼叫者的主張（那段差異真的只碰了這幾條），不代它宣告。
+#                                   兩支姊妹腳本（report-assertions、record-delivery-intent）
+#                                   本來就認得它，判定那一層也早就實作了；缺的只有這裡的傳遞。
 #          --publish                產完之後交給宣告了這個命名空間的那個命令
 #          --namespace <名>         覆寫命名空間（預設從單樹的目錄結構推）
 # Outputs: <out>/report.md 與 <out>/manifest.json；路徑印在 stdout
@@ -34,12 +38,14 @@ OUT_DIR=""
 HEAD_SHA=""
 NAMESPACE=""
 PUBLISH=0
+DELTA_ALLOWS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --issue)     ISSUE_DIR="${2:-}"; shift 2 ;;
     --out)       OUT_DIR="${2:-}"; shift 2 ;;
     --head)      HEAD_SHA="${2:-}"; shift 2 ;;
+    --delta-allows) DELTA_ALLOWS+=("${2:-}"); shift 2 ;;
     --namespace) NAMESPACE="${2:-}"; shift 2 ;;
     --publish)   PUBLISH=1; shift ;;
     -h|--help)   sed -n '6,12p' "$0"; exit 0 ;;
@@ -64,19 +70,26 @@ command -v python3 >/dev/null 2>&1 || {
   exit 2
 }
 
-paths="$(python3 - "$ROOT_DIR" "$INDEX" "$ISSUE_DIR" "$HEAD_SHA" "$OUT_DIR" <<'PY'
+if [[ ${#DELTA_ALLOWS[@]} -gt 0 && -z "$HEAD_SHA" ]]; then
+  echo "$PREFIX --delta-allows 只有在同時指名 --head 的時候才有意義：它描述的是「證據量到的 head 與要交付的那個 head 之間差了什麼」，沒有後者就沒有那段差異。" >&2
+  exit 2
+fi
+
+paths="$(python3 - "$ROOT_DIR" "$INDEX" "$ISSUE_DIR" "$HEAD_SHA" "$OUT_DIR" ${DELTA_ALLOWS+"${DELTA_ALLOWS[@]}"} <<'PY'
 import sys
 sys.path.insert(0, sys.argv[1] + "/scripts/lib")
 import assertion_verdicts as av
 import evidence_report as er
 
 root, index, issue, head, out_dir = sys.argv[1:6]
+delta_allows = sys.argv[6:]
 
 # 三層裡的前兩層，跟交付那條路讀同一份判定程式。不重跑（第三層）——重跑是交付那條路的事，
 # 而這一支要在「有東西沒過」的時候也產得出來，跑一趟不會綠的量測只是讓它變慢。
 report = av.judge(
     index, issue + "/.spine/evidence",
     head=head or None,
+    delta_allows=delta_allows,
     ledger_path=issue + "/.spine/measurement-ledger.json",
 )
 manifest = er.build(report, issue, ledger_path=issue + "/.spine/measurement-ledger.json")
