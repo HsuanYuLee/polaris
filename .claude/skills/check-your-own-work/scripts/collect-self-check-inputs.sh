@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Description: 把「交出去之前的六問」各自需要的輸入蒐集起來，逐問印出來；拿不到的那幾問
+# Description: 把「交出去之前的七問」各自需要的輸入蒐集起來，逐問印出來；拿不到的那幾問
 #              指名說出為什麼拿不到。它不判定、不擋人，只負責讓「沒問到」與「問了沒事」
 #              長得不一樣。
 # Args: [--repo <path>] [--base <ref>] [--pr <number>]
-# Exit: 0 = 蒐集完了（不論六問答得出幾問）；2 = 連蒐集都做不到（不是 git repo）。
+# Exit: 0 = 蒐集完了（不論七問答得出幾問）；2 = 連蒐集都做不到（不是 git repo）。
 #
 # 它刻意不認得任何一套流程、任何一家公司、任何一個工作區設定檔：唯一的輸入是「當次執行
 # 的那個 git repo」。規範從那個 repo 現場讀，不從記憶讀，也不抄一份放在這支 skill 底下
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
 done
 
 git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || {
-  echo "UNMEASURABLE: $REPO 不是一個 git repo——六問全部建立在「我改了什麼」上，沒有它就沒有輸入。" >&2
+  echo "UNMEASURABLE: $REPO 不是一個 git repo——七問全部建立在「我改了什麼」上，沒有它就沒有輸入。" >&2
   exit 2
 }
 
@@ -313,13 +313,42 @@ else
 fi
 echo
 
+# ── Q7 拿掉的那些東西，原本做的每一件事現在由誰做 ──────────────────────────────
+echo "── Q7 拿掉了什麼 ──"
+# 撈的是 diff 的**減號那一側**。整個檔案被刪掉、與行被刪掉，兩種都算——前者明顯，
+# 後者才是會躲的那一種：一個機制常常是「幾行不見了」，而不是「一個檔案不見了」。
+DELETED_FILES="$(git -C "$REPO" diff --name-only --diff-filter=D "$DIFF_RANGE" 2>/dev/null || true)"
+DELETED_LINES="$(git -C "$REPO" diff -U0 "$DIFF_RANGE" 2>/dev/null   | grep -E '^-' | grep -Ev '^-{3}' || true)"
+if [ -z "$CHANGED" ]; then
+  note_unanswerable Q7 "diff 是空的。"
+elif [ -z "$DELETED_FILES" ] && [ -z "$DELETED_LINES" ]; then
+  note_unanswerable Q7 "這次的 diff 只有新增，沒有刪掉任何東西——沒有被取代的機制要對照。"
+else
+  if [ -n "$DELETED_FILES" ]; then
+    echo "[整個被刪掉的檔案]"
+    printf '%s\n' "$DELETED_FILES" | sed 's/^/  /'
+    echo
+  fi
+  echo "[被刪掉的行]"
+  printf '%s\n' "$DELETED_LINES" | show_capped 60
+  echo
+  echo "判準是**一個既有機制不再由原本那條路徑執行**，不是它被叫做什麼——拿掉、取代、"
+  echo "簡化、順手收斂，四種說法走到同一題。列一張對照表："
+  echo "  1. 那個機制原本做了哪幾件事，逐件列出來（看上面被刪掉的那幾行，不看你記得的）"
+  echo "  2. 每一件在新的路徑上落在哪裡，逐件指出來"
+  echo "  3. 逐件各跑一次——量過其中一件不算量過其餘"
+  echo "**列不出來是一個答案。** 列不完整時把這件事寫進 finding 並回去讀那段程式，"
+  echo "不要讓這一問安靜地通過：一個「應該沒有別的了」跟一張列過的表，在報告裡長得一樣。"
+fi
+echo
+
 # ── 收尾：答得出幾問，答不出的是哪幾問 ──────────────────────────────────────────
 COUNT="$(printf '%s' "$UNANSWERED" | wc -w | tr -d ' ')"
 echo "=============================================="
-echo "ANSWERABLE: $((6 - COUNT))/6"
+echo "ANSWERABLE: $((7 - COUNT))/7"
 if [ "$COUNT" -gt 0 ]; then
   echo "答不出的：${UNANSWERED} —— 每一問的原因印在它自己那一段"
-  echo "**答不出不是通過。** 一份沒答滿的自檢，讀起來跟答滿六問的一模一樣——"
+  echo "**答不出不是通過。** 一份沒答滿的自檢，讀起來跟答滿七問的一模一樣——"
   echo "所以它要說出自己少了哪幾問。"
 fi
 echo "=============================================="

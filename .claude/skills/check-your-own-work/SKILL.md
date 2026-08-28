@@ -2,16 +2,17 @@
 name: check-your-own-work
 description: |
   Before handing your own change over — opening a PR, asking for review, saying
-  "done" — check it against six questions that come from what reviewers actually
+  "done" — check it against seven questions that come from what reviewers actually
   caught: claims that do not match the diff, the repo's own rules not applied,
   half-done pattern changes, runtime behaviour asserted from reading source,
-  last round's comments still unaddressed, and assertions that cannot fail.
+  last round's comments still unaddressed, assertions that cannot fail, and a
+  mechanism you removed whose jobs nobody carried over.
 
   Use when you are about to hand your own work over, or when someone asks you to
   self-check, double-check, or go over your change before submitting.
 
   交出自己的改動之前——開 PR、找人 review、說「做完了」——先對一次自己寫的東西。
-  六問來自 review 真的抓到的東西，不是想像出來的清單。
+  七問來自 review 真的抓到的東西，不是想像出來的清單。
 
   不用於：看別人的 PR（那是 code review，主語是別人的改動）。
   不用於：判定某個交付達不達標——這支不判紅、不擋人，它產出一份要被處置的清單。
@@ -25,9 +26,13 @@ scope: universal
 **這不是一道閘。** 它不回 PASS／FAIL，也不阻止任何後續動作。它產出一份 finding 清單，
 而那份清單的價值完全來自**它在同一輪裡被處置掉**——一份沒有人動的報告，跟沒有報告一樣。
 
-六問不是想出來的。它們是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
+七問不是想出來的。前六問是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
 **完全不需要任何領域知識就避得掉**：它們是「我沒有把自己剛寫的東西跟自己剛寫的宣稱對一次」，
 不是「我不知道這個框架怎麼寫」。
+
+**第七問的出處不同，要分開說。** 它來自 2026-08-27 一組十二則意見——那一批走了六輪 review，
+而八則 SWE 通則裡有五則是同一個根因：拿掉一個機制，只補上它看得見的那一半。它不在 829 則
+那個統計裡，所以不要把它讀成「第七類反覆缺陷」——它是一類，但樣本只有一批。
 
 ## 先把材料撈出來
 
@@ -40,13 +45,13 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 `main`／`master`／`develop`），PR 自己去問 `gh`。**它唯讀，不對外寫入任何東西。**
 
 它逐問印出那一問需要的輸入，**拿不到的那幾問指名說出為什麼拿不到**，最後印
-`ANSWERABLE: n/6`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿六問的
+`ANSWERABLE: n/7`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿七問的
 一模一樣，所以它要說出自己少了哪幾問。
 
 **答不出不是通過。** 沒有 `gh`、沒有 PR、沒有上一輪意見、這個 repo 一份規範都沒有、diff
 是空的——這五種都是常態，不是錯誤，但它們各自代表「這一問沒有答案」，不代表「這一問沒事」。
 
-## 六問
+## 七問
 
 ### 一、我寫下的每一句宣稱，在 diff 裡都找得到對應的改動嗎
 
@@ -105,7 +110,29 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 這次的 diff 沒有動到任何測試檔的話，**那本身就是一條 finding**：一個改了行為卻沒有任何新
 斷言的交付，等著被問「那你怎麼知道它是對的」。
 
-## 處置：這一步不做，前面六問等於沒做
+### 七、這一輪拿掉了什麼，它原本做的每一件事現在由誰做
+
+**判準是「一個既有機制不再由原本那條路徑執行」**，不是它被叫做什麼。拿掉、取代、簡化、
+「順手收斂一下」——四種說法走到同一題。只要有東西不再跑，就要回答這一問。
+
+做法是列一張對照表，不是講一句話：
+
+1. **那個機制原本做了哪幾件事**，逐件列出來。看被刪掉的那幾行，不看你記得它在做什麼。
+2. **每一件在新的路徑上落在哪裡**，逐件指出來。
+3. **逐件各跑一次**。量過其中一件不算量過其餘——結構相同正是它們會一起壞的理由。
+
+**列不出來是一個答案，而且是要說出來的那一個。** 那張表列不完整時，把「我列不完整」寫進
+finding 並回去讀那段被刪掉的程式；不要讓這一問安靜地通過。一個「應該沒有別的了」跟一張
+列過的表，在報告裡長得一模一樣。
+
+這一問特別會躲，因為**被拿掉的東西不在 diff 的加號那一側**——你讀自己新寫的那段，它一定
+合理，不然你不會那樣寫。要對照的是減號那一側。
+
+標本：一次改動拿掉了一個會讓元件重建的識別值，改用一支「資料晚到再重建」的函式取代。那個
+重建原本連帶讓整段初始化重跑，而初始化裡有一條防呆分支——新的那支只複製了看得見的那一半，
+那條分支從此沒有人跑。兩位 reviewer 用列舉法逐個呼叫點看出來，作者量了一種形狀就收工。
+
+## 處置：這一步不做，前面七問等於沒做
 
 每一條 finding 只有兩種結局：
 
