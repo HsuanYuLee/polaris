@@ -261,6 +261,28 @@ def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
     return UNMEASURABLE, "重跑量不到：" + _why(done)
 
 
+def rerun_key(ev):
+    """決定一趟重跑的全部東西。**這是去重的鍵，只有這一份。**
+
+    Args:
+        ev: 一份 oracle 產的證據。
+    Returns:
+        命令、在哪棵樹跑、要求出現什麼、要求不出現什麼、要哪些工具，五樣組成的 tuple。
+
+    **不要把這句話簡化成「照命令去重」。** 兩條斷言可以跑同一條命令而各自要求不同的證據
+    樣式；鍵漏掉那幾樣的話，第二條會拿到第一條的答案，而它自己的樣式從來沒有被檢查過
+    ——一條沒被量到的斷言看起來就跟過了一樣。
+
+    抽成一支是因為它有兩個呼叫者：跑之前數趟數的那一次，跟跑的時候。抄成兩份的話預告的
+    數字會跟實際的漂開，而漂掉的那一刻預告看起來仍然很正常。
+    """
+    return (ev.get("command", ""),
+            ev.get("measured_in") or "",
+            tuple(ev.get("expect_evidence") or ()),
+            tuple(ev.get("forbid_evidence") or ()),
+            tool_specs(ev))
+
+
 def judge(index_path, evidence_dir, head=None, delta_allows=(),
           ledger_path=None, rerun=False, oracle=None):
     """逐條判定，外加幾件跨斷言才問得出來的事。
@@ -363,27 +385,27 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                 mark(aid, UNMEASURABLE, f"量在 {ev_head[:12]}，而這段差異量不到——{payload}")
 
     # 第三層。跑的是證據記的那條命令——走到這裡它已經被上面驗過等於登錄的那一條（登錄檔
-    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條斷言共用，所以去重再跑：
-    # 一張八條斷言三條命令的單，重跑三次不是八次。
-    #
-    # 去重的鍵是**決定那一趟重跑的全部東西**，不只是命令：兩條斷言可以跑同一條命令而各自
-    # 要求不同的證據樣式，鍵漏掉那幾樣的話，第二條會拿到第一條的答案，而它自己的樣式從來
-    # 沒有被檢查過——一條沒被量到的斷言看起來就跟過了一樣。
+    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條斷言共用，所以去重再跑，
+    # 而去重的鍵是 `rerun_key()`——它為什麼是那五樣寫在那支函式的 docstring 裡，這裡不抄
+    # 第二份。
     if rerun:
+        # 趟數在跑第一趟之前就說出來。這一層是唯一會真的花時間的一層，而「幾條斷言」跟
+        # 「要跑幾趟」不是同一個數字——不先說的話，看的人只能拿斷言數去估，然後把一趟
+        # 21 分鐘的等待當成當掉。
+        planned = {rerun_key(evidence[aid]) for aid in ids
+                   if aid not in rows and aid in evidence}
+        if planned:
+            print(f"[verify-ac] 重跑這一層：{len(planned)} 個不同的量測樣式"
+                  f"（{len(ids)} 條斷言），所以要跑 {len(planned)} 趟。",
+                  file=sys.stderr)
         cache = {}
         for aid in ids:
             if aid in rows or aid not in evidence:
                 continue
             ev = evidence[aid]
-            expect = tuple(ev.get("expect_evidence") or ())
-            forbid = tuple(ev.get("forbid_evidence") or ())
-            command = ev.get("command", "")
-            cwd = ev.get("measured_in") or ""
-            tools = tool_specs(ev)
-            key = (command, cwd, expect, forbid, tools)
+            key = rerun_key(ev)
             if key not in cache:
-                cache[key] = _rerun(command, cwd, expect, forbid, tools, oracle,
-                                    report["notes"])
+                cache[key] = _rerun(*key, oracle, report["notes"])
             state, detail = cache[key]
             if state != PASS:
                 mark(aid, state, detail)
