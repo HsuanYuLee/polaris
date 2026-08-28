@@ -126,20 +126,39 @@ repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 
 ```yaml
 plan:
-  what: { answer: "…", source: inferred_confirmed }   # 推一版、人點頭
-  when: { answer: "…", source: human }                # 什麼時候要
-  why:  { answer: "…", source: human }                # 想解決什麼
-  how:                                                # 拿什麼測
+  # what 這一版要做什麼、when 什麼時候要、why 想解決什麼、how 拿什麼測
+  what:
+    answer: "…"
+    source: inferred_confirmed
+  when:
+    answer: "…"
+    source: human
+  why:
+    answer: "…"
+    source: human
+  how:
     answer: "本機起後台 + mock 掉上游 API"
     source: human
-    environments: [admin-console, upstream-api-mock]
+    environments: none
 ```
+
+上面那一份**照抄就會過**，這是刻意的。`environments` 真的要列東西的時候寫成
+`environments: [admin-console, upstream-api-mock]`——但列進去的每一個都要有人宣告會起它，
+不然下面那支檢查會指名它們（那就是〈有些答案每張單都一樣〉在講的訊號）。所以範例裡放的是
+`none`：一個抄下去就被自己的檢查退回的範例，教的是「這份文件不能信」。
+
+**每一項都是一個區塊，不要寫成 `what: { answer: …, source: … }`。** 讀它的是一支手寫的
+逐行 parser，不是 YAML 函式庫——行內寫法它讀不懂，而它對讀不懂的行**拒絕**（略過的話，
+一個縮排打錯的區塊會靜默地變成「沒有區塊」，那正是它要抓的東西）。同一個理由，**註解只能
+自己占一行**——`what:  # 說明` 那樣寫，那一行就不是它認得的形狀了。抄完立刻跑一次下面那支
+`check-plan-answers.sh` 確認，不要等到蓋封條才發現。
 
 `source` 三種：`human`、`environment`（查出來的）、`inferred_confirmed`。
 **這張單真的不需要某一項時，明講並說為什麼**——空著與不適用是兩件事：
 
 ```yaml
-  when: { not_applicable: "框架自用，一單一版隨時釋出，沒有外部時程" }
+  when:
+    not_applicable: "框架自用，一單一版隨時釋出，沒有外部時程"
 ```
 
 **`how` 要多帶 `environments`。** 「要起哪些東西」寫在句子裡沒有人讀得懂；列出來之後，
