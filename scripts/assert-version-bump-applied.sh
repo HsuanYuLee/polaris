@@ -65,7 +65,7 @@ fi
 
 if [[ "$PENDING" -eq 0 && "$MOVED" == true ]]; then
   # 這一向不擋。一份 changeset 都沒有而版號動了，代表壓版那一步從別的地方拿到了輸入
-  # ——那是 DP-334 的多 DP 堆疊問題，release-version.sh 自己有閘在管，這裡重複擋一次
+  # ——那是 DP-334 的多 DP 堆疊問題，release-version.sh 自己有關卡在管，這裡重複擋一次
   # 只會讓同一件事有兩個說法。說出來就好。
   echo "$PREFIX 注意：一份 changeset 都沒有，但版號 ${BEFORE} -> ${AFTER} 動了。"
   exit 0

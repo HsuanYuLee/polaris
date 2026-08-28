@@ -90,7 +90,7 @@ Usage:
   spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
   spine-loop-state.sh reset   --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
   spine-loop-state.sh show    --state <path>
-  spine-loop-state.sh find    <單名> [--root <單樹根>] [--relative]
+  spine-loop-state.sh find    <單名> [--root <單的根目錄>] [--relative]
   spine-loop-state.sh landing --state <path>
   spine-loop-state.sh land    --state <path> --where <工作區路徑>... [--authorization <人的原話>]
 
@@ -150,7 +150,7 @@ resolve_issues_root() {
   #
   # 第三種推導是關鍵：量測命令跑在框架 worktree 裡，而 `issues/` 被 gitignore 成
   # versioned-elsewhere、在 worktree 裡不存在。git 的共用 .git 指得回主 checkout，所以
-  # 單樹的位置推得出來，不必有人把它抄進命令。
+  # 單的目錄樹的位置推得出來，不必有人把它抄進命令。
   local d
   if [[ -n "${FIND_ROOT:-}" ]]; then
     printf '%s\t%s\n' "--root" "$FIND_ROOT"
@@ -174,8 +174,8 @@ resolve_issues_root() {
 cmd_find() {
   # Description: 吃單的名字，吐它現在住在哪。位置是狀態的投影，所以沒有人存它——
   #              要用的時候問這裡（DP-496）。
-  # Args: <單名> [--root <單樹根>] [--relative]
-  # Exit: 0 剛好一個／3 多於一個（全部印出）／4 一個都沒有／2 用法錯或推導不出單樹根。
+  # Args: <單名> [--root <單的根目錄>] [--relative]
+  # Exit: 0 剛好一個／3 多於一個（全部印出）／4 一個都沒有／2 用法錯或推導不出單的根目錄。
   #
   # 刻意不讀 loop-state.json：位置解析只回答「這個名字的目錄在哪」，狀態判定是另一件事。
   # 現況有 39 張單從來沒開過輪次，它們一樣是單，一樣要找得到。
@@ -196,13 +196,13 @@ cmd_find() {
 
   local derived root
   derived="$(resolve_issues_root)" || {
-    echo "[find] 推導不出單樹根：cwd 往上沒有 issues/，也問不到 git 的共用 .git。要嘛帶 --root，要嘛從單樹底下跑。" >&2
+    echo "[find] 推導不出單的根目錄：cwd 往上沒有 issues/，也問不到 git 的共用 .git。要嘛帶 --root，要嘛從單的目錄樹底下跑。" >&2
     exit 2
   }
   ROOT_SOURCE="${derived%%$'\t'*}"
   root="${derived#*$'\t'}"
   [[ -d "$root" ]] || {
-    echo "[find] 單樹根不存在：${root}（來源：${ROOT_SOURCE}）" >&2
+    echo "[find] 單的根目錄不存在：${root}（來源：${ROOT_SOURCE}）" >&2
     exit 2
   }
   root="$(cd "$root" && pwd -P)"
@@ -225,12 +225,12 @@ cmd_find() {
   done < <(find "$root" -path '*/.spine' -prune -o \
              -type d \( -name "$pattern" -o -name "$pattern_alt" \) -print 2>/dev/null | sort)
 
-  echo "[find] 單樹根 ${root}（來源：${ROOT_SOURCE}）／比對方式 ${match_kind}／命中 ${#hits[@]} 個" >&2
+  echo "[find] 單的根目錄 ${root}（來源：${ROOT_SOURCE}）／比對方式 ${match_kind}／命中 ${#hits[@]} 個" >&2
 
   local p
   case "${#hits[@]}" in
     0)
-      echo "[find] 找不到「${name}」。它不在這棵單樹裡，或者名字打錯了。" >&2
+      echo "[find] 找不到「${name}」。它不在這棵單的目錄樹裡，或者名字打錯了。" >&2
       exit 4 ;;
     1)
       p="${hits[0]}"
@@ -353,7 +353,7 @@ run_pack_precondition() {
   # 把這件工作記成沒有領域——而後者買到的是一個永遠不會被檢查的完成條件。
   doc="$(pack_doc "$pack")" || die "POLARIS_SPINE_PACK_UNRESOLVED" \
     "解析不到領域知識「${pack}」——找不到它的 SKILL.md。指名一個不存在的 pack 是安靜的失敗。
-這個工作區還沒有這一份的話，現在就是凝聚它的時機：回閘一，照那一站〈有些答案每張單都
+這個工作區還沒有這一份的話，現在就是凝聚它的時機：回第一關，照那一站〈有些答案每張單都
 一樣〉問出這一類工作在這裡怎麼算 done，寫成那份知識自己的宣告行。做完再跑一次這個命令。
 真的不適用的話用 --pack none --why '<理由>'——但那是一個要說出口的選擇，不是繞道。"
   declared="$(pack_declaration "$doc" PRECONDITION)"
@@ -537,7 +537,7 @@ print("  另一個 session 正在共用同一份 checkout——先確認要落�
 PY
 }
 
-# Description: 同一棵單樹裡，有沒有一張已走到終局站別的單正佔著現在這一組身分；有就 die。
+# Description: 同一棵單的目錄樹裡，有沒有一張已走到終局站別的單正佔著現在這一組身分；有就 die。
 # Args: $1 = 這張新單的 state 檔路徑, $2 = pack_identity 印出來的那一行
 #
 # 比法是**交集非空**，不是相等——共用其中任何一個地方，新的一輪就疊在別人的歷史上了。
@@ -550,13 +550,13 @@ refuse_if_workspace_taken() {
   local -a vals=()
   terminal="${STATIONS##* }"
   # 值走 argv，不走 stdin：`python3 -` 的程式本身就是 stdin，heredoc 會把管線蓋掉，
-  # 於是要比對的那一組靜默變成空集合——一道永遠比不到東西的閘，看起來跟一道通過的閘一樣。
+  # 於是要比對的那一組靜默變成空集合——一道永遠比不到東西的關卡，看起來跟一道通過的第一關樣。
   while IFS= read -r value || [[ -n "$value" ]]; do
     [[ -n "$value" ]] && vals+=("$value")
   done < <(identity_values "$line")
   [[ ${#vals[@]} -gt 0 ]] || return 0
 
-  # 單樹的根用 repo 根解，不從路徑往上數層數——單在活躍區是三層、在 archive/ 裡是四層，
+  # 單的目錄樹的根用 repo 根解，不從路徑往上數層數——單在活躍區是三層、在 archive/ 裡是四層，
   # 數死的那一版會在收斂後的單上算出錯的根。這支已經有一個解得對的：issues_root_of。
   local root; root="$(issues_root_of "$state")"
   [[ -n "$root" ]] || return 0   # 解不出樹就沒有別張單可以比，不是「通過」也不是「拒絕」
@@ -574,7 +574,7 @@ def find_states(root):
     是「看起來還有比較多事沒做」，沒有人會抱怨。所以改成問一個不含深度的問題：這棵樹底下
     哪些目錄裡有 .spine/loop-state.json。
 
-    `.git` 要跳過：單樹自己是一個 git repo，而 .git 底下的東西不是單。
+    `.git` 要跳過：單的目錄樹自己是一個 git repo，而 .git 底下的東西不是單。
     """
     found = []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -649,7 +649,7 @@ payload = {
     "producer": "spine-loop-state.sh",
     "rounds": [],
     "status": "open",
-    # 種子停在第一個閘之前：斷言還沒簽，所以它還不能開工。
+    # 種子停在第一個關卡之前：斷言還沒簽，所以它還不能開工。
     "station": "refinement",
     "stop": None,
     "stops": [],
@@ -819,7 +819,7 @@ cmd_init() {
   fi
 
   # 求得出值來才有東西可以比。求不出來的情形上面已經拒絕過了，所以這裡不會有
-  # 「比不到就當沒事」的分支——那個分支是這道閘唯一有意義的失效方式。
+  # 「比不到就當沒事」的分支——那個分支是這道關卡唯一有意義的失效方式。
   [[ "$identity_kind" != "ok" ]] || refuse_if_workspace_taken "$STATE" "$identity_line"
 
   # 一個一個讀進陣列，不靠展開時的斷詞。核心把每個值當不透明字串，而不透明的字串裡
@@ -898,7 +898,7 @@ reproject_position() {
   local root
   root="$(issues_root_of "$STATE")"
   if [[ -f "$placer" && -n "$root" ]]; then
-    # `--spine-only`：剛動過的是一張走脊椎的單，它的答案在本機。讓記一輪去問別的命名空間
+    # `--spine-only`：剛動過的是一張走主流程的單，它的答案在本機。讓記一輪去問別的命名空間
     # 宣告的解析器，等於每寫一次輪次就打幾十趟網路，而且 JIRA 掛掉的時候記不成輪次。
     #
     # 不吞它的話。`|| true` 曾經把一次「根解錯了、103 個目錄被搬進 archive/archive/」
@@ -1075,7 +1075,7 @@ for issue_dir in ticket_dirs:
     if data.get("status") == "escalated" and not stop:
         stop = {"kind": "unconverged_cap"}
     rounds = data.get("rounds") or []
-    # 「還沒簽斷言」問單自己，不從狀態檔推：封條寫在 index.md 的 frontmatter，那是權威。
+    # 「還沒簽斷言」問單自己，不從狀態檔推：校驗值寫在 index.md 的 frontmatter，那是權威。
     # 從「有沒有領域欄位」之類的東西倒推，是在狀態檔裡養第二份答案，而兩份會漂。
     index = os.path.join(issue_dir, "index.md")
     sealed = False
@@ -1394,7 +1394,7 @@ PY
 # Args: --state <path>
 #
 # 存在的理由是「只有一個地方回答這個問題」。DP-482 之前沒有這支，於是每個需要答案的地方
-# 都自己從當下的位置推一次——交付紀錄推出 delivering_repo、閘推出 THIS_REPO，兩份互相比對，
+# 都自己從當下的位置推一次——交付紀錄推出 delivering_repo、關卡推出 THIS_REPO，兩份互相比對，
 # 而第一次真的跨 repo 的單就把它們比爆了。
 cmd_landing() {
   parse_args "$@"

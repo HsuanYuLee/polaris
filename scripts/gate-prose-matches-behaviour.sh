@@ -13,13 +13,13 @@
 #   3. 指名不存在的旗標。散文寫 `--source`，腳本認的是 `--issue`。這個真的發生過：三站
 #      改名之後，judge/work 兩支 SKILL.md 裡整批 `--source` 全部對不上。
 #
-# 為什麼要一道閘而不是靠讀：這三種都不會在寫的當下錯，它們是**搬家之後**才錯的，而搬家的
+# 為什麼要一道關卡而不是靠讀：這三種都不會在寫的當下錯，它們是**搬家之後**才錯的，而搬家的
 # 人不會回頭讀每一支 SKILL.md。gate-skill-script-references.sh 管的是腳本引用腳本；這一支管
 # 的是散文引用行為，兩者不重疊。
 #
 # Usage: gate-prose-matches-behaviour.sh [--repo <path>] [--skill <名字>]
 #
-# `--skill` 讓一支 skill 單獨檢查自己的散文。這道閘量的東西**大部分**有擁有者
+# `--skill` 讓一支 skill 單獨檢查自己的散文。這道關卡量的東西**大部分**有擁有者
 # ——一份散文指名的檔案、子命令、旗標，多數就在它自己那一棵樹底下。剩下的那些
 # 指向別支 skill，那一部分沒有擁有者，所以共用的那一層留著，掃全樹。
 # Exit:  0 全部對得上 / 1 有對不上的
@@ -67,7 +67,7 @@ FENCE_END = re.compile(r"^```\s*$")
 # `bash <path>` 起頭的一行命令，後面可能接子命令與旗標。續行的反斜線要接起來。
 # rest 停在 `|`、`&&`、`;`、`>`。不停的話，一條 pipeline 裡下一段命令的旗標會被算到
 # 這一支頭上——memory-hygiene 的 apply-flow 就是這樣被誣告了一次：`--memory-dir` 是給管線
-# 另一端那支 .py 的，而這道閘說 validate-memory-hygiene-plan.sh 不認得它。
+# 另一端那支 .py 的，而這道關卡說 validate-memory-hygiene-plan.sh 不認得它。
 INVOCATION = re.compile(r"\bbash\s+(?P<path>[\w./-]+\.sh)(?P<rest>[^\n|;&>]*)")
 # 行文裡的「前置必讀：`x/y.md`」這類指路。副檔名限定成文件，免得把命令當路徑。
 #
@@ -80,7 +80,7 @@ BARE_DOC = re.compile(r"`([\w.-]+\.(?:md|json|yaml|yml))`")
 # 結尾是 `.md`／`.json`／`.yaml`／`.yml`，而 `.claude/rules/{公司}/handbook/` 一個都不是。
 # 於是它跟 gate-skill-knowledge-locality 之間有一格誰都沒有：那一道只判**版控之外**的
 # 引用，`.claude/` 開頭的直接出局，而且它的訊息還寫著「斷指標由 gate-prose-matches-behaviour
-# 管」——指向一道當時並不管它的閘。
+# 管」——指向一道當時並不管它的關卡。
 DIR_POINTER = re.compile(r"`([\w.-]+(?:/[\w.-]+)*/)`")
 # 同一件事的另一種寫法：`.claude/skills/x/references`——沒有結尾斜線，也沒有副檔名，所以
 # 上面三條正則一條都不吃。全樹目前**一筆都沒有**（2026-08-09 量的：解得到 0、解不到 0），
@@ -95,7 +95,7 @@ NO_EXT_POINTER = re.compile(r"`((?:\.claude|_template)/[\w.-]+(?:/[\w.-]+)*)`")
 # 講的是別的 repo 的樹，而 `archive/`、`triage/`、`released/` 這些在句子裡是概念不是路徑。
 #
 # 這個分界是量出來的，不是挑的：全樹 139 筆目錄型指標，全判的話 115 筆變紅——那會讓這
-# 道閘在三次之內被關掉，連它本來判得到的那些也一起沒了（斷言 A-N3 就是為了擋這件事）。
+# 道關卡在三次之內被關掉，連它本來判得到的那些也一起沒了（斷言 A-N3 就是為了擋這件事）。
 # 照這個前綴判，12 筆解得到、3 筆解不到，而那 3 筆是同一個真的洞。
 JUDGED_DIR_PREFIXES = (".claude/", "_template/")
 # 子命令是一個完整的字，後面接空白或結束。`path/to/file.md` 是位置參數不是子命令——
@@ -138,7 +138,7 @@ def read(path):
 
 
 # 一個名字只出現在註解裡，不算這支腳本認得它。腳本的 `# Usage:` 檔頭是散文的一種，而拿
-# 散文去驗散文永遠是綠的：一支腳本停掉某個旗標卻沒改檔頭，這道閘就從兩邊都看不出來。
+# 散文去驗散文永遠是綠的：一支腳本停掉某個旗標卻沒改檔頭，這道關卡就從兩邊都看不出來。
 #
 # 全樹目前**一筆都沒有**（2026-08-10 量的：收緊之後零筆新紅），所以紅控在 selftest 的
 # fixture 上，不在這棵樹上——一條只在「剛好有人這樣寫」時才存在的檢查，等於沒有檢查。
@@ -149,7 +149,7 @@ def read(path):
 # 那種寫法的殼（見下面 delegate 那一段），不是放寬這一條。
 #
 # 只剝整行的註解，不剝行尾的。行尾那種要判斷 `#` 是不是在字串裡，而判錯的代價是把一段
-# 真的程式碼剝掉、然後把對的散文判紅——那是這道閘最不該犯的錯（斷言 A-N3）。
+# 真的程式碼剝掉、然後把對的散文判紅——那是這道關卡最不該犯的錯（斷言 A-N3）。
 LINE_COMMENT = re.compile(r"^[ \t]*#.*$", re.MULTILINE)
 
 
@@ -238,7 +238,7 @@ def resolve(doc_path, quoted):
 #
 # 以前只掃 SKILL.md。references/ 是 SKILL.md 明文叫人去讀的東西，所以它指錯路的後果一模
 # 一樣——而它整整一層沒有被看過：memory-hygiene 的一份 reference 指著七個在框架換層時就
-# 消失的位置（一整個 `rules/` 層與 `specs/design-plans/`），而這道閘每一次都回綠。
+# 消失的位置（一整個 `rules/` 層與 `specs/design-plans/`），而這道關卡每一次都回綠。
 #
 # 一個掃不到的東西與一個掃過了沒問題的東西，在輸出上長得一樣。所以掃到的份數會被印出來，
 # 而讓出去的精度（沒有目錄的檔名）本來就已經印出來了。
@@ -408,10 +408,10 @@ for root, kind in walk_targets:
                         f"——那支腳本不認得這個旗標"
                     )
 
-        # 「用到了」不等於「這份散文用 backtick 括起來」。這一行宣告同時服務兩道閘：這一道
+        # 「用到了」不等於「這份散文用 backtick 括起來」。這一行宣告同時服務兩道關卡：這一道
         # 看指路對不對，gate-skill-knowledge-locality 看它是知識還是動手對象——而後者掃的是
-        # 整支 skill（含腳本）的裸文字，宣告只能寫在 SKILL.md 裡。兩道閘對「用到了」各用
-        # 一套定義的話，同一行宣告會在一道閘是必要的、在另一道閘是多餘的，於是誰都不敢改。
+        # 整支 skill（含腳本）的裸文字，宣告只能寫在 SKILL.md 裡。兩道關卡對「用到了」各用
+        # 一套定義的話，同一行宣告會在一道關卡是必要的、在另一道關卡是多餘的，於是誰都不敢改。
         body = skill_body(doc) if kind == "skill" else EXTERNAL_DECL.sub("", text)
         for declared_prefix, reason in declared:
             if declared_prefix not in used and declared_prefix not in body:
@@ -425,7 +425,7 @@ for root, kind in walk_targets:
 #
 # 只看**檔頭那一段連續註解／docstring**，不看整支檔案。理由是量出來的：那 80 處裡絕大多數
 # 落在 selftest 中間，是造假樹用的字串（`references/gone.md` 本來就該不存在），把它們算進來
-# 這道閘會變成沒有人敢看的雜訊來源。檔頭那一段不一樣——它是這支腳本對讀它的人說的話。
+# 這道關卡會變成沒有人敢看的雜訊來源。檔頭那一段不一樣——它是這支腳本對讀它的人說的話。
 HEADER_POINTER = re.compile(r'`(references/[A-Za-z0-9_./-]+\.md)`')
 DOC_FENCE = ('"""', "'''")
 
@@ -489,7 +489,7 @@ if scanned_skill_md == 0:
     sys.exit(2)
 
 if external_hits:
-    print(f"{prefix} {len(external_hits)} 條路徑被宣告成住在這個 repo 以外，這道閘沒有驗它們：",
+    print(f"{prefix} {len(external_hits)} 條路徑被宣告成住在這個 repo 以外，這道關卡沒有驗它們：",
           file=sys.stderr)
     for doc_rel, quoted, matched, reason in sorted(external_hits):
         print(f"{prefix}   {doc_rel}: `{quoted}` ← `{matched}`（{reason}）", file=sys.stderr)

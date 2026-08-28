@@ -9,7 +9,7 @@
 # 也在預設分支上；規矩在寫下的一小時內失效四次。
 #
 # 第二條同一個時態問題更嚴重：hook 沒接上的 checkout，它的每一個 commit 與每一次 push
-# 一道閘都不會跑，而且**不會有任何東西說**。發現的時候那些 commit 已經在歷史裡了。
+# 一道關卡都不會跑，而且**不會有任何東西說**。發現的時候那些 commit 已經在歷史裡了。
 #
 # 第一條有三種結果，不是兩種。沒有任何 remote 的 repo，「大家共用的分支」不存在——那不是
 # 量不到，是沒有那個東西可以量，所以這一條不適用，說出來並繼續（現在站在哪一條仍然印）。
@@ -22,7 +22,7 @@
 #
 # 為什麼只有這兩條：開工前成立得了的條件才放這裡。「有一個 PR」開工前不可能成立，
 # 「push 前跑完本機驗證」那時候沒有東西可以驗——那些是交付前的事。一個開工前註定
-# 不成立的前置條件，只會逼人學會繞過整道閘。
+# 不成立的前置條件，只會逼人學會繞過整道關卡。
 #
 # 核心不呼叫這個檔名，它從 swe-knowledge/SKILL.md 的 SWE-PRECONDITION 那一行讀出要跑什麼。
 # 所以改名字要改那一行；不改的話核心會說它量不到，而不是安靜地放行。
@@ -103,7 +103,7 @@ check_hooks() {
   # config 被讀成「沒接上」——而那是一個看起來有答案的錯答案。
   if [[ "$rc" -gt 1 ]]; then
     echo "$PREFIX 量不到：${top} 的 core.hooksPath 讀不出來（git config 回 ${rc}）。" >&2
-    echo "$PREFIX 問不到閘的狀態不是通過。" >&2
+    echo "$PREFIX 問不到關卡的狀態不是通過。" >&2
     return 2
   fi
   if [[ "$actual" == "$dir" || "$actual" == "$top/$dir" ]]; then
@@ -112,11 +112,11 @@ check_hooks() {
   fi
   echo "$PREFIX 開工條件不成立：${top} 宣告了版控 hook 目錄 ${dir}，但 git 沒有在用它。" >&2
   if [[ -z "$actual" ]]; then
-    echo "$PREFIX 現在 core.hooksPath 沒設，git 在用 .git/hooks——那裡沒有這套閘。" >&2
+    echo "$PREFIX 現在 core.hooksPath 沒設，git 在用 .git/hooks——那裡沒有這套關卡。" >&2
   else
     echo "$PREFIX 現在 core.hooksPath = ${actual}。" >&2
   fi
-  echo "$PREFIX 沒接上的話，這個 checkout 的每個 commit 與每次 push 一道閘都不會跑，而且不會有任何東西說。" >&2
+  echo "$PREFIX 沒接上的話，這個 checkout 的每個 commit 與每次 push 一道關卡都不會跑，而且不會有任何東西說。" >&2
   echo "$PREFIX 修法：${fix}   然後重跑一次。" >&2
   return 2
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# 六道掃全樹的閘，一次跑完。commit 與 push 兩邊都用這一支。
+# 六道掃全樹的關卡，一次跑完。commit 與 push 兩邊都用這一支。
 #
 # **留在這裡的門檻只有一條**（使用者 2026-08-13 拍板，寫在 .claude/instructions/core/
-# bootstrap.md）：一道閘要守著一個**不可逆、或會出去到這個 repo 之外**的後果，而且那個
+# bootstrap.md）：一道關卡要守著一個**不可逆、或會出去到這個 repo 之外**的後果，而且那個
 # 後果**看 diff 的人看不出來**。三個條件同時成立才留。
 #
 # 一、gate-template-leaks —— live company slug 進公開的 template repo。push 出去收不回來。
@@ -22,7 +22,7 @@
 # gate-docs-collection（文件站台的 frontmatter）。它們判準寫得對，但每一次無關的改動都要
 # 付錢，而它們擋的東西 clone 一次、跑一次就看得到。
 #
-# 這六道掃全樹合計約 1.6 秒，所以它們掛在 **commit** 上，不是 push——一個過不了閘的 commit
+# 這六道掃全樹合計約 1.6 秒，所以它們掛在 **commit** 上，不是 push——一個過不了關卡的 commit
 # 已經在歷史裡了，那時候修要改寫歷史。按 skill 切的 selftest 不走這裡，它有自己的
 # run-selftests.sh。
 #
@@ -41,16 +41,16 @@ done
 
 # git 在跑 hook 的時候會把 GIT_DIR 放進環境，而 `rev-parse --show-toplevel` 在 GIT_DIR
 # 已經指定的情況下回的是**當下的工作目錄**，不是那個 repo 的根。所以這一行本來解出來的
-# 是這支腳本自己所在的 scripts/ 目錄——六道閘全部拿著一個只裝著它們自己的「repo 根」去
+# 是這支腳本自己所在的 scripts/ 目錄——六道關卡全部拿著一個只裝著它們自己的「repo 根」去
 # 掃：兩道因為找不到檔案而炸，另外四道安靜地回「0 個檔，都對得上」。
 #
-# 一道掃不到東西而回綠的閘，跟一道掃過了沒問題的閘，在輸出上長得一樣。所以這裡把那兩個
+# 一道掃不到東西而回綠的關卡，跟一道掃過了沒問題的關卡，在輸出上長得一樣。所以這裡把那兩個
 # 變數拿掉再問一次，並且在下面驗根解對了沒有——**解錯根要停，不能回綠**。
 [[ -n "$ROOT_DIR" ]] || ROOT_DIR="$(env -u GIT_DIR -u GIT_WORK_TREE git -C "$HOOK_DIR" rev-parse --show-toplevel)"
 
 if [[ ! -d "$ROOT_DIR/.claude/skills" ]]; then
   echo "[polaris run-gates] 解出來的 repo 根 '$ROOT_DIR' 底下沒有 .claude/skills；" >&2
-  echo "[polaris run-gates] 這代表根解錯了，而不是這個 repo 沒有 skill。閘拿著錯的根會全部空掃回綠，所以停。" >&2
+  echo "[polaris run-gates] 這代表根解錯了，而不是這個 repo 沒有 skill。關卡拿著錯的根會全部空掃回綠，所以停。" >&2
   exit 1
 fi
 
@@ -63,6 +63,6 @@ bash "$GATES/gate-skill-knowledge-locality.sh" --repo "$ROOT_DIR" || fail=1
 bash "$GATES/gate-copy-sets.sh" --repo "$ROOT_DIR" || fail=1
 
 if [[ "$fail" -ne 0 ]]; then
-  echo "[polaris run-gates] 上面的閘沒過，停下。" >&2
+  echo "[polaris run-gates] 上面的關卡沒過，停下。" >&2
   exit 1
 fi

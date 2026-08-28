@@ -74,7 +74,7 @@ Label 失敗不應中斷整批通知，但必須在最後回報哪些 PR label �
   - 還沒有人看 → 還需幾位
 - 總共幾個 PR 需要看
 
-送出前必須 materialize 成 temp markdown，並通過語言閘：
+送出前必須 materialize 成 temp markdown，並通過語言關卡：
 
 ```bash
 bash .claude/skills/request-pr-review/scripts/validate-language-policy.sh --blocking --mode artifact <訊息檔>

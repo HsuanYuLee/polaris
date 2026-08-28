@@ -129,7 +129,7 @@ else
 fi
 
 # ── 第二條：宣告出來的版控 hook 目錄，git 真的在用嗎 ─────────────────────────
-# 沒接上的 checkout，它的每個 commit 與每次 push 一道閘都不會跑，而且不會有任何東西說。
+# 沒接上的 checkout，它的每個 commit 與每次 push 一道關卡都不會跑，而且不會有任何東西說。
 # 這是只有開工前擋得住的那一種——發現的時候那些 commit 已經在歷史裡了。
 
 HOOKS_REL="scripts/githooks"
@@ -185,7 +185,7 @@ else
   bad "沒有執行位元卻放行了：rc=$RC $OUT"
 fi
 
-# 問不到閘的狀態就拒絕。宣告指向一個不存在的目錄，是這一類裡唯一在 fixture 裡造得出來的
+# 問不到關卡的狀態就拒絕。宣告指向一個不存在的目錄，是這一類裡唯一在 fixture 裡造得出來的
 # 形狀——另一種（core.hooksPath 讀不出來）需要一份壞掉的 .git/config，而那會讓更前面的
 # rev-parse 先炸掉，所以它在程式碼裡守著、但這裡量不到它。
 repo="$(new_declared_repo hooks_dir_gone)"

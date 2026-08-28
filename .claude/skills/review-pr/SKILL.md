@@ -63,7 +63,7 @@ frontmatter 的 `description` 之前先讀那 13 句，問「改完之後這 13 
 
 **什麼時候要更新它**：這支 skill 被叫錯、或該叫沒叫到的那一刻——把那句原話補成第 14 條，
 標好它該不該觸發。一句在真實對話裡走錯的話，比十句想像出來的案例有用。同一趟摩擦也記進
-你手上那張單的活文件（`SKILL-UTILITY`，見 `driving-work-to-done`），兩者不重複：那裡記
+你手上那張單可以改的那部分（`SKILL-UTILITY`，見 `driving-work-to-done`），兩者不重複：那裡記
 「這一趟它幫到還是擋到」，這裡記「這句話該路由到哪」。
 
 ## Reference Loading
@@ -110,7 +110,7 @@ Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔�
 - Suggested change 只在能精準替換 diff range 時使用。
 
 下面這一行是機器讀的：往別人看得到的地方送文字的其他 skill，從這裡問出「送出去之前要過
-哪一道檢查」，不各自寫死一條路徑。這道閘住在這裡，因為 review 這件事本身就是對外寫入，
+哪一道檢查」，不各自寫死一條路徑。這道關卡住在這裡，因為 review 這件事本身就是對外寫入，
 它是這支 skill 的原生需求，不是為了別人才存在的。
 
 <!-- POLARIS-EXTERNAL-WRITE-GATE: bash .claude/skills/review-pr/scripts/polaris-external-write-gate.sh -->

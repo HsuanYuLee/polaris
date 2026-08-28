@@ -7,7 +7,7 @@
 
 ```
 issues/{命名空間}/{單號}/
-├── index.md                  # 活文件——比對結果、判讀、下一步都寫這裡
+├── index.md                  # 可以改的那部分——比對結果、判讀、下一步都寫這裡
 └── tests/
     ├── vr/baseline/          # baseline 截圖（單存續期）
     │   ├── homepage-zh-tw-1280.png
@@ -17,7 +17,7 @@ issues/{命名空間}/{單號}/
         └── api-*.json
 ```
 
-**報告寫進那張單的 `{issue}/index.md`，不另開檔案。** 一張單的過程紀錄住在它的活文件裡，這是
+**報告寫進那張單的 `{issue}/index.md`，不另開檔案。** 一張單的過程紀錄住在它可以改的那部分裡，這是
 `.claude/rules/document-flow.md` 的規矩；截圖與 fixtures 是二進位與設定，才需要自己的路徑。
 
 ## 外部使用：建一個帶單號的目錄

@@ -2,7 +2,7 @@
 # 把版控裡的 hook 接上 git／拆掉／看狀態。
 #
 # **它不生成 hook 的內容。** 內容住在 `../githooks/`，是版控裡的兩個檔案；這一支只做一件
-# 事——把 `core.hooksPath` 指過去。以前它用 heredoc 把內容寫進 `.git/hooks/`，代價是閘的
+# 事——把 `core.hooksPath` 指過去。以前它用 heredoc 把內容寫進 `.git/hooks/`，代價是關卡的
 # 改動不會出現在任何 diff 裡，而每台機器手上是哪一版沒有人說得出來。
 #
 # 切換到 `core.hooksPath` 的代價要說出來：**它會讓 `.git/hooks/` 底下所有東西失效**，包含
@@ -91,7 +91,7 @@ case "$MODE" in
       echo "hooksPath  量不到：core.hooksPath 讀不出來（git config 回 ${rc}）"
       exit 2
     elif [[ -z "$current" ]]; then
-      echo "hooksPath  沒接上：core.hooksPath 沒設，git 在用 ${LEGACY_DIR}——那裡沒有這套閘"
+      echo "hooksPath  沒接上：core.hooksPath 沒設，git 在用 ${LEGACY_DIR}——那裡沒有這套關卡"
     elif [[ "$current" == "$HOOKS_REL" ]]; then
       echo "hooksPath  已接上：${HOOKS_REL}"
     else
@@ -159,7 +159,7 @@ if [[ -n "$FOREIGN" ]]; then
 fi
 
 # 這一套自己以前寫進 .git/hooks/ 的那兩份留著沒有意義（接上之後它們不會被執行），而且會讓
-# 下一個人以為閘有兩份。只刪帶標記的，別人手寫的上面已經擋下來了。
+# 下一個人以為關卡有兩份。只刪帶標記的，別人手寫的上面已經擋下來了。
 for h in "${HOOK_NAMES[@]}"; do
   f="$LEGACY_DIR/$h"
   if [[ -f "$f" ]] && grep -qF "$MARKER" "$f"; then

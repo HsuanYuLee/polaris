@@ -3,7 +3,7 @@
 #   宣告了留在本地的東西落在會被同步出去的位置。送出去收不回來，而 diff 裡它跟任何一個正常檔案長得一樣。
 # gate-source-destination.sh — 宣告 `workspace` 就是「這批東西不會出去」，這裡驗那句話。
 #
-# `destination` 是人在閘一做的決定，寫在 `{單}/index.md` 的 frontmatter。它值錢的地方在於
+# `destination` 是人在第一關做的決定，寫在 `{單}/index.md` 的 frontmatter。它值錢的地方在於
 # 它把「這是不是公司內容外流」從一個靠猜內容回答的問題，換成一個靠讀宣告回答的路徑問題。
 # 而一個沒有人驗的宣告，跟沒有宣告的差別只有寫的時候多打幾個字——2026-08-03 那次拆卸把
 # 驗它的那支腳本刪掉了，欄位活了下來，檢查沒有。
@@ -13,7 +13,7 @@
 # 刻意很小的安全子集——確定不會出去的那幾種——其餘一律判紅。過度嚴格，不過度放行。
 #
 # 安全子集有一部分不是寫在這裡的：sync-to-polaris.sh 自己用 `POLARIS-NOT-SYNCED:` 宣告
-# 哪些位置它確定不複製，這道閘去讀那些宣告。什麼會出去只有那支腳本說了算，這裡再抄一份
+# 哪些位置它確定不複製，這道關卡去讀那些宣告。什麼會出去只有那支腳本說了算，這裡再抄一份
 # 就是第二個答案——而 DP-525 之前這裡沒有那條線，於是兩張只改 `.changeset/` 的單被判了
 # 假紅，逼得它們把 destination 宣告成不是它真正的樣子。讀不到那份宣告時判定回到嚴格的
 # 那一邊，並且把「這一次沒讀到」印出來：讀不到不是放行，但它也不該是安靜的。
@@ -61,7 +61,7 @@ INDEX="$ISSUE_ABS/index.md"
 
 # ── 這條規則對這張單發不發言 ──────────────────────────────────────────────────
 # 落腳處問既有的宣告，不自己推第二個答案。一張單沒有在這個工作區開過輪次，就是它的交付
-# 不在這裡——產品 repo 的單長的就是這個樣子，對它判紅只會讓人學會關掉這道閘。
+# 不在這裡——產品 repo 的單長的就是這個樣子，對它判紅只會讓人學會關掉這道關卡。
 if [[ ! -f "$ISSUE_ABS/.spine/loop-state.json" ]]; then
   echo "$PREFIX 不適用：$ISSUE_DIR 沒有在這個工作區開過輪次，這條規則不對它發言。"
   exit 0
@@ -83,7 +83,7 @@ DESTINATION="$(awk '
 if [[ -z "$DESTINATION" ]]; then
   {
     echo "$PREFIX 量不到：$ISSUE_DIR/index.md 的 frontmatter 沒有 destination。"
-    echo "$PREFIX 這個欄位是必填的，不是可選的——一張沒有宣告目的地的單，正是這道閘要"
+    echo "$PREFIX 這個欄位是必填的，不是可選的——一張沒有宣告目的地的單，正是這道關卡要"
     echo "$PREFIX 拿掉的那個安靜的第三態。在 frontmatter 加一行："
     echo "$PREFIX   destination: workspace   # 留在這裡，不會進 template repo"
     echo "$PREFIX   destination: template    # 會出去"
@@ -201,7 +201,7 @@ DECLARED = re.compile(
 def declared_not_synced():
     """去問已經有答案的那一份：同步那支腳本自己宣告了哪些位置不會被複製出去。
 
-    這裡不維護第二份清單。什麼會出去只有一個東西說了算，而它就是那支腳本；閘再抄一份
+    這裡不維護第二份清單。什麼會出去只有一個東西說了算，而它就是那支腳本；關卡再抄一份
     的話，兩份會各自演化，然後對一批確定不會出去的檔案判紅——那正是 DP-525 的來源。
 
     回 (清單, 讀到了沒)。讀不到的時候清單是空的，判定回到原本的嚴格樣子：未知的位置
@@ -272,11 +272,11 @@ if offenders:
     for path in offenders:
         print(f"    !!   {path}", file=sys.stderr)
     print("", file=sys.stderr)
-    print(f"{prefix} 兩條路，都是人的決定，這道閘不代人改宣告：", file=sys.stderr)
+    print(f"{prefix} 兩條路，都是人的決定，這道關卡不代人改宣告：", file=sys.stderr)
     print(f"{prefix}   1. 把檔案搬到不會出去的位置——公司自己的 skill、公司的規則目錄、"
           f"或任何沒有版控的地方。", file=sys.stderr)
     print(f"{prefix}   2. 把宣告改成 destination: template，並且讓內容夠通用。"
-          f"那要回閘一重簽。", file=sys.stderr)
+          f"那要回第一關重簽。", file=sys.stderr)
     sys.exit(1)
 
 print(f"{prefix} 全部留得住。")

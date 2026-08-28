@@ -10,7 +10,7 @@
 # 在 refinement 的事，而那時候才有人真的想過怎麼算成功。
 #
 # Usage:
-#   open-seed-issue.sh --issues <單樹根> --namespace <命名空間> --slug <名字> --note <前因後果>
+#   open-seed-issue.sh --issues <單的根目錄> --namespace <命名空間> --slug <名字> --note <前因後果>
 #                      [--prefix <前綴>] [--no-commit]
 #
 # 號自己會算：`--slug the-thing` 開出來的是 `DP-488-the-thing`。號從哪裡來由那個命名空間
@@ -48,7 +48,7 @@ done
 for pair in "--issues:$ISSUES" "--namespace:$NAMESPACE" "--slug:$SLUG" "--note:$NOTE"; do
   if [[ -z "${pair#*:}" ]]; then
     echo "$PREFIX 缺 ${pair%%:*}。" >&2
-    echo "  用法：open-seed-issue.sh --issues <單樹根> --namespace <命名空間> --slug <名字> --note <前因後果>" >&2
+    echo "  用法：open-seed-issue.sh --issues <單的根目錄> --namespace <命名空間> --slug <名字> --note <前因後果>" >&2
     exit 2
   fi
 done
@@ -60,7 +60,7 @@ done
   exit 2
 }
 
-[[ -d "$ISSUES" ]] || { echo "$PREFIX 單樹根不存在：$ISSUES" >&2; exit 2; }
+[[ -d "$ISSUES" ]] || { echo "$PREFIX 單的根目錄不存在：$ISSUES" >&2; exit 2; }
 [[ -f "$LOOP_STATE" ]] || { echo "$PREFIX 找不到 $LOOP_STATE" >&2; exit 2; }
 [[ -f "$NEXT_NUMBER" ]] || { echo "$PREFIX 找不到 $NEXT_NUMBER" >&2; exit 2; }
 
@@ -93,19 +93,19 @@ mkdir -p "$ISSUE_DIR"
   printf '%s\n\n' "$NOTE"
   printf '## 還沒有的東西\n\n'
   printf '這是一張種子單：它記下了一件不能消失的事，但還沒有人簽過「怎麼算成功」。\n\n'
-  printf '接手的人從 `refinement` 開始——填計劃那四格、寫斷言、蓋封條、開輪次。\n'
+  printf '接手的人從 `refinement` 開始——填計劃那四格、寫斷言、算校驗值、開輪次。\n'
 } > "$ISSUE_DIR/index.md"
 
 bash "$LOOP_STATE" seed --state "$ISSUE_DIR/.spine/loop-state.json" --note "$NOTE" >/dev/null
 
 if [[ "$COMMIT" -eq 1 ]]; then
-  # 單樹是它自己的 git repo。沒 commit 的單只存在於這台機器上，而這一支的整個用途是
+  # 單的目錄樹是它自己的 git repo。沒 commit 的單只存在於這台機器上，而這一支的整個用途是
   # 「拿給另一個 session 開工」——另一個 session 讀的是 commit 過的那一份。
   if git -C "$ISSUES" rev-parse --git-dir >/dev/null 2>&1; then
     git -C "$ISSUES" add "$NAMESPACE/backlog/$SLUG" >/dev/null
     git -C "$ISSUES" commit -q -m "seed: $NAMESPACE/$SLUG" -m "$NOTE"
   else
-    echo "$PREFIX 單樹不是 git repo，這張單只留在磁碟上（沒有 commit）。" >&2
+    echo "$PREFIX 單的目錄樹不是 git repo，這張單只留在磁碟上（沒有 commit）。" >&2
   fi
 fi
 

@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
 done
 SUBJECT="${SUBJECT_OVERRIDE:-$SCRIPTS/submit-pr-review.sh}"
 
-# 這支腳本在兩支 skill 底下各有一份副本，而副本沒有任何閘在守（見 DP-459 活區）。
+# 這支腳本在兩支 skill 底下各有一份副本，而副本沒有任何關卡在守（見 DP-459 活區）。
 SIBLING_SKILLS=(review-pr review-inbox)
 
 EXPECTED=14

@@ -79,7 +79,7 @@ python3 .claude/skills/memory-hygiene/scripts/memory-hygiene-tiering.py retire \
 
 `memory-write-contract.md` 講的是**寫入端**：檔案放哪個資料夾、指標寫進哪一份索引、Hot 的
 軟上限、以及 `pinned` / `topic` 兩個分層欄位。它以前住在使用者機器上的常駐指示檔裡，那個
-位置沒有任何閘看得見——規矩要跟著執行它的東西走，而消費那兩個欄位的腳本就在這支 skill 的
+位置沒有任何關卡看得見——規矩要跟著執行它的東西走，而消費那兩個欄位的腳本就在這支 skill 的
 `scripts/` 底下。
 
 Classification rules live in `.claude/skills/memory-hygiene/scripts/memory-hygiene-tiering.py` and

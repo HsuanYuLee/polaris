@@ -5,7 +5,7 @@ set -euo pipefail
 # hook 環境裡有 GIT_DIR，`--show-toplevel` 在那個情況下會回當下的工作目錄而不是 repo 根。
 REPO_ROOT="$(env -u GIT_DIR -u GIT_WORK_TREE git rev-parse --show-toplevel)"
 
-# 刪 branch 不帶內容，不必過內容閘。
+# 刪 branch 不帶內容，不必過內容關卡。
 while read -r _local_ref local_sha _remote_ref _remote_sha; do
   [[ "$local_sha" == 0000000000000000000000000000000000000000 ]] && exit 0
 done || true

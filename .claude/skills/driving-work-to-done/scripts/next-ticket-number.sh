@@ -8,7 +8,7 @@
 # 多加一行「怎麼取號」的宣告等於把同一件事說兩次，而兩份會漂。
 #
 # Usage:
-#   next-ticket-number.sh --issues <單樹根> --namespace <命名空間> [--prefix <前綴>]
+#   next-ticket-number.sh --issues <單的根目錄> --namespace <命名空間> [--prefix <前綴>]
 # Exit:
 #   0 印出下一個號（例如 `DP-488`）
 #   3 這個命名空間的號來自外部系統，本地不鑄造（訊息說出該去哪裡開）
@@ -34,10 +34,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$ISSUES" && -n "$NAMESPACE" ]] || {
-  echo "$PREFIX_TAG 要 --issues <單樹根> --namespace <命名空間>。" >&2
+  echo "$PREFIX_TAG 要 --issues <單的根目錄> --namespace <命名空間>。" >&2
   exit 2
 }
-[[ -d "$ISSUES" ]] || { echo "$PREFIX_TAG 單樹根不存在：$ISSUES" >&2; exit 2; }
+[[ -d "$ISSUES" ]] || { echo "$PREFIX_TAG 單的根目錄不存在：$ISSUES" >&2; exit 2; }
 
 python3 - "$SCRIPT_DIR" "$ISSUES" "$NAMESPACE" "$WANT_PREFIX" <<'PY'
 import collections

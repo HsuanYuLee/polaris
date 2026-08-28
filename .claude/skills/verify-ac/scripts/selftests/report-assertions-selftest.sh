@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: 證明「現在過了幾條」這支報告該印的都印、該擋的一件都不擋，而且它跟交付那條路
 #          用的是同一段判定。
-# Inputs:  mktemp 底下的 hermetic git repo，斷言封條、量測登錄與證據都照真流程產生。
+# Inputs:  mktemp 底下的 hermetic git repo，斷言的校驗值、量測登錄與證據都照真流程產生。
 # Outputs: PASS 當三種判定都印得出來、缺東西的時候整份照印、唯讀（一個檔案都不寫）、
 #          做到第幾層自己說得出來，而且同一份 fixture 上報告與交付給出同一個答案。
 

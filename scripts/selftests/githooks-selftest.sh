@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: 兩件事。(1) 接上閘的方式是 core.hooksPath 指向版控裡的目錄——git 真的執行的
+# Purpose: 兩件事。(1) 接上關卡的方式是 core.hooksPath 指向版控裡的目錄——git 真的執行的
 #          是那份檔案，而不是安裝器複製出去的副本；接上會讓 .git/hooks/ 失效，所以那裡
 #          有別人手寫的東西時要指名並停下來。(2) 說 pre-commit／pre-push 各跑什麼的文字，
 #          要跟那兩個檔案真的執行的對得上。
@@ -122,7 +122,7 @@ ls "$repo/.git/hooks"/*.sample >/dev/null 2>&1 || printf '#!/bin/sh\n' > "$repo/
 run "$repo"
 [[ "$RC" -eq 0 ]] && ok ".sample 不算別人手寫的" || bad ".sample 被當成別人手寫的：$OUT"
 
-# 這一套自己以前寫進 .git/hooks 的那份接上之後不會被執行，留著會讓人以為閘有兩份。
+# 這一套自己以前寫進 .git/hooks 的那份接上之後不會被執行，留著會讓人以為關卡有兩份。
 repo="$(new_repo legacy)"
 printf '#!/usr/bin/env bash\n# [polaris-git-hooks]\nexit 0\n' > "$repo/.git/hooks/pre-push"
 run "$repo"

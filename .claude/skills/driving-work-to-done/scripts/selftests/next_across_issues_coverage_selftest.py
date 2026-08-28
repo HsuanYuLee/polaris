@@ -123,7 +123,7 @@ def main():
 
         # A-P3 五種形狀各至少一張，五張都被某一個數字涵蓋。
         shapes = {
-            "走過脊椎的": ("live", EXPECT["live"]),
+            "走過主流程的": ("live", EXPECT["live"]),
             "狀態由外部推導的": ("elsewhere", EXPECT["elsewhere"]),
             "問不到而落 triage 的": ("elsewhere", EXPECT["elsewhere"]),
             "還沒開輪次的種子": ("live", EXPECT["live"]),

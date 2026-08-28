@@ -3,12 +3,12 @@
 #   一支 skill 靠工作區底下沒有版控的東西才跑得動。帶出去之後別人拿到就是壞的，而在寫下它的人的機器上永遠是綠的。
 # gate-skill-knowledge-locality.sh — 一支 skill 需要的知識，住不住在它自己身上。
 #
-# 為什麼這件事要有閘：skill 目錄是唯一會被帶到 claude.ai 與 Cowork 的東西。一支 skill 到了
+# 為什麼這件事要有關卡：skill 目錄是唯一會被帶到 claude.ai 與 Cowork 的東西。一支 skill 到了
 # 那裡，它引用的那些工作區底下的路徑不存在；在原機器上那條路徑跑得動，所以沒有人
 # 發現。2026-08-07 rex 撞到的就是這個——web-dev-env 的五行環境宣告在他機器上全部非 0，
 # 在寫下它們的人的機器上全部 exit 0，差別只有本機有沒有一個沒版控的目錄。
 #
-# 一筆往外的引用有兩種，這道閘要求說出是哪一種：
+# 一筆往外的引用有兩種，這道關卡要求說出是哪一種：
 #
 #   動手對象  skill 操作的東西——被改的 repo、被寫出去的產出、被查詢的服務。它本來就在
 #             外面，這是對的。
@@ -83,12 +83,12 @@ INTERNAL_PREFIXES = (".claude/", "_template/", "issues/", "./", "../",
 INSTALLED = "node_modules"
 
 
-# git 跑 hook 的時候環境裡一定有 GIT_DIR，而**顯式的 GIT_DIR 蓋過 `-C`**——於是這道閘在
+# git 跑 hook 的時候環境裡一定有 GIT_DIR，而**顯式的 GIT_DIR 蓋過 `-C`**——於是這道關卡在
 # hook 裡問的會是另一個 repo（或者像 2026-08-10 實測到的，直接 `fatal: not a git repository`）。
-# DP-467 對十支腳本修過同一個形狀。整道閘的每一次 git 呼叫都要用這份環境。
+# DP-467 對十支腳本修過同一個形狀。整道關卡的每一次 git 呼叫都要用這份環境。
 GIT_ENV = {k: v for k, v in os.environ.items()
            if k not in ("GIT_DIR", "GIT_WORK_TREE")}
-# `check-ignore` 也讀使用者的 global ignore，而那是「這台機器才有」的東西——正是這道閘
+# `check-ignore` 也讀使用者的 global ignore，而那是「這台機器才有」的東西——正是這道關卡
 # 宣稱要避開的東西。2026-08-19 實測：`~/.gitignore` 的 `*.log` / `*.bak` / `[Ll]ogs` 讓
 # 11 條腳本裡的暫存檔名被判成「往版控之外的引用」，換一台沒有那份 global ignore 的機器
 # 就一條都沒有。答案要只由這個 repo 被追蹤的 `.gitignore` 決定。
@@ -96,7 +96,7 @@ GIT_ENV["GIT_CONFIG_GLOBAL"] = os.devnull
 
 
 def git(*args: str) -> str:
-    """跑一個唯讀的 git 指令。非 0 就是量不到——靜靜當成空結果會讓整道閘變成永遠的綠。"""
+    """跑一個唯讀的 git 指令。非 0 就是量不到——靜靜當成空結果會讓整道關卡變成永遠的綠。"""
     proc = subprocess.run(["git", "-C", repo, *args],
                           capture_output=True, text=True, env=GIT_ENV)
     if proc.returncode != 0:
@@ -106,8 +106,8 @@ def git(*args: str) -> str:
     return proc.stdout
 
 
-# 版控的三個事實，整道閘只從這裡取材。掃描對象、管轄範圍、豁免，全部由 commit 決定，
-# 所以同一棵樹在任何一台機器上答案相同——那正是這道閘以前做不到的事。
+# 版控的三個事實，整道關卡只從這裡取材。掃描對象、管轄範圍、豁免，全部由 commit 決定，
+# 所以同一棵樹在任何一台機器上答案相同——那正是這道關卡以前做不到的事。
 INDEX = [line.split("\t", 1) for line in git("ls-files", "-s").splitlines()
          if "\t" in line]
 TRACKED = {path for _, path in INDEX}
@@ -119,9 +119,9 @@ SYMLINKS = {path for meta, path in INDEX if meta.startswith("120000 ")}
 def excluded_by_version_control(candidates: list[str]) -> set[str]:
     """哪幾條路徑被版控排除掉。答案寫在 `.gitignore` 裡，而那是一個被追蹤的檔案。
 
-    刻意不問「本機有沒有這個東西」。那正是這道閘以前會因為在誰的機器上跑而給出不同答案
+    刻意不問「本機有沒有這個東西」。那正是這道關卡以前會因為在誰的機器上跑而給出不同答案
     的地方，而且錯的方向：2026-08-07 撞到的那五行，在對方機器上那個公司目錄整個不
-    存在，於是那些引用全部落在管轄外、閘判綠——**問題發生的那台機器，正是閘看不見的
+    存在，於是那些引用全部落在管轄外、關卡判綠——**問題發生的那台機器，正是關卡看不見的
     那台**。`git check-ignore` 不需要那個東西存在也答得出來。
 
     被追蹤的路徑不算：它跟著 repo 走，不是「我這台才有」。
@@ -141,7 +141,7 @@ def excluded_by_version_control(candidates: list[str]) -> set[str]:
     # 把「它是目錄」直接說出來，答案就只剩下 `.gitignore` 的內容在決定。
     bare = [c.rstrip("/") for c in candidates]
     # 索引裡的 symlink 上面已經濾掉了，但本機還會有沒被追蹤的（指向產品 checkout 的捷徑）。
-    # git 對穿過它們的路徑一律 fatal，而且一條就讓整批回 128——整支閘因此量不到。所以撞到
+    # git 對穿過它們的路徑一律 fatal，而且一條就讓整批回 128——整支關卡因此量不到。所以撞到
     # 一條就把它丟出候選再問一次，並把丟掉的逐條說出來：不判定不等於沒有那些東西。
     beyond_symlink = re.compile(r"pathspec '([^']+)' is beyond a symbolic link")
     dropped: list[str] = []
@@ -163,7 +163,7 @@ def excluded_by_version_control(candidates: list[str]) -> set[str]:
         bare = [c for c in bare if c != bad]
     if dropped:
         print(f"{prefix} DISCLOSURE 這幾條穿過本機的 symlink，git 答不出它們算不算被排除，"
-              f"這道閘沒有判它們：{', '.join(sorted(dropped))}", file=sys.stderr)
+              f"這道關卡沒有判它們：{', '.join(sorted(dropped))}", file=sys.stderr)
     hits = {p.rstrip("/") for p in ignored.stdout.splitlines() if p}
     return {h for h in hits if h not in TRACKED}
 

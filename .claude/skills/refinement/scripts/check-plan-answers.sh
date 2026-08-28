@@ -3,7 +3,7 @@
 #
 # 為什麼要有這一道
 # ----------------
-# 閘一簽的是 AC——「怎麼算成功」。它不問「什麼時候要」「為什麼要」「拿什麼測」，而那三件
+# 第一關簽的是 AC——「怎麼算成功」。它不問「什麼時候要」「為什麼要」「拿什麼測」，而那三件
 # 事同樣只有人知道，而且它們會決定 AC 本身寫得對不對。
 #
 # 沒被問的那一刻，LLM 不會停下來，它會**自己填一個**。這比空著糟：空著看得出來，填過的看
@@ -87,7 +87,7 @@ marker_no_env, skills_dir = sys.argv[5], sys.argv[6]
 required = [k.strip() for k in require_csv.split(",") if k.strip()]
 SOURCES = ("human", "environment", "inferred_confirmed")
 # 「拿什麼測」是唯一帶得出環境的那一項。哪一項帶它寫在這裡而不是散在各處，因為它是一個
-# 會被兩個地方讀到的決定：這支腳本，以及閘一的散文。
+# 會被兩個地方讀到的決定：這支腳本，以及第一關的散文。
 ENV_CARRIER = "how"
 NO_ENVIRONMENT = "none"
 

@@ -33,13 +33,13 @@ ATTACHMENTS_SUBDIR = ".spine/attachments"
 def namespace_of(issue_dir, issues_root=None):
     """這張單屬於哪個命名空間。
 
-    從路徑推：`{單樹根}/{命名空間}/{狀態}/{單}`。這跟 `place_issues_by_state.py` 是同一個
+    從路徑推：`{單的根目錄}/{命名空間}/{狀態}/{單}`。這跟 `place_issues_by_state.py` 是同一個
     做法——命名空間本來就是目錄結構決定的，它跟「這張單走到哪一站」不一樣（那個不從路徑推，
     從 `loop-state.json` 讀）。
 
     Args:
         issue_dir: 這張單的目錄。
-        issues_root: 單樹根；`None` 表示往上找名為 `issues` 的那一層。
+        issues_root: 單的根目錄；`None` 表示往上找名為 `issues` 的那一層。
     Returns:
         命名空間字串；推不出來時回 `""`（呼叫者要說出來，不要猜一個）。
     """

@@ -16,10 +16,10 @@ USAGE = """Usage:
 # 一張單的檔案怎麼認得出來：**它旁邊有 `.spine/`**。
 #
 # 這裡刻意不寫 `issues/`、不寫任何命名空間、也不寫單號長什麼樣——這支 skill 會被單獨
-# 下載到別人的 repo，那裡的單樹叫什麼名字我們不知道。`.spine/` 是脊椎自己放下的標記，
+# 下載到別人的 repo，那裡的單的目錄樹叫什麼名字我們不知道。`.spine/` 是主流程自己放下的標記，
 # 換一個環境它仍然成立。
 #
-# 上一版比對的是 docs-manager 底下 design-plans 的固定路徑。那一層在脊椎切換之後不再
+# 上一版比對的是 docs-manager 底下 design-plans 的固定路徑。那一層在主流程切換之後不再
 # 是單住的地方，於是這道檢查對任何真實的 Route A 執行都不可能命中——一道不會失敗的
 # 檢查不是檢查，而它正是「learning 不得自己簽成功的定義」唯一的機械保證。
 SPINE_MARKER = ".spine"
@@ -97,7 +97,7 @@ def self_test() -> int:
         git(repo, "init", "-q")
         git(repo, "config", "user.email", "selftest@example.test")
         git(repo, "config", "user.name", "Self Test")
-        # 單樹的名字刻意取一個不是 issues 的：判準是旁邊有沒有 .spine/，不是路徑長什麼樣。
+        # 單的目錄樹的名字刻意取一個不是 issues 的：判準是旁邊有沒有 .spine/，不是路徑長什麼樣。
         container = repo / "any-ticket-tree/some-namespace/backlog/TICKET-EXAMPLE"
         (container / "artifacts").mkdir(parents=True)
         (container / ".spine").mkdir(parents=True)

@@ -114,8 +114,8 @@ workspace="${workspace_root:-$(cd "$script_dir/.." && pwd)}"
 language_gate="$workspace/scripts/validate-language-policy.sh"
 starlight_gate="$workspace/scripts/validate-starlight-authoring.sh"
 
-# 誰可以用這支閘往外寫。這份宣告以前住在 repo 根目錄的 hooks 裡，而那支 hook 在
-# DP-462 的 teardown 被移除（它沒有任何接點），閘卻還在讀它——於是這支閘從那一刻起
+# 誰可以用這支關卡往外寫。這份宣告以前住在 repo 根目錄的 hooks 裡，而那支 hook 在
+# DP-462 的 teardown 被移除（它沒有任何接點），關卡卻還在讀它——於是這支關卡從那一刻起
 # 對每一次呼叫都回 REGISTRY_MISSING，也就是 canonical 的 submit path 整段跑不起來。
 #
 # 宣告搬到讀它的那支腳本自己身上，理由是可攜性：一支被單獨下載的 skill 沒有 hooks

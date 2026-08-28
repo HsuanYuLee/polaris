@@ -123,7 +123,7 @@ if (cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest \
 fi
 echo "  ok  可攜層不認得版號這個詞"
 
-# 交付到一半還在產出脊椎要取代的舊層，紀錄就寫不下去。這個 case 是接線的端到端證明：
+# 交付到一半還在產出主流程要取代的舊層，紀錄就寫不下去。這個 case 是接線的端到端證明：
 # 檢查是由這支腳本呼叫的（不是散文叫人記得跑），而且它真的紅得起來——清單由枚舉器產生，
 # 不是手餵的 fixture。
 issue="$(new_sealed_issue legacy template)"

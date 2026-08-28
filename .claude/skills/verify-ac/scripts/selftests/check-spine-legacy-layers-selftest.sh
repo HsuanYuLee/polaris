@@ -55,7 +55,7 @@ write_inventory "$WORK/colour-change.json" '{
   "kind": "code",
   "artifacts": [
     {"path": "specs/spine/button-colour/living-doc.md", "forced": true,
-     "reason": "活文件是 source 的記憶，不產生就沒有東西可以接手"},
+     "reason": "可以改的那部分是 source 的記憶，不產生就沒有東西可以接手"},
     {"path": "src/components/Button.css", "forced": true,
      "reason": "工作本身就是這個 code 變更"}
   ]
@@ -67,7 +67,7 @@ write_inventory "$WORK/docs-only.json" '{
   "kind": "docs",
   "artifacts": [
     {"path": "specs/spine/wording-fix/living-doc.md", "forced": true,
-     "reason": "活文件是 source 的記憶"}
+     "reason": "可以改的那部分是 source 的記憶"}
   ]
 }'
 assert_pass "docs work: living document only = 1" "$WORK/docs-only.json"
@@ -76,7 +76,7 @@ assert_pass "docs work: living document only = 1" "$WORK/docs-only.json"
 write_inventory "$WORK/chosen-extras.json" '{
   "kind": "code",
   "artifacts": [
-    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "活文件"},
+    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "可以改的那部分"},
     {"path": "src/thing.ts", "forced": true, "reason": "工作本身"},
     {"path": "src/thing.test.ts", "forced": false},
     {"path": "docs/adr/0007-why-thing.md", "forced": false},
@@ -92,7 +92,7 @@ assert_pass "artifacts written by choice do not count" "$WORK/chosen-extras.json
 write_inventory "$WORK/three-forced.json" '{
   "kind": "code",
   "artifacts": [
-    {"path": "issues/ns/X/index.md", "forced": true, "reason": "活文件"},
+    {"path": "issues/ns/X/index.md", "forced": true, "reason": "可以改的那部分"},
     {"path": "issues/ns/X/.spine/loop-state.json", "forced": true, "reason": "輪次"},
     {"path": "issues/ns/X/.spine/measurement-ledger.json", "forced": true, "reason": "量測登錄"}
   ]
@@ -102,7 +102,7 @@ assert_pass "three forced files is not a reason to refuse" "$WORK/three-forced.j
 write_inventory "$WORK/docs-two-forced.json" '{
   "kind": "docs",
   "artifacts": [
-    {"path": "issues/ns/X/index.md", "forced": true, "reason": "活文件"},
+    {"path": "issues/ns/X/index.md", "forced": true, "reason": "可以改的那部分"},
     {"path": "issues/ns/X/.spine/loop-state.json", "forced": true, "reason": "輪次"}
   ]
 }'
@@ -142,7 +142,7 @@ done
 write_inventory "$WORK/legacy-optional.json" '{
   "kind": "code",
   "artifacts": [
-    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "活文件"},
+    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "可以改的那部分"},
     {"path": "src/thing.ts", "forced": true, "reason": "工作本身"},
     {"path": "specs/design-plans/DP-999-x/tasks/T1/index.md", "forced": false}
   ]
@@ -168,7 +168,7 @@ assert_pass "the spine's own measurement ledger is not a legacy layer" \
 write_inventory "$WORK/unjustified.json" '{
   "kind": "code",
   "artifacts": [
-    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "活文件"},
+    {"path": "specs/spine/x/living-doc.md", "forced": true, "reason": "可以改的那部分"},
     {"path": "src/thing.ts", "forced": true, "reason": "   "}
   ]
 }'

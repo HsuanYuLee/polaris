@@ -555,12 +555,12 @@ assert v == ["repo-A:lane-1", "repo-B:lane-2"], v
 ' "$TREE/ns/older/.spine/loop-state.json" || fail "印了兩個身分卻沒有兩個都被記下來"
 echo "  ok  身分印幾行就記幾個"
 
-# 那張單還沒到終局站別，所以這道閘不參與——它擋的是「已經要出去的那張還佔著這裡」，
+# 那張單還沒到終局站別，所以這道關卡不參與——它擋的是「已經要出去的那張還佔著這裡」，
 # 不是「這裡有另一張單」。
 bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   || fail "同一個地方有一張還在施工的單，卻擋住了新輪次"
 rm -f "$TREE/ns/newer/.spine/loop-state.json"
-echo "  ok  還沒到終局站別的單不參與這道閘"
+echo "  ok  還沒到終局站別的單不參與這道關卡"
 
 # 走到終局站別之後，同一個地方開不出第二輪。
 bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to verify-ac >/dev/null 2>&1 \
@@ -575,12 +575,12 @@ grep -q 'repo-A:lane-1' <<<"$taken" || fail "拒絕沒有說出交集落在哪�
 [[ ! -f "$TREE/ns/newer/.spine/loop-state.json" ]] || fail "被拒的 init 還是留下了 state"
 echo "  ok  同一個地方已有交付中的單時，新輪次開不出來"
 
-# 拒絕要說得出往下走的路。只說不行的閘，下一次就會被繞過去。
+# 拒絕要說得出往下走的路。只說不行的關卡，下一次就會被繞過去。
 grep -q '釋出尾段' <<<"$taken" || fail "拒絕沒說出修法：$taken"
 grep -q '換一個工作區' <<<"$taken" || fail "拒絕沒說出另一條路：$taken"
 echo "  ok  拒絕帶著修法"
 
-# 交集為空就不擋：這道閘不會因為「這個地方交付過東西」就永久封鎖它。
+# 交集為空就不擋：這道關卡不會因為「這個地方交付過東西」就永久封鎖它。
 printf 'repo-A:lane-9\nrepo-B:lane-9\n' > "$WORK/whoami14"
 bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere >/dev/null 2>&1 \
   || fail "交集為空卻擋住了新輪次"

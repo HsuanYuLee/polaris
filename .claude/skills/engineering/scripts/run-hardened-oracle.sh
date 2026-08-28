@@ -56,7 +56,7 @@ set -uo pipefail
 
 # NO-CALLER: --system-path — 這棵樹上沒有人給過值，因為預設的四個目錄夠用。留著是因為
 # 它是釘死 PATH 之後唯一的出路：把系統工具裝在別處的機器（nix、只有 homebrew 的機器）
-# 上，沒有它連 git 都探不到，而這支腳本會正確地拒絕跑——一道無法在那台機器上成立的閘
+# 上，沒有它連 git 都探不到，而這支腳本會正確地拒絕跑——一道無法在那台機器上成立的關卡
 # 不是嚴謹，是關掉它。
 DEFAULT_SYSTEM_PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 

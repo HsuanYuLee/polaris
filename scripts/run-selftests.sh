@@ -137,7 +137,7 @@ fi
 
 if [[ "${#TARGETS[@]}" -eq 0 ]]; then
   echo "$PREFIX 這次的改動沒有動到任何一支 skill（另有 ${OUTSIDE} 個改動落在 skill 目錄外，" \
-       "那些由閘掃全樹負責）。沒有 selftest 要跑。"
+       "那些由關卡掃全樹負責）。沒有 selftest 要跑。"
   exit 0
 fi
 

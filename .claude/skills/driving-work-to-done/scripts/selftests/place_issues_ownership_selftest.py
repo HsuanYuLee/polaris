@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""單樹依歸屬分組的十條斷言，一條一條量。見同名 .sh 的檔頭。"""
+"""單的目錄樹依歸屬分組的十條斷言，一條一條量。見同名 .sh 的檔頭。"""
 
 import filecmp
 import importlib.util
@@ -15,7 +15,7 @@ spec = importlib.util.spec_from_file_location("placer", LIB)
 placer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(placer)
 
-# 假的單樹：一個有解析器的命名空間、一個沒有的。真的解析器要連外部系統，而這十條斷言問的
+# 假的單的目錄樹：一個有解析器的命名空間、一個沒有的。真的解析器要連外部系統，而這十條斷言問的
 # 是核心怎麼擺，不是外部系統怎麼答。
 #
 # 單號:      (自己的格,      到鏈頂為止的那幾層)

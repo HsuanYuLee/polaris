@@ -169,7 +169,7 @@ def add(path, forced, reason=None):
     artifacts.append(entry)
 
 
-add("index.md", True, "斷言與活文件的載體：assert 蓋封條、judge 驗它")
+add("index.md", True, "斷言與可改內容的載體：assert 算校驗值、judge 驗它")
 
 for path, reason in spine_state.items():
     if (spine / Path(path).name).exists():

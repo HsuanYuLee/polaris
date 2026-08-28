@@ -232,8 +232,8 @@ assert_marker "fence outside git" POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE \
 
 # --- Case 13: `seal --block` only touches that one block ---------------------
 # 一張單裝得下好幾組具名的 fence，而它們是一組一組簽下去的。`--block` 若是重寫整份
-# assertions_hash，前面簽過的那幾格會靜靜地消失——封條看起來仍然自洽，直到有人去 verify
-# 另一格才發現它「沒有封條」。三種輸入各驗一次。
+# assertions_hash，前面簽過的那幾格會靜靜地消失——校驗值看起來仍然對得上，直到有人去 verify
+# 另一格才發現它「沒有校驗值」。三種輸入各驗一次。
 write_blocks() {
   # Description: write a document with the given fence block keys, one assertion each.
   # Args: $1 = target path, $2.. = block keys

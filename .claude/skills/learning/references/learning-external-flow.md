@@ -174,9 +174,9 @@ Route A Quick-path gate：Quick path 沒有完整 Comparison Matrix / Knowledge 
 
 Route A DP seeding：
 
-1. 掃使用者指的那棵單樹裡的既有單，避免 fuzzy duplicate。**一張單的狀態讀它自己的
+1. 掃使用者指的那棵單的目錄樹裡的既有單，避免 fuzzy duplicate。**一張單的狀態讀它自己的
    `{單}/.spine/loop-state.json`，不從資料夾名推、也不從 frontmatter 的狀態欄推**——那個
-   欄位會過期，而資料夾只是狀態的投影。單樹根在哪由使用者給；沒有給就問，不要猜一個。
+   欄位會過期，而資料夾只是狀態的投影。單的根目錄在哪由使用者給；沒有給就問，不要猜一個。
 2. 已經有一張在講同一件事、而且還沒收斂：詢問 append 或新開。
 3. 已經有一張而它已經收斂或釋出：新開，Background 加 see also。
 4. 已經有一張而它被關掉了（不做了）：**先讀它記下的理由再問**。一件事被討論過並且結論

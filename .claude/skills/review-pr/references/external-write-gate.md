@@ -18,7 +18,7 @@
 
 - 真的呼叫 MCP 或 GitHub CLI。helper 不做外部 side effect。
 - Commit message。commit message 使用 commit language gate。
-- 單的凍結塊與活文件。那些由 `refinement` 與 `verify-ac` 自己的閘負責。
+- 單的凍結塊與可以改的那部分。那些由 `refinement` 與 `verify-ac` 自己的關卡負責。
 
 ## Command
 

@@ -195,7 +195,7 @@ def _why(done):
     oracle 判紅時把 marker 與說明印在 **stderr**，而在那之前它已經把命令自己的兩個串流
     原樣重播過。所以最後幾行是 oracle 說的、再前面是命令自己說的，兩邊一起才回答得了
     「哪裡紅的」。原本只讀 stdout，於是一條只往 stderr 寫的命令永遠只換得到那句
-    「（沒有輸出）」——一個判紅而說不出理由的閘，跟一個沒有理由的通過一樣不能用。
+    「（沒有輸出）」——一個判紅而說不出理由的關卡，跟一個沒有理由的通過一樣不能用。
     """
     lines = [ln for ln in (done.stderr or "").splitlines() if ln.strip()]
     if not lines:

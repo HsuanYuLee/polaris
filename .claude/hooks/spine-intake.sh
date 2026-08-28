@@ -50,12 +50,12 @@ case "$prompt" in
   /*) exit 0 ;;
 esac
 
-# 有沒有單已經過了閘一。`issues/` 是使用者自己的 repo，可能根本不存在。
+# 有沒有單已經過了第一關。`issues/` 是使用者自己的 repo，可能根本不存在。
 ISSUES_DIR="${CLAUDE_PROJECT_DIR:-.}/issues"
 active="$(python3 - "$ISSUES_DIR" <<'PY' 2>/dev/null || true
 import glob, json, os, sys
 
-# 站在 engineering / verify-ac 表示閘一簽過了、還沒交付。refinement 不算：那正是還在上匝道上。
+# 站在 engineering / verify-ac 表示第一關簽過了、還沒交付。refinement 不算：那正是還在上匝道上。
 #
 # 判準是站別，不是 loop 的 status。`converged` 說的是「這一輪收斂了」，不是「已經出貨」——
 # 第一版拿它當已交付，於是一張站在 verify-ac、證據都齊、正等釋出的單被當成不在進行中。

@@ -1,8 +1,8 @@
 {
- "_": "gate-copy-sets.sh 的宣告源。它只回答『為什麼這一組有副本』——『有哪些副本、幾份、在哪』一律從樹上數出來。把清單也寫進這裡的話，這份檔案自己就會變成第二個會漂的來源，而那正是這道閘在擋的東西（DP-467 H-N1）。",
+ "_": "gate-copy-sets.sh 的宣告源。它只回答『為什麼這一組有副本』——『有哪些副本、幾份、在哪』一律從樹上數出來。把清單也寫進這裡的話，這份檔案自己就會變成第二個會漂的來源，而那正是這道關卡在擋的東西（DP-467 H-N1）。",
  "copy_groups": [
   {
-   "why": "脊椎四站共用的機制。三份是刻意的：一支 skill 要能整包被帶到 claude.ai 與 Cowork，跨 skill 呼叫在那裡解不開。可攜的單位是從 metadata.requires 推出來的閉包，不是單一目錄，也不是一份人維護的分組清單——而副本一致由這支檢查守著。",
+   "why": "主流程四站共用的機制。三份是刻意的：一支 skill 要能整包被帶到 claude.ai 與 Cowork，跨 skill 呼叫在那裡解不開。可攜的單位是從 metadata.requires 推出來的閉包，不是單一目錄，也不是一份人維護的分組清單——而副本一致由這支檢查守著。",
    "scripts": [
     "frozen-assertion-fence.sh",
     "record-measurement-change.sh",
@@ -32,7 +32,7 @@
    ]
   },
   {
-   "why": "review-pr 與 review-inbox 兩支各自呼叫同一組 PR 動作。review-inbox 的輸入解析整段在 review-pr 那裡（它宣告了 requires），但那是「去跑那一支的腳本」，不是「把它的內部工具收進自己目錄」——這幾支是後者，所以各自帶一份。對外寫入閘與它的 selftest 一起：閘搬過去而 selftest 留在原地的話，另一邊的閘就沒有人在測。",
+   "why": "review-pr 與 review-inbox 兩支各自呼叫同一組 PR 動作。review-inbox 的輸入解析整段在 review-pr 那裡（它宣告了 requires），但那是「去跑那一支的腳本」，不是「把它的內部工具收進自己目錄」——這幾支是後者，所以各自帶一份。對外寫入關卡與它的 selftest 一起：關卡搬過去而 selftest 留在原地的話，另一邊的關卡就沒有人在測。",
    "scripts": [
     "fetch-pr-info.sh",
     "polaris-external-write-gate.sh",

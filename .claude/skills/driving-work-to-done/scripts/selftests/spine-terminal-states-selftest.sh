@@ -30,7 +30,7 @@ cp -R "$SKILL_DIR" "$REPO/.claude/skills/driving-work-to-done"
 STATE_SH="$REPO/.claude/skills/driving-work-to-done/scripts/spine-loop-state.sh"
 PACK="$REPO/.claude/skills/fakepack"
 mkdir -p "$PACK"
-# 單樹要是自己的 git repo：位置重算從 repo 根解「這張單屬於哪棵樹」，解不出來就整段不做，
+# 單的目錄樹要是自己的 git repo：位置重算從 repo 根解「這張單屬於哪棵樹」，解不出來就整段不做，
 # 而那會讓下面每一條位置斷言都在一個從來沒被重算過的樹上量。
 git init -q "$REPO/issues"
 
@@ -44,7 +44,7 @@ write_pack() {
   } > "$PACK/SKILL.md"
 }
 
-# Description: 造一張走過脊椎的單，回傳它的狀態檔路徑。
+# Description: 造一張走過主流程的單，回傳它的狀態檔路徑。
 # Args: $1 = 單名, $2 = status（converged / open）
 new_ticket() {
   local name="$1" status="$2" dir="$REPO/issues/ns/backlog/$1/.spine"

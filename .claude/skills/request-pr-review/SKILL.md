@@ -88,7 +88,7 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 | 產出報告、加 label、組通知訊息時 | `references/request-pr-review-reporting.md` | 報告表格、label 處理、訊息要說出哪幾件事 |
 | 那份報告要分哪幾段、每一段寫什麼 | `references/report-format.md` | 交出去給人讀的報告共用的段落骨架 |
 | 判讀 approval / stale 語意前 | `references/stale-approval-detection.md` | stale approval 的權威定義 |
-| 訊息送出前 | `.claude/rules/style-and-language.md` | 語言閘 |
+| 訊息送出前 | `.claude/rules/style-and-language.md` | 語言關卡 |
 
 ## 1. Query：這批是哪些、狀態如何
 
@@ -158,7 +158,7 @@ printf '%s' "$SELECTED" | "$SKILL_DIR/scripts/plan-pr-notify.sh"
 
 一個 repo 問不到不擋其餘的：其他 repo 照常送，問不到的那幾個等答案。
 
-送出前把訊息寫成 temp markdown 並通過語言閘：
+送出前把訊息寫成 temp markdown 並通過語言關卡：
 
 ```bash
 bash "$SKILL_DIR/scripts/validate-language-policy.sh" --blocking --mode artifact <訊息檔>
@@ -179,7 +179,7 @@ bash "$SKILL_DIR/scripts/validate-language-policy.sh" --blocking --mode artifact
 - 不通知已達標的 PR。
 - 不把「已達標」寫成「可 release / 已完成」。
 - 不忽略 stale approval。
-- 不把未通過語言閘的訊息送出。
+- 不把未通過語言關卡的訊息送出。
 - 訊息不使用「催促」、「催」、「趕快」等字眼；用「麻煩大家幫忙」、「有空幫忙看一下」。
 
 <!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

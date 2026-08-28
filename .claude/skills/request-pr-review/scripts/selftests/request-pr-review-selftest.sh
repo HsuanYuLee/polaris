@@ -191,7 +191,7 @@ case "$ASSERTION" in
     files="$(skill_files | wc -l | tr -d ' ')"
     [[ "$files" -gt 0 ]] || unmeasurable "掃不到任何檔案"
     # **禁字從宣告推導，不寫死在這裡。** 上一版把兩個公司名寫進這一行——那條檢查「不得
-    # 寫死座標」的檢查自己寫死了座標，而閘抓到了。現在問的是：這棵樹上被宣告出來的 org
+    # 寫死座標」的檢查自己寫死了座標，而關卡抓到了。現在問的是：這棵樹上被宣告出來的 org
     # 名，有沒有任何一個出現在這支可攜 skill 的檔案裡。
     tree_root="$(cd "$SKILL_DIR/.." && pwd)"
     declared="$(bash "$SCRIPTS_DIR/resolve-pr-context.sh" orgs --skills "$tree_root" 2>/dev/null || true)"

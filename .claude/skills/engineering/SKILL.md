@@ -1,11 +1,11 @@
 ---
 name: engineering
 description: |
-  已經有凍結的斷言、要開始或繼續施工時的站。兩個閘之間的 loop：探索、實作、換量測、推進輪次。這裡沒有閘。
+  已經有凍結的斷言、要開始或繼續施工時的站。兩個關卡之間的 loop：探索、實作、換量測、推進輪次。這裡沒有關卡。
 
   某張單的斷言已經凍結，接下來要動手做的時候，或剛從 refinement 交出來。
 
-  也用於：跨 session 接手一張做到一半的單——讀凍結塊與活文件就能接上。
+  也用於：跨 session 接手一張做到一半的單——讀凍結塊與可以改的那部分就能接上。
 
   不用於：還沒有斷言的工作、要判這次算不算達成（走 verify-ac）、
   決定下一站是哪一站（走 driving-work-to-done）。
@@ -17,14 +17,14 @@ metadata:
 scope: universal
 ---
 
-# engineering — 兩個閘之間
+# engineering — 兩個關卡之間
 
-這裡沒有閘。派工怎麼切、實作怎麼做、試幾次、走哪條路，都在這裡，沒有人在等你交表格。
-正因為頭尾兩個閘在，中間才可以很隨便。
+這裡沒有關卡。派工怎麼切、實作怎麼做、試幾次、走哪條路，都在這裡，沒有人在等你交表格。
+正因為頭尾兩個關卡在，中間才可以很隨便。
 
 ## 接手
 
-讀 `{issue}/index.md` 就夠了——凍結塊是成功的定義，活文件是其餘一切。不需要去翻別的
+讀 `{issue}/index.md` 就夠了——凍結塊是成功的定義，可以改的那部分是其餘一切。不需要去翻別的
 artifact。
 
 ```bash
@@ -75,7 +75,7 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 ## 輪次
 
 一輪沒產出 code 也是一輪。「試過 A，撞到 X，結論走 B，code 全丟」是正常結果——這一輪的產出
-是知識，寫進活文件就是交付。不要為了讓這一輪看起來有東西，把失敗的探索包裝成交付。
+是知識，寫進可以改的那部分就是交付。不要為了讓這一輪看起來有東西，把失敗的探索包裝成交付。
 
 ```bash
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh record \
@@ -87,7 +87,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh record \
 
 ## 三件要浮出來的事
 
-方法自由，但有三件事 oracle 照不到，即使做了會變綠也要寫進活文件並講清楚為什麼，等人回話：
+方法自由，但有三件事 oracle 照不到，即使做了會變綠也要寫進可以改的那部分並講清楚為什麼，等人回話：
 
 - **新增依賴**：把一個新套件拉進來。
 - **重造既有組件**：手寫一個 repo 裡已經有的東西。
@@ -97,7 +97,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh record \
 
 ## 交出去
 
-活文件寫到讓下一個人（可能是明天的你）能接手：現在在哪、試過什麼、為什麼走這條、下一步是
+可以改的那部分寫到讓下一個人（可能是明天的你）能接手：現在在哪、試過什麼、為什麼走這條、下一步是
 什麼。**凍結塊不要動**——需要動它時，回 `refinement`，而且改完要 commit：凍結 ＝ commit，
 `verify` 會拿 fence 內文跟 git 歷史比，改了沒 commit 就是紅的，重簽也救不了。
 

@@ -210,7 +210,7 @@ import os, re, sys
 skill = sys.argv[1]
 scripts = os.path.join(skill, "scripts")
 
-# 起點：SKILL.md 與 references/ 指名的 scripts/… 路徑。散文也是入口——語言閘就是散文
+# 起點：SKILL.md 與 references/ 指名的 scripts/… 路徑。散文也是入口——語言關卡就是散文
 # 指名的，只讀 SKILL.md 會把它算成不可達。
 seeds = set()
 prose = [os.path.join(skill, "SKILL.md")]
@@ -324,7 +324,7 @@ PY
     ;;
 
   B-N2)
-    # 不留指向不存在的東西的話。兩道閘就是問這件事的，跑它們，不自己寫第二套。
+    # 不留指向不存在的東西的話。兩道關卡就是問這件事的，跑它們，不自己寫第二套。
     # 它們是 repo 自己的檢查，住在 repo 自己的層（`<repo>/scripts/`），不住在任何一支 skill 底下。
     gates_dir="$SKILLS_ROOT/../../scripts"
     ran=0
@@ -334,7 +334,7 @@ PY
         || fail "${g} 判紅：$(tail -3 "$WORK/$g.out" | tr '\n' ' ')"
       ran=$((ran + 1))
     done
-    [[ "$ran" -gt 0 ]] || unmeasurable "這棵樹上沒有那兩道閘，這一條量不到"
+    [[ "$ran" -gt 0 ]] || unmeasurable "這棵樹上沒有那兩道關卡，這一條量不到"
     inside="$WORK/inside.txt"; : > "$inside"
     for n in $DUPLICATED_ELSEWHERE $UNIQUE_AND_UNREFERENCED; do
       grep -rlF "$n" "$SKILL_DIR" 2>/dev/null | grep -v '/selftests/' >> "$inside"
@@ -342,7 +342,7 @@ PY
     if [[ -s "$inside" ]]; then
       fail "這支 skill 裡還有句子指名被刪的檔案：$(sort -u "$inside" | tr '\n' ' ')"
     fi
-    measured "${ran} 道閘綠；這支 skill 裡沒有一句話指名那 $(echo $DUPLICATED_ELSEWHERE $UNIQUE_AND_UNREFERENCED | wc -w | tr -d ' ') 個被刪的檔案（selftests/ 不算）"
+    measured "${ran} 道關卡綠；這支 skill 裡沒有一句話指名那 $(echo $DUPLICATED_ELSEWHERE $UNIQUE_AND_UNREFERENCED | wc -w | tr -d ' ') 個被刪的檔案（selftests/ 不算）"
     ;;
 
   B-N3)

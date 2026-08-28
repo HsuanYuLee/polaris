@@ -5,7 +5,7 @@
 沒」，答不了「在哪一站」。這支把解析度提高到七格，權威沒有換人。
 
     backlog/            立案了，還沒開工
-    in-progress/        兩個閘之間
+    in-progress/        兩個關卡之間
     in-review/          送審中（只有會動到 code 的單走得到）
     done/               我這邊做完了，還沒上線
     released/{日期}/    真的出去了，日期就是那天
@@ -74,7 +74,7 @@ PLACEMENT_SCHEMA = 1
 # 幾百筆逐個印出來等於沒印，而幾筆只給總數等於沒說。
 ABSTAINED_NAME_THRESHOLD = 20
 
-# 沒走過脊椎的單，狀態在別的地方——JIRA、某張看板、某個試算表。**核心不認得那些東西**，
+# 沒走過主流程的單，狀態在別的地方——JIRA、某張看板、某個試算表。**核心不認得那些東西**，
 # 它只認得一行宣告：某個命名空間由哪一條命令回答「這張單在哪一格」。形狀跟 `refinement`
 # 的 `ENVIRONMENT-{名}` 是同一套，理由也一樣——核心去讀，不自己抄一份。
 #
@@ -220,7 +220,7 @@ def _walk_ticket(namespace: str, ticket_dir: str, found: list) -> None:
 def release_record(ticket_dir: str) -> dict | None:
     """這張單真的出去過沒有。回釋出紀錄，沒有就回 None。
 
-    **交付紀錄不算釋出紀錄。** `delivery.json` 是第二個閘在釋出**之前**寫的交付意向，它的
+    **交付紀錄不算釋出紀錄。** `delivery.json` 是第二個關卡在釋出**之前**寫的交付意向，它的
     `judged_at` 是判定日不是釋出日。拿它當釋出日會讓一張還沒上線的單落進 `released/`。
     """
     return read_json(os.path.join(ticket_dir, ".spine", "release.json"))
@@ -245,7 +245,7 @@ def last_touched(issues_root: str, relative: str, name: str) -> str | None:
 
     目錄的 mtime 同樣不行：搬一次家就推到今天。commit 才是工作真的發生過的痕跡。
 
-    **只看活文件，不看整個目錄。** `.spine/` 是流程自己的簿記——補一次落腳處、記一次輪次
+    **只看可以改的那部分，不看整個目錄。** `.spine/` 是流程自己的簿記——補一次落腳處、記一次輪次
     狀態都會產生 commit，而那不是有人在做這張單。實測 DP-440：整個目錄的最後一筆是今天
     （一個只改 `.spine/` 的記帳 commit），`index.md` 是 08-04。後者才是答案。
 
@@ -273,7 +273,7 @@ def last_touched(issues_root: str, relative: str, name: str) -> str | None:
 
 
 def touched_at(issues_root: str, relative: str) -> str | None:
-    """**這個路徑**上的活文件，上次真的被改過是哪一天。問不到回 None。
+    """**這個路徑**上可以改的那部分，上次真的被改過是哪一天。問不到回 None。
 
     不走 `last_touched`：那一支照**單名**記住答案，而這裡問的正好是同一個單號的兩個不同
     路徑——共用一份按名字記的快取，兩邊會拿到同一個日期，而那個日期正是要拿來分辨它們的。
@@ -318,7 +318,7 @@ def first_commit_that_changed_lines(log: str) -> str | None:
 
 
 def slot_from_spine(ticket_dir: str) -> tuple[str, str, dict] | None:
-    """走過脊椎的單：狀態檔就是權威。回 (格子, 依據, 細節)，沒有狀態檔回 None。"""
+    """走過主流程的單：狀態檔就是權威。回 (格子, 依據, 細節)，沒有狀態檔回 None。"""
     state = read_json(os.path.join(ticket_dir, ".spine", "loop-state.json"))
     if state is None:
         return None
@@ -628,8 +628,8 @@ def _resolve(issues_root: str, namespace: str, ticket_dir: str, name: str,
              resolvers: dict[str, str]) -> tuple[str, str, dict] | None:
     """一張單的 (格子, 依據, 細節)。兩層都問不到就回 None。
 
-    兩層：走過脊椎的單看它自己的狀態檔，這一層不需要問任何人。沒有狀態檔的才往下問那個
-    命名空間宣告出來的解析器。順序不能反——脊椎的答案是本地的、確定的，讓一次網路往返有
+    兩層：走過主流程的單看它自己的狀態檔，這一層不需要問任何人。沒有狀態檔的才往下問那個
+    命名空間宣告出來的解析器。順序不能反——主流程的答案是本地的、確定的，讓一次網路往返有
     機會覆蓋它，等於把權威交給一個會逾時的東西（S-N3）。
     """
     derived = slot_from_spine(ticket_dir) if ticket_dir else None
@@ -652,7 +652,7 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
     """每一張單現在在哪、該在哪、依據是什麼。不動任何東西。
 
     **兩層都問不到的不參與判定**，回在第二個清單裡。理由是量出來的：`framework/archive/`
-    底下有 460 個舊層搬進來的目錄，它們在脊椎存在之前就結束了，沒有狀態檔也沒有人能問。
+    底下有 460 個舊層搬進來的目錄，它們在主流程存在之前就結束了，沒有狀態檔也沒有人能問。
     把它們掃進 `triage/`，那一格會裝 467 張，而 `triage/` 存在的意義是「機器問過了，答不
     出來，等人歸位」——一個沒人看得完的抽屜等於沒有這一格。留在原地、把數量印出來，是
     `document-flow.md` 本來就寫下的規矩。
@@ -865,7 +865,7 @@ def main(argv=None) -> int:
     parser.add_argument("--execute", action="store_true", help="真的搬")
     parser.add_argument("--spine-only", action="store_true",
                         help="不問任何解析器。記一輪之後自動跑的就是這個模式——"
-                             "剛動過的是一張走脊椎的單，它的答案在本機，不需要一趟網路。")
+                             "剛動過的是一張走主流程的單，它的答案在本機，不需要一趟網路。")
     args = parser.parse_args(argv)
 
     issues_root = os.path.abspath(args.issues.rstrip("/"))
@@ -917,7 +917,7 @@ def main(argv=None) -> int:
         # 交給清單的排列——子單先搬的話，`move()` 會把母單的目的地當成路徑造出來，輪到母單
         # 自己的時候那個路徑已經存在，於是它的搬動被跳過，內容永遠留在舊路徑上。
         #
-        # 實測：2026-08-21 對真實單樹跑一次遷移，遷移前 0 組同號重複，遷移後 12 組。
+        # 實測：2026-08-21 對真實單的目錄樹跑一次遷移，遷移前 0 組同號重複，遷移後 12 組。
         movable = [r for r in rows if r["from_dir"] and r["current"] != r["target"]]
         planned = len(movable)
         for row in sorted(movable, key=lambda r: r["to_dir"].count(os.sep)):

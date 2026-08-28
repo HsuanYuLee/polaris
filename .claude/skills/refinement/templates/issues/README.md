@@ -1,6 +1,6 @@
 # issues —— 這是你的 repo，不是框架的
 
-每張單是一份文件：凍結塊（這件事成功的定義，只有人能改）＋ 活文件（所有階段都寫它）。
+每張單是一份文件：凍結塊（這件事成功的定義，只有人能改）＋ 可以改的那部分（所有階段都寫它）。
 它記的是**你**在做什麼、為什麼這樣定義成功、路上撞到什麼。用同一套框架的另一個人，這裡的
 內容完全不一樣。
 
@@ -8,8 +8,8 @@
 
 ## 為什麼仍然是一個 git repo
 
-因為凍結 ＝ commit。封條（`frozen_by` / `assertions_hash`）只證明 fence 內文與 frontmatter
-自洽——改了 fence 再重簽一次，封條一樣自洽，而 `--by` 只是一個字串。真正擋住偷改的是 git
+因為凍結 ＝ commit。校驗值（`frozen_by` / `assertions_hash`）只證明 fence 內文與 frontmatter
+自洽——改了 fence 再重簽一次，校驗值一樣對得上，而 `--by` 只是一個字串。真正擋住偷改的是 git
 歷史：`frozen-assertion-fence.sh verify` 預設把 fence 內文與該檔在 HEAD 的版本比對，不同就
 fail-closed。
 
@@ -32,7 +32,7 @@ git -C issues add . && git -C issues commit -m "issues: 開始"
 issues/
   {命名空間}/                        自己的框架工作、某個公司、某個專案——你決定怎麼分
     {單號}/
-      index.md                       正文含凍結塊，其餘是活文件
+      index.md                       正文含凍結塊，其餘是可以改的部分
       .spine/loop-state.json         輪次
       .spine/measurement-ledger.json 量測命令登錄
       .spine/evidence/{斷言}.json    oracle 留下的證據

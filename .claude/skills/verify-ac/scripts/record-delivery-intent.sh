@@ -303,7 +303,7 @@ if ! bash "${ENUMERATE[@]}" >/dev/null 2>&1; then
 fi
 if ! legacy_out="$(bash "$ROOT_DIR/scripts/check-spine-legacy-layers.sh" --inventory "$INVENTORY" 2>&1)"; then
   die "POLARIS_DELIVERY_INTENT_LEGACY_LAYER_FORCED" \
-    "這張單的流程還撐在脊椎要取代的舊層上，交付紀錄不寫：" "$legacy_out"
+    "這張單的流程還撐在主流程要取代的舊層上，交付紀錄不寫：" "$legacy_out"
 fi
 echo "$legacy_out"
 
@@ -337,7 +337,7 @@ import sys
 # 記名字，不記路徑（DP-496 L-P2）。一張單的格位由 `place-issues-by-state.sh` 依狀態重算，
 # 所以寫下來的那一條路徑在下一次重算之後就是死指標——實測 19 條存過的單路徑全部指向已經
 # 不存在的目錄。位置要用的時候問 `spine-loop-state.sh find`，而讀這份紀錄的東西（釋出尾段的
-# 閘）本來就是從紀錄自己的位置認出這是哪張單的，從來沒有讀過這個欄位。
+# 關卡）本來就是從紀錄自己的位置認出這是哪張單的，從來沒有讀過這個欄位。
 issue = os.path.basename(os.path.normpath(source))
 payload = {
     "schema_version": 2,

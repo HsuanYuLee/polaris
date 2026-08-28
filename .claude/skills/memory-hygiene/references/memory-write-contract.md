@@ -10,7 +10,7 @@ description: "寫一份 memory 的時候要遵守的規矩：檔案放哪、索�
 `memory-hygiene-scan-flow.md` 與 `memory-hygiene-apply-flow.md`。
 
 它以前住在使用者自己機器上的常駐指示檔裡（`~/.claude/CLAUDE.md` 的 Memory Tiering Rules
-一節）。那個位置沒有任何閘看得見，於是它指名的三個路徑在框架換層之後全部失效而沒有人
+一節）。那個位置沒有任何關卡看得見，於是它指名的三個路徑在框架換層之後全部失效而沒有人
 發現。**規矩要跟著執行它的東西走**——消費這些欄位的腳本就在這支 skill 自己的
 `scripts/` 底下，所以規矩在這裡。
 

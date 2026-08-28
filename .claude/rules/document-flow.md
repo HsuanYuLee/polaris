@@ -9,9 +9,9 @@ workspace 的目錄結構。
 問不到就說出來——判準跟著它唯一的消費者走，寫在 `driving-work-to-done`〈一張單住在哪〉。
 留在這裡的只有這個 repo 自己的實例，以及沒有任何一支 skill 認領的那幾件。
 
-## 這個 repo 的單樹
+## 這個 repo 的單的目錄樹
 
-單樹根是 `issues/`。**命名空間叫什麼不影響任何判定**——沒有註冊表、沒有白名單，流程從
+單的根目錄是 `issues/`。**命名空間叫什麼不影響任何判定**——沒有註冊表、沒有白名單，流程從
 `{單}/.spine/loop-state.json` 讀狀態，不從路徑推導身分。所以這裡也不列現在有哪幾個：
 一份抄在散文裡的清單會漂，而下面那支腳本本來就會把它們印出來。
 
@@ -36,9 +36,9 @@ bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issu
 這裡只留兩件只有這個 repo 才成立的事。
 
 **命名用單的目錄名加 `feat/` 前綴**，例如 `feat/DP-466-a-human-who-does-not-type-commands`。
-**這一條刻意沒有閘在守**：`gate-spine-delivery.sh` 的檔頭寫著理由——一張單的身分寫在
+**這一條刻意沒有關卡在守**：`gate-spine-delivery.sh` 的檔頭寫著理由——一張單的身分寫在
 `delivery.json` 裡，不寫在 ref 上，所以命名是給看 PR 清單的人用的慣例，屬於 repo 知識而不
-屬於閘。忘記命名不會壞掉任何東西，只會讓清單難讀。
+屬於關卡。忘記命名不會壞掉任何東西，只會讓清單難讀。
 
 **`issues/` 不開 branch。** 一張單只有一個狀態——最新的那個——直接推就好。理由跟 J-P1 是
 同一句話：一張單只有一個家。單分岔出兩個版本，「現在到底走到哪」就有兩個答案，而這整套
@@ -46,7 +46,7 @@ bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issu
 不留在並行的分支裡。
 
 所以兩個 repo 的節奏不一樣，這是刻意的：框架 repo 一張單一條 branch，`issues` repo 一直
-往前推。`init` 的閘只管框架 repo 那一邊——它跑在你開單的那個工作區上，而 `issues` 從來
+往前推。`init` 的關卡只管框架 repo 那一邊——它跑在你開單的那個工作區上，而 `issues` 從來
 不是那個工作區。
 
 ## 舊層的東西在哪
@@ -68,9 +68,9 @@ DP-462 之前的交付層留下兩堆，分開放：
 - 能 → 進那支 skill 自己的目錄（腳本、reference、範例都一樣）。skill 目錄會被帶到
   claude.ai 與 Cowork，放在外面的東西在那裡不存在。
 - 不能，而且只有在這個 repo 裡才成立 → 進 `.claude/rules/`，像這一份。
-- 是某一張單的過程紀錄 → 進那張單的 `{單}/index.md` 活文件，不要另開檔案。一個工作被迫產生的
+- 是某一張單的過程紀錄 → 進那張單的 `{單}/index.md` 正文，不要另開檔案。一個工作被迫產生的
   檔案不超過兩個（那份 index.md 與 code）。
 
 **不要為了「比較好找」而複製一份。** 兩份會漂，而漂掉的那一刻通常沒有人在看。
 
-<!-- POLARIS-SCOPE: universal — 這一份講的是這個 repo 自己的單樹長什麼樣；換一個環境它沒有對象。跟著 template repo 走，不進 skill 目錄——理由寫在本文開頭 -->
+<!-- POLARIS-SCOPE: universal — 這一份講的是這個 repo 自己的單的目錄樹長什麼樣；換一個環境它沒有對象。跟著 template repo 走，不進 skill 目錄——理由寫在本文開頭 -->

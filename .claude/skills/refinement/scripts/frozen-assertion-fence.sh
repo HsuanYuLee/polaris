@@ -412,7 +412,7 @@ body = lines[end:]
 SEAL_KEYS = ("frozen_by:", "frozen_at:", "assertions_hash:", "assertions_hash_recipe:")
 
 # 既有的 map 要先讀出來再寫回去。`--block K` 只重算 K，而 seal 過去是把整段
-# assertions_hash 丟掉、用本次的 pairs 重建——於是其他區塊的封條被靜靜刪掉，而 seal
+# assertions_hash 丟掉、用本次的 pairs 重建——於是其他區塊的校驗值被靜靜刪掉，而 seal
 # 回的是綠的（DP-548，2026-08-17 在一張三區塊的單上真的發生過）。
 existing: "dict[str, str]" = {}
 kept = []

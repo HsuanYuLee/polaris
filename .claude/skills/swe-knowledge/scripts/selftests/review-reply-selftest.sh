@@ -260,7 +260,7 @@ if want B-P1; then
   fi
 fi
 
-# ── B-P2：落地 → 過閘 → 才送，順序不得顛倒 ─────────────────────────────────
+# ── B-P2：落地 → 過關 → 才送，順序不得顛倒 ─────────────────────────────────
 if want B-P2; then
   section="$(awk '/^## 回覆 reviewer$/{f=1} f&&/^## /&&!/^## 回覆 reviewer$/{exit} f' "$SKILL_MD")"
   if [[ -z "$section" ]]; then
@@ -270,12 +270,12 @@ if want B-P2; then
   pos_gate="$(printf '%s\n' "$section" | grep -n 'resolve-external-write-gate.sh' | head -1 | cut -d: -f1)"
   pos_send="$(printf '%s\n' "$section" | grep -n 'comments/<comment_id>/replies' | head -1 | cut -d: -f1)"
   if [[ -z "$pos_file" || -z "$pos_gate" || -z "$pos_send" ]]; then
-    no B-P2 "三步裡有一步沒寫出來（落地=$pos_file 閘=$pos_gate 送=${pos_send}）"
+    no B-P2 "三步裡有一步沒寫出來（落地=$pos_file 關卡=$pos_gate 送=${pos_send}）"
   elif [[ "$pos_file" -lt "$pos_gate" && "$pos_gate" -lt "$pos_send" ]]; then
-    say "MEASURED 三步照順序出現在同一段裡：落地 L${pos_file} → 過閘 L${pos_gate} → 送 L${pos_send}"
+    say "MEASURED 三步照順序出現在同一段裡：落地 L${pos_file} → 過關 L${pos_gate} → 送 L${pos_send}"
     ok B-P2
   else
-    no B-P2 "順序不對：落地 L${pos_file} / 閘 L${pos_gate} / 送 L${pos_send}"
+    no B-P2 "順序不對：落地 L${pos_file} / 關卡 L${pos_gate} / 送 L${pos_send}"
   fi
 fi
 

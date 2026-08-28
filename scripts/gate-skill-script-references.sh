@@ -5,14 +5,14 @@
 #          腳本搬家會把這種寫死的相對路徑一個一個變成執行期才炸的洞。
 # Inputs:  --repo <path>（預設從自己的位置往上找 git 根）、--skill <名字>（只看那一支）
 # Outputs: 每個對不上的引用印一行；有任何一個就 exit 1。掃不到東西 exit 2。
-#          每次都印一行 DISCLOSURE，說出這道閘判不了的那幾類各有幾條。
+#          每次都印一行 DISCLOSURE，說出這道關卡判不了的那幾類各有幾條。
 #
-# 為什麼需要這道閘：shellcheck 不解析變數路徑，per-skill selftest 只跑得到自己那支的
+# 為什麼需要這道關卡：shellcheck 不解析變數路徑，per-skill selftest 只跑得到自己那支的
 # happy path。DP-462 把共用的 scripts/ 拆進各 skill 之後，三個不同的斷點都是在**釋出
 # 執行到一半**才炸出來的——`gates/gate-spine-delivery.sh`、`gate-pr-language.sh` 整支不見、
 # `lib/tool-resolution.sh` 沒跟著搬。那時候版號已經壓下去了。
 #
-# **管轄的分界不是「跨不跨目錄」**（DP-513）。這道閘到 v4.35.0 為止只認得指向同目錄與
+# **管轄的分界不是「跨不跨目錄」**（DP-513）。這道關卡到 v4.35.0 為止只認得指向同目錄與
 # `lib/`／`env/`／`selftests/`／`gates/` 的引用，而且要求副檔名是 `.sh`／`.py`／`.mjs`——
 # 於是 `$SCRIPT_DIR/../../x/y.sh`、指向目錄的、指向 `.md` 的，一條都不在它眼裡，而它印的是
 # 「241 個檔的同目錄引用都對得上」。實際後果：兩支 `fetch-pr-info.sh` 的 `github-rest.sh`
@@ -24,7 +24,7 @@
 #
 # 一、**這條引用指名了東西嗎。** 往上爬完之後還剩不剩一個具名的元件。`$SCRIPT_DIR/../..`
 #    這種沒有——對它做存在性檢查永遠是綠的，因為它一定指得到工作區的某一層。這一類**不判定**，
-#    但**要印出條數**：一道對這一類回綠、卻不說自己跳過了它們的閘，就是它在擋的那種第三態。
+#    但**要印出條數**：一道對這一類回綠、卻不說自己跳過了它們的關卡，就是它在擋的那種第三態。
 #
 # 二、**它被存在性檢查包住嗎。** 包住的是**候選**，不是要求：`for candidate in …` 那種清單，
 #    或 `if [[ -f X ]]; then . X; fi` 那種先問再用。候選**整組全部落空才判紅，而且判一次
@@ -39,7 +39,7 @@ set -euo pipefail
 
 PREFIX="[polaris gate-skill-script-references]"
 REPO_ROOT=""
-# 這道閘量的東西有明確的擁有者：一支 skill 的腳本指向它自己位置算起的東西，完全在那一支
+# 這道關卡量的東西有明確的擁有者：一支 skill 的腳本指向它自己位置算起的東西，完全在那一支
 # 之內。所以它要能被那一支單獨叫起來檢查自己——`--skill <名字>`。共用的那一層只剩「掃過
 # 每一支」，而那件事沒有擁有者：沒有任何一支 skill 該負責別支有沒有被掃到。
 ONLY_SKILL=""
@@ -70,7 +70,7 @@ scope = f".claude/skills/{only_skill}" if only_skill else ".claude/skills"
 
 # 只看「從腳本自己的位置算起」的引用。指向 repo 根、或值來自環境的變數不在這裡管。
 #
-# **哪個變數算「從自己的位置算起」，由賦值的形狀決定，不由名字決定。** 名字白名單是這道閘
+# **哪個變數算「從自己的位置算起」，由賦值的形狀決定，不由名字決定。** 名字白名單是這道關卡
 # 兩次踩過的同一個坑：第一版只認大寫，漏掉 `$script_dir`，那個洞活到 4.0.0 的釋出尾段才炸；
 # 補成大小寫都收之後，`polaris-doctor.sh` 的 `SCRIPT_DIR="$WORKSPACE_ROOT/scripts"` 又解不開
 # ——不是因為它不自明，而是因為 `WORKSPACE_ROOT` 不在名單上，儘管它自己就是
@@ -133,7 +133,7 @@ def blank_heredocs(lines):
     """把 heredoc 的內容換成空行，行號保留。
 
     heredoc 裡的東西是要寫到別的地方去的資料，不是這個檔自己的引用——selftest 的
-    fixture 就長這樣，不排掉的話這道閘會擋下自己的 selftest。**換成空行而不是刪掉**：
+    fixture 就長這樣，不排掉的話這道關卡會擋下自己的 selftest。**換成空行而不是刪掉**：
     行號要留著，否則 DISCLOSURE 與紅字指的行數是錯的，而那比不指行數糟。
 
     Args: lines = 原始檔案的每一行
@@ -205,7 +205,7 @@ def in_comment(line, start):
 
     判準是它前面有沒有一個 `#`，而那個 `#` 在行首或前面是空白，且不在字串裡（用它前面的
     引號數是不是偶數判斷）。註解裡的路徑常常在**否認**某件事——「這一版之前會把 X 判紅」——
-    對它判紅的閘會在三次之後被關掉。
+    對它判紅的關卡會在三次之後被關掉。
 
     Args: line = 整行, start = 引用在行內的起始位置
     Returns: True 表示在註解裡
@@ -250,7 +250,7 @@ def guarded_for_spans(lines):
     return spans
 
 
-# GIT_DIR 要拿掉：git 跑 hook 的時候一定會設它，而顯式的 GIT_DIR 蓋過 `-C`——這道閘會
+# GIT_DIR 要拿掉：git 跑 hook 的時候一定會設它，而顯式的 GIT_DIR 蓋過 `-C`——這道關卡會
 # 安靜地列出另一個 repo 的檔案。DP-467 對十支腳本修過同一個形狀。
 listed = subprocess.run(
     ["git", "-C", repo_root, "ls-files", scope],
@@ -283,7 +283,7 @@ for rel in listed:
 
     # 變數不一定指向自己那一層。`script_dir="$(cd "$(dirname "$0")/.." && pwd)"` 在
     # selftest 裡很常見——它指的是 scripts/，不是 selftests/。照著它的 `..` 往上退，
-    # 不然這道閘會對一批寫得完全正確的 selftest 判紅。
+    # 不然這道關卡會對一批寫得完全正確的 selftest 判紅。
     #
     # 這個洞原本被一份重複的檔遮著：同一支腳本在 scripts/ 與 scripts/selftests/ 各有一份，
     # 於是錯的解析也找得到檔案。刪掉重複的那一刻它才露出來。
@@ -381,7 +381,7 @@ for rel in listed:
         # 一組候選有兩個以上不同的目標、而全部落空：作者自己寫下了「我預期其中一個在這裡」，
         # 而沒有一個在，所以那是矛盾，判得出來。
         #
-        # 只有一個目標的時候沒有那句話可以拿來對照，**這道閘分不出兩件事**：一條永遠走不到
+        # 只有一個目標的時候沒有那句話可以拿來對照，**這道關卡分不出兩件事**：一條永遠走不到
         # 的 fallback（`fetch-pr-info.sh` 那種，REST 路徑死了幾個月），以及一個本來就該落空
         # 的探測（DP-513 當時的標本是 `polaris-toolchain.sh:18`，問的是「這個 skill 目錄自己
         # 是不是 workspace 根」——在那棵樹上答案就是不是，而 manifest 真的存在、在 repo 根）。
@@ -389,7 +389,7 @@ for rel in listed:
         #
         # 那個標本 DP-518 退場了（那支 runner 的 parser 在更早一次搬家就被刪掉，整支是屍體），
         # 所以這一格的計數現在是 0——樹上活著的實例歸零，紅控只剩 selftest 的 fixture。
-        # 這不改變判準，但它是下一次問「這道閘擋得住什麼」時該先讀到的話。
+        # 這不改變判準，但它是下一次問「這道關卡擋得住什麼」時該先讀到的話。
         if len({m["target"] for m in members}) < 2:
             skipped["只有一條候選而它落空（死 fallback 與該落空的探測分不出來）"] += 1
             continue
@@ -416,8 +416,8 @@ CLASSES = [
     "只有一條候選而它落空（死 fallback 與該落空的探測分不出來）",
 ]
 disclosure = "、".join(f"{name} {skipped[name]}" for name in CLASSES)
-print(f"{prefix} DISCLOSURE 這道閘判不了的幾類，各自的條數：{disclosure}。"
-      f"不判定不等於沒有那些東西——那幾條由看 diff 的人負責，不由這道閘。")
+print(f"{prefix} DISCLOSURE 這道關卡判不了的幾類，各自的條數：{disclosure}。"
+      f"不判定不等於沒有那些東西——那幾條由看 diff 的人負責，不由這道關卡。")
 # 紅字走 stderr、揭露走 stdout，兩條管子各自有緩衝——不沖的話揭露會印在紅字後面，
 # 讀的人會以為那是這次判定的結論。
 sys.stdout.flush()
