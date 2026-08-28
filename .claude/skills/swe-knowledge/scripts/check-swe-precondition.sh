@@ -11,6 +11,10 @@
 # 第二條同一個時態問題更嚴重：hook 沒接上的 checkout，它的每一個 commit 與每一次 push
 # 一道閘都不會跑，而且**不會有任何東西說**。發現的時候那些 commit 已經在歷史裡了。
 #
+# 第一條有三種結果，不是兩種。沒有任何 remote 的 repo，「大家共用的分支」不存在——那不是
+# 量不到，是沒有那個東西可以量，所以這一條不適用，說出來並繼續（現在站在哪一條仍然印）。
+# 有 remote 而解不出預設分支才是真的量不到，那一種擋，而且它的修法真的走得通。
+#
 # 第二條不認得任何一個 hook 目錄的位置，也不認得哪一支 skill 負責裝它。它掃那個工作區
 # 自己的宣告：`{任意前綴}-GIT-HOOKS: {相對路徑} | {接上它的命令}`。沒有宣告的工作區（多數
 # 產品 repo）這一條不適用，而且會把「不適用」印出來——一個安靜的第三態下一次就會被當成
@@ -136,7 +140,23 @@ if [[ -z "$LOCAL_BASE" ]]; then
   LOCAL_BASE="${LOCAL_BASE#origin/}"
 fi
 if [[ -z "$LOCAL_BASE" ]]; then
-  echo "$PREFIX 量不到：${TOPLEVEL} 解不出預設分支（origin/HEAD 沒設）。" >&2
+  # 「沒有任何 remote」與「有 remote 但 origin/HEAD 沒設」不是同一件事，而它們的下一步相反。
+  # 判準跟第二條（hook）用的是同一個，不是另外發明的：**它守的那個後果在這裡存不存在**。
+  #
+  # 沒有任何 remote 的 repo，沒有人從這裡拉，所以「大家共用的分支」不存在——這不是量不到，
+  # 是沒有那個東西可以量。拿它擋人等於用一個跟「這件事該不該做」無關的條件擋住工作：
+  # 2026-08-25 一張單的兩個落腳處，因此只有一個進得了輪次，另一個整輪都沒被漂移比對看過。
+  # 而且那時候給的兩條修法在那個情境下都走不通（沒有 origin 可以 set-head；--base 傳不進來）。
+  if [[ -z "$(git -C "$TOPLEVEL" remote 2>/dev/null)" ]]; then
+    BRANCH="$(git -C "$TOPLEVEL" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    # 不適用不等於不報告——現在站在哪一條上仍然印出來，讓讀的人自己看得到。
+    echo "SWE-PRECONDITION-OK $(basename "$TOPLEVEL"):${BRANCH:-?}（沒有任何 remote，「不站在預設分支上」這一條不適用）"
+    local HOOKS_LINE_NR
+    HOOKS_LINE_NR="$(check_hooks "$TOPLEVEL")" || exit 2
+    echo "$HOOKS_LINE_NR"
+    return 0
+  fi
+  echo "$PREFIX 量不到：${TOPLEVEL} 有 remote，但解不出預設分支（origin/HEAD 沒設）。" >&2
   echo "$PREFIX 修法：跑 git remote set-head origin -a，或用 --base 指名。" >&2
   echo "$PREFIX 量不到不等於沒問題——這裡不放行。" >&2
   exit 2
