@@ -139,7 +139,10 @@ ISSUE_HEAD_SHA="$(git -C "$ISSUE_REPO" rev-parse HEAD 2>/dev/null || true)"
 HEAD_FROM_EVIDENCE="$(mktemp)"
 TREE_FROM_EVIDENCE="$(mktemp)"
 DELTA_FROM_EVIDENCE="$(mktemp)"
-trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE"' EXIT
+# 每一棵有證據的樹與它各自的 head。單樹的單只有一筆，跟 head_sha 說的是同一件事；
+# 多棵樹的單只有這一份說得完（DP-611）。
+HEADS_FROM_EVIDENCE="$(mktemp)"
+trap 'rm -f "$HEAD_FROM_EVIDENCE" "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "$HEADS_FROM_EVIDENCE"' EXIT
 
 if [[ ${#DELTA_ALLOWS[@]} -gt 0 && -z "$HEAD_SHA" ]]; then
   die "POLARIS_DELIVERY_INTENT_USAGE" \
@@ -179,14 +182,16 @@ fi
 # self-certification. The oracle pins tools before trusting them and keeps the
 # exit code; a JSON file is whoever typed it.
 python3 - "$ROOT_DIR" "$INDEX" "$ISSUE_DIR" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
-  "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "${DELTA_ALLOWS[@]+${DELTA_ALLOWS[@]}}" <<'PY' || exit 1
+  "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "$HEADS_FROM_EVIDENCE" \
+  "${DELTA_ALLOWS[@]+${DELTA_ALLOWS[@]}}" <<'PY' || exit 1
 import sys
 
 sys.path.insert(0, sys.argv[1] + "/scripts/lib")
 import assertion_verdicts as av
 
-root, index, issue, head, head_out, tree_out, delta_out = sys.argv[1:8]
-delta_allows = sys.argv[8:]
+(root, index, issue, head, head_out, tree_out,
+ delta_out, heads_out) = sys.argv[1:9]
+delta_allows = sys.argv[9:]
 
 report = av.judge(
     index, issue + "/.spine/evidence",
@@ -235,6 +240,10 @@ for note in report["notes"]:
     print(f"NOTE: {note}")
 open(head_out, "w", encoding="utf-8").write(report["head"])
 open(tree_out, "w", encoding="utf-8").write(report["measured_in"])
+# 一棵樹的時候不寫——那份紀錄已經有 head_sha 與這張單自己的落腳處宣告，多一個只說同一
+# 件事的欄位遲早會跟它們不一致。
+open(heads_out, "w", encoding="utf-8").write(
+    json.dumps(report["heads"], ensure_ascii=False) if len(report["heads"]) > 1 else "")
 if report["delta"]:
     import json
     open(delta_out, "w", encoding="utf-8").write(
@@ -255,6 +264,7 @@ PY
 HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"
 DELIVERED_IN="$(cat "$TREE_FROM_EVIDENCE")"
 HEAD_DELTA="$(cat "$DELTA_FROM_EVIDENCE")"
+EVIDENCE_HEADS="$(cat "$HEADS_FROM_EVIDENCE")"
 # 證據自己說它量在哪。底下的 fallback 會在問不到的時候把 DELIVERED_IN 換成這張單的宣告，
 # 換完之後那兩個值就一定相等——所以要比對的那一份得在換之前留下來。
 EVIDENCE_TREE="$DELIVERED_IN"
@@ -299,35 +309,12 @@ fi
 # 修法不是多一個欄位——旋鈕早就有了（run-hardened-oracle.sh 的 --cwd 設 run_dir，而 head_sha
 # 與 measured_in 都從 run_dir 取，DP-482 做的）。缺的只是沒有人比對，於是沒有人轉它。
 #
-# **一張單可以宣告不只一棵樹**（真樹上有 2 張，其中一張三棵），所以這裡讀的是全部，
-# 落在其中任何一棵都算數，不是只讀第一行。
-DECLARED_TREES=""
-LANDING_RESOLVER2="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
-if [[ -f "$LANDING_RESOLVER2" && -f "$ISSUE_DIR/.spine/loop-state.json" ]]; then
-  DECLARED_TREES="$(bash "$LANDING_RESOLVER2" landing --state "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null || true)"
-fi
-if [[ -z "$EVIDENCE_TREE" ]]; then
-  # 問不到不是相符。說出缺的是哪一份——一個安靜的第三態，下一次就會被當成比過了。
-  echo "NOTE: 證據沒有記下它量在哪一棵樹，所以「量的樹與這張單的落腳處相不相符」這一項沒有問到。"
-elif [[ -z "$DECLARED_TREES" || "$DECLARED_TREES" == "unlanded" ]]; then
-  echo "NOTE: 這張單沒有宣告落腳處（loop-state 回「${DECLARED_TREES:-讀不到}」），" \
-       "所以「量的樹與這張單的落腳處相不相符」這一項沒有問到。證據量在 ${EVIDENCE_TREE}。"
-else
-  TREE_MATCHED=0
-  while IFS= read -r one; do
-    [[ -z "$one" ]] && continue
-    [[ "$one" == "$EVIDENCE_TREE" ]] && TREE_MATCHED=1
-  done <<<"$DECLARED_TREES"
-  if [[ "$TREE_MATCHED" == 0 ]]; then
-    die "POLARIS_DELIVERY_INTENT_TREE_NOT_LANDING" \
-      "證據量在 ${EVIDENCE_TREE}，而這張單宣告它的改動落在：" \
-      "$(sed 's/^/  /' <<<"$DECLARED_TREES")" \
-      "兩者不是同一棵樹，所以證據綁的 head 說不出這張單交付了什麼——那棵樹上任何無關的" \
-      "commit 都會動到它。量測命令自己 cd 進去不夠：要讓 head 跟著走，用" \
-      "run-hardened-oracle.sh 的 --cwd 指名那棵樹。"
-  fi
-  echo "NOTE: 證據量的樹就是這張單宣告的落腳處（${EVIDENCE_TREE}）。"
-fi
+# **這一項現在由判定那一層做**（`assertion_verdicts.judge`）。它本來在這裡，而在這裡的
+# 代價是看報告的人看不到它——`report-assertions.sh` 走的是同一個 judge，卻讀不到一條只
+# 寫在交付腳本裡的規矩。搬過去之後：證據量在宣告外的樹是一條 blocker、宣告問不到是一句
+# 說出來的話、而「一張單宣告不只一棵樹」是被支援的形狀而不是歧義（DP-611）。
+#
+# 這裡不留第二份。同一條規矩兩個實作會漂，而漂掉的那一刻通常沒有人在看。
 
 # 舊層還撐著的話，這張單交付不出去。這道檢查以前只寫在散文裡，於是它對每一張真單都紅了
 # 幾個月而沒有人知道——一道沒有人呼叫的檢查跟沒有那道檢查，在出事的時候長得一樣。所以
@@ -371,12 +358,14 @@ mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" \
-  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$HEAD_DELTA" <<'PY'
+  "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$HEAD_DELTA" \
+  "$EVIDENCE_HEADS" <<'PY'
 import json
 import os
 import sys
 
-(out, source, destination, head, summary, by, at, source_head, head_delta) = sys.argv[1:10]
+(out, source, destination, head, summary, by, at,
+ source_head, head_delta, heads) = sys.argv[1:11]
 # 記名字，不記路徑（DP-496 L-P2）。一張單的格位由 `place-issues-by-state.sh` 依狀態重算，
 # 所以寫下來的那一條路徑在下一次重算之後就是死指標——實測 19 條存過的單路徑全部指向已經
 # 不存在的目錄。位置要用的時候問 `spine-loop-state.sh find`，而讀這份紀錄的東西（釋出尾段的
@@ -398,6 +387,12 @@ payload = {
 # 豁免在出事的時候長得一樣。
 if head_delta:
     payload["head_delta"] = json.loads(head_delta)
+# 一張單交付到不只一棵樹的時候，`head_sha` 這個純量只說得出其中一棵。它留著原樣是因為
+# 釋出尾段只讀得懂一個值，而那條尾段只跑框架自己的單（單樹）；多出來的這一份才說得完
+# 每一棵樹綁在哪一個 commit 上（DP-611）。單樹的紀錄不長這個欄位，所以既有的 123 份
+# 一份都不用動。
+if heads:
+    payload["heads"] = json.loads(heads)
 with open(out, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2)
     handle.write("\n")

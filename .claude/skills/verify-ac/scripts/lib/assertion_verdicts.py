@@ -283,6 +283,36 @@ def rerun_key(ev):
             tool_specs(ev))
 
 
+
+def declared_landing(index_path):
+    """這張單宣告它的改動落在哪幾棵樹。問不到就回空的清單。
+
+    問的是 `spine-loop-state.sh landing`，跟交付那一步同一個產生者——自己去讀
+    `loop-state.json` 的欄位會變成第二個答案，而兩個答案會漂。
+
+    **空的清單不等於「沒有限制」**：呼叫端拿它當「宣告過的樹有哪些」，一張問不到宣告的單
+    因此走回原本那條嚴格的路（證據來自不只一棵樹就擋）。一個問不到的宣告不得比一個答得
+    出來的宣告寬。
+    """
+    issue_dir = os.path.dirname(os.path.abspath(index_path))
+    state = os.path.join(issue_dir, ".spine", "loop-state.json")
+    resolver = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.abspath(__file__))))),
+        "driving-work-to-done", "scripts", "spine-loop-state.sh")
+    if not (os.path.isfile(resolver) and os.path.isfile(state)):
+        return []
+    try:
+        done = subprocess.run(["bash", resolver, "landing", "--state", state],
+                              capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if done.returncode != 0:
+        return []
+    out = [line.strip() for line in done.stdout.splitlines() if line.strip()]
+    return [] if out == ["unlanded"] else out
+
+
 def judge(index_path, evidence_dir, head=None, delta_allows=(),
           ledger_path=None, rerun=False, oracle=None):
     """逐條判定，外加幾件跨斷言才問得出來的事。
@@ -306,7 +336,14 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     # 兩者不一樣，而那正好是唯一需要分辨的時候。
     layers = {"self_consistent": True, "registered": False, "rerun": bool(rerun)}
     report = {"ids": ids, "rows": [], "blockers": [], "notes": [], "layers": layers,
-              "head": head, "measured_in": "", "delta": None}
+              "head": head, "measured_in": "", "delta": None,
+              # 每一棵有證據的樹與它各自的 head。單樹的單只有一筆，跟 `head`／
+              # `measured_in` 說的是同一件事；多樹的單只有這裡說得完。
+              "heads": [],
+              # 這一趟「看見」了哪幾棵樹。它記的是證據**檔案**說的，不是通過判定
+              # 的那幾條說的——否則一條被判掉的斷言會把它的樹一起帶走，而「證據
+              # 來自幾棵樹」這一項就會在輸入被清空的時候恆真（DP-611 A-N1）。
+              "trees_seen": []}
     if not ids:
         report["blockers"].append(
             f"{index_path} 有 fence 但裡面一個斷言 ID 都沒有；沒有東西要證明")
@@ -321,6 +358,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     evidence = {}
     measured = {}
     measured_in = {}
+    tree_heads = {}
     carried = {}
 
     def mark(aid, state, detail):
@@ -351,6 +389,14 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             if ev.get("command") != registered[aid]:
                 mark(aid, FAIL, "證據記的命令不是這條斷言登錄過的那一條")
                 continue
+        # 樹的帳記在這裡，不記在迴圈最後。下面每一個 `continue` 都會跳過迴圈尾巴，
+        # 所以記在尾巴的話，「證據來自幾棵樹」問的就變成「通過判定的證據來自幾棵樹」
+        # ——那一項於是在證據被判掉的時候安靜地變少，帶 `--head` 的那一趟因此看起來
+        # 沒有歧義（DP-611 量到：20 PASS ＋ 2 blocker，帶了 --head 之後 11 PASS、
+        # 9 FAIL、0 blocker）。走到這裡表示這份證據是 oracle 產的、命令登錄過，
+        # 它說它量在哪一棵樹就是一件事實，判定結果不改變那件事實。
+        if ev.get("measured_in"):
+            measured_in.setdefault(ev["measured_in"], []).append(aid)
         if ev.get("verdict") != "PASS":
             mark(aid, FAIL, f"判定是 {ev.get('verdict')!r}，不是 PASS")
             continue
@@ -365,7 +411,8 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             carried.setdefault((ev["head_sha"], ev.get("measured_in") or ""), []).append(aid)
         else:
             measured.setdefault(ev["head_sha"], []).append(aid)
-        measured_in.setdefault(ev.get("measured_in") or "", []).append(aid)
+            if ev.get("measured_in"):
+                tree_heads.setdefault(ev["measured_in"], set()).add(ev["head_sha"])
 
     # 呼叫者指名了差異的話，逐個去 git 驗那句話。驗過了那些斷言才算數——差異裡出現一個
     # 沒被指名的路徑，或者根本問不出那段差異，都退回原本的拒絕。
@@ -374,6 +421,8 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             tree, ev_head, head, delta_allows, report["notes"])
         if state == "ok":
             measured.setdefault(ev_head, []).extend(aids)
+            if tree:
+                tree_heads.setdefault(tree, set()).add(ev_head)
             report["delta"] = {"from": ev_head, "to": head, "paths": payload,
                                "declared_allowed": list(delta_allows)}
         elif state == "outside":
@@ -411,20 +460,69 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                 mark(aid, state, detail)
         report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條斷言共用）")
 
+    # 一張單交付到不只一個 repo 是常態（真樹上兩張，其中一張三棵），而那件事這張單自己
+    # 就宣告過了。所以「證據落在幾棵樹」不是問題本身——**落在沒有宣告過的樹上**才是。
+    # 宣告問不到的時候這份清單是空的，於是下面每一條比對都不成立，走回原本那條嚴格的路。
+    declared = declared_landing(index_path)
+    trees = [d for d in measured_in if d]
+    report["trees_seen"] = sorted(trees)
+    undeclared = [t for t in trees if t not in declared] if declared else trees
+    # 同一棵樹上出現兩個 head 是真的歧義，宣告救不了它：那批證據量的不是同一次。
+    split_tree = sorted(t for t, shas in tree_heads.items() if len(shas) > 1)
+    multi_ok = bool(declared) and not undeclared and not split_tree
+
     # 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條
     # 斷言量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的。
+    # 除非那幾棵樹正是這張單宣告的落腳處：那時候「不只一個 head」是這張單本來的樣子，
+    # 每一棵各記各的。
     if not head:
-        if len(measured) > 1:
+        if len(measured) > 1 and not multi_ok:
             report["blockers"].append("證據指向不只一棵樹，說不出要交付哪一個 head：")
             for sha, aids in sorted(measured.items()):
                 report["blockers"].append(f"  {sha[:12]}: {', '.join(aids)}")
         elif measured:
-            head = next(iter(measured))
+            # 純量那一個取「宣告順序上第一棵有證據的樹」的 head——釋出尾段讀的是它，
+            # 而順序由人寫在落腳處宣告裡，不是這裡挑的。單樹的單這個值不變。
+            ordered = [t for t in declared if t in tree_heads] or sorted(tree_heads)
+            head = (next(iter(tree_heads[ordered[0]])) if ordered
+                    else next(iter(measured)))
     report["head"] = head
+    report["heads"] = [{"tree": t, "head_sha": next(iter(tree_heads[t]))}
+                       for t in ([d for d in declared if d in tree_heads]
+                                 or sorted(tree_heads))]
+
+    # 宣告過落腳處的單，證據落在宣告外的樹是紅的——那棵樹上任何無關的 commit 都會動到
+    # 證據綁的 head，而這張單的產出不在那裡。以前這一條只在交付那支腳本裡，所以看報告的
+    # 人看不到它。
+    if declared and undeclared:
+        report["blockers"].append("證據量在這張單沒有宣告的樹上：")
+        for tree in sorted(undeclared):
+            report["blockers"].append(f"  {tree}: {', '.join(measured_in[tree])}")
+        report["blockers"].append("  這張單宣告的落腳處：" + "、".join(declared))
+    if split_tree:
+        report["blockers"].append("同一棵樹上的證據指向不只一個 head：")
+        for tree in split_tree:
+            report["blockers"].append(
+                f"  {tree}: " + "、".join(sorted(s[:12] for s in tree_heads[tree])))
+
+    # 宣告問不到的時候要說出來，不能安靜。這一項以前寫在交付那支腳本裡，所以看報告的
+    # 人看不到「這一項沒有問到」——一個安靜的第三態，下一次就會被當成比過了。
+    if trees and not declared:
+        report["notes"].append(
+            "這張單沒有宣告落腳處（或問不到），所以「證據量的樹是不是這張單宣告的那幾棵」"
+            "這一項沒有被檢查；證據量在：" + "、".join(sorted(trees)))
+
+    # 宣告了卻一條證據都沒有的那幾棵樹要被說出來。把 N 棵樹的量測全部釘在同一棵上，
+    # 紀錄寫得出來而它對另外幾棵零綁定——那條路可能仍然是對的選擇，但它不能安靜
+    # （DP-611 A-P6；標本是一張宣告三棵樹的單，21 條證據全記在同一棵）。
+    for tree in declared:
+        if tree not in tree_heads:
+            report["notes"].append(
+                f"這張單宣告了 {tree}，而沒有任何證據量在那裡——"
+                "那棵樹上的改動沒有被任何一條斷言綁住")
 
     # 證據說得出自己是在哪一棵樹上量的，所以「那棵樹現在還在不在那個 commit」問得到它本人。
-    trees = [d for d in measured_in if d]
-    if len(trees) > 1:
+    if len(trees) > 1 and not multi_ok:
         report["blockers"].append("證據來自不只一棵樹，說不出要交付哪一個工作區：")
         for tree in sorted(trees):
             report["blockers"].append(f"  {tree}: {', '.join(measured_in[tree])}")
@@ -434,20 +532,30 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             "證據沒有記下它在哪一棵樹上量的（DP-482 之前產生的），"
             "「量完之後還有沒有新 commit」這一條沒有被檢查")
     else:
-        report["measured_in"] = trees[0]
-        tip = subprocess.run(["git", "-C", trees[0], "rev-parse", "HEAD"],
-                             capture_output=True, text=True).stdout.strip()
-        if not tip:
-            # 量測用的那棵樹已經不在（釋出尾段會移除 worktree）不是紅燈：這一條問的是
-            # 「量完之後有沒有再 commit」，而那棵樹消失的時候這件事在這裡量不到。
-            report["notes"].append(
-                f"量測用的工作區問不出 HEAD（{trees[0]}）——"
-                "「量完之後還有沒有新 commit」這一條沒有被檢查")
-        elif head and tip != head:
-            shown_head, shown_tip = distinguish(head, tip)
-            report["blockers"].append(
-                f"證據量的是 {shown_head}，但 {trees[0]} 現在在 {shown_tip}——"
-                "量完之後又有 commit 落下去了")
+        # 純量那一個給只讀得懂一棵樹的下游（釋出尾段）；`heads` 才說得完。
+        report["measured_in"] = (report["heads"][0]["tree"] if report["heads"]
+                                 else trees[0])
+        # **每一棵各問一次。** 只問第一棵的話，另外幾棵的 head 動了看不出來——而那正是
+        # 這張單要處理的那件事的另一半：紀錄綁得住的樹要真的被檢查過（DP-611）。
+        for entry in (report["heads"] or [{"tree": trees[0], "head_sha": head}]):
+            tree = entry["tree"]
+            # 純量那一棵拿「要交付的 head」去比——`--head` 加 `--delta-allows` 的時候
+            # 交付的 head 本來就走在證據前面，而那棵樹的 tip 該等於交付的那一個。其餘
+            # 幾棵沒有「要交付的 head」可言，各拿自己記下的那一個。
+            at = head if tree == report["measured_in"] else entry["head_sha"]
+            tip = subprocess.run(["git", "-C", tree, "rev-parse", "HEAD"],
+                                 capture_output=True, text=True).stdout.strip()
+            if not tip:
+                # 量測用的那棵樹已經不在（釋出尾段會移除 worktree）不是紅燈：這一條問的是
+                # 「量完之後有沒有再 commit」，而那棵樹消失的時候這件事在這裡量不到。
+                report["notes"].append(
+                    f"量測用的工作區問不出 HEAD（{tree}）——"
+                    "「量完之後還有沒有新 commit」這一條沒有被檢查")
+            elif at and tip != at:
+                shown_head, shown_tip = distinguish(at, tip)
+                report["blockers"].append(
+                    f"證據量的是 {shown_head}，但 {tree} 現在在 {shown_tip}——"
+                    "量完之後又有 commit 落下去了")
 
     report["rows"] = [{"id": aid,
                        "state": rows.get(aid, (PASS, "證據站得住"))[0],
