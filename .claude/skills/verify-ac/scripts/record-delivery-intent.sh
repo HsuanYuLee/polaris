@@ -255,6 +255,9 @@ PY
 HEAD_SHA="$(cat "$HEAD_FROM_EVIDENCE")"
 DELIVERED_IN="$(cat "$TREE_FROM_EVIDENCE")"
 HEAD_DELTA="$(cat "$DELTA_FROM_EVIDENCE")"
+# 證據自己說它量在哪。底下的 fallback 會在問不到的時候把 DELIVERED_IN 換成這張單的宣告，
+# 換完之後那兩個值就一定相等——所以要比對的那一份得在換之前留下來。
+EVIDENCE_TREE="$DELIVERED_IN"
 
 # 兩種情況會讓「改動落在哪」問不到那份證據：DP-482 之前產生的證據根本沒記下這件事，
 # 以及**記下了、但那棵樹已經不在**——釋出尾段的前一步就是移除量測用的 worktree。第二種
@@ -284,6 +287,46 @@ if [[ -z "$DELIVERED_IN" ]]; then
     echo "NOTE: 證據記的量測工作區 ${GONE_TREE} 已經不在，而這張單的宣告也給不出一個還在的地方；" \
          "底下的枚舉走它自己的預設（單住的那個 repo），這一趟沒有問到改動真的落下去的那棵樹。"
   fi
+fi
+
+# 證據量在哪棵樹，跟這張單宣告它落在哪，要對得上。
+#
+# 上面那段 fallback 只在「問不到」的時候拿宣告來補，兩邊**都答得出來**的時候它從來不比
+# ——而那正是會出事的那一種：量測命令自己在命令字串裡 `cd` 進產品 repo，oracle 的 run_dir
+# 仍然是呼叫者站的框架 repo，於是 head 取自一棵跟這張單無關的樹。那份紀錄看起來完全正常，
+# 而它綁住的 commit 只要框架 repo 有人壓版就會變，跟這張單的產出無關（2026-08-28 兩張產品單）。
+#
+# 修法不是多一個欄位——旋鈕早就有了（run-hardened-oracle.sh 的 --cwd 設 run_dir，而 head_sha
+# 與 measured_in 都從 run_dir 取，DP-482 做的）。缺的只是沒有人比對，於是沒有人轉它。
+#
+# **一張單可以宣告不只一棵樹**（真樹上有 2 張，其中一張三棵），所以這裡讀的是全部，
+# 落在其中任何一棵都算數，不是只讀第一行。
+DECLARED_TREES=""
+LANDING_RESOLVER2="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
+if [[ -f "$LANDING_RESOLVER2" && -f "$ISSUE_DIR/.spine/loop-state.json" ]]; then
+  DECLARED_TREES="$(bash "$LANDING_RESOLVER2" landing --state "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null || true)"
+fi
+if [[ -z "$EVIDENCE_TREE" ]]; then
+  # 問不到不是相符。說出缺的是哪一份——一個安靜的第三態，下一次就會被當成比過了。
+  echo "NOTE: 證據沒有記下它量在哪一棵樹，所以「量的樹與這張單的落腳處相不相符」這一項沒有問到。"
+elif [[ -z "$DECLARED_TREES" || "$DECLARED_TREES" == "unlanded" ]]; then
+  echo "NOTE: 這張單沒有宣告落腳處（loop-state 回「${DECLARED_TREES:-讀不到}」），" \
+       "所以「量的樹與這張單的落腳處相不相符」這一項沒有問到。證據量在 ${EVIDENCE_TREE}。"
+else
+  TREE_MATCHED=0
+  while IFS= read -r one; do
+    [[ -z "$one" ]] && continue
+    [[ "$one" == "$EVIDENCE_TREE" ]] && TREE_MATCHED=1
+  done <<<"$DECLARED_TREES"
+  if [[ "$TREE_MATCHED" == 0 ]]; then
+    die "POLARIS_DELIVERY_INTENT_TREE_NOT_LANDING" \
+      "證據量在 ${EVIDENCE_TREE}，而這張單宣告它的改動落在：" \
+      "$(sed 's/^/  /' <<<"$DECLARED_TREES")" \
+      "兩者不是同一棵樹，所以證據綁的 head 說不出這張單交付了什麼——那棵樹上任何無關的" \
+      "commit 都會動到它。量測命令自己 cd 進去不夠：要讓 head 跟著走，用" \
+      "run-hardened-oracle.sh 的 --cwd 指名那棵樹。"
+  fi
+  echo "NOTE: 證據量的樹就是這張單宣告的落腳處（${EVIDENCE_TREE}）。"
 fi
 
 # 舊層還撐著的話，這張單交付不出去。這道檢查以前只寫在散文裡，於是它對每一張真單都紅了
