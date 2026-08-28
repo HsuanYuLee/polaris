@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Description: 把「交出去之前的七問」各自需要的輸入蒐集起來，逐問印出來；拿不到的那幾問
+# Description: 把「交出去之前的八問」各自需要的輸入蒐集起來，逐問印出來；拿不到的那幾問
 #              指名說出為什麼拿不到。它不判定、不擋人，只負責讓「沒問到」與「問了沒事」
 #              長得不一樣。
 # Args: [--repo <path>] [--base <ref>] [--pr <number>]
-# Exit: 0 = 蒐集完了（不論七問答得出幾問）；2 = 連蒐集都做不到（不是 git repo）。
+# Exit: 0 = 蒐集完了（不論八問答得出幾問）；2 = 連蒐集都做不到（不是 git repo）。
 #
 # 它刻意不認得任何一套流程、任何一家公司、任何一個工作區設定檔：唯一的輸入是「當次執行
 # 的那個 git repo」。規範從那個 repo 現場讀，不從記憶讀，也不抄一份放在這支 skill 底下
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
 done
 
 git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || {
-  echo "UNMEASURABLE: $REPO 不是一個 git repo——七問全部建立在「我改了什麼」上，沒有它就沒有輸入。" >&2
+  echo "UNMEASURABLE: $REPO 不是一個 git repo——八問全部建立在「我改了什麼」上，沒有它就沒有輸入。" >&2
   exit 2
 }
 
@@ -342,13 +342,45 @@ else
 fi
 echo
 
+# ── Q8 我加的東西誰會跑它、這個 repo 做不做這種東西 ────────────────────────────
+echo "── Q8 誰跑它／有沒有先例 ──"
+# 撈的是 diff 的**加號那一側裡整個新增的檔案**。改到既有的檔案不算——那個檔案本來就有人
+# 跑，本來就有先例；會安靜的是「這個 repo 從來沒有過這種東西，而我加了一個」。
+ADDED_FILES="$(git -C "$REPO" diff --name-only --diff-filter=A "$DIFF_RANGE" 2>/dev/null || true)"
+if [ -z "$CHANGED" ]; then
+  note_unanswerable Q8 "diff 是空的。"
+elif [ -z "$ADDED_FILES" ]; then
+  note_unanswerable Q8 "這次的 diff 沒有新增任何檔案——沒有新東西要問誰跑它。"
+else
+  echo "[這次新增的檔案，以及這個 repo 裡同副檔名的有幾個]"
+  printf '%s
+' "$ADDED_FILES" | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    ext="${f##*.}"
+    if [ "$ext" = "$f" ]; then
+      n="?"
+    else
+      n="$(git -C "$REPO" ls-files "*.$ext" 2>/dev/null | wc -l | tr -d ' ')"
+    fi
+    printf '  %s   （同副檔名 %s 個）
+' "$f" "$n"
+  done
+  echo
+  echo "**這個數字是一個下界，不是答案。** 同副檔名不等於同形狀——要自己去數的是「這個 repo"
+  echo "裡跟我加的這個**同形狀**的有幾個」。零就不要做，不是「小心一點做」。"
+  echo
+  echo "然後逐個問：**誰會跑它？** 指名一條真的會執行到它的路徑——CI 的哪一個工作、哪一條"
+  echo "glob 收得到它、本機哪一條命令。指不出來就是沒有人跑，而一個永遠不執行的檔案跟沒有"
+  echo "那個檔案一樣安靜，差別只在它看起來很完整。"
+fi
+echo
 # ── 收尾：答得出幾問，答不出的是哪幾問 ──────────────────────────────────────────
 COUNT="$(printf '%s' "$UNANSWERED" | wc -w | tr -d ' ')"
 echo "=============================================="
-echo "ANSWERABLE: $((7 - COUNT))/7"
+echo "ANSWERABLE: $((8 - COUNT))/8"
 if [ "$COUNT" -gt 0 ]; then
   echo "答不出的：${UNANSWERED} —— 每一問的原因印在它自己那一段"
-  echo "**答不出不是通過。** 一份沒答滿的自檢，讀起來跟答滿七問的一模一樣——"
+  echo "**答不出不是通過。** 一份沒答滿的自檢，讀起來跟答滿八問的一模一樣——"
   echo "所以它要說出自己少了哪幾問。"
 fi
 echo "=============================================="

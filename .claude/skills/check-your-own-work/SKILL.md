@@ -2,17 +2,18 @@
 name: check-your-own-work
 description: |
   Before handing your own change over — opening a PR, asking for review, saying
-  "done" — check it against seven questions that come from what reviewers actually
+  "done" — check it against eight questions that come from what reviewers actually
   caught: claims that do not match the diff, the repo's own rules not applied,
   half-done pattern changes, runtime behaviour asserted from reading source,
-  last round's comments still unaddressed, assertions that cannot fail, and a
-  mechanism you removed whose jobs nobody carried over.
+  last round's comments still unaddressed, assertions that cannot fail, a
+  mechanism you removed whose jobs nobody carried over, and something you added
+  that nothing runs or that this repo has no precedent for.
 
   Use when you are about to hand your own work over, or when someone asks you to
   self-check, double-check, or go over your change before submitting.
 
   交出自己的改動之前——開 PR、找人 review、說「做完了」——先對一次自己寫的東西。
-  七問來自 review 真的抓到的東西，不是想像出來的清單。
+  八問來自 review 真的抓到的東西，不是想像出來的清單。
 
   不用於：看別人的 PR（那是 code review，主語是別人的改動）。
   不用於：判定某個交付達不達標——這支不判紅、不擋人，它產出一份要被處置的清單。
@@ -26,13 +27,18 @@ scope: universal
 **這不是一道閘。** 它不回 PASS／FAIL，也不阻止任何後續動作。它產出一份 finding 清單，
 而那份清單的價值完全來自**它在同一輪裡被處置掉**——一份沒有人動的報告，跟沒有報告一樣。
 
-七問不是想出來的。前六問是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
+八問不是想出來的。前六問是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
 **完全不需要任何領域知識就避得掉**：它們是「我沒有把自己剛寫的東西跟自己剛寫的宣稱對一次」，
 不是「我不知道這個框架怎麼寫」。
 
 **第七問的出處不同，要分開說。** 它來自 2026-08-27 一組十二則意見——那一批走了六輪 review，
 而八則 SWE 通則裡有五則是同一個根因：拿掉一個機制，只補上它看得見的那一半。它不在 829 則
 那個統計裡，所以不要把它讀成「第七類反覆缺陷」——它是一類，但樣本只有一批。
+
+**第八問的樣本更薄，只有一批十二則。** 那一批歸出四個根因，其中三個前面七問都抓不到：
+一個新加的測試檔沒有任何 CI 會跑、301 行另一種語言的測試設施在一個零先例的 repo 裡、
+以及三支既有測試對唯一的行為改變全綠（第三個由第六問放寬管轄接手）。**兩問共用同一次
+搜尋**，所以它們是一問不是兩問。同樣不要把它讀成一個統計結論。
 
 ## 先把材料撈出來
 
@@ -45,13 +51,13 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 `main`／`master`／`develop`），PR 自己去問 `gh`。**它唯讀，不對外寫入任何東西。**
 
 它逐問印出那一問需要的輸入，**拿不到的那幾問指名說出為什麼拿不到**，最後印
-`ANSWERABLE: n/7`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿七問的
+`ANSWERABLE: n/8`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿八問的
 一模一樣，所以它要說出自己少了哪幾問。
 
 **答不出不是通過。** 沒有 `gh`、沒有 PR、沒有上一輪意見、這個 repo 一份規範都沒有、diff
 是空的——這五種都是常態，不是錯誤，但它們各自代表「這一問沒有答案」，不代表「這一問沒事」。
 
-## 七問
+## 八問
 
 ### 一、我寫下的每一句宣稱，在 diff 裡都找得到對應的改動嗎
 
@@ -102,10 +108,18 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 
 標本：同一個日期處理的 bug 被三位 reviewer 在三輪裡各指一次；作者說修好了之後它還在。
 
-### 六、我新增的每一條斷言，注入一刀會不會紅
+### 六、這一輪唯一的行為改變，把實作改回去，有沒有任何一條紅
 
 **整檔會紅證明不了每一條都在守。** 恆真的那一條躲在同一個區塊裡永遠看不到——要指名跑那
 一條，而且每一條「回來的路」各注入一次，再配一個正向控制。
+
+**主語是「行為改了什麼」，不是「我改了什麼」。** 既有的那幾支也算。它們在 diff 裡一行都
+沒動，所以任何以「我新增的」為主語的問句都掃不到它們——而它們正是被拿來說「這裡有測試在
+守」的那幾支。做法是把實作改回舊的，再看有沒有任何一條紅；一條都沒紅，就表示這一輪的行為
+改變沒有任何斷言在守。
+
+標本：三支既有的結構化資料測試，對某一輪唯一的行為改變全綠——把實作改回舊的，4/4、5/5、
+17/17 全過。同一輪自己新加的一句紅訊息，對這個 repo 歷史上唯一的改法一個字都不印。
 
 這次的 diff 沒有動到任何測試檔的話，**那本身就是一條 finding**：一個改了行為卻沒有任何新
 斷言的交付，等著被問「那你怎麼知道它是對的」。
@@ -132,7 +146,27 @@ finding 並回去讀那段被刪掉的程式；不要讓這一問安靜地通過
 重建原本連帶讓整段初始化重跑，而初始化裡有一條防呆分支——新的那支只複製了看得見的那一半，
 那條分支從此沒有人跑。兩位 reviewer 用列舉法逐個呼叫點看出來，作者量了一種形狀就收工。
 
-## 處置：這一步不做，前面七問等於沒做
+### 八、我加的東西誰會跑它？這個 repo 做不做這種東西
+
+兩件事放同一問，因為證據是同一次搜尋。
+
+**誰跑它。** 新加的檔案要指名一條真的會執行到它的路徑：CI 的哪一個工作、哪一條 glob 收得
+到它、本機哪一條命令。指不出來就是沒有人跑——一個永遠不執行的測試跟沒有那個測試一樣安靜，
+差別只在它看起來很完整。
+
+**這個 repo 做不做這種東西。** 數這個 repo 裡同形狀的東西有幾個。**零就不要做**，不是
+「小心一點做」。
+
+這一問跟第三問方向相反。第三問問「同型的還有幾處，我是不是該一起改」，它已經預設了這個
+repo 會做這件事；這一問問的是那個預設成不成立。`swe-knowledge`〈動手刻之前〉也不涵蓋它
+——那一段的判準是**行為重疊**，而一件從來沒有人做過的事，行為重疊是零，照那一問走會通過。
+零重疊的行為，配上零先例的形狀，是兩件事。
+
+標本：往兩個 PHP repo 各塞了 301 行 JS 測試設施，其中 118 行是手寫的 PHP 剝註解器。那個
+repo 有 30 支 PHP 原生的測試、零支用 JS 去讀 `.php` 的測試，而審查的人直接指了那條原生的
+路。同一輪還加了一個測試檔，CI 只跑 JS、而它的 glob 只收 `.js`，所以那個檔從來沒有被執行過。
+
+## 處置：這一步不做，前面八問等於沒做
 
 每一條 finding 只有兩種結局：
 
