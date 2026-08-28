@@ -81,13 +81,19 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
 2. 解析 mode：Thread 優先，其次 explicit Label，其餘走 Slack。
 3. 取得 current GitHub username，作為 exclude author 與 review-status 判定依據。
 4. 依 discovery reference 產生 candidates JSON；scan snapshot 超過 60 秒不可沿用。
-   Slack channel scan 使用 MCP 時指定 concise output；fallback CLI 的 `--oldest` 可接受
+   Slack channel scan 使用 MCP 時指定 **detailed** output——`concise` 不輸出
+   `=== Message from ` 與 `Message TS: ` 這兩個 marker，parser 會找不到 message header 而
+   **靜默回傳 0 個 URL**（stderr 只印一行 WARN，離場碼仍然是 0），而那跟「channel 真的空」
+   分不開；fallback CLI 的 `--oldest` 可接受
    Slack timestamp 或 ISO date/datetime。
+   **產出 candidates 之前要先過 `scripts/review-inbox-discovery-probe.sh`。** 它非零就停在
+   那裡、把 marker 與說明回報出來——**不要宣告空的收件匣，也不要靜默改走 label scan**。
 5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
    topic，使用 `root_topic_key`；最後才 fallback 到每張 PR 自己的 ticket。
-6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
+6. 若 candidates 為空**而且 probe 回的是 `POLARIS_DISCOVERY_LEGITIMATE_EMPTY`**，回報目前
+   沒有需要 review 的 PR 並停止。probe 沒過的空清單不是空的收件匣，是來源壞掉了。
 7. 顯示排序後清單，然後全部進入 review。**不問「先看哪一批」、不問「要不要送」、不因為
    張數多或 diff 大自行縮小範圍。** 這一支只在兩種情況停下來，而且要說出是哪一種：來源
    拿不到，或是需要授權而授權不存在。
