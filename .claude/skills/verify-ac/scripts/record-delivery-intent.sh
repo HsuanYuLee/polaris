@@ -184,6 +184,10 @@ fi
 python3 - "$ROOT_DIR" "$INDEX" "$ISSUE_DIR" "$HEAD_SHA" "$HEAD_FROM_EVIDENCE" \
   "$TREE_FROM_EVIDENCE" "$DELTA_FROM_EVIDENCE" "$HEADS_FROM_EVIDENCE" \
   "${DELTA_ALLOWS[@]+${DELTA_ALLOWS[@]}}" <<'PY' || exit 1
+# 這兩個 import 放在最上面，不放在用得到它們的那個分支裡。條件運算式只求值被選中的那
+# 一半，所以一個寫在 `if` 裡的 import 在另一條路上就不存在——而底下那條路只有「證據來
+# 自不只一棵樹」的單走得到，框架自己的單全部是單樹，永遠走不到（DP-615）。
+import json
 import sys
 
 sys.path.insert(0, sys.argv[1] + "/scripts/lib")
@@ -245,7 +249,6 @@ open(tree_out, "w", encoding="utf-8").write(report["measured_in"])
 open(heads_out, "w", encoding="utf-8").write(
     json.dumps(report["heads"], ensure_ascii=False) if len(report["heads"]) > 1 else "")
 if report["delta"]:
-    import json
     open(delta_out, "w", encoding="utf-8").write(
         json.dumps(report["delta"], ensure_ascii=False))
     # 兩個被說成不同的 sha 要印得看得出不同——其中一個是另一個的前綴時，截成 12 個字元
@@ -370,7 +373,11 @@ import sys
 # 所以寫下來的那一條路徑在下一次重算之後就是死指標——實測 19 條存過的單路徑全部指向已經
 # 不存在的目錄。位置要用的時候問 `spine-loop-state.sh find`，而讀這份紀錄的東西（釋出尾段的
 # 關卡）本來就是從紀錄自己的位置認出這是哪張單的，從來沒有讀過這個欄位。
-issue = os.path.basename(os.path.normpath(source))
+# `abspath` 而不是 `normpath`：從單自己的目錄裡用 `--issue .` 跑的時候，`normpath(".")`
+# 還是 `"."`，於是這一欄記下一個叫「.」的單。上面那句「記名字，不記路徑」因此兩邊都沒做
+# 到——記的既不是名字也不是路徑。沒有人發現是因為讀這份紀錄的東西從來沒讀過這個欄位，
+# 而一個沒有消費者的欄位錯了不會有人紅（DP-615）。
+issue = os.path.basename(os.path.abspath(source))
 payload = {
     "schema_version": 2,
     "producer": "record-delivery-intent.sh",
