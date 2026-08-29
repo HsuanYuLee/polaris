@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""埋在「不是單」的目錄底下的單也要被找到——五條斷言各量一次。見同名 .sh 的檔頭。"""
+"""埋在「不是單」的目錄底下的單也要被找到——五條 assertion 各量一次。見同名 .sh 的檔頭。"""
 
 import contextlib
 import importlib.util

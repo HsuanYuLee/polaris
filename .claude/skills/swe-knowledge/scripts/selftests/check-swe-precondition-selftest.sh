@@ -60,7 +60,7 @@ else
   ok "預設分支叫 develop 一樣判得出來"
 fi
 
-# 解不出預設分支＝量不到。負向斷言的儀器天生會把它讀成沒問題。
+# 解不出預設分支＝量不到。負向 assertion 的儀器天生會把它讀成沒問題。
 repo="$(new_repo no_head main)"
 git -C "$repo" symbolic-ref -d refs/remotes/origin/HEAD
 run --repo "$repo"

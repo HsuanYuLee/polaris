@@ -13,7 +13,7 @@ SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SKILL="$(cd "$SCRIPTS/.." && pwd)"
 SKILLS_ROOT="$(cd "$SKILL/.." && pwd)"
 
-# 紅控用：把被量的那一支換成修正前的版本，其餘一切不動。沒有這個口的話，紅控只能
+# 反向對照組用：把被量的那一支換成修正前的版本，其餘一切不動。沒有這個口的話，反向對照組只能
 # 另寫一支腳本，而另寫的那一支證明不了「這一支量得到」。
 SUBJECT_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
@@ -157,10 +157,10 @@ if [[ "$RC" -eq 0 && "$OUT" == *"...$REVIEWED_OLD"* ]]; then
 else
   fail "H-P4 --print-diff 釘在宣告的那顆 sha 上" "rc=$RC out=$OUT"
 fi
-# 只斷言「輸出裡有宣告值」不夠：一個對當下 head 取 diff、卻把宣告值印在別處的實作
-# 也會滿足它。要斷言的是當下 head 沒有出現在那條 compare 路徑上。
+# 只 assertion「輸出裡有宣告值」不夠：一個對當下 head 取 diff、卻把宣告值印在別處的實作
+# 也會滿足它。要驗的是當下 head 沒有出現在那條 compare 路徑上。
 #
-# 而「不含當下 head」單獨拿出來是空話：一個什麼都沒印的實作也滿足它——紅控實測修正
+# 而「不含當下 head」單獨拿出來是空話：一個什麼都沒印的實作也滿足它——反向對照組實測修正
 # 前的版本在這一條上是綠的，因為它根本不認得 --print-diff。所以先要求真的取到了一份
 # 釘住的 diff，再問它有沒有用當下 head。
 if [[ "$OUT" == *compare/* && "$OUT" != *"$CURRENT_HEAD"* ]]; then

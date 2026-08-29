@@ -35,7 +35,7 @@ issues/
       index.md                       正文含凍結塊，其餘是可以改的部分
       .spine/loop-state.json         輪次
       .spine/measurement-ledger.json 量測命令登錄
-      .spine/evidence/{斷言}.json    oracle 留下的證據
+      .spine/evidence/{assertion}.json    oracle 留下的證據
       .spine/delivery.json           交付紀錄（判定 PASS 之後才寫得下去）
     archive/
       {單號}/                        收斂完的搬到這裡，由流程自己搬

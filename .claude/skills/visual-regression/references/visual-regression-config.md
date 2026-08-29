@@ -79,7 +79,7 @@ polaris-config/{company}/visual-regression/
   ├── record-fixtures.sh        # VR 錄製工具
   └── {domain}/
       ├── playwright.config.ts  # Playwright 設定（讀 VR_BASE_URL env var）
-      ├── pages.spec.ts         # 測試案例（從 config 生成初版，用戶可修改）
+      ├── pages.spec.ts         # 測試案例（從 config 生成初版，使用者可修改）
       ├── snapshots/            # 暫存：before 截圖（跑完即刪）
       ├── test-results/         # 暫存：diff 圖片（跑完即刪）
       └── playwright-report/    # HTML report（保留供檢視，不 commit）
@@ -121,7 +121,7 @@ polaris-config/{company}/visual-regression/
 - **那裡的東西沒有歷史。** 誰改的、什麼時候改的、為什麼改成這樣，一個字都查不到。
 - **丟了就沒了。** `playwright.config.ts` 裡那些「為什麼是這個值」的理由（workers=1、
   mobile 要換 UA、自簽憑證要 `ignoreHTTPSErrors`）住在一個沒有備份的地方。
-- **在那裡修東西不會出現在任何 diff 上**，所以沒有任何斷言驗得了它。
+- **在那裡修東西不會出現在任何 diff 上**，所以沒有任何 assertion 驗得了它。
 
 因此**會漂的那兩件事由這個 skill 這一側的檢查守**（`scripts/check-vr-config.sh`），
 不由那棵樹自己守：宣告的瀏覽器與 project 實際跑的引擎對不對得起來、設定裡列的頁面還在
@@ -178,7 +178,7 @@ viewport 上看過那個 selector 出現。設定裡沒有地方分開寫的話�
 
 **Fixture 路徑解析**：不再使用 `environments_dir` + `active_epic` 拼接。Skill 從 active Epic context 推導 mockoon 路徑：`{company_specs_dir}/{EPIC}/tests/mockoon/`。
 
-**為什麼建議使用 fixture server：** 開發期間後端 API 可能調整（欄位變更、資料異動），導致截圖比對出現假陽性。Fixture server 提供穩定、可控的 API 回應，確保 before/after 差異只來自前端代碼變更。
+**為什麼建議使用 fixture server：** 開發期間後端 API 可能調整（欄位變更、資料異動），導致截圖比對出現假陽性。Fixture server 提供穩定、可控的 API 回應，確保 before/after 差異只來自前端程式碼變更。
 
 ### `global_masks` — 全域遮蔽
 

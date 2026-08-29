@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: 這支 skill 被單獨下載到一個只有它自己的地方，還跑得動。
 # Inputs:  把整個 skill 目錄複製到 mktemp 底下——沒有這個 repo、沒有 .claude/rules/、
-#          沒有姊妹 skill、不是 git repo。紅控用的 fixture 也在 mktemp 底下。
+#          沒有姊妹 skill、不是 git repo。反向對照組用的 fixture 也在 mktemp 底下。
 # Outputs: PASS 當一支「伸手到姊妹 skill」的假 skill 在那裡變紅，而這支 skill 自己
 #          每一支 selftest 都還是綠的。
 #
@@ -50,7 +50,7 @@ run_away() {
 
 echo "standalone selftest"
 
-# 紅控：一支伸手到姊妹 skill 的假 skill。它在這個 repo 裡是綠的，搬走就不是——那正是
+# 反向對照組：一支伸手到姊妹 skill 的假 skill。它在這個 repo 裡是綠的，搬走就不是——那正是
 # 這一支要抓的形狀，而且抓得到才有資格說下面那句「這支 skill 是綠的」。
 FAKE="$WORK/fixture-src/reaches-out"
 mkdir -p "$FAKE/scripts/selftests"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# workspace-changeset-visibility-selftest.sh — DP-559 的六條斷言各量一次。
+# workspace-changeset-visibility-selftest.sh — DP-559 的六條 assertion 各量一次。
 #
 # 兩件事疊起來會產生一個看 diff 看不出來的、不可逆的後果：`destination: workspace` 的
 # 釋出不壓版，所以它留下的 changeset 沒有人會消化；而 `.changeset/` 以前不在 template-leak

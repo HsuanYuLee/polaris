@@ -288,20 +288,20 @@ else
 fi
 echo
 
-# ── Q6 我新增的斷言，注入一刀會不會紅 ───────────────────────────────────────────
-echo "── Q6 恆真斷言／假綠 ──"
+# ── Q6 我新增的 assertion，注入一刀會不會紅 ───────────────────────────────────────────
+echo "── Q6 恆真 assertion／假綠 ──"
 # 認測試檔用「路徑段」與「檔名中綴」，不用裸的子字串——`special-flow` 裡有 spec，
 # `latest.json` 裡有 test，兩個都不是測試檔，而把它們算進來會讓 Q6 對著錯的東西問問題。
 TESTS="$(printf '%s\n' "$CHANGED" | grep -Ei '(^|/)(__tests__|tests?|specs?)/|[._-](test|spec|selftest)s?\.[A-Za-z0-9]+$|(^|/)[A-Za-z0-9_-]*selftest[A-Za-z0-9_-]*\.[A-Za-z0-9]+$' || true)"
 if [ -z "$CHANGED" ]; then
   note_unanswerable Q6 "diff 是空的。"
 elif [ -z "$TESTS" ]; then
-  note_unanswerable Q6 "這次的 diff 沒有動到看起來像測試的檔案。**這本身是一個 finding**：一個改了行為卻沒有任何新斷言的交付，等著被問「那你怎麼知道它是對的」。"
+  note_unanswerable Q6 "這次的 diff 沒有動到看起來像測試的檔案。**這本身是一個 finding**：一個改了行為卻沒有任何新 assertion 的交付，等著被問「那你怎麼知道它是對的」。"
 else
   echo "[這次動到的測試檔]"
   printf '%s\n' "$TESTS" | sed 's/^/  /'
   echo
-  echo "[新增的斷言行]"
+  echo "[新增的 assertion 行]"
   git -C "$REPO" diff -U0 "$DIFF_RANGE" -- $(printf '%s ' $TESTS) 2>/dev/null \
     | grep -E '^[+]' | grep -Ev '^[+]{3}' \
     | grep -Ei '(expect|assert|should|toBe|toEqual|toHaveBeen|\[\[|test -)' \

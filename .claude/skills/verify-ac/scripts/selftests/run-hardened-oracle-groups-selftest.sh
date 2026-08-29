@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Selftest for run-hardened-oracle.sh 的分組模式（DP-529）——一條命令、N 條斷言、跑一次。
+# Selftest for run-hardened-oracle.sh 的分組模式（DP-529）——一條命令、N 條 assertion、跑一次。
 #
-# 為什麼要有這一支：同一條量測命令常常同時是好幾條斷言的量測，而以前一份 --evidence-out
+# 為什麼要有這一支：同一條量測命令常常同時是好幾條 assertion 的量測，而以前一份 --evidence-out
 # 只能對一條，所以產 N 份證據要 invoke N 次，每一次都真的把命令再跑一遍。量到的代價是
-# 十六條斷言共用一條 495 秒的命令跑成兩小時十分，而十六份證據 34 行裡 31 行逐位元組相同。
+# 十六條 assertion 共用一條 495 秒的命令跑成兩小時十分，而十六份證據 34 行裡 31 行逐位元組相同。
 #
 # 這一支守的是那條路省下來的東西**不是靠複製買到的**：每一組要在同一份輸出上各自判、
-# 各自寫。把同一個判定複製 N 份也會很快，而且看起來一模一樣——差別只在「這條斷言真的被
+# 各自寫。把同一個判定複製 N 份也會很快，而且看起來一模一樣——差別只在「這條 assertion 真的被
 # 檢查過」是不是真的。
 
 set -euo pipefail
@@ -49,9 +49,9 @@ out="$(bash "$ORACLE" --command "bash $tmp/cmd.sh" --cwd "$REPO" \
   --assertion Q-A --expect-evidence 'MEASURED alpha' --evidence-out "$tmp/A.json" \
   --assertion Q-B --expect-evidence 'MEASURED beta'  --evidence-out "$tmp/B.json" 2>&1)" && rc=0 || rc=$?
 if [[ "$rc" -eq 0 && "$(runs)" -eq 1 && -f "$tmp/A.json" && -f "$tmp/B.json" ]]; then
-  ok "兩條斷言共用一條命令 → 命令只跑一次（$(runs)），兩份證據都在"
+  ok "兩條 assertion 共用一條命令 → 命令只跑一次（$(runs)），兩份證據都在"
 else
-  bad '兩條斷言共用一條命令 → 命令只跑一次，兩份證據都在' "rc=$rc 跑了 $(runs) 次
+  bad '兩條 assertion 共用一條命令 → 命令只跑一次，兩份證據都在' "rc=$rc 跑了 $(runs) 次
 $out"
 fi
 

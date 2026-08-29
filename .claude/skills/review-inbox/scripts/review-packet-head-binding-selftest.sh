@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # review-packet-head-binding-selftest.sh — 量 review packet 有沒有把三步交代出去（DP-459 H-P5）。
 #
-# 被判定的對象是 build-review-prompt.sh **實際產出的文字**，不是它的原始碼。只斷言原始碼
+# 被判定的對象是 build-review-prompt.sh **實際產出的文字**，不是它的原始碼。只 assertion 原始碼
 # 的話，一個改了註解卻沒改 emit 內容的版本會全綠——而 sub-agent 讀到的只有產出的那份。
 #
 # 這一支住在 review-inbox 而不是跟 submit-pr-review-selftest.sh 放在一起：packet 是這支
@@ -50,8 +50,8 @@ done
 # 那個字串過不了 helper 的 --repository 檢查——所以這一條同時是「有解出來」與
 # 「解錯了會被看見」。
 #
-# 斷言的是那個旗標帶的值，不是「packet 裡有沒有 acme/acme-web」——後者在修正前的
-# 版本上也是綠的，因為 PR URL 本來就含那一段。紅控實測過。
+# assertion 的是那個旗標帶的值，不是「packet 裡有沒有 acme/acme-web」——後者在修正前的
+# 版本上也是綠的，因為 PR URL 本來就含那一段。反向對照組實測過。
 # 取第一個命中不行：內嵌進 packet 的 dispatch bundle 裡有一段示範用的 OWNER/REPO
 # 佔位字串，而它排在前面。要問的是「有沒有一處帶著真的解出來的值」。
 slugs="$(printf '%s' "$PACKET" | grep -o -- '--repository [^ ]*' | awk '{print $2}' | sort -u | tr '\n' ' ')"

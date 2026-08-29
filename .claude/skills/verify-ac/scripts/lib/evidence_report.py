@@ -54,7 +54,7 @@ def namespace_of(issue_dir, issues_root=None):
 def collect_files(issue_dir, ids):
     """要跟著報告一起送出去的檔案。
 
-    兩種：每條斷言的證據 JSON，以及 `.spine/attachments/` 底下的東西（截圖之類）。
+    兩種：每條 assertion 的證據 JSON，以及 `.spine/attachments/` 底下的東西（截圖之類）。
     回的是相對於 `issue_dir` 的路徑——絕對路徑只在產生它的那台機器上有意義。
     """
     files = []
@@ -121,7 +121,7 @@ def render_markdown(manifest):
     lines = [
         f"# 判定報告：{manifest['issue']}",
         "",
-        f"- 斷言 {len(manifest['assertions'])} 條——"
+        f"- assertion {len(manifest['assertions'])} 條——"
         f"過 {counts['pass']}、沒過 {counts['fail']}、量不到 {counts['unmeasurable']}",
     ]
     if manifest["head"]:
@@ -137,7 +137,7 @@ def render_markdown(manifest):
                      ("rerun", "重跑一次")) if layers.get(n)) if done else "（一層都沒做成）"))
     if manifest.get("measurement_ledger") == "absent":
         lines.append("- 量測登錄不在——所以下面沒有任何一條說得出它是拿什麼量的")
-    lines += ["", "| 斷言 | 判定 | 依據 |", "|---|---|---|"]
+    lines += ["", "| assertion | 判定 | 依據 |", "|---|---|---|"]
     for a in manifest["assertions"]:
         detail = a["detail"].replace("|", "\\|").replace("\n", " ")
         lines.append(f"| `{a['id']}` | {_REPORT_VERDICT_FROM_MANIFEST[a['verdict']]} | {detail} |")

@@ -17,7 +17,7 @@ metadata:
   version: 1.0.0
   requires:
     - skill: refinement
-      why: 立案之後簽斷言那一站；也是開種子單的地方（本支散文指名 open-seed-issue.sh）
+      why: 立案之後簽 assertion 那一站；也是開種子單的地方（本支散文指名 open-seed-issue.sh）
     - skill: engineering
       why: 兩個關卡之間那一站；本支只說「去那裡」，不說怎麼做
     - skill: verify-ac
@@ -55,7 +55,7 @@ scope: universal
 
 ### 手上正在做別的事，但長出了一個不能消失的東西
 
-開發途中會問出、查出、撞出只有當下知道的東西。停下來簽一張正式的單太貴——斷言此刻也
+開發途中會問出、查出、撞出只有當下知道的東西。停下來簽一張正式的單太貴——assertion 此刻也
 簽不出來，因為怎麼算成功還沒想清楚。丟著又會消失：一個修正留在一個到不了別人手上的
 地方，跟沒有那個修正是一樣的（2026-08-07 真的發生過，同一個 bug 因此咬了兩版）。
 
@@ -66,7 +66,7 @@ bash .claude/skills/refinement/scripts/open-seed-issue.sh \
   --issues issues --namespace <命名空間> --slug <名字> --note '<前因後果>'
 ```
 
-它不簽斷言、不決定領域、不開 worktree、不碰你現在這張單。產出的單會出現在下面〈四〉
+它不簽 assertion、不決定領域、不開 worktree、不碰你現在這張單。產出的單會出現在下面〈四〉
 那個「接下來做哪一張」的答案裡，標成 `seed:`——所以它拿得給另一個 session 開工，而那個
 session 從 `refinement` 開始。
 
@@ -93,18 +93,18 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh where --sta
 
 | 現在的狀況 | 下一步 |
 |---|---|
-| 還沒有單 | `refinement`：判立案、寫斷言、凍結、開輪次 |
-| 斷言凍結好了 | `engineering` |
+| 還沒有單 | `refinement`：判立案、寫 assertion、凍結、開輪次 |
+| assertion 凍結好了 | `engineering` |
 | 這一輪做完了、想知道算不算達成 | `verify-ac` |
 | `verify-ac` 判非 PASS，原因是實作沒到 | 回 `engineering` |
-| `verify-ac` 判非 PASS，原因是**斷言本身錯了** | 停 `assertion_wrong`，回 `refinement` 重簽 |
+| `verify-ac` 判非 PASS，原因是**assertion 本身錯了** | 停 `assertion_wrong`，回 `refinement` 重簽 |
 | 交付紀錄寫成了 | 這條流程走完了。之後怎麼出貨是專案自己的事 |
 | 交付紀錄寫成了，而後來有人指出還要改的東西 | 回 `engineering`。改完**重走 `verify-ac`**——那一站要量的是改完之後的東西，不是上一次留下的判定 |
 | 這件事**不做了**（放棄、被別的取代、需求消失） | `close`，見下方 |
 
 **交付之後還要改，不是一個新的開始，也不是一個停點。** 那張單的成功定義沒有變——變的是
 「實作有沒有走到那份定義」這個問題的答案。所以它回 `engineering`，而不是回 `refinement`
-重簽、也不是另開一張單：另開一張的話，同一份斷言會有兩張單各自宣稱自己達成了它。
+重簽、也不是另開一張單：另開一張的話，同一份 assertion 會有兩張單各自宣稱自己達成了它。
 
 **回去之後一定要重走判定。** 上一次的判定是對上一棵樹下的，而它會留在原地看起來仍然有效
 ——一份綁在舊狀態上的 PASS，跟一份剛量出來的 PASS 長得一模一樣。真的是成功的定義本身錯了
@@ -132,7 +132,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh close \
 
 | 停點 | `--kind` |
 |---|---|
-| 斷言不對，要人重簽 | `assertion_wrong` |
+| assertion 不對，要人重簽 | `assertion_wrong` |
 | 新增依賴／重造既有組件／擴大 security surface | `surfaced_concern` |
 | 連續未收斂打到上限 | `unconverged_cap`（`record` 自己會寫） |
 | 需要人授權的不可逆動作 | `unauthorized_action` |
@@ -163,7 +163,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh next --acro
 的逐張列出來、把已收斂與已交付的算成數字——**不列成清單但要有數字**，一個安靜的第三態下一次
 就會被當成看過了。
 
-**種子單也逐張列出來**（`seed:` 開頭），不只算進數字。它們還沒簽斷言，所以接手的第一站
+**種子單也逐張列出來**（`seed:` 開頭），不只算進數字。它們還沒簽 assertion，所以接手的第一站
 是 `refinement` 而不是 `engineering`；而它們存在的整個理由就是「拿給另一個 session 開工」，
 掉出這個答案的東西等於沒開。
 
@@ -392,7 +392,7 @@ routing 照樣把工作分派出去，只是分派到一份從未被讀取的程
   不屬於這裡。
 
 **這三件事沒有關卡在守，是刻意的。** 以前有一道 `gate-layer-vocabulary` 掃三行宣告，
-判「哪些詞不得出現在哪幾支 skill 的散文裡」——那是散文斷言散文：它擋不住任何不可逆的事，
+判「哪些詞不得出現在哪幾支 skill 的散文裡」——那是一段散文在規定另一段散文：它擋不住任何不可逆的事，
 但每一次無關的改動都要付錢。判準留在這裡給寫的人讀，寫錯層的代價由「有人把那一層單獨
 搬走的時候帶不動」承擔，不由一道關卡代人承擔。
 

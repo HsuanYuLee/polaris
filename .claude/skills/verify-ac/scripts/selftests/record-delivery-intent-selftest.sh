@@ -332,7 +332,7 @@ echo "  ok  記錄成功時說得出自己做了哪三層"
 # DP-498 R。下游有時候會在判定之後、釘紀錄之前先做一件只動它自己那幾個檔案的事——釋出
 # 尾段的壓版就是。那個 commit 在判定那一站根本還不存在，所以「證據要量在交付的 head 上」
 # 這條對它永遠成立不了：實測 24 張已釋出的單裡有 15 張的交付 head 就是壓版 commit，代表
-# 那 15 次全部走過「尾段死掉 → 把全部斷言重量一次 → 再跑」。那一輪重量沒有量到任何新東西。
+# 那 15 次全部走過「尾段死掉 → 把全部 assertion 重量一次 → 再跑」。那一輪重量沒有量到任何新東西。
 #
 # 所以呼叫者可以指名那段差異碰得到哪些路徑，這支去 git 驗這句話。指名什麼是呼叫者的詞彙。
 issue="$(new_sealed_issue carry template)"
@@ -363,7 +363,7 @@ assert sorted(delta["paths"]) == ["CHANGELOG.md", "VERSION"], delta
 assert sorted(delta["declared_allowed"]) == ["CHANGELOG.md", "VERSION"], delta
 ' "$issue/.spine/delivery.json" "$measured_head" "$delivered_head" \
   || fail "延續下來的證據必須在紀錄裡說得出它延續過什麼"
-echo "  ok  只動指名路徑的 commit 不逼人把全部斷言重量一次"
+echo "  ok  只動指名路徑的 commit 不逼人把全部 assertion 重量一次"
 echo "  ok  用了豁免的紀錄自己說得出量的與交付的差在哪"
 
 # R-N1。豁免的邊界就是「指名」兩個字：那段差異只要多碰一個沒被指名的檔案，就退回原本的

@@ -1,13 +1,13 @@
 ---
 name: engineering
 description: |
-  已經有凍結的斷言、要開始或繼續施工時的站。兩個關卡之間的 loop：探索、實作、換量測、推進輪次。這裡沒有關卡。
+  已經有凍結的 assertion、要開始或繼續施工時的站。兩個關卡之間的 loop：探索、實作、換量測、推進輪次。這裡沒有關卡。
 
-  某張單的斷言已經凍結，接下來要動手做的時候，或剛從 refinement 交出來。
+  某張單的 assertion 已經凍結，接下來要動手做的時候，或剛從 refinement 交出來。
 
   也用於：跨 session 接手一張做到一半的單——讀凍結塊與可以改的那部分就能接上。
 
-  不用於：還沒有斷言的工作、要判這次算不算達成（走 verify-ac）、
+  不用於：還沒有 assertion 的工作、要判這次算不算達成（走 verify-ac）、
   決定下一站是哪一站（走 driving-work-to-done）。
 metadata:
   version: 3.0.0
@@ -68,7 +68,7 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 |---|---|
 | 量測方法不對 | 原地改，帶紅過證據換命令，繼續 |
 | 切分不對 | 重切，繼續 |
-| 斷言不對 | 不是這一站能解的——回 `driving-work-to-done` 讀該停哪一種 |
+| assertion 不對 | 不是這一站能解的——回 `driving-work-to-done` 讀該停哪一種 |
 
 施工計劃那一類不存在：這條流程不分「明確施工」與「嘗試實作」。看得懂就做，看不懂就先探。
 
@@ -122,7 +122,7 @@ oracle 照不到這一類，因為量測量的是行為，不是描述行為的�
 
 ### 送審之前，先讓證據跟得上 head
 
-`verify-ac` 的交付紀錄會逐條檢查：fence 宣告的每個斷言 ID 都要有 `verdict: PASS` 的證據，
+`verify-ac` 的交付紀錄會逐條檢查：fence 宣告的每個 assertion ID 都要有 `verdict: PASS` 的證據，
 而且**證據綁的 head 要等於要交付的那個 head**。證據證的是一棵樹綠了，不是一條分支綠了；
 量完之後又推了三個 commit，那些證據就跟要出去的東西無關了。
 

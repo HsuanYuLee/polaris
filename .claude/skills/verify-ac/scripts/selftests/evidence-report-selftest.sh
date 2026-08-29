@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# evidence-report-selftest.sh — DP-510 的斷言，一條一個 case，離線可重跑。
+# evidence-report-selftest.sh — DP-510 的 assertion，一條一個 case，離線可重跑。
 #
 # Usage: evidence-report-selftest.sh --assertion <ID>
 #        evidence-report-selftest.sh --list
@@ -70,7 +70,7 @@ done
 
 # ---------------------------------------------------------------- 共用的跑法
 
-# 造一張假的單：斷言 ID 由呼叫者給，每一個 ID 後面接一個判定字母（P＝有證據且 PASS、
+# 造一張假的單：assertion ID 由呼叫者給，每一個 ID 後面接一個判定字母（P＝有證據且 PASS、
 # F＝有證據但 FAIL、M＝根本沒有證據）。回單的目錄。
 #
 # 用假的單而不是樹上真的那幾張：真的單會隨著別人的工作改變，而這裡要量的是「三種判定各自
@@ -259,7 +259,7 @@ case "$ASSERTION" in
     verdict="$(jq -r '.assertions[0].verdict' < "$WORK/out-boom/manifest.json")"
     [[ "$verdict" == "PASS" ]] || fail "送不出去把一條 PASS 變成了 ${verdict}"
     [[ ! -f "$issue/.spine/delivery.json" ]] || fail "送不出去卻寫了交付紀錄"
-    measured "宣告的命令回 ${rc}，而單裡 $(grep -c . "$before") 個檔案逐個雜湊不變、那條斷言仍是 PASS"
+    measured "宣告的命令回 ${rc}，而單裡 $(grep -c . "$before") 個檔案逐個雜湊不變、那條 assertion 仍是 PASS"
     ;;
 
   A-N3)
@@ -280,7 +280,7 @@ case "$ASSERTION" in
     ;;
 
   *)
-    echo "不認得的斷言：$ASSERTION" >&2
+    echo "不認得的 assertion：$ASSERTION" >&2
     echo "有的是：$(list_assertions "$0" | tr '\n' ' ')" >&2
     exit 2 ;;
 esac

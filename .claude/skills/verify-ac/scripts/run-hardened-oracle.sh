@@ -29,14 +29,14 @@
 # probe, stops the run and names the tool. There is no fallback to the inherited
 # PATH — a silent fallback would reinstate the exact hole being closed.
 #
-# 一條命令，N 條斷言，跑一次（DP-529）。同一條量測命令常常同時是好幾條斷言的量測，而每
-# 條斷言的正向證據不一樣。以前一份 --evidence-out 只能對一條斷言，所以要產 N 份證據就得
-# invoke N 次——而每一次都真的把那條命令再跑一遍。量出來的代價：十六條斷言共用一條 495 秒
+# 一條命令，N 條 assertion，跑一次（DP-529）。同一條量測命令常常同時是好幾條 assertion 的量測，而每
+# 條 assertion 的正向證據不一樣。以前一份 --evidence-out 只能對一條 assertion，所以要產 N 份證據就得
+# invoke N 次——而每一次都真的把那條命令再跑一遍。量出來的代價：十六條 assertion 共用一條 495 秒
 # 的命令，跑十六趟兩小時十分，而十六份證據的 stdout 34 行裡 31 行逐位元組相同。
 #
 # `--assertion <ID>` 開一個分組，後面的 --expect-evidence / --forbid-evidence /
 # --evidence-out 掛在那一組上。命令跑一次，逐組在同一份輸出上各自判、各自寫。
-# **不是把同一份判定複製 N 份**——那會讓「這條斷言真的被檢查過」變成假的。
+# **不是把同一份判定複製 N 份**——那會讓「這條 assertion 真的被檢查過」變成假的。
 # 不給任何 --assertion 時，一切與以前相同。
 #
 # Usage:
@@ -116,7 +116,7 @@ while [[ $# -gt 0 ]]; do
     --command) COMMAND="${2:-}"; HAVE_COMMAND="yes"; shift 2 ;;
     --require-tool) REQUIRE_TOOLS+=("${2:-}"); shift 2 ;;
     --assertion)
-      [[ -n "${2:-}" ]] || die POLARIS_ORACLE_GROUP_INCOMPLETE "--assertion 要帶一個斷言 ID。"
+      [[ -n "${2:-}" ]] || die POLARIS_ORACLE_GROUP_INCOMPLETE "--assertion 要帶一個 assertion ID。"
       GROUP_IDS+=("$2"); GROUP_EXPECT+=(""); GROUP_FORBID+=(""); GROUP_OUT+=("")
       CURRENT=$((${#GROUP_IDS[@]} - 1))
       shift 2 ;;
@@ -151,15 +151,15 @@ done
 [[ "$HAVE_COMMAND" == "yes" && -n "$COMMAND" ]] || { usage; exit 2; }
 
 # 分組不完整就停。一組沒有自己的輸出路徑時沿用別人的，或兩組指到同一個檔案讓後寫的蓋掉
-# 先寫的——兩種都會產出一份看起來正常、但屬於別條斷言的證據。
+# 先寫的——兩種都會產出一份看起來正常、但屬於別條 assertion 的證據。
 if [[ "${#GROUP_IDS[@]}" -gt 0 ]]; then
   seen_out=""
   for i in "${!GROUP_IDS[@]}"; do
     [[ -n "${GROUP_OUT[$i]}" ]] \
-      || die POLARIS_ORACLE_GROUP_INCOMPLETE "斷言 ${GROUP_IDS[$i]} 這一組沒有 --evidence-out。每一組都要有自己的輸出路徑。"
+      || die POLARIS_ORACLE_GROUP_INCOMPLETE "assertion ${GROUP_IDS[$i]} 這一組沒有 --evidence-out。每一組都要有自己的輸出路徑。"
     case "$seen_out" in
       *"|${GROUP_OUT[$i]}|"*)
-        die POLARIS_ORACLE_GROUP_DUPLICATE_OUT "斷言 ${GROUP_IDS[$i]} 的 --evidence-out 跟前面某一組指到同一個檔案：${GROUP_OUT[$i]}" ;;
+        die POLARIS_ORACLE_GROUP_DUPLICATE_OUT "assertion ${GROUP_IDS[$i]} 的 --evidence-out 跟前面某一組指到同一個檔案：${GROUP_OUT[$i]}" ;;
     esac
     seen_out="${seen_out}|${GROUP_OUT[$i]}|"
   done
@@ -290,7 +290,7 @@ write_evidence() {
   # 正負向樣式走環境變數，不擠進 argv：那串位置參數已經固定了九個再接一串工具紀錄，
   # 中間插兩個變長的清單要多一組長度欄位，而那正是會被下一個人數錯的東西。
   #
-  # 記下來的理由：同一支 selftest 常常同時是好幾條斷言的量測命令，**分開它們的只有這幾個
+  # 記下來的理由：同一支 selftest 常常同時是好幾條 assertion 的量測命令，**分開它們的只有這幾個
   # 樣式**。沒有記下來的話，任何要重跑這份證據的人只能重跑那條命令，然後把「它綠了」讀成
   # 「每一條都綠了」。
   POLARIS_ORACLE_EXPECT="$expect" \
@@ -368,7 +368,7 @@ if [[ "${#GROUP_IDS[@]}" -eq 0 ]]; then
     || write_evidence "$EVIDENCE_OUT" "$VERDICT" "$MARKER" "$DETAIL" "$EXPECT_JOINED" "$FORBID_JOINED"
 else
   # 分組：命令已經跑完了，這裡只是在同一份輸出上逐條判。逐條判是重點——把同一個判定複製
-  # N 份會讓「這條斷言真的被檢查過」變成假的，而那正是這條路要買到的東西。
+  # N 份會讓「這條 assertion 真的被檢查過」變成假的，而那正是這條路要買到的東西。
   NOT_PASSED=()
   for i in "${!GROUP_IDS[@]}"; do
     declare verdict marker detail
@@ -383,7 +383,7 @@ else
       echo "  $detail" >&2
     fi
   done
-  echo "ORACLE-GROUPS: 一趟執行，${#GROUP_IDS[@]} 條斷言各自判過，非 PASS ${#NOT_PASSED[@]} 條"
+  echo "ORACLE-GROUPS: 一趟執行，${#GROUP_IDS[@]} 條 assertion 各自判過，非 PASS ${#NOT_PASSED[@]} 條"
   if [[ "${#NOT_PASSED[@]}" -eq 0 ]]; then
     exit 0
   fi

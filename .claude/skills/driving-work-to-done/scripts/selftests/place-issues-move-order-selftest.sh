@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: 搬動順序與「沒搬成」的五條斷言（DP-561 A-P1~A-P3、A-N1~A-N2）各量一次。
+# Purpose: 搬動順序與「沒搬成」的五條 assertion（DP-561 A-P1~A-P3、A-N1~A-N2）各量一次。
 # Inputs:  無。自己在暫存目錄裡搭一棵假的單的目錄樹，注入一個假的解析器，不碰任何真的單、
 #          不連任何外部系統。
 # Outputs: 逐條印 `A-xx PASS`／`A-xx FAIL`。

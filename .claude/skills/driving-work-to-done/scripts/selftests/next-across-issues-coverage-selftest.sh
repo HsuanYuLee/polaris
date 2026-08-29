@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: `next --across-issues` 涵蓋整棵樹的六條斷言（DP-558 A-P1~A-P3、A-N1~A-N3）各量一次。
+# Purpose: `next --across-issues` 涵蓋整棵樹的六條 assertion（DP-558 A-P1~A-P3、A-N1~A-N3）各量一次。
 # Inputs:  無。自己在暫存目錄裡搭一棵九張單的假樹，蓋掉「這張單的狀態在哪」的每一種答案，
 #          不碰任何真的單、不連任何外部系統。
 # Outputs: 逐條印 `A-xx PASS`／`A-xx FAIL`。

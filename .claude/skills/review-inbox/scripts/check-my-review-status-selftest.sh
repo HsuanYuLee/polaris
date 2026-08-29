@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Purpose: check-my-review-status.sh 的 selftest，斷言 review-status 狀態機，
+# Purpose: check-my-review-status.sh 的 selftest，assertion review-status 狀態機，
 #          含 DP-315 commit_id 基準的 approval-staleness 判定（AC4），以及
 #          consumer 內已無 committer-date / pushed_at staleness 依據（AC-NF1 / AC-NEG2）。
 # Inputs:  無（自行在 temp dir 建 mock gh + candidate fixtures）。
 # Outputs: stdout "check-my-review-status selftest: PASS"；成功 exit 0，
-#          任一斷言失敗時 exit 非 0。
+#          任一 assertion 失敗時 exit 非 0。
 
 set -euo pipefail
 
@@ -169,15 +169,15 @@ cat > "$candidates" <<'JSON'
 ]
 JSON
 
-# 回歸斷言（既有 schema 不變）：actionable 集合與各 status 必須對齊 DP-315 前
-# selftest 對 PR 1/4/5 的斷言，再加上 commit_id 基準的 PR 7（valid → 排除）
+# 回歸 assertion（既有 schema 不變）：actionable 集合與各 status 必須對齊 DP-315 前
+# selftest 對 PR 1/4/5 的 assertion，再加上 commit_id 基準的 PR 7（valid → 排除）
 # 與 PR 8（null → needs_re_approve）。DP-312 Gap 2 再加：PR 9（#12475-like，valid
 # APPROVED at head + interleaved COMMENTED → 排除，AC2/EC4）與 PR 10（stale APPROVED +
 # interleaved COMMENTED + push → 仍 needs_re_review，AC-NEG1 over-broaden 守門）。
 assert_actionable() {
   local out="$1"
   python3 - "$out" <<'PY'
-# 斷言 actionable 清單與各 PR 的 review_status 是否符合預期
+# assertion actionable 清單與各 PR 的 review_status 是否符合預期
 import json
 import sys
 from pathlib import Path

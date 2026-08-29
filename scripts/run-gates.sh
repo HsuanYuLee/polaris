@@ -17,7 +17,7 @@
 # 六、gate-copy-sets —— 同名副本漂開。其中一份會被同步出去，而漂掉的那一刻沒有東西說話。
 #
 # **2026-08-13 拿掉了四道**，因為它們守的後果留在這棵樹裡、而且會在下一次有人用到的時候
-# 大聲壞掉：gate-layer-vocabulary（散文斷言散文——哪些詞不得出現在哪支 skill 的散文裡）、
+# 大聲壞掉：gate-layer-vocabulary（一段散文規定另一段散文——哪些詞不得出現在哪支 skill 的散文裡）、
 # gate-ignore-classes（死的忽略規則）、gate-dangling-declarations（mise 任務指向被刪的檔案）、
 # gate-docs-collection（文件站台的 frontmatter）。它們判準寫得對，但每一次無關的改動都要
 # 付錢，而它們擋的東西 clone 一次、跑一次就看得到。

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: 證明一張單不做了之後，它自己的痕跡真的被收掉——而**還活著的東西一律不動**。
 # Inputs:  mktemp 底下的真 git repo（刻意造出兩種 branch：已併入的、有未併入 commit 的），
-#          加上 PATH 最前面一支記下 argv 的 gh 樁。
+#          加上 PATH 最前面一支記下 argv 的 gh stub。
 # Outputs: PASS 當已併入的 branch 被刪、有未併入 commit 的被留下並列出來且非 0、PR 被關掉
 #          且帶了復原路徑、關不掉是量不到、沒有 gh 是量不到。
 #
@@ -19,7 +19,7 @@ PASS=0
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok  $*"; PASS=$((PASS + 1)); }
 
-# gh 樁：`pr list` 回 $FAKE_GH_PRS 裡的號碼，`pr close` 把 argv 記下來並回 $FAKE_GH_CLOSE_RC。
+# gh stub：`pr list` 回 $FAKE_GH_PRS 裡的號碼，`pr close` 把 argv 記下來並回 $FAKE_GH_CLOSE_RC。
 mkdir -p "$WORK/bin"
 cat > "$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash

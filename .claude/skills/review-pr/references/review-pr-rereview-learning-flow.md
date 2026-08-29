@@ -36,7 +36,7 @@ diff。
 | unresolved prior must-fix or new must-fix | `REQUEST_CHANGES` |
 | prior should-fix / nit resolved | `APPROVE` |
 
-提交 review 前，先向使用者說明判斷與理由，取得確認後再送出。
+送出 review 前，先向使用者說明判斷與理由，取得確認後再送出。
 
 Review body 保持簡短，不重複每個 thread 已經回覆的內容。
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""單的目錄樹依歸屬分組的十條斷言，一條一條量。見同名 .sh 的檔頭。"""
+"""單的目錄樹依歸屬分組的十條 assertion，一條一條量。見同名 .sh 的檔頭。"""
 
 import filecmp
 import importlib.util
@@ -15,7 +15,7 @@ spec = importlib.util.spec_from_file_location("placer", LIB)
 placer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(placer)
 
-# 假的單的目錄樹：一個有解析器的命名空間、一個沒有的。真的解析器要連外部系統，而這十條斷言問的
+# 假的單的目錄樹：一個有解析器的命名空間、一個沒有的。真的解析器要連外部系統，而這十條 assertion 問的
 # 是核心怎麼擺，不是外部系統怎麼答。
 #
 # 單號:      (自己的格,      到鏈頂為止的那幾層)
@@ -152,8 +152,8 @@ def preview_only(root):
 def read(path):
     """讀不到就回空字串。
 
-    **一份壞掉的實作不得把十條判定變成一個 traceback。** 這一條是量出來的：紅控第一次跑
-    的時候，兩種注入各自讓某個檔案不存在，於是這支腳本死在讀檔那一行——十條斷言一條都沒
+    **一份壞掉的實作不得把十條判定變成一個 traceback。** 這一條是量出來的：反向對照組第一次跑
+    的時候，兩種注入各自讓某個檔案不存在，於是這支腳本死在讀檔那一行——十條 assertion 一條都沒
     印出來，離場碼 1。那跟「那一條紅了」在 CI 上長得一模一樣，但它其實是量不到。
     """
     try:
@@ -245,7 +245,7 @@ def main() -> int:
               "（路徑上那一層不參與這個答案）")
         # A-N2 核心不認得外部系統：算位置的那一層不出現外部系統的欄位名，也不出現 epic。
         # **只掃真的會被執行的那些字。** 註解與 docstring 裡出現同一個詞多半是在否認它
-        # （「核心不認得 JIRA」），對它判紅會讓這條斷言變成一個懲罰寫清楚的規則。
+        # （「核心不認得 JIRA」），對它判紅會讓這條 assertion 變成一個懲罰寫清楚的規則。
         code = []
         with open(LIB, "rb") as handle:
             for token in tokenize.tokenize(handle.readline):

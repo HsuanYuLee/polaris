@@ -388,7 +388,7 @@ for rel in listed:
         # 兩者的形狀一模一樣，差別只在意圖。所以這一類不判定，進 DISCLOSURE。
         #
         # 那個標本 DP-518 退場了（那支 runner 的 parser 在更早一次搬家就被刪掉，整支是屍體），
-        # 所以這一格的計數現在是 0——樹上活著的實例歸零，紅控只剩 selftest 的 fixture。
+        # 所以這一格的計數現在是 0——樹上活著的實例歸零，反向對照組只剩 selftest 的 fixture。
         # 這不改變判準，但它是下一次問「這道關卡擋得住什麼」時該先讀到的話。
         if len({m["target"] for m in members}) < 2:
             skipped["只有一條候選而它落空（死 fallback 與該落空的探測分不出來）"] += 1

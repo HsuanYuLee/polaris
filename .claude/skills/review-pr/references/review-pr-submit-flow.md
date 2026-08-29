@@ -47,7 +47,7 @@ block。
 一律呼叫 `scripts/submit-pr-review.sh`，由 wrapper 固定 writer token、canonical
 `github.pull_request_review.submit` tool identity 與 GitHub review JSON shape；不得由 LLM
 手拼 MCP tool 名稱或 root payload。單行 comment 用 `line`；多行 comment 用
-`start_line` + `line`。wrapper 的 `--submit` lane 一次提交 review body 與 inline comments。
+`start_line` + `line`。wrapper 的 `--submit` lane 一次送出 review body 與 inline comments。
 
 **三步都要走，而且是同一顆 sha。** 一則 review 是對某一份 diff 做的意見，所以它讀的、
 綁的必須是同一版：
@@ -73,7 +73,7 @@ bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
 期間又 push 了。**這不是錯誤，review 已經正常送出**，而且正確地綁在你讀過的那一版上。
 要不要針對新的 head 再看一次由你判斷——這行訊息是寫給你讀的，不是 debug 雜訊。
 
-提交後查 PR reviews 與 latest push time，計算：
+送出後查 PR reviews 與 latest push time，計算：
 
 - valid approve
 - stale approve
@@ -82,7 +82,7 @@ bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
 
 ## Handbook Calibration
 
-提交後分析自己留下的 comments。符合 repo-specific、company-level、或 framework-level 可重用
+送出後分析自己留下的 comments。符合 repo-specific、company-level、或 framework-level 可重用
 pattern 時，依那家公司自己的 repo-notes skill 的 standard-first flow 寫入 handbook 或 route 到
 framework memory。
 

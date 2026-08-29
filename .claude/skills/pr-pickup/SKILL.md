@@ -27,7 +27,7 @@ scope: universal
 
 從 Slack 訊息擷取 PR review 請求，把 PR 交出去修，完工後回 Slack thread 告知結果。
 
-**職責邊界**：pr-pickup 只做協作傳遞（intake → 交付出去 → broadcast）。不讀 review comments、不改 code、不回覆 GitHub review。修 PR 這件事本身不歸它——那多半不用立案（改的是既有斷言底下的做法），直接修；若連成功的定義都要改，那是 `refinement` 的事。
+**職責邊界**：pr-pickup 只做協作傳遞（intake → 交付出去 → broadcast）。不讀 review comments、不改 code、不回覆 GitHub review。修 PR 這件事本身不歸它——那多半不用立案（改的是既有 assertion 底下的做法），直接修；若連成功的定義都要改，那是 `refinement` 的事。
 它的 shared authority 應收斂在 intake artifact，而不是 prose 解析。Slack/PR 輸入的 canonical
 解析結果由 `$SKILL_DIR/scripts/resolve-pr-pickup-input.sh` 定義；skill 只消費該 artifact，不能再手工
 各寫一套 PR URL / thread context 判斷。
@@ -120,7 +120,7 @@ Slack thread read，再用第二階段 resolver 嘗試取得 PR URLs。只有第
 同步處理這個 PR：讀 review comments、改 code、回覆 GitHub review、push。這一段不是
 pr-pickup 的職責，但它要**等**——回 Slack 之前必須知道結果。
 
-修 PR 通常**不用立案**：review comments 改的是既有斷言底下的做法，成功的定義沒變。
+修 PR 通常**不用立案**：review comments 改的是既有 assertion 底下的做法，成功的定義沒變。
 只有在 review 指出「成功的定義本身錯了」時才停下來走 `refinement` 重簽。
 
 ### 2a. 可能的結果
@@ -128,7 +128,7 @@ pr-pickup 的職責，但它要**等**——回 Slack 之前必須知道結果�
 | 結果 | 含義 |
 |------|------|
 | **成功完成** | 已修正並 push；pr-pickup 只轉述 PR 的實際狀態，不自行判定「可 merge / 可 release」 |
-| **成功的定義要改** | review 指出的問題在斷言層，不在做法層——停下來，回 `refinement` |
+| **成功的定義要改** | review 指出的問題在 assertion 層，不在做法層——停下來，回 `refinement` |
 | **失敗** | 其他原因（build 失敗、環境問題等） |
 
 ---
@@ -152,7 +152,7 @@ pr-pickup 的職責，但它要**等**——回 Slack 之前必須知道結果�
 ### 成功的定義要改
 
 ```
-:no_entry: *這個 PR 卡在斷言層，不是做法層*
+:no_entry: *這個 PR 卡在 assertion 層，不是做法層*
 
 <{pr_url}|#{number} {title}>
 

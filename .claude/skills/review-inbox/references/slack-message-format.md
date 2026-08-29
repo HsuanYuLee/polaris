@@ -33,7 +33,7 @@ Slack mrkdwn 不是 GitHub Flavored Markdown。常見陷阱：
 | *斜體* | `*text*` | `_text_` |
 | 標題 | `### heading` | 不支援，用 `*bold*` 代替 |
 | 分隔線 | `---` | 不支援（會被拒絕發送），用 `────────────────` (unicode box drawing) |
-| 代碼區塊 | ` ```code``` ` | 相同 ✅ |
+| 程式碼區塊 | ` ```code``` ` | 相同 ✅ |
 | 引用 | `> text` | 相同 ✅ |
 
 ## Message Length

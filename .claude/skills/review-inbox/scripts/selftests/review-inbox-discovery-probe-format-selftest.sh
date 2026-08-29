@@ -44,7 +44,7 @@ PY
 PASS=0
 FAIL=0
 
-# Description: 餵一種輸入，斷言標記與結束狀態。
+# Description: 餵一種輸入，assertion 標記與結束狀態。
 # Args: $1 = case 名, $2 = raw dump, $3 = candidates, $4 = 期待的標記, $5 = 期待的 exit
 expect() {
   local name="$1" raw="$2" cand="$3" want_marker="$4" want_exit="$5"
@@ -83,8 +83,8 @@ expect "轉換過而解析器空手是格式不合" \
 # 三、兩者不得共用同一個標記：它們的下一步相反。
 a="$(bash "$PROBE" --raw-dump "$WORK/escaped.txt" --candidates "$WORK/cand-empty.txt" 2>&1 || true)"
 b="$(bash "$PROBE" --raw-dump "$WORK/normalized.txt" --candidates "$WORK/cand-empty.txt" 2>&1 || true)"
-# 只斷言「兩者不同」是不夠的：壞掉的那一版給的是 SOURCE_UNAVAILABLE 與 FORMAT_MISMATCH，
-# 那也是兩個不同的字串，於是這一條在它身上照樣是綠的。要斷言的是那一對具體的值。
+# 只 assertion「兩者不同」是不夠的：壞掉的那一版給的是 SOURCE_UNAVAILABLE 與 FORMAT_MISMATCH，
+# 那也是兩個不同的字串，於是這一條在它身上照樣是綠的。要驗的是那一對具體的值。
 if [[ "$(printf '%s' "$a" | head -1)" == "POLARIS_DISCOVERY_NOT_NORMALIZED" \
    && "$(printf '%s' "$b" | head -1)" == "POLARIS_DISCOVERY_FORMAT_MISMATCH" ]]; then
   echo "PASS 兩種格式問題各自是它該有的那一個標記"; PASS=$((PASS + 1))

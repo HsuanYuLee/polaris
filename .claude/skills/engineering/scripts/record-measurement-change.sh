@@ -29,7 +29,7 @@
 #    "stderr": "...", "stdout": "..."}
 #
 # 欄位名以 run-hardened-oracle.sh 寫出來的那份為準（見下方讀取處的註解）。這幾行以前寫的是
-# exit_code / captured_at，而程式讀的是 command_exit_code / recorded_at——2026-08-27 手寫一份紅控證據時撞到。
+# exit_code / captured_at，而程式讀的是 command_exit_code / recorded_at——2026-08-27 手寫一份反向對照組證據時撞到。
 #
 # What this gate proves mechanically: the evidence exists, binds to this exact
 # command, records a genuine non-zero exit, and is not an environment error; and

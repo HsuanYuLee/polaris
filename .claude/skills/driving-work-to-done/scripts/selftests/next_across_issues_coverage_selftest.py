@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`next --across-issues` 涵蓋整棵樹的六條斷言，一條一條量。見同名 .sh 的檔頭。"""
+"""`next --across-issues` 涵蓋整棵樹的六條 assertion，一條一條量。見同名 .sh 的檔頭。"""
 
 import importlib.util
 import json
@@ -175,7 +175,7 @@ LABELS = {"live": "live", "settled": "settled", "unreadable": "讀不動",
 def expected_from_line(line, key):
     """從 `tree:` 那一行把某一格的數字讀回來。讀不到回 None——量不到不是 0。
 
-    刻意從**那一行**讀，不從 counted 讀：`tree:` 是宣告等式的那一行，而這幾條斷言問的
+    刻意從**那一行**讀，不從 counted 讀：`tree:` 是宣告等式的那一行，而這幾條 assertion 問的
     正是那個等式成不成立。從別的地方讀出一個對的數字，證明不了那一行說了實話。
     """
     label = LABELS[key]

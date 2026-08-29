@@ -55,7 +55,7 @@ Large PR 的每組 files 派 sub-agent analysis。Prompt 必須包含 PR metadat
 handbook、assigned files、diff、dedup list、severity definitions、project root 或 remote read
 instruction、Completion Envelope。
 
-Sub-agent 只回傳 JSON findings 與 summary，不提交 GitHub review、不修改檔案、不 review
+Sub-agent 只回傳 JSON findings 與 summary，不送出 GitHub review、不修改檔案、不 review
 未分配 files。
 
 主 session fan-in comments，去重後進 submit flow。

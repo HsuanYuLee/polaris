@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""搬動順序與「沒搬成」的五條斷言，一條一條量。見同名 .sh 的檔頭。"""
+"""搬動順序與「沒搬成」的五條 assertion，一條一條量。見同名 .sh 的檔頭。"""
 
 import contextlib
 import importlib.util

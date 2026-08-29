@@ -36,7 +36,7 @@ tools:
 # review-pr
 
 以 reviewer 角色審查別人的單一 PR，依 repo rules / handbook / diff context 留 inline
-comments，並提交 GitHub review。
+comments，並送出 GitHub review。
 
 ## Contract
 
@@ -76,7 +76,7 @@ frontmatter 的 `description` 之前先讀那 13 句，問「改完之後這 13 
 | Re-review | `review-pr-rereview-learning-flow.md`, `review-lesson-extraction.md` |
 
 Large PR 分批 review 可派 sub-agent。
-Completion Envelope。Sub-agent 只做 analysis，不提交 review、不改檔。
+Completion Envelope。Sub-agent 只做 analysis，不送出 review、不改檔。
 
 ## Flow
 

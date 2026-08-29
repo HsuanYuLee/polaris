@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# request-pr-review-shape-selftest.sh — DP-515 的斷言，一條一個 case。
+# request-pr-review-shape-selftest.sh — DP-515 的 assertion，一條一個 case。
 #
 # Usage: request-pr-review-shape-selftest.sh --assertion <ID>
 #        request-pr-review-shape-selftest.sh --list
@@ -169,7 +169,7 @@ case "$ASSERTION" in
     behaviour_suite="$SELFTEST_DIR/${NEW_SKILL_NAME}-selftest.sh"
     [[ -f "$behaviour_suite" ]] || unmeasurable "找不到行為那一套：$behaviour_suite"
     count="$(bash "$behaviour_suite" --list 2>/dev/null | grep -c .)"
-    [[ "$count" -gt 0 ]] || unmeasurable "行為那一套列不出任何斷言，量不到"
+    [[ "$count" -gt 0 ]] || unmeasurable "行為那一套列不出任何 assertion，量不到"
     # 那一套裡有幾條要呼叫者給座標（POLARIS_PR_CONTEXT_REPOS）。這裡原樣往下傳，不自己
     # 填一個——一個把公司 repo 名寫死在檢查裡的檢查，正是 DP-511 A-N1 擋的東西。
     out="$WORK/behaviour.txt"
@@ -315,8 +315,8 @@ PY
     # 「這張單在 request-pr-review 以外刪了東西」——那次刪除跟這支 skill 沒有半點關係。
     #
     # 「先問 diff 有沒有動到這支 skill，動到才判」也不成立，DP-518 當場試過：改這支
-    # selftest 本身就算動到，於是同一個誤判立刻回來。一條單票範圍的負向斷言沒有辦法用
-    # 常駐 selftest 表達——它的紅控是那張單的 PR diff，由看 diff 的人負責，不由這裡。
+    # selftest 本身就算動到，於是同一個誤判立刻回來。一條單票範圍的負向 assertion 沒有辦法用
+    # 常駐 selftest 表達——它的反向對照組是那張單的 PR diff，由看 diff 的人負責，不由這裡。
     #
     # 留下來的是它真正還成立的那一半：那幾份複本現在還在不在。這一條說得出自己只做了
     # 一半，因為一個安靜地縮水的負向檢查，跟一個完整的負向檢查在輸出上長得一樣。
@@ -355,7 +355,7 @@ PY
     # 判準用那一趟自己的指紋：改名。diff 裡沒有它，這條分支就不是 DP-515，量不到。
     if ! git -C "$REPO_ROOT" diff -M --name-status "$base"..HEAD -- ".claude/skills" 2>/dev/null \
          | grep -q "${OLD_SKILL_NAME}/"; then
-      unmeasurable "這條斷言問的是 DP-515 那一趟的 diff，而現在這條分支不是它（看不到 ${OLD_SKILL_NAME} → ${NEW_SKILL_NAME} 那次改名）"
+      unmeasurable "這條 assertion 問的是 DP-515 那一趟的 diff，而現在這條分支不是它（看不到 ${OLD_SKILL_NAME} → ${NEW_SKILL_NAME} 那次改名）"
     fi
     # 配對交給 git 自己算（-M --name-status），不用「把新路徑的 skill 名換成舊的」去推。
     # 只給新路徑當 pathspec 的那一版，git 看不到舊路徑，於是每一支都被算成整支新增——
@@ -388,7 +388,7 @@ PY
     ;;
 
   *)
-    echo "不認得的斷言：$ASSERTION" >&2
+    echo "不認得的 assertion：$ASSERTION" >&2
     echo "有的是：$(list_assertions "$0" | tr '\n' ' ')" >&2
     exit 2 ;;
 esac

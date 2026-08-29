@@ -1,4 +1,4 @@
-"""逐條判定：fence 宣告了哪些斷言，每一條的證據站不站得住。
+"""逐條判定：fence 宣告了哪些 assertion，每一條的證據站不站得住。
 
 **報告與交付讀的是同一段。** 在這之前這整段長在 `record-delivery-intent.sh` 的 heredoc
 裡，於是「這張單過了幾條」只有在交付那條路上問得到，而且任一條不成立就整支拒絕、什麼都
@@ -16,7 +16,7 @@
 證據的可信度分三層，由呼叫者決定要幾層：
 
 1. **檔案自洽**（一律做）：來源欄位、判定、綁的 head。
-2. **登錄相符**（給 `ledger_path` 才做）：證據記的命令，要等於這條斷言登錄過的那一條。
+2. **登錄相符**（給 `ledger_path` 才做）：證據記的命令，要等於這條 assertion 登錄過的那一條。
    少了這一層，一份手寫的證據可以指名一條「一定會過」的命令。
 3. **重跑一次**（給 `rerun=True` 才做）：拿登錄的那條命令現在再跑一次，要還是綠的。
    這一層是唯一擋得住「內容自洽但不是這一套產生的證據」的東西——前兩層讀的都是檔案，
@@ -44,7 +44,7 @@ UNMEASURABLE = "unmeasurable"
 
 
 def assertion_ids(index_path):
-    """單裡凍結的斷言 ID，照人簽下去的順序。
+    """單裡凍結的 assertion ID，照人簽下去的順序。
 
     Args:
         index_path: `{issue}/index.md`。
@@ -138,7 +138,7 @@ def _delta_within_allowance(measuring_tree, frm, to, delta_allows, notes):
 
 
 def registered_commands(ledger_path):
-    """登錄裡每條斷言**現在**登錄的那一條命令。
+    """登錄裡每條 assertion**現在**登錄的那一條命令。
 
     Args:
         ledger_path: `{issue}/.spine/measurement-ledger.json`。
@@ -146,7 +146,7 @@ def registered_commands(ledger_path):
         {assertion_id: command}，或者 `None`——**登錄檔不在跟登錄檔是空的，是兩件事**。
         前者是「這一層沒得做」，後者是「做了，而且一條都沒登錄」。回同一個空 dict 的話
         兩者在呼叫端長得一樣，而那正是「量不到被讀成通過」的形狀。
-        同一條斷言換過命令時取最後一筆——登錄是往後追加的，最後一筆就是現在生效的。
+        同一條 assertion 換過命令時取最後一筆——登錄是往後追加的，最後一筆就是現在生效的。
     """
     if not ledger_path or not os.path.exists(ledger_path):
         return None
@@ -269,9 +269,9 @@ def rerun_key(ev):
     Returns:
         命令、在哪棵樹跑、要求出現什麼、要求不出現什麼、要哪些工具，五樣組成的 tuple。
 
-    **不要把這句話簡化成「照命令去重」。** 兩條斷言可以跑同一條命令而各自要求不同的證據
+    **不要把這句話簡化成「照命令去重」。** 兩條 assertion 可以跑同一條命令而各自要求不同的證據
     樣式；鍵漏掉那幾樣的話，第二條會拿到第一條的答案，而它自己的樣式從來沒有被檢查過
-    ——一條沒被量到的斷言看起來就跟過了一樣。
+    ——一條沒被量到的 assertion 看起來就跟過了一樣。
 
     抽成一支是因為它有兩個呼叫者：跑之前數趟數的那一次，跟跑的時候。抄成兩份的話預告的
     數字會跟實際的漂開，而漂掉的那一刻預告看起來仍然很正常。
@@ -315,10 +315,10 @@ def declared_landing(index_path):
 
 def judge(index_path, evidence_dir, head=None, delta_allows=(),
           ledger_path=None, rerun=False, oracle=None):
-    """逐條判定，外加幾件跨斷言才問得出來的事。
+    """逐條判定，外加幾件跨 assertion 才問得出來的事。
 
     Args:
-        index_path: `{issue}/index.md`，斷言 ID 的唯一來源。
+        index_path: `{issue}/index.md`，assertion ID 的唯一來源。
         evidence_dir: `{issue}/.spine/evidence`。
         head: 要交付的 head；`None` 表示「由證據自己說它量的是哪一棵」。
         delta_allows: 證據量在別的 head 上時，呼叫者指名放行的路徑前綴。
@@ -327,7 +327,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
         oracle: `run-hardened-oracle.sh` 的路徑，只有 rerun 用得到。
     Returns:
         {"ids", "rows", "blockers", "notes", "layers", "head", "measured_in", "delta"}。
-        `rows` 逐條，`blockers` 是跨斷言的問題（證據指向兩棵不同的樹之類），
+        `rows` 逐條，`blockers` 是跨 assertion 的問題（證據指向兩棵不同的樹之類），
         `layers` 說出三層各自**做成了沒有**（見 `layers_line`）。
     """
     ids = assertion_ids(index_path)
@@ -341,12 +341,12 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
               # `measured_in` 說的是同一件事；多樹的單只有這裡說得完。
               "heads": [],
               # 這一趟「看見」了哪幾棵樹。它記的是證據**檔案**說的，不是通過判定
-              # 的那幾條說的——否則一條被判掉的斷言會把它的樹一起帶走，而「證據
+              # 的那幾條說的——否則一條被判掉的 assertion 會把它的樹一起帶走，而「證據
               # 來自幾棵樹」這一項就會在輸入被清空的時候恆真（DP-611 A-N1）。
               "trees_seen": []}
     if not ids:
         report["blockers"].append(
-            f"{index_path} 有 fence 但裡面一個斷言 ID 都沒有；沒有東西要證明")
+            f"{index_path} 有 fence 但裡面一個 assertion ID 都沒有；沒有東西要證明")
         return report
 
     registered = registered_commands(ledger_path) if ledger_path else None
@@ -362,7 +362,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     carried = {}
 
     def mark(aid, state, detail):
-        # 第一個判定就定案：後面的檢查是加深，不是翻案。一條已經 fail 的斷言不會因為
+        # 第一個判定就定案：後面的檢查是加深，不是翻案。一條已經 fail 的 assertion 不會因為
         # 重跑綠了就變成 pass——那份證據本身還是不成立的。
         rows.setdefault(aid, (state, detail))
 
@@ -384,10 +384,10 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             # 登錄檔在，就每一條都要在裡面。「沒登錄過」不能當成豁免——那正好是一份手寫
             # 證據會長的樣子：它指名一條沒有人簽過的命令，而舊的寫法對這種情況不判任何話。
             if aid not in registered:
-                mark(aid, FAIL, "這條斷言沒有登錄過量測命令，證據指的是一條沒人簽過的命令")
+                mark(aid, FAIL, "這條 assertion 沒有登錄過量測命令，證據指的是一條沒人簽過的命令")
                 continue
             if ev.get("command") != registered[aid]:
-                mark(aid, FAIL, "證據記的命令不是這條斷言登錄過的那一條")
+                mark(aid, FAIL, "證據記的命令不是這條 assertion 登錄過的那一條")
                 continue
         # 樹的帳記在這裡，不記在迴圈最後。下面每一個 `continue` 都會跳過迴圈尾巴，
         # 所以記在尾巴的話，「證據來自幾棵樹」問的就變成「通過判定的證據來自幾棵樹」
@@ -414,7 +414,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             if ev.get("measured_in"):
                 tree_heads.setdefault(ev["measured_in"], set()).add(ev["head_sha"])
 
-    # 呼叫者指名了差異的話，逐個去 git 驗那句話。驗過了那些斷言才算數——差異裡出現一個
+    # 呼叫者指名了差異的話，逐個去 git 驗那句話。驗過了那些 assertion 才算數——差異裡出現一個
     # 沒被指名的路徑，或者根本問不出那段差異，都退回原本的拒絕。
     for (ev_head, tree), aids in sorted(carried.items()):
         state, payload = _delta_within_allowance(
@@ -434,18 +434,18 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                 mark(aid, UNMEASURABLE, f"量在 {ev_head[:12]}，而這段差異量不到——{payload}")
 
     # 第三層。跑的是證據記的那條命令——走到這裡它已經被上面驗過等於登錄的那一條（登錄檔
-    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條斷言共用，所以去重再跑，
+    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條 assertion 共用，所以去重再跑，
     # 而去重的鍵是 `rerun_key()`——它為什麼是那五樣寫在那支函式的 docstring 裡，這裡不抄
     # 第二份。
     if rerun:
-        # 趟數在跑第一趟之前就說出來。這一層是唯一會真的花時間的一層，而「幾條斷言」跟
-        # 「要跑幾趟」不是同一個數字——不先說的話，看的人只能拿斷言數去估，然後把一趟
+        # 趟數在跑第一趟之前就說出來。這一層是唯一會真的花時間的一層，而「幾條 assertion」跟
+        # 「要跑幾趟」不是同一個數字——不先說的話，看的人只能拿 assertion 數去估，然後把一趟
         # 21 分鐘的等待當成當掉。
         planned = {rerun_key(evidence[aid]) for aid in ids
                    if aid not in rows and aid in evidence}
         if planned:
             print(f"[verify-ac] 重跑這一層：{len(planned)} 個不同的量測樣式"
-                  f"（{len(ids)} 條斷言），所以要跑 {len(planned)} 趟。",
+                  f"（{len(ids)} 條 assertion），所以要跑 {len(planned)} 趟。",
                   file=sys.stderr)
         cache = {}
         for aid in ids:
@@ -458,7 +458,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             state, detail = cache[key]
             if state != PASS:
                 mark(aid, state, detail)
-        report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條斷言共用）")
+        report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條 assertion 共用）")
 
     # 一張單交付到不只一個 repo 是常態（真樹上兩張，其中一張三棵），而那件事這張單自己
     # 就宣告過了。所以「證據落在幾棵樹」不是問題本身——**落在沒有宣告過的樹上**才是。
@@ -472,7 +472,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     multi_ok = bool(declared) and not undeclared and not split_tree
 
     # 沒有 --head 的時候，交付的 head 就是證據量到的那一棵樹。證據彼此不一致代表這幾條
-    # 斷言量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的。
+    # assertion 量的不是同一棵樹——那不是「取一個」就好，取哪一個都會讓另一批證據變成沒看過的。
     # 除非那幾棵樹正是這張單宣告的落腳處：那時候「不只一個 head」是這張單本來的樣子，
     # 每一棵各記各的。
     if not head:
@@ -519,7 +519,7 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
         if tree not in tree_heads:
             report["notes"].append(
                 f"這張單宣告了 {tree}，而沒有任何證據量在那裡——"
-                "那棵樹上的改動沒有被任何一條斷言綁住")
+                "那棵樹上的改動沒有被任何一條 assertion 綁住")
 
     # 證據說得出自己是在哪一棵樹上量的，所以「那棵樹現在還在不在那個 commit」問得到它本人。
     if len(trees) > 1 and not multi_ok:

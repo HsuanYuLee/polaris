@@ -321,7 +321,7 @@ bash "$LOOP" record --state "$S10_ROOT/ns/done/T/.spine/loop-state.json" --outco
 #
 # 這裡刻意不用「推到 verify-ac」當例子：T 是 `--pack none` 開的，不會動到 code 的工作
 # 沒有 review 這一格，所以它走到 verify-ac 仍然落 in-progress——那是對的行為，拿它當
-# 斷言會量到一個永遠不動的東西。
+# assertion 會量到一個永遠不動的東西。
 bash "$LOOP" advance --state "$S10_ROOT/ns/in-progress/T/.spine/loop-state.json" --to refinement >/dev/null
 [[ -d "$S10_ROOT/ns/backlog/T" ]] \
   || fail "advance 把單推回 refinement，位置卻沒跟著換：$(find "$S10_ROOT/ns" -maxdepth 2 -type d -name T)"

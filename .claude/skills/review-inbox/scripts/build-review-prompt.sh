@@ -297,7 +297,7 @@ ${EXTRA_REFS_BLOCK}
 3. 只讀 Project Handbook 區塊列出的 verified paths；若是 no project handbook，略過 handbook 讀取
 4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
-6. 提交 GitHub review，綁在同一顆上：
+6. 送出 GitHub review，綁在同一顆上：
    \`bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "\$REVIEWED_HEAD" --event EVENT --body-file BODY --comments-file COMMENTS --submit\`
    沒有 \`--reviewed-head\` 會被擋。stderr 出現 \`POLARIS_PR_HEAD_ADVANCED\` 表示作者在你 review
    期間又 push 了——review 已經送出且正確綁在你讀過的那一版，要不要再看一次由你判斷

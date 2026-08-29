@@ -2,13 +2,13 @@
 # Purpose: DP-512 的量測。問兩件事：**沒回到提出者那裡的意見會不會被看見**（A 段），以及
 #          **回覆這個動作有沒有主人、有沒有繞過既有的對外寫入紀律**（B 段）。
 # Inputs:  mktemp 底下的假 repo ＋ `fixtures/gh`（假的 gh，由環境變數驅動）。
-# Outputs: 每條斷言一行 `✅ <id>` 或 `❌ <id>`；`--assertion <id>` 只跑一條。
+# Outputs: 每條 assertion 一行 `✅ <id>` 或 `❌ <id>`；`--assertion <id>` 只跑一條。
 # Exit:    0 全綠 / 1 有紅的 / 2 量不到
 #
-# 這是一個負向斷言的儀器：「沒有沒回的意見」跟「我沒問到意見」在輸出上長得一樣。所以每一種
+# 這是一個負向 assertion 的儀器：「沒有沒回的意見」跟「我沒問到意見」在輸出上長得一樣。所以每一種
 # 「問不到」都有自己的出口，而且 A-P3 專門量那件事。
 #
-# 每條斷言前面都有 preflight：目標檔案在不在、樣本數夠不夠。preflight 不過用離場碼 2 停下來，
+# 每條 assertion 前面都有 preflight：目標檔案在不在、樣本數夠不夠。preflight 不過用離場碼 2 停下來，
 # 不讓它走進判定——一個因為掃到 0 個檔案而變綠的量測，什麼都沒量。
 
 set -uo pipefail
@@ -35,7 +35,7 @@ want() { [[ -z "$ONLY" || "$ONLY" == "$1" ]]; }
 die()  { printf 'UNMEASURABLE %s\n' "$*" >&2; exit 2; }
 # 有一種量不到不該把整支停掉：那一條的前置條件永遠不會再成立（它問的是某一趟交付的
 # diff，而那一趟早就併進主幹了），而其餘幾條每一次都量得到。用 die 的話，一條永久量不到
-# 的斷言會讓這支 selftest 永遠非 0 收場，然後被當成紅的。
+# 的 assertion 會讓這支 selftest 永遠非 0 收場，然後被當成紅的。
 # 它仍然不是綠的——收在 SKIPPED 裡，最後一行印出來。
 SKIPPED=()
 skip() { printf '  ❔ %s — 量不到：%s\n' "$1" "$2"; SKIPPED+=("$1"); }
@@ -214,7 +214,7 @@ if want A-N3; then
   git -C "$REPO_ROOT" diff --name-status "$base"..HEAD 2>/dev/null \
     | grep -qE "^A[[:space:]]+${own_rel}$" || mine=no
   if [[ "$mine" == no ]]; then
-    skip A-N3 "這條斷言問的是加進這支 selftest 的那一趟，而現在這條分支不是它"
+    skip A-N3 "這條 assertion 問的是加進這支 selftest 的那一趟，而現在這條分支不是它"
   else
   changed=""
   for p in "${judge_paths[@]}"; do

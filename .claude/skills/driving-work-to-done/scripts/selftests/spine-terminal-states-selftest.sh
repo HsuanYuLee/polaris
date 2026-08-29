@@ -31,7 +31,7 @@ STATE_SH="$REPO/.claude/skills/driving-work-to-done/scripts/spine-loop-state.sh"
 PACK="$REPO/.claude/skills/fakepack"
 mkdir -p "$PACK"
 # 單的目錄樹要是自己的 git repo：位置重算從 repo 根解「這張單屬於哪棵樹」，解不出來就整段不做，
-# 而那會讓下面每一條位置斷言都在一個從來沒被重算過的樹上量。
+# 而那會讓下面每一條位置 assertion 都在一個從來沒被重算過的樹上量。
 git init -q "$REPO/issues"
 
 # Description: 寫假 pack 的 SKILL.md。給空字串就不宣告那一項。
@@ -70,9 +70,9 @@ echo "spine terminal states selftest"
 # ── released ─────────────────────────────────────────────────────────────────
 # 訊號說出去了，而且說了是哪一天。日期刻意選一個很舊的：核心若偷填「今天」，
 # released/ 底下那一格的名字會當場不一樣。
-printf '#!/usr/bin/env bash\nprintf "delivered\\t2020-01-02\\t樁：出去了\\n"\n' > "$PACK/yes.sh"
-printf '#!/usr/bin/env bash\nprintf "not-yet\\t-\\t樁：還沒\\n"\nexit 1\n' > "$PACK/no.sh"
-printf '#!/usr/bin/env bash\nprintf "unmeasurable\\t-\\t樁：問不到\\n"\nexit 2\n' > "$PACK/dunno.sh"
+printf '#!/usr/bin/env bash\nprintf "delivered\\t2020-01-02\\tstub：出去了\\n"\n' > "$PACK/yes.sh"
+printf '#!/usr/bin/env bash\nprintf "not-yet\\t-\\tstub：還沒\\n"\nexit 1\n' > "$PACK/no.sh"
+printf '#!/usr/bin/env bash\nprintf "unmeasurable\\t-\\tstub：問不到\\n"\nexit 2\n' > "$PACK/dunno.sh"
 chmod +x "$PACK"/*.sh
 write_pack "bash .claude/skills/fakepack/yes.sh" ""
 
@@ -100,7 +100,7 @@ run released --state "$state" --by selftest
 [[ "$RC" -eq 1 ]] || fail "訊號說還沒，應該回 1；拿到 ${RC}：$OUT"
 [[ -z "$(find "$REPO/issues" -name release.json -path '*T-pending*')" ]] \
   || fail "還沒出去卻寫了釋出紀錄"
-grep -Fq '樁：還沒' <<<"$OUT" || fail "沒有把訊號說的話原樣轉出來：$OUT"
+grep -Fq 'stub：還沒' <<<"$OUT" || fail "沒有把訊號說的話原樣轉出來：$OUT"
 ok "訊號說還沒就不寫紀錄，回 1，而且原樣轉述"
 
 # 問不到 → 2，跟「還沒」分得開。塌成同一個 exit code 的話，一次 API 逾時就跟一張還在
@@ -124,13 +124,13 @@ grep -Fq 'UNDECLARED' <<<"$OUT" || fail "沒說出是宣告不見了：$OUT"
 ok "pack 沒宣告訊號是問不到，不是出去了——不寫紀錄、非 0"
 
 # ── close ────────────────────────────────────────────────────────────────────
-printf '#!/usr/bin/env bash\nprintf "kept\\t樁：有東西沒收掉\\n"\nexit 1\n' > "$PACK/dirty.sh"
+printf '#!/usr/bin/env bash\nprintf "kept\\tstub：有東西沒收掉\\n"\nexit 1\n' > "$PACK/dirty.sh"
 chmod +x "$PACK/dirty.sh"
 write_pack "" "bash .claude/skills/fakepack/dirty.sh"
 state="$(new_ticket T-close open)"
 run close --state "$state" --note '不做了' --by selftest
 [[ "$RC" -eq 0 ]] || fail "收不乾淨不該讓 close 失敗——單已經關了；拿到 ${RC}：$OUT"
-grep -Fq '樁：有東西沒收掉' <<<"$OUT" || fail "收尾說的話沒有被轉出來：$OUT"
+grep -Fq 'stub：有東西沒收掉' <<<"$OUT" || fail "收尾說的話沒有被轉出來：$OUT"
 grep -Fq '沒收乾淨' <<<"$OUT" || fail "留下來的東西沒有被說出來：$OUT"
 ok "close 會跑宣告的收尾，收不乾淨照樣關單但一定說出來"
 

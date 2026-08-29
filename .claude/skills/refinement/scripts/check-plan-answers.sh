@@ -185,7 +185,7 @@ if problems:
            "標好那一格是誰給的，然後讓人在草案上改。查得到的事實自己查，不要做成問題。")
 
 # 環境對得上人。列出來的每一個，都要有某一份領域知識宣告它會起它——找不到的那個就是
-# 該生出來的那一份，而這件事在斷言被凍結之前就說得出來。
+# 該生出來的那一份，而這件事在 assertion 被凍結之前就說得出來。
 raw = (plan.get(ENV_CARRIER) or {}).get("environments", "")
 wanted = [e.strip() for e in raw.strip().strip("[]").split(",") if e.strip()]
 if wanted == [NO_ENVIRONMENT]:
@@ -209,7 +209,7 @@ if orphans:
            *[f"  {e}" for e in orphans],
            "這就是「該沉澱一份領域知識了」的訊號。做法：開一份 skill，在它的 SKILL.md 裡",
            "宣告一行 `<!-- {前綴}-ENVIRONMENT-{環境名}: {起它的命令} -->`，命令要真的跑得起來。",
-           "現在就做，比簽完斷言之後才發現便宜——那時候計劃還改得動。",
+           "現在就做，比簽完 assertion 之後才發現便宜——那時候計劃還改得動。",
            f"（已經有人會起的：{', '.join(f'{k}→{v}' for k, v in sorted(claimed.items())) or '無'}）")
 
 answered = [k for k in required if not plan.get(k, {}).get("not_applicable")]

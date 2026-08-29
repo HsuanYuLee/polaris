@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# request-pr-review-selftest.sh — 一條斷言一個 case，離線可重跑。
+# request-pr-review-selftest.sh — 一條 assertion 一個 case，離線可重跑。
 #
 # Usage: request-pr-review-selftest.sh --assertion <ID>
 #        request-pr-review-selftest.sh --list
@@ -22,7 +22,7 @@ SKILL_DIR="$(cd "$SCRIPTS_DIR/.." && pwd)"
 FIXTURES="$SELFTEST_DIR/fixtures"
 
 # case 標籤共用一個分支時長成 `B-P2|B-N1)`，只認 `ID)` 的正則會讓那兩條從清單裡靜靜
-# 消失——而一條沒被列出來的斷言，跟沒有那條斷言在輸出上長得一樣。
+# 消失——而一條沒被列出來的 assertion，跟沒有那條 assertion 在輸出上長得一樣。
 list_assertions() {
   grep -oE '^  [A-C]-[PN][0-9][A-C|PN0-9-]*\)' "$1" | tr -d ' )' | tr '|' '\n' | grep -E '^[A-C]-[PN][0-9]$'
 }
@@ -72,7 +72,7 @@ run_fetch() {
       --skills "$WORK/skills" >"$1" 2>"$2"
 }
 
-# 建一棵只有一行宣告的假 skill 樹：C 段的斷言講的是「宣告驅動」，拿某一家公司真的那份
+# 建一棵只有一行宣告的假 skill 樹：C 段的 assertion 講的是「宣告驅動」，拿某一家公司真的那份
 # 宣告來量，等於同時在量那一層，而那不是這裡要判的東西。
 make_skills_tree() {
   local orgs="${*:-acme}"
@@ -429,7 +429,7 @@ PY
     ;;
 
   *)
-    echo "不認得的斷言：${ASSERTION}" >&2
+    echo "不認得的 assertion：${ASSERTION}" >&2
     exit 2
     ;;
 esac

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: 這支 skill 底下的每一個檔案、每一個對外旗標，要嘛有現在的呼叫者，要嘛有寫下來
 #          的理由。兩者都沒有的就是死的，而死的東西會被下一個人當成還在用的。
-# Inputs:  這支 skill 自己的目錄；紅控用的 fixture 在 mktemp 底下。
+# Inputs:  這支 skill 自己的目錄；反向對照組用的 fixture 在 mktemp 底下。
 # Outputs: PASS 當沒有呼叫者又沒有理由的檔案／旗標被指名判紅、宣告過理由的不判紅，
 #          而這支 skill 現在的狀態是綠的。
 #
@@ -101,7 +101,7 @@ PY
 
 echo "no-orphans selftest"
 
-# 紅控一：沒有呼叫者的檔案。先證明它紅得起來，再拿它去量真的那棵樹。
+# 反向對照組一：沒有呼叫者的檔案。先證明它紅得起來，再拿它去量真的那棵樹。
 mkdir -p "$WORK/red/scripts"
 printf '# demo\n\n跑 `scripts/used.sh`。\n' > "$WORK/red/SKILL.md"
 printf '#!/usr/bin/env bash\ncase "$1" in\n  --issue) shift 2 ;;\nesac\n' > "$WORK/red/scripts/used.sh"
@@ -111,7 +111,7 @@ audit "$WORK/red"
 grep -q 'ORPHAN scripts/orphan.sh' <<<"$OUT" || fail "沒說出是哪一個檔案：$OUT"
 ok "沒有呼叫者的檔案會紅，而且說得出是哪一個"
 
-# 紅控二：沒有呼叫者的旗標。`--issue` 有人用（SKILL.md 沒寫，但這裡故意只留一個）。
+# 反向對照組二：沒有呼叫者的旗標。`--issue` 有人用（SKILL.md 沒寫，但這裡故意只留一個）。
 rm "$WORK/red/scripts/orphan.sh"
 printf '#!/usr/bin/env bash\ncase "$1" in\n  --issue) shift 2 ;;\n  --nobody-uses-this) shift ;;\nesac\n' \
   > "$WORK/red/scripts/used.sh"

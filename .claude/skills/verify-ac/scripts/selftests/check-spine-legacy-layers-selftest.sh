@@ -88,7 +88,7 @@ assert_pass "artifacts written by choice do not count" "$WORK/chosen-extras.json
 # --- Case 4: the count is never the reason for a refusal ---------------------
 # 這兩個 fixture 以前是紅的（門檻 2）。它們現在必須是綠的：門檻設在一個由流程自己寫死的
 # 常數上，對每一張真單都紅，而且沒有人呼叫它所以沒有人知道。留著改名字等於把那個錯誤
-# 換個標記繼續斷言一次。
+# 換個標記繼續 assertion 一次。
 write_inventory "$WORK/three-forced.json" '{
   "kind": "code",
   "artifacts": [
@@ -135,7 +135,7 @@ PY
     POLARIS_SPINE_LEGACY_ARTIFACT_FORCED "$WORK/legacy.json"
 done
 
-# 舊層「自願產生」也要被擋。這個案例以前斷言的是相反的事（forced=false 就放行），而那個
+# 舊層「自願產生」也要被擋。這個案例以前 assertion 的是相反的事（forced=false 就放行），而那個
 # 版本讓整道檢查不可能變紅：枚舉器只會對 index.md、.spine/*.json 與 .changeset/*.md 標
 # forced=true，所以沒有任何一條舊層路徑到得了判定。一道紅不了的檢查比沒有人呼叫的更糟——
 # 它會回綠，而那個綠什麼都不代表。

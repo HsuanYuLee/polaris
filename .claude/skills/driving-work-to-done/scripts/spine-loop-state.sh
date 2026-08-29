@@ -31,7 +31,7 @@
 # anything it does not recognise instead of recording a free-text reason.
 #
 # Subcommands:
-#   seed  --state <path> --note <前因後果>   開一張還沒簽斷言的種子單的狀態
+#   seed  --state <path> --note <前因後果>   開一張還沒簽 assertion 的種子單的狀態
 #   init  --state <path> --pack <領域名>|none --where <工作區路徑>... [--why <理由>] [--max-rounds N]
 #   record --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
 #   next  --state <path>          prints continue | escalate | done | stop:<kind>
@@ -619,7 +619,7 @@ PY
   [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_WORKSPACE_TAKEN" "$report"
 }
 
-# Description: 開一張還沒簽斷言的種子單的狀態。
+# Description: 開一張還沒簽 assertion 的種子單的狀態。
 #
 # 為什麼種子也要有狀態檔：問路的那一支只找得到帶著 loop-state.json 的目錄，所以一張只有
 # 前因後果的單對它完全隱形——不是「列在後面」，是連數字都不算。這件事量過：540 張單裡
@@ -649,7 +649,7 @@ payload = {
     "producer": "spine-loop-state.sh",
     "rounds": [],
     "status": "open",
-    # 種子停在第一個關卡之前：斷言還沒簽，所以它還不能開工。
+    # 種子停在第一個關卡之前：assertion 還沒簽，所以它還不能開工。
     "station": "refinement",
     "stop": None,
     "stops": [],
@@ -885,7 +885,7 @@ print(f"INIT: {state} max_rounds={max_rounds}")
 PY
   # 覆蓋一個已經存在的檔案要說出來。一個安靜的覆蓋跟一個安靜的漏，事後看起來一樣。
   [[ "$note_seed_upgrade" -eq 1 ]] \
-    && echo "[spine-loop-state] 這張單原本是一張種子（還沒簽斷言），現在升級成真的輪次。"
+    && echo "[spine-loop-state] 這張單原本是一張種子（還沒簽 assertion），現在升級成真的輪次。"
   return 0
 }
 
@@ -1075,7 +1075,7 @@ for issue_dir in ticket_dirs:
     if data.get("status") == "escalated" and not stop:
         stop = {"kind": "unconverged_cap"}
     rounds = data.get("rounds") or []
-    # 「還沒簽斷言」問單自己，不從狀態檔推：校驗值寫在 index.md 的 frontmatter，那是權威。
+    # 「還沒簽 assertion」問單自己，不從狀態檔推：校驗值寫在 index.md 的 frontmatter，那是權威。
     # 從「有沒有領域欄位」之類的東西倒推，是在狀態檔裡養第二份答案，而兩份會漂。
     index = os.path.join(issue_dir, "index.md")
     sealed = False
@@ -1113,7 +1113,7 @@ movable.sort(key=lambda r: (-rank.get(r["station"], 0), r["touched"] == "",
 
 if movable:
     pick = movable[0]
-    seed = "" if pick["sealed"] else " 還沒簽斷言——先走 refinement"
+    seed = "" if pick["sealed"] else " 還沒簽 assertion——先走 refinement"
     print(f"next:{pick['name']} station={pick['station']}{seed}")
 else:
     print("next:none")
@@ -1123,7 +1123,7 @@ for row in blocked:
 # 種子逐張列出來，不只算進數字。它們的整個用途是「拿給另一個 session 開工」，而另一個
 # session 開場問的第一句就是這個——掉出這個答案的東西等於沒開。
 for row in sorted((r for r in movable if not r["sealed"]), key=lambda r: r["name"]):
-    print(f"seed:{row['name']} 還沒簽斷言——先走 refinement")
+    print(f"seed:{row['name']} 還沒簽 assertion——先走 refinement")
 # 已交付與收斂的不列成清單，但要有數字。不被判定的第三態如果安靜，下一次就會有人
 # 以為那些也被看過了。
 settled = len(rows) - len(live)

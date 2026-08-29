@@ -27,7 +27,7 @@ continue without scanning repo guideline folders.
   的同類型實作；跨 repo 的同一段兩端行為對不上時，先判斷哪一邊是對的。
 - **cross-file consistency。** 一個結論需要哪幾個檔案才站得住，就讀哪幾個——**不需要先落進
   某一類風險**。讀了什麼列在 Detail artifact 裡。
-- **測試是不是恆真。** 一條永遠會過的斷言跟沒有那條測試的差別只有執行時間。
+- **測試是不是恆真。** 一條永遠會過的 assertion 跟沒有那條測試的差別只有執行時間。
 
 給修法比描述問題有用：能貼上去就直接貼一段可用的 code，不要只說「這裡有問題」。
 

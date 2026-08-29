@@ -236,7 +236,7 @@ if not report["layers"]["registered"]:
     print(av.layers_line(report), file=sys.stderr)
     print(f"交付這條路三層全要做。{issue}/.spine/measurement-ledger.json 讀不到，"
           "所以「證據記的命令是登錄過的那一條」沒有辦法問——先用 engineering 的 "
-          "record-measurement-change.sh 把每條斷言的量測命令登錄起來。", file=sys.stderr)
+          "record-measurement-change.sh 把每條 assertion 的量測命令登錄起來。", file=sys.stderr)
     sys.exit(1)
 
 print(av.layers_line(report))

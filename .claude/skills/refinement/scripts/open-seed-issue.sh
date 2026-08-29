@@ -3,10 +3,10 @@
 #
 # 為什麼要有這一支：開發途中會問出、查出、撞出一些只有當下知道的東西。那個東西現在沒有
 # 地方住——它要嘛被寫進一個進不了主線的角落，要嘛消失。而「開一張正式的單」在那個
-# 當下太貴：斷言還簽不出來，因為怎麼算成功還沒想清楚。
+# 當下太貴：assertion 還簽不出來，因為怎麼算成功還沒想清楚。
 #
-# 所以這一支只做一件事：把前因後果變成一張找得到的單，然後就結束。它**不**簽斷言、
-# **不**決定領域、**不**開 worktree、**不**碰你現在正在做的那張單。斷言是下一個 session
+# 所以這一支只做一件事：把前因後果變成一張找得到的單，然後就結束。它**不**簽 assertion、
+# **不**決定領域、**不**開 worktree、**不**碰你現在正在做的那張單。assertion 是下一個 session
 # 在 refinement 的事，而那時候才有人真的想過怎麼算成功。
 #
 # Usage:
@@ -82,7 +82,7 @@ ISSUE_DIR="$ISSUES/$NAMESPACE/backlog/$SLUG"
 mkdir -p "$ISSUE_DIR"
 
 # frontmatter 只有 destination 一格是先填的，而且填的是最保守的那一個：一張還沒有人想過
-# 的單不該預設它會被推到別人的 repo 去。計劃那四格與斷言都留白——它們要人回答，而這一支
+# 的單不該預設它會被推到別人的 repo 去。計劃那四格與 assertion 都留白——它們要人回答，而這一支
 # 存在的理由正是「現在還沒有人能回答」。填一個編出來的答案比空著糟：空著看得出來。
 {
   printf -- '---\n'
@@ -93,7 +93,7 @@ mkdir -p "$ISSUE_DIR"
   printf '%s\n\n' "$NOTE"
   printf '## 還沒有的東西\n\n'
   printf '這是一張種子單：它記下了一件不能消失的事，但還沒有人簽過「怎麼算成功」。\n\n'
-  printf '接手的人從 `refinement` 開始——填計劃那四格、寫斷言、算校驗值、開輪次。\n'
+  printf '接手的人從 `refinement` 開始——填計劃那四格、寫 assertion、算校驗值、開輪次。\n'
 } > "$ISSUE_DIR/index.md"
 
 bash "$LOOP_STATE" seed --state "$ISSUE_DIR/.spine/loop-state.json" --note "$NOTE" >/dev/null
@@ -110,4 +110,4 @@ if [[ "$COMMIT" -eq 1 ]]; then
 fi
 
 echo "$PREFIX 開好了：$ISSUE_DIR"
-echo "  接手的人：先走 refinement 簽斷言，再 init 開輪次。"
+echo "  接手的人：先走 refinement 簽 assertion，再 init 開輪次。"

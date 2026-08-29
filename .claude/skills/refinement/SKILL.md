@@ -1,7 +1,7 @@
 ---
 name: refinement
 description: |
-  流程的第一站，也是第一個關卡：把「怎麼算成功」談成人簽得下去的斷言，凍結起來。由 driving-work-to-done 在判定要立案之後帶進來。
+  流程的第一站，也是第一個關卡：把「怎麼算成功」談成人簽得下去的 assertion，凍結起來。由 driving-work-to-done 在判定要立案之後帶進來。
 
   driving-work-to-done 判定一件事要立案、而現場還沒有對應的單時。
 
@@ -12,13 +12,13 @@ metadata:
   version: 3.0.0
   requires:
     - skill: driving-work-to-done
-      why: 輪次狀態由它保管（spine-loop-state.sh init/advance）；沒有它，斷言簽完沒有地方記
+      why: 輪次狀態由它保管（spine-loop-state.sh init/advance）；沒有它，assertion 簽完沒有地方記
 scope: universal
 ---
 
-# refinement — 第一關：凍結斷言
+# refinement — 第一關：凍結 assertion
 
-這一站只做一件事：把成功的定義變成**人簽得下去**的斷言，鎖起來。
+這一站只做一件事：把成功的定義變成**人簽得下去**的 assertion，鎖起來。
 
 鎖起來之後，做法怎麼變都不用回來問人；只有成功的定義本身錯了才需要回到這裡重簽。
 
@@ -33,7 +33,7 @@ bash .claude/skills/refinement/scripts/open-seed-issue.sh \
   --issues issues --namespace <命名空間> --slug <名字> --note '<前因後果>'
 ```
 
-它建目錄、寫下前因後果、記一個「還沒簽斷言」的狀態、commit，然後就結束——**不簽斷言、
+它建目錄、寫下前因後果、記一個「還沒簽 assertion」的狀態、commit，然後就結束——**不簽 assertion、
 不決定領域、不開 worktree**。那些是接手的人在這一站要做的事，而那時候才有人真的想過怎麼
 算成功。種子單會出現在 `next --across-issues` 的答案裡（標成 `seed:`），所以它拿得給另一個
 session 開工。
@@ -81,12 +81,12 @@ repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 
 ## 問出只有人知道的事
 
-斷言簽的是「怎麼算成功」。但有幾件事同樣只有人回答得出來，而且它們決定**斷言本身寫得對
+assertion 簽的是「怎麼算成功」。但有幾件事同樣只有人回答得出來，而且它們決定**assertion 本身寫得對
 不對**：這一版到底要做什麼、什麼時候要、提出的人真正想解決什麼、拿什麼測。
 
 **單裡寫的「這一層不用改」「維持現狀」「out of scope」是待證主張，不是事實。** 那是提單的
 人當時的推測，而範圍抄錯的代價要到判定那一站才看得到。定範圍之前實跑一次去驗它——證實了就
-寫進去並註明驗過，證偽了就把它拉回範圍內。直接抄進斷言等於把別人的假設簽成自己的定義。
+寫進去並註明驗過，證偽了就把它拉回範圍內。直接抄進 assertion 等於把別人的假設簽成自己的定義。
 
 **單裡的〈待確認〉預設是雜訊，不是關卡。** 那一段是開單的人自己列的，而開單的人常常就是
 能回答它的人——沒有道理開完單之後，再回頭要他確認自己寫的問題。逐條拿去對這張單的**意圖**
@@ -100,7 +100,7 @@ repo，會自動跟著 `issues/` 進它自己的歷史，不需要告訴它。
 後五十分鐘內改了六版——〈待確認〉是起草過程的殘留物，不是交付契約。
 
 **沒問的那一刻不會停下來，會自己填一個。** 那比空著糟：空著看得出來，填過的看不出來。
-而判定那一站只驗實作有沒有達成那份斷言——斷言若照著一個編出來的意圖寫，整條流程會全綠地
+而判定那一站只驗實作有沒有達成那份 assertion——assertion 若照著一個編出來的意圖寫，整條流程會全綠地
 交付錯的東西。
 
 ### 交一份草案，不交一串問題
@@ -185,7 +185,7 @@ repo 的每一張單答案都相同。**它們不進單，進那個 repo 的領�
 ```
 
 `check-plan-answers.sh` 掃所有 skill 的 `SKILL.md` 找這一行。**找不到的那個環境，就是該
-沉澱的那一份。** 這件事在凍結之前就說得出來，那時候計劃還改得動——比簽完斷言、開輪次時
+沉澱的那一份。** 這件事在凍結之前就說得出來，那時候計劃還改得動——比簽完 assertion、開輪次時
 才撞 `POLARIS_SPINE_PACK_UNRESOLVED` 早一站。
 
 生的時候用上面同一套做法：先讀、先推、交草案、人改。**宣告的命令要真的跑得起來**——一份
@@ -214,26 +214,26 @@ bash .claude/skills/refinement/scripts/record-outreach.sh reply --issue {issue} 
 送出，而一個留不下紀錄的動作，事後看起來就是沒發生。回覆寫回來之後它就留在單裡，
 下一個人不用再問一次同樣的問題。
 
-## 斷言長什麼樣
+## assertion 長什麼樣
 
 **陳述句，不是要求句。**「當 X 時，Y 發生」可以被注入情境驗證；「應該要有 X」不行。
 
 **正負兩表都要有。** 只有負向表列時，「什麼都不做」可以拿滿分；只有正向表列時，副作用
 沒人管。負向表列不定義成功，它圈出即使達標也不接受的做法。
 
-**只寫意圖，不寫儀器。** 斷言承載意圖鎖死，量測是斷言的代理放開。把「用哪支腳本、閾值
+**只寫意圖，不寫儀器。** assertion 承載意圖鎖死，量測是 assertion 的代理放開。把「用哪支腳本、閾值
 多少」寫進凍結區是分層錯誤——那些東西在活區，會換。
 
 **指名一個會吃輸入的東西時，要說出那組輸入。**「當 X 時，Y 發生」裡的 X 常常不是一個值，
-是一整組——而漏掉的那幾種不會被量到，因為量測只做斷言叫它做的事。所以斷言裡要出現「哪幾
+是一整組——而漏掉的那幾種不會被量到，因為量測只做 assertion 叫它做的事。所以 assertion 裡要出現「哪幾
 種」，不是留給施工的人自己挑一個最順的。
 
 這不是在寫儀器：「排序欄位被清空時送出什麼」是意圖，「用哪支測試框架填空字串」才是儀器。
 判準是**列不出三種通常就是還沒想過**——一個吃使用者輸入的東西至少有「空的、超出範圍的、
 型別不對的」，一個吃回應的東西至少有「缺欄位的、空集合的、錯誤碼的」。
 
-2026-08-07 的標本：一條斷言寫「送出的排序與內容跟畫面一致」，而「一致」只在一個合法值上
-被量過。清空輸入欄位那一種從來沒進過斷言，於是十六條斷言全綠、交付紀錄寫成、流程判定
+2026-08-07 的標本：一條 assertion 寫「送出的排序與內容跟畫面一致」，而「一致」只在一個合法值上
+被量過。清空輸入欄位那一種從來沒進過 assertion，於是十六條 assertion 全綠、交付紀錄寫成、流程判定
 通過，而送出去的是一個空字串。**沒有任何一站做錯自己的事**——那正是這條要擋的形狀。
 
 寫進 fence 之間：
@@ -258,7 +258,7 @@ bash .claude/skills/refinement/scripts/check-plan-answers.sh {issue}/index.md
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh seal {issue}/index.md --by {簽的人}
 
 # 3. commit —— 這一步才是凍結
-git add {issue}/index.md && git commit -m "freeze: {issue} 斷言"
+git add {issue}/index.md && git commit -m "freeze: {issue} assertion"
 
 # 4. 隨時可重算比對（預設就會與 git 歷史比，不需要參數）
 bash .claude/skills/refinement/scripts/frozen-assertion-fence.sh verify {issue}/index.md
@@ -290,7 +290,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh init \
 git 歷史：`verify` 預設把 fence 內文與該檔在 HEAD 的版本比，不同就 fail-closed，重簽不構成
 授權。所以人的確認不是那個參數，是那個會出現在 diff 裡、有人看得到的 commit。
 
-沒 commit 的斷言等於還沒凍結。單若不在 git 裡，`verify` 直接回
+沒 commit 的 assertion 等於還沒凍結。單若不在 git 裡，`verify` 直接回
 `POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE`——不讓「放在未追蹤的位置」買回豁免。
 
 ## 這裡不做的事

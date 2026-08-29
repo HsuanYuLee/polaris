@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""「問不到」與「答不出來」是兩件事——六條斷言各量一次。見同名 .sh 的檔頭。"""
+"""「問不到」與「答不出來」是兩件事——六條 assertion 各量一次。見同名 .sh 的檔頭。"""
 
 import importlib.util
 import json

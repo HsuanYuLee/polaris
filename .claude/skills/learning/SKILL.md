@@ -39,7 +39,7 @@ tools:
   `scripts/validate-language-policy.sh` 或 external write gate。
 - 任何 specs Markdown 產出或匯入，遵守 `starlight-authoring-contract.md`。
 - Learning 可以 seed / import research evidence，但不得自動 invoke `refinement`，
-  也不得替任何已凍結的斷言改寫成功的定義。
+  也不得替任何已凍結的 assertion 改寫成功的定義。
 - 寫入 handbook、backlog、learnings、README acknowledgement、RemoteTrigger 或
   specs artifact 後，最後必跑 Post-Task Reflection。
 
@@ -87,7 +87,7 @@ Quick path 不可走 Route A；需 Standard / Deep 才能 seed。
 - **source 不存在**：不要自己建。研究到一個值得立案的題目時，把題目與依據講出來，
   由人在 `refinement` 決定要不要簽。learning 產出的是 `refinement` 的輸入，不是它的替代品。
 
-Why：research 是「我讀到了什麼」，斷言是「怎樣算成功」。讓研究直接寫成功的定義，
+Why：research 是「我讀到了什麼」，assertion 是「怎樣算成功」。讓研究直接寫成功的定義，
 等於讓收集證據的人自己決定及格線。
 
 ## Queue Mode Contract

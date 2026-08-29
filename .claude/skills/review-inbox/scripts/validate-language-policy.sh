@@ -179,7 +179,7 @@ MD
   assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --workspace-root . --mode artifact '$tmpdir/root/company/en.md'"
   # 沒有 language 宣告時它退到英文並放行——那是刻意的（見 lib/validate_language_policy_1.py
   # 裡的理由：一支 skill 被單獨帶到沒有這個 workspace 的地方時，規則說它照樣工作）。這一條
-  # 以前斷言 rc=1，也就是那個行為改掉之前的樣子；它從 DP-526 之前就一直紅著，而沒有任何
+  # 以前 assertion rc=1，也就是那個行為改掉之前的樣子；它從 DP-526 之前就一直紅著，而沒有任何
   # 東西會呼叫這支 selftest，所以沒有人看見。放行要，說出來也要。
   assert_rc_says 0 'language_default_english' bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/no-language/zh.md'"
   assert_rc 0 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --advisory --mode artifact '$tmpdir/no-language/zh.md'"

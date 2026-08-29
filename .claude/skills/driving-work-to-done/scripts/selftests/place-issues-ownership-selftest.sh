@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: 單的目錄樹依歸屬分組的十條斷言（DP-555 A-P1~A-P5、A-N1~A-N5）各自被單獨量一次。
+# Purpose: 單的目錄樹依歸屬分組的十條 assertion（DP-555 A-P1~A-P5、A-N1~A-N5）各自被單獨量一次。
 # Inputs:  無。自己在暫存目錄裡搭一棵假的單的目錄樹，注入一個假的解析器，不碰任何真的單、
 #          不連任何外部系統。
 # Outputs: 逐條印 `A-xx PASS`／`A-xx FAIL`。

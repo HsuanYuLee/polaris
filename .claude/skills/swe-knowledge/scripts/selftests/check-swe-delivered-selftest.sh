@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Purpose: 證明「它出去了沒有」這一問答得出三種答案，而且**approve 與 merge 都算走完**。
-# Inputs:  mktemp 底下的假 repo，加上 PATH 最前面一支餵定值的 gh 樁。
+# Inputs:  mktemp 底下的假 repo，加上 PATH 最前面一支餵定值的 gh stub。
 # Outputs: PASS 當 merge 算走完、approve 也算走完、日期取自 PR 而不是今天、還沒 approve 是
 #          not-yet、沒裝 gh 是 unmeasurable，而且三者的 exit code 彼此分得開。
 #
-# 為什麼要用樁而不是真的 gh：拿真 PR 量到的是「GitHub 今天回什麼」，那不是這裡要問的問題，
-# 而且同一支 selftest 明天會給出不同的答案。樁是刻意的、寫在這裡看得到的 fixture。
+# 為什麼要用 stub 而不是真的 gh：拿真 PR 量到的是「GitHub 今天回什麼」，那不是這裡要問的問題，
+# 而且同一支 selftest 明天會給出不同的答案。stub 是刻意的、寫在這裡看得到的 fixture。
 
 set -uo pipefail
 
@@ -18,7 +18,7 @@ PASS=0
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok  $*"; PASS=$((PASS + 1)); }
 
-# gh 樁：把要回的東西放在檔案裡，一個 case 換一次。
+# gh stub：把要回的東西放在檔案裡，一個 case 換一次。
 mkdir -p "$WORK/bin"
 cat > "$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -32,8 +32,8 @@ REPO="$WORK/repo"
 git init -q -b main "$REPO"
 git -C "$REPO" remote add origin https://github.com/acme/thing.git
 
-# Description: 換掉樁要回的 PR，然後問一次。結果放進 RC / OUT。
-# Args: $1 = 樁要回的 JSON, 其餘 = 傳給檢查的參數
+# Description: 換掉 stub 要回的 PR，然後問一次。結果放進 RC / OUT。
+# Args: $1 = stub 要回的 JSON, 其餘 = 傳給檢查的參數
 answer() {
   printf '%s' "$1" > "$FAKE_GH_PR_LIST"; shift
   RC=0
