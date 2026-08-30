@@ -43,6 +43,33 @@ FAIL = "fail"
 UNMEASURABLE = "unmeasurable"
 
 
+#: 一條 bullet 抽得出來的 assertion 編號。編號後面允許接字尾（`A-P1b`）——`\w*` 是貪婪的，
+#: 最長匹配保證它停在第一個非詞字元上，所以 `A-P1 一般` 抽到的仍然是 `A-P1`。
+#: 以前這裡是 `\d+\b`：`1` 與 `b` 之間沒有詞邊界，於是 `A-P1b` 整條抓不到——不是判成
+#: 量不到，是不存在。fence 宣告十條而報告印九條，三層全綠（DP-617 撞到，DP-618 修）。
+BULLET_ID = re.compile(r"^[ \t]*[-*][ \t]*\**([A-Z]+-[PN]\d+\w*)", re.M)
+
+#: 一條看起來要當 assertion、但編號抽不出來的 bullet。範圍刻意窄到「開頭就是
+#: `{字母}-{P 或 N}`」：真樹上 201 份 fence 裡不成 ID 的 bullet 有 81 筆，全部是寫成粗體
+#: bullet 的小標與續行（`**正向表列**` 之類），沒有一筆長成這個樣子。放寬到「所有抽不出
+#: 編號的 bullet」的話，這條指名會變成每張單都有的雜訊，然後被學會跳過。
+BULLET_LOOKS_LIKE_ID = re.compile(r"^[ \t]*[-*][ \t]*\**([A-Z]+-[PN])", re.M)
+
+
+def fence_text(index_path):
+    """單裡所有凍結塊的內文接起來。
+
+    Args:
+        index_path: `{issue}/index.md`。
+    Returns:
+        每個 fence 的內文以換行接起來的一整段；沒有 fence 時回空字串。
+    """
+    body = open(index_path, encoding="utf-8").read()
+    return "\n".join(re.findall(
+        r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
+        body, re.S))
+
+
 def assertion_ids(index_path):
     """單裡凍結的 assertion ID，照人簽下去的順序。
 
@@ -53,13 +80,29 @@ def assertion_ids(index_path):
 
     比對的樣式容得下有沒有粗體：只認粗體那一種的話，有人拿掉星號就會靜靜地找不到——
     而在這裡找不到任何東西，讀起來像「沒有東西要證明」。
+
+    抽不出編號的那幾條由 `unrecognized_assertion_bullets()` 說出來，不在這裡默默消失。
     """
-    body = open(index_path, encoding="utf-8").read()
-    fences = re.findall(
-        r"<!-- POLARIS-FROZEN-[A-Z]+-BEGIN -->(.*?)<!-- POLARIS-FROZEN-[A-Z]+-END -->",
-        body, re.S)
-    return list(dict.fromkeys(re.findall(
-        r"^[ \t]*[-*][ \t]*\**([A-Z]+-[PN]\d+)\b", "\n".join(fences), re.M)))
+    return list(dict.fromkeys(BULLET_ID.findall(fence_text(index_path))))
+
+
+def unrecognized_assertion_bullets(index_path):
+    """fence 裡看起來要當 assertion、卻抽不出編號的那幾條。
+
+    Args:
+        index_path: `{issue}/index.md`。
+    Returns:
+        那幾條 bullet 的原文（去掉前後空白）；沒有就回空的。
+
+    **這個清單非空就是一個要擋人的問題，不是一句提醒。** 一條抽不出編號的 assertion 不會
+    變成「量不到」——它會從逐條清單、從交付紀錄要檢查的那組 ID 裡一起消失，而少掉一條的
+    報告跟做滿的報告長得一模一樣。
+    """
+    out = []
+    for line in fence_text(index_path).splitlines():
+        if BULLET_LOOKS_LIKE_ID.match(line) and not BULLET_ID.match(line):
+            out.append(line.strip())
+    return out
 
 
 def distinguish(a, b):
@@ -455,6 +498,12 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
               # 的那幾條說的——否則一條被判掉的 assertion 會把它的樹一起帶走，而「證據
               # 來自幾棵樹」這一項就會在輸入被清空的時候恆真（DP-611 A-N1）。
               "trees_seen": []}
+    # 抽不出編號的那幾條先說出來，而且在「一個 ID 都沒有」之前說：整份 fence 的編號全部
+    # 打錯的時候，兩件事同時成立，而只印後面那一句的話，讀的人會去找一個根本不存在的 fence。
+    for bullet in unrecognized_assertion_bullets(index_path):
+        report["blockers"].append(
+            f"{index_path} 的 fence 裡有一條看起來要當 assertion、卻抽不出編號的："
+            f"{bullet} —— 它不在下面任何一條裡，也不會被交付紀錄檢查")
     if not ids:
         report["blockers"].append(
             f"{index_path} 有 fence 但裡面一個 assertion ID 都沒有；沒有東西要證明")
