@@ -456,8 +456,10 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             if key not in cache:
                 cache[key] = _rerun(*key, oracle, report["notes"])
             state, detail = cache[key]
-            if state != PASS:
-                mark(aid, state, detail)
+            # 通過的那一條也要記下它憑什麼通過。以前這裡只在非 PASS 時寫，於是所有通過的
+            # 斷言都掉到下面那個常數上，而一份把每一條的理由都印成同一句話的報告，說不出
+            # 自己量到了什麼。
+            mark(aid, state, detail)
         report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條 assertion 共用）")
 
     # 一張單交付到不只一個 repo 是常態（真樹上兩張，其中一張三棵），而那件事這張單自己
@@ -557,9 +559,13 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                     f"證據量的是 {shown_head}，但 {tree} 現在在 {shown_tip}——"
                     "量完之後又有 commit 落下去了")
 
+    # 走到這裡還沒有判定的，是每一層都做完而且都成立的那些。理由要說出做完的是哪幾層
+    # ——一層都沒做成的時候它不是通過，是沒有被檢查過。
+    done = [name for key, name in LAYER_NAMES if report["layers"][key]]
+    default = (PASS, "做完的那幾層都成立：" + "、".join(done))
     report["rows"] = [{"id": aid,
-                       "state": rows.get(aid, (PASS, "證據站得住"))[0],
-                       "detail": rows.get(aid, (PASS, "證據站得住"))[1]}
+                       "state": rows.get(aid, default)[0],
+                       "detail": rows.get(aid, default)[1]}
                       for aid in ids]
     return report
 
