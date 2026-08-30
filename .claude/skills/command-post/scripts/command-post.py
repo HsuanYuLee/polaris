@@ -268,6 +268,31 @@ def closable_text(m, idle_threshold=3600):
     return "\n".join(lines)
 
 
+def order_text(issue_path, to_name, from_name):
+    """一則派工指令的全文。
+
+    它只做兩件別的地方做不到的事：**確認那條路徑真的存在**，以及把「回報給誰」寫死在
+    文字裡。指揮者手打的那一版兩件都會漏——漏掉的樣子是安靜的：一個指向不存在位置的
+    成功定義，讀起來跟一份好的成功定義一模一樣。
+
+    它**不讀那張單的內容，也不讀它的輪次狀態**。這一支不判定任何工作在哪一站——那在
+    driving-work-to-done，只在那裡。這裡只確認路徑在。
+    """
+    return "\n".join([
+        "去做 " + issue_path + "。",
+        "",
+        "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
+        "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
+        "",
+        "做完，或撞到四種停點的任何一種（assertion_wrong／surfaced_concern／",
+        "unconverged_cap／unauthorized_action），SendMessage 回 " + from_name + "。",
+        "回報要對得上那份定義：哪幾條過了、哪幾條沒過、量不到的有哪些。",
+        "**輪次邊界不是停點。**",
+        "",
+        "（這則指令由 command-post 產出，收件者是 " + to_name + "）",
+    ])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", help="輸出機器讀的那一份")
@@ -284,7 +309,32 @@ def main():
     ap.add_argument("--blocked-on", help="--declare 用：現在卡在哪；沒卡就寫「沒有」")
     ap.add_argument("--tickets-opened", default="無",
                     help="--declare 用：開了哪幾張單給誰")
+    ap.add_argument("--order", action="store_true",
+                    help="產一則派工指令的全文。只印出來，不送給任何人。")
+    ap.add_argument("--issue", help="--order 用：那張單的路徑")
+    ap.add_argument("--to", dest="to_name", help="--order 用：要它去做的那個 session")
+    ap.add_argument("--from", dest="from_name", default=None,
+                    help="--order 用：回報給誰。預設是這個 session 自己的名字（$CLAUDE_SESSION_NAME）")
     args = ap.parse_args()
+    if args.order:
+        missing = [f for f, v in (("--issue", args.issue),
+                                  ("--to", args.to_name)) if not v]
+        if missing:
+            print("派工要兩樣都給，缺：" + chr(12289).join(missing), file=sys.stderr)
+            return 2
+        if not os.path.isdir(args.issue):
+            print("這條路徑不在：" + args.issue, file=sys.stderr)
+            print("成功的定義指向一個不存在的位置，跟沒有成功定義一樣——所以這裡不產出指令。",
+                  file=sys.stderr)
+            return 3
+        frm = args.from_name or os.environ.get("CLAUDE_SESSION_NAME", "")
+        if not frm:
+            print("回報給誰答不出來：--from 沒給，環境裡也沒有 CLAUDE_SESSION_NAME。",
+                  file=sys.stderr)
+            print("一則沒有收件者的回報要求，等於沒有回報要求。", file=sys.stderr)
+            return 4
+        print(order_text(args.issue, args.to_name, frm))
+        return 0
     if args.declare:
         missing = [f for f, v in (("--session-id", args.session_id),
                                   ("--holding", args.holding),
