@@ -26,6 +26,13 @@ new_issue() {
     echo "title: fixture"
     echo "destination: workspace"
     [[ -n "$block" ]] && printf '%s\n' "$block"
+    # DP-608 多了一格 `assumes`。既有的案子問的都是那四格，所以除非某個案子自己要講
+    # 現況主張，否則替它補上「這張 fixture 不依賴任何現況」——那樣每一個案子仍然只在
+    # 量它本來要量的東西，而不是全部一起變紅。
+    if [[ -n "$block" && "$block" == *"plan:"* && "$block" != *"assumes"* ]]; then
+      echo "  assumes:"
+      echo "    not_applicable: \"fixture 不依賴任何別處的現況\""
+    fi
     echo "---"
     echo
     echo "本文"

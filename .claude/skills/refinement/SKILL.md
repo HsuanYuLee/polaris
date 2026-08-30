@@ -165,6 +165,40 @@ plan:
 「哪個環境還沒有人會起」就算得出來——而那正是〈有些答案每張單都一樣〉在講的訊號。真的
 不需要起任何東西就寫 `environments: none`：**那是一個答案，不是欄位不見。**
 
+### 這一版假設的現況，逐條列出來
+
+上面那條「單裡寫的『這一層不用改』是待證主張」的規矩，寫下之後 18 次都沒有被執行。落差不在
+規矩本身——**它沒有落腳處**。一句驗過的現況跟一句沒驗過的現況，在檔案裡長得一模一樣，而長得
+一樣就是不會發生的意思。
+
+所以現況主張跟計劃那四格放在一起，形狀相同：一個答案，加上它從哪來。
+
+```yaml
+plan:
+  assumes_legacy_has_no_pipeline:
+    claim: "這個 repo 沒有任何 pipeline 會跑 packages/legacy 的測試"
+    verified_by: "rg -l 'packages/legacy' .ci/"
+    observed: "（無輸出，0 個檔案）"
+```
+
+三個欄位缺一不可，而且**修法各不相同**：沒有 `claim` 是這一條在主張什麼看不出來；有 `claim`
+沒有 `verified_by` 跟直接把它寫進斷言沒有差別；有命令沒有 `observed`，那條命令證明不了任何
+事——沒有輸出就把「無輸出」寫出來，那跟沒跑過長得不一樣。
+
+**一張單真的不依賴任何別處的現況時，那要是一個說得出來的答案：**
+
+```yaml
+plan:
+  assumes:
+    not_applicable: "這一版只改自己這支腳本的行為，不依賴任何別處的現況"
+```
+
+**哪些句子算現況主張？可以被證偽的那些。**「送出之後 X 會發生」是意圖，錯了要重想；
+「packages/legacy 沒有 pipeline 會跑」是現況，錯了跑一次就知道。跨 repo 的單特別要列——別的 repo
+的現況你不會順手看到，而自己這個 repo 的你以為你知道。DP-608 全樹量到的：assertion_wrong
+停點在單一 repo 每張 0.17 個、兩個 repo 2.00、三個 repo 5.00；而單一 repo 那 20 條裡有 13 條
+也是「一句沒驗過的現況」——**「以為知道」跟「沒看過」一樣貴。**
+
 ```bash
 bash .claude/skills/refinement/scripts/check-plan-answers.sh {issue}/index.md
 ```

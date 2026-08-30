@@ -125,6 +125,58 @@ reject_machine_paths() {
 真的三種都不是的話，用 --exempt-path 與 --exempt-why 具名寫進登錄。"
 }
 
+reject_written_down_position() {
+  # Description: refuse a measurement command that writes down **where this ticket
+  #              currently sits** instead of asking at run time (DP-595 A-P1).
+  # Args: $1 = command string, $2 = ledger path, $3 = label, $4.. = exempt substrings
+  # Exit:  非 0 並印出 POLARIS_MEASUREMENT_COMMAND_CARRIES_A_POSITION 時代表擋下來了。
+  #
+  # 判準：命令字串裡不得出現「斜線＋這張單自己的目錄名」。寫下那一段，就是把單當下所在的
+  # 那一格抄進去了——而格子是狀態的投影，`record` 與釋出尾段都會重算它，於是那條路徑在下
+  # 一次重算之後就是死指標。
+  #
+  # 它蓋掉三種寫法，因為三種都帶著那一段：
+  #   /Users/…/issues/{命名空間}/in-progress/{單}/probes/x.sh   展開後的絕對路徑
+  #   $HOME/…/issues/{命名空間}/in-progress/{單}/probes/x.sh    以 $HOME 開頭（上面那道放行的）
+  #   ../../../../issues/{命名空間}/in-progress/{單}/scripts/x.py  相對於另一棵樹
+  #
+  # 收得下的那一種不含它：`$(… spine-loop-state.sh find <單名>)/probes/x.sh` 只出現單名，
+  # 前面沒有斜線——它在問，不是在抄。
+  local command_str="$1" ledger="$2" label="$3"
+  shift 3
+  local issue_dir issue_name
+  issue_dir="$(dirname "$(dirname "$ledger")")"
+  issue_name="$(basename "$issue_dir")"
+  case "$issue_name" in
+    ""|"."|".."|"/")
+      echo "[measurement] ${label}：從登錄檔的位置（${ledger}）解不出這是哪一張單，這一條判準這一次沒有量到" >&2
+      return 0 ;;
+  esac
+
+  case "$command_str" in
+    *"/$issue_name"*) ;;
+    *) echo "[measurement] ${label}：命令裡沒有寫下這張單的位置（找的是「/${issue_name}」）" >&2; return 0 ;;
+  esac
+
+  local exempt
+  for exempt in "$@"; do
+    [[ -n "$exempt" ]] || continue
+    case "$command_str" in
+      *"$exempt"*)
+        echo "[measurement] ${label}：命中豁免「${exempt}」，放行" >&2
+        return 0 ;;
+    esac
+  done
+
+  die "POLARIS_MEASUREMENT_COMMAND_CARRIES_A_POSITION" \
+    "${label} 把這張單當下所在的位置抄進命令裡了（字串裡有「/${issue_name}」）。
+格子是狀態的投影，record 與釋出尾段都會重算它——抄下來的那條路徑在下一次重算之後就是死指標，
+而重跑時它只會說「開不到檔」。改成執行當下才問位置：
+  bash \"\$(bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh find ${issue_name})/probes/probe.sh\"
+不要在後面接 | tail -1：find 命中不是剛好一個的時候會回非 0，而那個離場碼會被 tail 吃掉。
+真的不是在講位置的話，用 --exempt-path 與 --exempt-why 具名寫進登錄。"
+}
+
 command_hash() {
   # Description: hash a command string through the single spine hash helper.
   # Args: $1 = command string
@@ -294,6 +346,7 @@ cmd_record() {
   [[ -n "$exempt_why" && -z "$exempt_path" ]] && { usage; exit 2; }
 
   reject_machine_paths "$new_command" "新命令" "$exempt_path"
+  reject_written_down_position "$new_command" "$ledger" "新命令" "$exempt_path"
 
   local current
   current="$(latest_new_hash "$ledger" "$assertion")" || exit 2

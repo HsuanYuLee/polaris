@@ -66,6 +66,36 @@ bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
 相同**——分得開它們的只有輸出裡那一行說著缺了什麼。這是因為工具會說謊：PATH 上較早的 shim、靜默跳過的測試、
 被吞成 generic timeout 的錯誤，三者都能讓一個空的執行看起來像綠的。
 
+### 命令與探針都不准把位置抄下來
+
+**一張單住在哪一格是它的狀態的投影，會被重算。** 所以登錄下來的命令、以及探針解 repo 根
+的寫法，兩邊都不准把「現在在哪」寫成字面值——寫下去的那一刻它就是一個會在下一次重算之後
+失效的指標，而失效的樣子是「開不到檔」，讀起來像交付壞了。
+
+**命令這一邊，執行當下才問位置**：
+
+```bash
+bash "$(bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh find <單的目錄名>)/probes/probe.sh"
+```
+
+後面不要接 `| tail -1`。`find` 命中不是剛好一個的時候會回非 0（3 ＝ 多於一個，4 ＝ 一個
+都沒有），而那個離場碼會被 `tail` 吃掉，於是兩行路徑被當成一條用。`record-measurement-change.sh`
+在登錄的時候會擋下把單自己的目錄名連著斜線抄進去的命令，三種寫法都算：展開後的絕對路徑、
+以 `$HOME` 開頭的、相對於另一棵樹的。
+
+**探針這一邊，起點是執行者給的工作目錄**，那幾行的權威版本在
+`.claude/skills/verify-ac/scripts/lib/probe-root.sh`——**抄進探針裡，不要 source**：探針
+要先有根才找得到那個檔案。
+
+```bash
+probe_repo_root "${BASH_SOURCE[0]}"   # 先問 $PWD，走不到才退回探針自己的位置
+```
+
+`$PWD` 就是 `run-hardened-oracle.sh --cwd` 指名的那棵樹。**不要從 `${BASH_SOURCE[0]}` 開始
+走**：探針住在 `issues/`，而 `issues/` 巢在主 checkout 底下，所以那條路一定先撞到主
+checkout——那一輪的程式碼在別的工作樹的時候，它就安靜地量了另一棵。**也不要數固定層數**：
+終局那幾格底下多一層日期資料夾，單一搬進去 `../../../..` 就少一層。
+
 ## 現在過了幾條
 
 上面那三件事是一條 assertion 一條 assertion 做的。要問「這張單十三條裡現在過了幾條」，跑這一支：

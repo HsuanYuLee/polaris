@@ -30,14 +30,44 @@
 # 字面值 `none` 表示這件工作不需要起任何環境。那是一個寫下來的答案，不是欄位不見；跟
 # `not_applicable` 與空著的關係是同一條分界。
 #
-# Usage: check-plan-answers.sh <index.md> [--require what,when,why,how] [--skills <dir>]
-# Exit:  0 齊備 / 2 缺項、剖析不了、或有環境沒人會起（訊息指名是哪一個）
+# 現況主張要跟意圖分開放
+# ----------------------
+# 一條斷言裡描述現況的句子（「packages/legacy 沒有任何 pipeline 會跑」）與描述意圖的句子
+# （「送出之後 X 會發生」）在 fence 裡長得一模一樣——而前者可以被證偽，後者不行。
+# DP-608 全樹量到的：124 張宣告過落腳處的單裡，assertion_wrong 停點在單一 repo 每張 0.17
+# 個、兩個 repo 2.00、三個 repo 5.00；而單一 repo 那 20 條逐條讀完，13 條也是「一句沒驗
+# 過的現況」。跨 repo 只是把這種句子的數量乘上去。
+#
+# refinement 的散文早就寫著「定範圍之前實跑一次去驗它」，那條規矩存在而 18 次都沒被執行。
+# 落差不在規矩，在**它沒有落腳處**：驗過的現況沒有地方放它驗的那條命令與那一趟的輸出，
+# 於是驗與不驗在檔案裡長得一樣，而長得一樣就是不會發生的意思。
+#
+# 所以這裡多問一格，形狀照抄上面那四格（一個答案 ＋ 它從哪來）：
+#
+#   plan:
+#     assumes_legacy_has_no_pipeline:
+#       claim: "這個 repo 沒有任何 pipeline 會跑 packages/legacy 的測試"
+#       verified_by: "rg -l 'packages/legacy' .ci/"
+#       observed: "（無輸出，0 個檔案）"
+#
+# 一張單真的不依賴任何現況主張時，那要是一個說得出來的答案：
+#
+#   plan:
+#     assumes:
+#       not_applicable: "這一版只改自己這支腳本的行為，不依賴任何別處的現況"
+#
+# 這一格屬於 --require 的預設集合，所以 `--require what,when,why,how` 一條都不判——
+# 相容性保在那條路上，不保在「沒填也放行」。
+#
+# Usage: check-plan-answers.sh <index.md> [--require what,when,why,how,assumes] [--skills <dir>]
+# Exit:  0 齊備 / 2 缺項、剖析不了、有環境沒人會起、或有現況主張沒被驗過（訊息指名是哪一條）
 
 set -uo pipefail
 
 MARKER_MISSING="POLARIS_PLAN_ANSWER_MISSING"
 MARKER_UNPARSEABLE="POLARIS_PLAN_BLOCK_UNPARSEABLE"
 MARKER_NO_ENV="POLARIS_PLAN_ENVIRONMENT_UNCLAIMED"
+MARKER_ASSUMPTION="POLARIS_PLAN_ASSUMPTION_UNVERIFIED"
 
 # 領域知識住的地方。發現面掃它底下每一份 SKILL.md 找環境宣告——跟核心解 pack 是同一棵樹，
 # 所以換一個 workspace 不用改這裡。
@@ -45,11 +75,11 @@ SKILLS_DIR=""
 
 # 預設要問的四項。它們是「只有人回答得出來」的那一組，不是 5W1H 的全部——Who 與 Where
 # 對同一個 repo 的每一張單答案都一樣，屬領域知識，不屬這裡。
-REQUIRE="what,when,why,how"
+REQUIRE="what,when,why,how,assumes"
 FILE=""
 
 usage() {
-  echo "Usage: check-plan-answers.sh <index.md> [--require what,when,why,how] [--skills <dir>]" >&2
+  echo "Usage: check-plan-answers.sh <index.md> [--require what,when,why,how,assumes] [--skills <dir>]" >&2
   exit 2
 }
 
@@ -76,20 +106,25 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-python3 - "$FILE" "$REQUIRE" "$MARKER_MISSING" "$MARKER_UNPARSEABLE" "$MARKER_NO_ENV" "$SKILLS_DIR" <<'PY'
+python3 - "$FILE" "$REQUIRE" "$MARKER_MISSING" "$MARKER_UNPARSEABLE" "$MARKER_NO_ENV" "$SKILLS_DIR" "$MARKER_ASSUMPTION" <<'PY'
 import glob
 import os
 import re
 import sys
 
 path, require_csv, marker_missing, marker_unparseable = sys.argv[1:5]
-marker_no_env, skills_dir = sys.argv[5], sys.argv[6]
+marker_no_env, skills_dir, marker_assumption = sys.argv[5], sys.argv[6], sys.argv[7]
 required = [k.strip() for k in require_csv.split(",") if k.strip()]
 SOURCES = ("human", "environment", "inferred_confirmed")
 # 「拿什麼測」是唯一帶得出環境的那一項。哪一項帶它寫在這裡而不是散在各處，因為它是一個
 # 會被兩個地方讀到的決定：這支腳本，以及第一關的散文。
 ENV_CARRIER = "how"
 NO_ENVIRONMENT = "none"
+# 現況主張：`assumes` 本身只用來明講「這張單不需要」，逐條的主張各自是一個
+# `assumes_<名字>` 鍵。這樣剖析器一行都不用動——它認得的仍然只有 indent 2 的鍵與
+# indent 4 的欄位。
+ASSUMPTION_KEY = "assumes"
+ASSUMPTION_PREFIX = "assumes_"
 
 
 def refuse(marker, *lines):
@@ -151,6 +186,8 @@ if not plan:
 
 problems = []
 for key in required:
+    if key == ASSUMPTION_KEY:
+        continue  # 它的形狀跟那四格不同，在下面自己一段
     entry = plan.get(key)
     if entry is None:
         problems.append(f"  {key}: 沒有這一項")
@@ -184,6 +221,58 @@ if problems:
            "做法在 refinement 的〈交一份草案，不交一串問題〉：整張讀完、每一格都先填、",
            "標好那一格是誰給的，然後讓人在草案上改。查得到的事實自己查，不要做成問題。")
 
+# 現況主張。這一版依賴的每一句「現在是這樣」都要單獨列出來，各自帶著驗它的那條命令與
+# 那一趟印出來的東西。三種缺法要分得開，因為修法不同。
+if ASSUMPTION_KEY in required:
+    listed = {k: v for k, v in plan.items() if k.startswith(ASSUMPTION_PREFIX)}
+    declared = plan.get(ASSUMPTION_KEY)
+    waived = (declared or {}).get("not_applicable", "")
+
+    if not listed and declared is None:
+        refuse(marker_assumption,
+               f"{path} 沒有說出這一版依賴哪些現況主張。",
+               "一條斷言裡描述現況的句子可以被證偽，描述意圖的句子不行——而它們在 fence 裡",
+               "長得一模一樣。全樹量到的：assertion_wrong 停點有一半以上是「一句沒驗過的現況」。",
+               "列法：",
+               "  plan:",
+               "    assumes_<短名字>:",
+               '      claim: "現在是這樣"',
+               '      verified_by: "驗它的那條命令"',
+               '      observed: "那一趟印出來的東西"',
+               "真的不依賴任何現況就明講，那是一個答案，不是欄位不見：",
+               "  plan:", "    assumes:",
+               '      not_applicable: "為什麼這張單不依賴任何別處的現況"')
+
+    if not listed and declared is not None and not waived:
+        refuse(marker_assumption,
+               f"{path} 標了 assumes 但沒有說為什麼不需要——那跟沒標一樣。",
+               '寫成 not_applicable: "<理由>"，或改成逐條列出 assumes_<名字>。')
+
+    if listed and waived:
+        refuse(marker_assumption,
+               f"{path} 一邊明講不依賴任何現況，一邊列了 {len(listed)} 條現況主張：",
+               *[f"  {k}" for k in sorted(listed)],
+               "兩個答案只能留一個。")
+
+    gaps = []
+    for name in sorted(listed):
+        fields = listed[name]
+        claim = fields.get("claim", "")
+        verified_by = fields.get("verified_by", "")
+        observed = fields.get("observed", "")
+        if not claim:
+            gaps.append(f"  {name}: 沒有 claim——這一條到底主張什麼看不出來")
+        elif not verified_by:
+            gaps.append(f"  {name}: 有主張沒有 verified_by。"
+                        "沒有驗它的那條命令，這一條跟直接寫進斷言裡沒有差別")
+        elif not observed:
+            gaps.append(f"  {name}: 有 verified_by 沒有 observed。"
+                        "一條沒有輸出的命令證明不了任何事——貼那一趟真的印出來的東西，"
+                        "沒有輸出就把「無輸出」寫出來")
+    if gaps:
+        refuse(marker_assumption,
+               f"{path} 的現況主張還沒被驗過，凍結不放行：", *gaps)
+
 # 環境對得上人。列出來的每一個，都要有某一份領域知識宣告它會起它——找不到的那個就是
 # 該生出來的那一份，而這件事在 assertion 被凍結之前就說得出來。
 raw = (plan.get(ENV_CARRIER) or {}).get("environments", "")
@@ -216,6 +305,14 @@ answered = [k for k in required if not plan.get(k, {}).get("not_applicable")]
 skipped = [k for k in required if plan.get(k, {}).get("not_applicable")]
 env_note = (f"，{len(wanted)} 個環境都有人會起（{', '.join(wanted)}）" if wanted
             else "，不需要起任何環境" if raw.strip() == NO_ENVIRONMENT else "")
+if ASSUMPTION_KEY in required:
+    n_assume = len([k for k in plan if k.startswith(ASSUMPTION_PREFIX)])
+    assume_note = (f"，{n_assume} 條現況主張都帶著驗過的輸出" if n_assume
+                   else "，明講不依賴任何現況")
+else:
+    assume_note = ""
+answered = [k for k in answered if k != ASSUMPTION_KEY]
+skipped = [k for k in skipped if k != ASSUMPTION_KEY]
 print(f"PLAN-ANSWERS-OK {len(answered)} 項有答案（{', '.join(answered) or '無'}）"
-      f"，{len(skipped)} 項記為不適用（{', '.join(skipped) or '無'}）{env_note}")
+      f"，{len(skipped)} 項記為不適用（{', '.join(skipped) or '無'}）{env_note}{assume_note}")
 PY

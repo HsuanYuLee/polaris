@@ -208,6 +208,105 @@ def _why(done):
 WHY_LINES = 3
 
 
+# 一個 token 要長成什麼樣才算「一條路徑」。放寬一點會把 grep 的樣式當成路徑，收緊一點會漏掉
+# `bash issues/x/probe.sh` 這種相對寫法——所以兩條都算：明確的路徑開頭，或者帶著副檔名。
+_PATHISH_PREFIX = ("/", "./", "../", "~/")
+_PATHISH_SUFFIX = (".sh", ".py", ".json", ".md", ".mjs", ".js", ".ts", ".txt", ".yaml", ".yml")
+
+# 會被交一個檔案去跑的那幾個。它們後面第一個像路徑的 token，就是「這條命令要跑的東西」。
+_INTERPRETERS = ("bash", "sh", "zsh", "python3", "python", "node")
+
+
+def _pathish(token):
+    """這個 token 看起來是不是一條路徑。Args: token。Returns: bool。"""
+    if "/" not in token or token.startswith("-"):
+        return False
+    return token.startswith(_PATHISH_PREFIX) or token.endswith(_PATHISH_SUFFIX)
+
+
+def _without_substitutions(command):
+    """把 `$(…)` 與反引號那幾段整段換成一個 `$`，剩下的才拿去找路徑。
+
+    Args:
+        command: 命令字串。
+    Returns:
+        同一條命令，命令替換的那幾段各換成一個 `$`。
+
+    換成 `$` 而不是拿掉，是為了讓它黏在後面那一段上：`"$(… find X)/probes/probe.sh"`
+    變成 `$/probes/probe.sh`，帶著 `$` 的 token 上面那一層本來就會跳過。換成空白的話
+    後半會自己成為一個 token，看起來就是一條不存在的絕對路徑——那正好是要放行的寫法。
+    """
+    out = []
+    i = 0
+    depth = 0
+    while i < len(command):
+        ch = command[i]
+        if depth == 0 and command.startswith("$(", i):
+            depth = 1
+            i += 2
+            continue
+        if depth:
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    out.append("$")
+            i += 1
+            continue
+        if ch == "`":
+            end = command.find("`", i + 1)
+            if end < 0:
+                break
+            out.append("$")
+            i = end + 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def unstartable_path(command, cwd):
+    """這條命令要跑的那個檔案現在還在不在。
+
+    Args:
+        command: 登錄下來的那條命令，原樣。
+        cwd: 重跑時站的地方；空的就用現在站的地方。
+    Returns:
+        那個檔案的路徑（原樣），如果它不存在；否則 None。
+
+    **只看第一個簡單命令要跑的那個檔案，不看命令裡所有路徑。** 看全部的話，一條在斷言
+    「某個東西不該存在」的量測會被這一層從紅降成量不到——那是拿一句安慰換掉一個真的判定。
+    要跑的那個檔案不在，才是「這條登錄下來的命令已經指不到東西了」。
+
+    帶著還沒展開的 `$(…)`、反引號、別的變數或萬用字元的一律不算：那些正是「執行當下才問
+    位置」的寫法，它們現在長什麼樣要跑過才知道。`$HOME` 例外，它展開得出來，而且它就是
+    今天放行、明天作廢的那一種。
+    """
+    home = os.path.expanduser("~")
+    head = re.split(r"[|;&\n]", _without_substitutions(command or ""), 1)[0]
+    tokens = [t for t in re.findall(r"""[^\s"'`|;&<>]+""", head)]
+    # 前面那幾個 VAR=value 是環境設定，不是要跑的東西。
+    while tokens and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+        tokens.pop(0)
+    if not tokens:
+        return None
+    if os.path.basename(tokens[0]) in _INTERPRETERS:
+        target = next((t for t in tokens[1:] if _pathish(t)), None)
+    else:
+        target = tokens[0] if _pathish(tokens[0]) else None
+    if not target:
+        return None
+    resolved = target.replace("${HOME}", home).replace("$HOME", home)
+    if "$" in resolved or "*" in resolved or "?" in resolved:
+        return None
+    if resolved.startswith("~/"):
+        resolved = home + resolved[1:]
+    if not os.path.isabs(resolved):
+        resolved = os.path.join(cwd or os.getcwd(), resolved)
+    return None if os.path.exists(resolved) else target
+
+
 def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
     """拿這條命令現在再跑一次，回 (state, 一句話)。
 
@@ -256,6 +355,18 @@ def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
         done.stderr.decode("utf-8", "replace"))
     if done.returncode == 0:
         return PASS, "重跑一次仍然是綠的"
+    # 非零有兩種來源，而它們要的下一步不一樣：「這一趟量到了，是紅的」「這一趟沒問到」，
+    # 都假設那條命令還跑得起來。而一張單交付之後會被重算搬走，於是登錄下來的那條命令要跑
+    # 的檔案根本不在了——那既不是紅也不是沒問到，是這份證據再也重跑不了（DP-595）。
+    # 它以前分別落進上面那兩句話：直譯器開不到檔回 2、oracle 把它翻成 FAIL 回 1，
+    # 所以讀起來是「重跑一次是紅的」——一張好好的單看起來像交付壞了。
+    gone = unstartable_path(command, cwd)
+    if gone:
+        return UNMEASURABLE, (
+            f"重跑指向一個不存在的位置：這條命令要跑的 {gone} 現在找不到。"
+            "這不是「量到了是紅的」，也不是「這一趟沒問到」——是這條登錄下來的命令本身"
+            "已經指不到東西了（單的位置會被重算，改成執行當下用 spine-loop-state.sh find 問）。"
+            + _why(done))
     if done.returncode == 1:
         return FAIL, "重跑一次是紅的：" + _why(done)
     return UNMEASURABLE, "重跑量不到：" + _why(done)
