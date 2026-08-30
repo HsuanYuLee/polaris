@@ -59,35 +59,107 @@ if [[ ${#REPO_PATHS[@]} -eq 0 ]]; then
   exit 2
 fi
 
-# Description: 這個工作區有沒有宣告一個版控的 hook 目錄。宣告掃的是它自己的 skill，核心
-#              與這支腳本都不認得那個目錄叫什麼、由誰裝。
+# Description: 一份 SKILL.md 裡的 GIT-HOOKS 宣告，逐行印出來。
+# Args: $1 = SKILL.md 路徑
+# Outputs: 每份宣告一行，`{那份 SKILL.md}<TAB>{相對路徑}|{接上它的命令}`。
+#
+# **講「宣告長什麼樣」的那段文字不是一份宣告，而分開它們的東西要說得出來**（DP-627）：
+# 一份宣告是散文裡的一行 HTML 註解，格式說明住在 fenced code block 裡——所以這裡跳過
+# code block，而那就是分界。以前分開它們的是**佔位符剛好用了哪個字元**：`{任意前綴}` 裡
+# 的 `{` 不在 `[A-Za-z0-9_-]` 裡，所以正則對不上它。把佔位符換成一個 ASCII 前綴，那段
+# 格式說明就會被當成一份活的宣告撿走——一個沒有人說出口的分界，下一次換個寫法就沒了。
+declarations_in() {
+  local file="$1"
+  awk -v src="$file" '
+    /^[ \t]*```/ { fence = 1 - fence; next }
+    fence { next }
+    match($0, /<!--[ \t]*[A-Za-z0-9_-]+-GIT-HOOKS:[^>]*-->/) {
+      line = substr($0, RSTART, RLENGTH)
+      sub(/^<!--[ \t]*/, "", line)
+      sub(/[ \t]*-->$/, "", line)
+      sub(/^[A-Za-z0-9_-]+-GIT-HOOKS:[ \t]*/, "", line)
+      gsub(/[ \t]*\|[ \t]*/, "|", line)
+      sub(/[ \t]+$/, "", line)
+      if (line != "") print src "\t" line
+    }
+  ' "$file" 2>/dev/null
+}
+
+# Description: 這台機器上所有 SKILL.md 裡的 GIT-HOOKS 宣告。
 # Args: $1 = repo toplevel
-# Outputs: `{相對路徑}|{接上它的命令}`；沒有宣告就什麼都不印。
-hooks_declaration() {
-  local top="$1" line
-  [[ -d "$top/.claude/skills" ]] || return 0
-  line="$(grep -rhoE '[A-Za-z0-9_-]+-GIT-HOOKS:[^>]*' "$top/.claude/skills" \
-    --include=SKILL.md 2>/dev/null | head -1)"
-  [[ -n "$line" ]] || return 0
-  printf '%s' "${line#*-GIT-HOOKS:}" | sed 's/^ *//; s/ *$//; s/ *| */|/'
+# Outputs: 每份宣告一行，`{那份 SKILL.md}<TAB>{相對路徑}|{接上它的命令}`。
+#
+# **兩棵樹都掃**（DP-627）：一份宣告可能住在工作區自己的 skill 樹，也可能住在使用者家目錄
+# 那一棵——後者是個人 skill 的家，而它們一樣宣告得出東西。只掃工作區那一棵的那一版，對
+# 這個 workspace 唯一那份真的宣告完全看不見，然後把「一份都沒找到」講成「這一條不適用」。
+# 掃兩棵這件事這個 repo 已經在做了，見 `scripts/gate-source-destination.sh` 的
+# `skill_roots()`（DP-629 落地的），這裡用同一個做法，不發明第二個。
+hooks_declarations() {
+  local top="$1" root f
+  for root in "$top/.claude/skills" "$HOME/.claude/skills"; do
+    [[ -d "$root" ]] || continue
+    while IFS= read -r f; do
+      [[ -n "$f" ]] || continue
+      declarations_in "$f"
+    done < <(find "$root/" -name SKILL.md -type f 2>/dev/null | sort)
+  # 兩棵樹指到同一個地方時（workspace 就放在家目錄底下）同一份宣告會被讀兩次，去重之後
+  # 下面的訊息才不會把同一件事說兩遍。去重比對的是整行，含它是從哪一份 SKILL.md 讀來的。
+  done | awk '!seen[$0]++'
 }
 
 # Description: 判「宣告出來的那個 hook 目錄，git 真的在用嗎」。
 # Args: $1 = repo toplevel
 # Exit:  0 成立或不適用 / 2 不成立、量不到（訊息進 stderr，成立的一句話進 stdout）
 check_hooks() {
-  local top="$1" decl dir fix actual rc=0 f
-  decl="$(hooks_declaration "$top")"
-  if [[ -z "$decl" ]]; then
-    echo "  hook：這個工作區沒有宣告版控 hook 目錄，這一條不適用。"
+  local top="$1" decl src pair dir fix actual rc=0 f
+  local -a found=() applicable=()
+  while IFS= read -r decl; do
+    [[ -n "$decl" ]] && found+=("$decl")
+  done < <(hooks_declarations "$top")
+
+  # 一份都沒找到的時候說出**掃了哪裡**，不說「這一條不適用」（DP-627）。兩句話對一個真的
+  # 接上了版控 hook 的工作區給出相反的意思：這個 workspace 的 core.hooksPath 一直指著
+  # scripts/githooks，而掃描器只掃工作區那一棵樹、宣告住在家目錄那一棵，於是它回報「不適用」
+  # ——一個安靜的第三態，下一次就會被當成查過了。
+  if [[ ${#found[@]} -eq 0 ]]; then
+    echo "  hook：這一次沒有問到任何一份 GIT-HOOKS 宣告（掃了 ${top}/.claude/skills 與 ${HOME}/.claude/skills 底下的 SKILL.md）。"
     return 0
   fi
-  dir="${decl%%|*}"; fix="${decl#*|}"
-  if [[ ! -d "$top/$dir" ]]; then
-    echo "$PREFIX 量不到：${top} 宣告的 hook 目錄 ${dir} 不存在。" >&2
-    echo "$PREFIX 宣告與現況對不上時這裡不放行——一個指向空氣的宣告，跟沒有宣告在出事的時候長得一樣。" >&2
-    return 2
+
+  # 一份宣告適不適用於這個工作區，看它指的目錄在不在這裡——那是事實，不是推測。宣告裡的
+  # 路徑是相對於 repo 的，而家目錄那一棵 skill 樹被這台機器上**每一個**工作區共用，所以
+  # 住在那裡的一份宣告不可能是「每一個 repo 都要有這個目錄」的意思。
+  #
+  # 但住在工作區自己那一棵樹裡的宣告不一樣：它只可能在講這個工作區。所以它指向空氣的時候
+  # 仍然判紅——那是原本就有的門檻，這一輪不動它。
+  for decl in "${found[@]}"; do
+    src="${decl%%$'\t'*}"; pair="${decl#*$'\t'}"
+    dir="${pair%%|*}"
+    if [[ -d "$top/$dir" ]]; then
+      applicable+=("$pair")
+      continue
+    fi
+    if [[ "$src" == "$top/.claude/skills/"* ]]; then
+      echo "$PREFIX 量不到：${src} 宣告的 hook 目錄 ${dir} 在 ${top} 底下不存在。" >&2
+      echo "$PREFIX 那份宣告住在這個工作區自己的 skill 樹裡，所以它只可能在講這個工作區。" >&2
+      echo "$PREFIX 宣告與現況對不上時這裡不放行——一個指向空氣的宣告，跟沒有宣告在出事的時候長得一樣。" >&2
+      return 2
+    fi
+    echo "  hook：${src} 宣告的 ${dir} 不在 ${top} 底下，所以那份宣告不是在講這個工作區。"
+  done
+
+  if [[ ${#applicable[@]} -eq 0 ]]; then
+    echo "  hook：問到了 ${#found[@]} 份宣告，沒有一份是在講這個工作區。"
+    return 0
   fi
+
+  # 多份都適用的時候只判第一份就夠：它們指的是同一個工作區的同一件事，而第一份不成立就
+  # 已經擋下來了。多份適用本身是值得說出來的，所以印出來。
+  if [[ ${#applicable[@]} -gt 1 ]]; then
+    echo "  hook：${#applicable[@]} 份宣告都適用於這個工作區，判第一份。"
+  fi
+  pair="${applicable[0]}"
+  dir="${pair%%|*}"; fix="${pair#*|}"
   # 沒有執行位元的 hook，git 是安靜地不跑它：沒有警告，commit 與 push 一樣過。所以「接上了」
   # 不只是 config 指對地方，還要那裡的東西真的跑得起來。
   for f in "$top/$dir"/*; do

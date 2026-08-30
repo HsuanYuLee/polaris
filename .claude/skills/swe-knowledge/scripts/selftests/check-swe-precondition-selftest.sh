@@ -33,7 +33,16 @@ new_repo() {
   printf '%s' "$repo"
 }
 
-run() { RC=0; OUT="$(bash "$CHECK" "$@" 2>&1)" || RC=$?; }
+# HOME 要換掉：開工條件現在也掃 `$HOME/.claude/skills`（DP-627），而跑這支 selftest 的人
+# 的家目錄裡真的有宣告。不換的話每一個 fixture 都會讀到那一份，於是這裡量到的是那台機器的
+# 狀態，不是 fixture 的狀態——而它在寫下它的人的機器上會是綠的。
+NOHOME="$WORK/nohome"
+mkdir -p "$NOHOME"
+run() { RC=0; OUT="$(HOME="$NOHOME" bash "$CHECK" "$@" 2>&1)" || RC=$?; }
+
+# Description: 用 $2 當 HOME 跑一次，讓「家目錄那一棵 skill 樹」進得了量測。
+# Args: $1 = 那個假的 HOME，$2.. = 傳給 CHECK 的參數
+run_with_home() { local h="$1"; shift; RC=0; OUT="$(HOME="$h" bash "$CHECK" "$@" 2>&1)" || RC=$?; }
 
 repo="$(new_repo on_default main)"
 run --repo "$repo"
@@ -198,14 +207,65 @@ else
   bad "宣告指向空氣卻放行了：rc=$RC $OUT"
 fi
 
-# 沒有宣告的工作區（多數產品 repo）這一條不適用，而且要把不適用印出來——一個安靜的第三態
-# 下一次會被當成查過了。
+# 一份宣告都沒問到的時候，說的是「這一次沒有問到」而且說出掃了哪裡——不是「這一條不適用」
+# （DP-627）。兩句話對一個真的接上了 hook 的工作區給出相反的意思：這個框架自己的 workspace
+# 一直接著 hook，而它的宣告住在家目錄那一棵樹裡，於是舊的那句話整段存在期間都在說謊。
 repo="$(new_repo no_declaration main)"; git -C "$repo" switch -q -c feat/x
 run --repo "$repo"
-if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q '這一條不適用'; then
-  ok "沒有宣告 hook 目錄的工作區：放行，而且說出這一條不適用"
+if [[ "$RC" -eq 0 ]] \
+   && printf '%s' "$OUT" | grep -q '這一次沒有問到' \
+   && printf '%s' "$OUT" | grep -q "$NOHOME/.claude/skills"; then
+  ok "一份宣告都沒問到：放行，說出沒問到而且說出掃了哪兩棵樹"
 else
-  bad "不適用沒有被印出來：rc=$RC $OUT"
+  bad "沒問到的那句話不對：rc=$RC $OUT"
+fi
+
+# 家目錄那一棵 skill 樹也要掃得到（DP-627 C-P1）。只掃工作區那一棵的那一版，對這個框架
+# 自己 workspace 唯一那份真的宣告完全看不見，然後把它講成「這個工作區沒有宣告」。
+home_tree="$WORK/homehooks"
+mkdir -p "$home_tree/.claude/skills/personal-skill"
+repo="$(new_repo home_declared main)"; git -C "$repo" switch -q -c feat/x
+mkdir -p "$repo/$HOOKS_REL"
+printf '#!/bin/sh\nexit 0\n' > "$repo/$HOOKS_REL/pre-commit"
+chmod +x "$repo/$HOOKS_REL/pre-commit"
+printf '<!-- HOME-GIT-HOOKS: %s | bash install.sh -->\n' "$HOOKS_REL" \
+  > "$home_tree/.claude/skills/personal-skill/SKILL.md"
+git -C "$repo" config core.hooksPath "$HOOKS_REL"
+run_with_home "$home_tree" --repo "$repo"
+if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q "已接上 $HOOKS_REL"; then
+  ok "宣告住在家目錄那一棵 skill 樹：掃得到，而且真的拿去判"
+else
+  bad "家目錄那一棵沒被掃到：rc=$RC $OUT"
+fi
+
+# 家目錄那一棵被這台機器上每一個工作區共用，所以住在那裡的一份宣告不可能是「每一個 repo
+# 都要有這個目錄」的意思。指的目錄不在這個工作區底下時，說出來並放行——判紅會讓每一個
+# 產品 repo 都開不了輪次。
+repo="$(new_repo home_declared_elsewhere main)"; git -C "$repo" switch -q -c feat/x
+run_with_home "$home_tree" --repo "$repo"
+if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q '不是在講這個工作區'; then
+  ok "家目錄那一份指的目錄不在這裡：說出來並放行，不擋住無關的工作區"
+else
+  bad "家目錄那一份把無關的工作區擋掉了：rc=$RC $OUT"
+fi
+
+# 格式說明不是宣告，而分開它們的是位置：宣告是散文裡的一行註解，說明住在 fenced code
+# block 裡。以前分開它們的是佔位符剛好用了哪個字元——換成 ASCII 前綴就會被撿走。
+fence_tree="$WORK/fenced"
+mkdir -p "$fence_tree/.claude/skills/doc-skill"
+{
+  printf '講宣告長什麼樣：\n\n'
+  printf '```\n'
+  printf '<!-- PREFIX-GIT-HOOKS: %s | bash install.sh -->\n' "$HOOKS_REL"
+  printf '```\n'
+} > "$fence_tree/.claude/skills/doc-skill/SKILL.md"
+repo="$(new_repo fenced_is_not_a_declaration main)"; git -C "$repo" switch -q -c feat/x
+mkdir -p "$repo/$HOOKS_REL"
+run_with_home "$fence_tree" --repo "$repo"
+if [[ "$RC" -eq 0 ]] && printf '%s' "$OUT" | grep -q '這一次沒有問到'; then
+  ok "code block 裡的格式說明不是一份宣告，即使前綴是 ASCII 的"
+else
+  bad "格式說明被當成宣告撿走了：rc=$RC $OUT"
 fi
 
 echo "check-swe-precondition selftest: PASS=$PASS FAIL=$FAIL"
