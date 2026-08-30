@@ -17,11 +17,16 @@ transcript 裡最後一則說的話。兩個理由，第二個才是真正的那
 問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。而「從來沒
 寫過宣告」「宣告讀不動」「宣告在而缺欄位」是三件事，長成三句不同的話。
 """
-import argparse, json, os, sys, time
+import argparse, json, os, subprocess, sys, time
 
 HOME = os.path.expanduser("~")
 REGISTRY = os.path.join(HOME, ".claude", "sessions")
 PROJECTS = os.path.join(HOME, ".claude", "projects")
+
+# 「在飛的單有哪些」只有一個地方答得出來，而它不在這支 skill 裡。這一行是去問它的路徑，
+# 不是一份抄過來的判定——見 `spine_rows()`。它跟其他模組常數放在一起，因為它就是一個。
+SPINE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))), "driving-work-to-done", "scripts", "spine-loop-state.sh")
 
 
 def transcript_path(cwd, session_id):
@@ -286,11 +291,139 @@ def order_text(issue_path, to_name, from_name):
         "",
         "做完，或撞到四種停點的任何一種（assertion_wrong／surfaced_concern／",
         "unconverged_cap／unauthorized_action），SendMessage 回 " + from_name + "。",
-        "回報要對得上那份定義：哪幾條過了、哪幾條沒過、量不到的有哪些。",
-        "**輪次邊界不是停點。**",
+        "判準是一句話：**你接下來需不需要有人告訴你做什麼。**",
+        "",
+        "回報只要三樣：",
+        "  1. 做完哪一張，或卡在哪一張。",
+        "  2. 需不需要指引。",
+        "  3. 需要的話，缺的是什麼。",
+        "逐條判定不用講——它們留在那張單的 .spine/ 裡，要細節的人自己去讀。",
+        "",
+        "**回報不等於停下來等。** 送完那一則就自己抽下一張繼續。只有兩種情況才停著等：",
+        "板子答不出下一步，或你自己走不下去。**輪次邊界不是停點。**",
         "",
         "（這則指令由 command-post 產出，收件者是 " + to_name + "）",
     ])
+
+
+def compaction_count(cwd, session_id):
+    """這個 session 的 transcript 被壓縮過幾次。
+
+    數的是 `isCompactSummary`——每一次壓縮在 transcript 裡留下一筆。**只回數字，不回
+    任何據此得出的建議**：壓縮間隔量過是平的（1099／1248／1268／1149／1543／1270／1231／
+    1111／1122），沒有加速的特徵，所以「什麼時候該換一個 session」偵測不出來。發明一個
+    門檻只會讓一個猜測看起來像一個量測。
+
+    回傳 (次數, 問題)。讀不到就回 (None, 為什麼)——空白不得長得跟 0 一樣。
+    """
+    path = transcript_path(cwd, session_id)
+    if not os.path.exists(path):
+        return None, "transcript 不在：" + path
+    n = 0
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                # 整份 18 MB、14,000 筆，所以先用字串排除掉絕大多數再解析。
+                if "isCompactSummary" not in line:
+                    continue
+                try:
+                    if json.loads(line).get("isCompactSummary"):
+                        n += 1
+                except ValueError:
+                    continue
+    except OSError as exc:
+        return None, "transcript 讀不動：" + str(exc)
+    return n, None
+
+
+def spine_rows(issues_root):
+    """在飛的單有哪些——問脊椎自己，不自己算。
+
+    回傳 (逐行的清單, 問題)。這一支**不推導任何一張單走到哪**：那個答案只有一個地方
+    產得出來，而它就在 `driving-work-to-done`。這裡做的是把它印出來的那幾行重新排版。
+    抄一份判定進來就是第二個權威，而兩個權威遲早會給出不同的答案。
+    """
+    if not os.path.exists(SPINE):
+        return None, "問不到：" + SPINE + " 不在（這份文件因此沒有在飛的單那一段）"
+    try:
+        out = subprocess.run(["bash", SPINE, "next", "--across-issues", issues_root],
+                             capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return None, "問不到：" + str(exc)
+    lines = [ln for ln in out.stdout.splitlines() if ln.strip()]
+    if not lines:
+        return None, "問到了，但它一行都沒印（exit " + str(out.returncode) + "）"
+    return lines, None
+
+
+def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600):
+    """指揮官每一輪重讀的那一頁。
+
+    **產生的部分不手寫**（先例是 `OPEN.md`，它自己的表頭就寫著下一次重算會整份重寫），
+    **成功條件只指過去、不抄**（唯一權威是那張單的 fence），**手寫的只有一格**——指揮官
+    自己在等什麼。那一格是板子答不出來的唯一一樣東西。
+
+    它的主要用途不是交接，是**每一輪重讀**：把目標重寫到 context 尾端，避開 lost-in-the-
+    middle。交接是副作用。
+    """
+    out = ["# 指揮台", ""]
+
+    out.append("## 我在等什麼（唯一手寫的一格）")
+    out.append("")
+    out.append(waiting_on or "（沒有給 --waiting-on。這一格空著，"
+                             "而它是這份文件裡唯一一樣板子答不出來的東西。）")
+    out.append("")
+
+    if not session_id:
+        answer = "？次（環境裡沒有 CLAUDE_SESSION_ID，這一次問不到）"
+    else:
+        n, why = compaction_count(os.getcwd(), session_id)
+        answer = str(n) + " 次" if why is None else "？次（" + why + "）"
+    out.append("這個 session 壓縮過 " + answer
+               + "。**這裡不判斷該不該換一個**——壓縮間隔量過是平的，"
+                 "偵測不出「開始過度壓縮」那一刻，所以判斷留給人。")
+    out.append("")
+
+    out.append("## 在飛的單（產生的，不要手改）")
+    out.append("")
+    rows, why = spine_rows(issues_root)
+    if why:
+        out.append(why)
+    else:
+        # `next:` 那一行是脊椎的建議，它指的那一張同時也會出現在下面的清單裡。兩者
+        # 印成兩列的話，同一張單在板子上出現兩次，而讀的人分不出那是兩張還是一張。
+        table, notes = [], []
+        for ln in rows:
+            kind, _, rest = ln.partition(":")
+            path = rest.split()[0] if rest.split() else rest
+            if kind == "next":
+                notes.append("脊椎建議的下一張：`" + path + "`")
+            elif kind in ("stop", "seed"):
+                table.append("| `" + path + "` | " + kind + " | `"
+                             + os.path.join(issues_root, path, "index.md") + "` | |")
+            else:
+                notes.append(ln)
+        for n in notes[:1]:
+            out.append(n)
+            out.append("")
+        out.append("| 單 | 這一行是哪一種 | 成功條件在哪 | 誰在做 |")
+        out.append("|---|---|---|---|")
+        out.extend(table)
+        out.append("")
+        for n in notes[1:]:
+            out.append(n)
+        out.append("")
+        out.append("「誰在做」整欄是空的，**而它是空的有原因**：輪次狀態檔沒有任何欄位記"
+                   "「哪個 session 在做這一張」（DP-622）。一個看得出來的空白比一個手寫的猜測好。")
+        out.append("")
+        out.append("「成功條件在哪」那一欄是**路徑**，不是內容。抄進來就是第二份會漂的定義，"
+                   "而漂的是最不能漂的那一份。")
+    out.append("")
+
+    out.append("## 這台機器上的 session（產生的，不要手改）")
+    out.append("")
+    out.append(human(m))
+    return "\n".join(out)
 
 
 def main():
@@ -315,7 +448,17 @@ def main():
     ap.add_argument("--to", dest="to_name", help="--order 用：要它去做的那個 session")
     ap.add_argument("--from", dest="from_name", default=None,
                     help="--order 用：回報給誰。預設是這個 session 自己的名字（$CLAUDE_SESSION_NAME）")
+    ap.add_argument("--board", action="store_true",
+                    help="產指揮台那一頁：在飛的單、這台機器上的 session、以及唯一手寫的那一格")
+    ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
+    ap.add_argument("--waiting-on", default=None,
+                    help="--board 用：唯一手寫的那一格——指揮官自己在等什麼、剛決定了什麼")
     args = ap.parse_args()
+    if args.board:
+        print(board_text(build(now=args.now_epoch), args.issues, args.waiting_on,
+                         session_id=os.environ.get("CLAUDE_SESSION_ID"),
+                         idle_threshold=args.idle_threshold))
+        return 0
     if args.order:
         missing = [f for f, v in (("--issue", args.issue),
                                   ("--to", args.to_name)) if not v]
