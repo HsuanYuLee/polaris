@@ -23,7 +23,13 @@
 #   宣告 destination: template  位置沒有限制；內容夠不夠通用是 scan-template-leaks 的問題
 #
 # Usage: gate-source-destination.sh --repo <工作區> --issue <單的相對路徑>
+#                                   [--issues-root <單樹在哪>]
 #                                   [--head <sha>] [--base <ref>] [--changed <path>]...
+#
+# `--issues-root` 是「單樹在哪」，`--repo` 是「git 操作在哪棵樹」。不給就是同一棵——那是
+# 常態。兩者會分開，是因為單住在 issues/（版控在別處），而程式碼可以落在一個 worktree 上；
+# 少了這個參數的話，兩棵樹一分開這道閘就必定去 worktree 底下找那張單，然後說它不在
+# （DP-614 第二輪；work-76 的 DP-619 死在這裡）。
 # Exit:  0 成立或不適用 / 1 有檔案落在會出去的位置 / 2 量不到
 
 set -uo pipefail
@@ -33,6 +39,7 @@ SCRIPT_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib"
 
 PREFIX="[polaris gate-source-destination]"
 REPO_PATH=""
+ISSUES_ROOT=""
 ISSUE_DIR=""
 HEAD_REF=""
 BASE_REF=""
@@ -42,6 +49,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)    REPO_PATH="${2:-}"; shift 2 ;;
     --issue)   ISSUE_DIR="${2:-}"; shift 2 ;;
+    --issues-root) ISSUES_ROOT="${2:-}"; shift 2 ;;
     --head)    HEAD_REF="${2:-}"; shift 2 ;;
     --base)    BASE_REF="${2:-}"; shift 2 ;;
     --changed) CHANGED+=("${2:-}"); shift 2 ;;
@@ -54,8 +62,10 @@ done
 [[ -d "$REPO_PATH" ]] || { echo "$PREFIX 量不到：--repo「${REPO_PATH}」不存在。" >&2; exit 2; }
 [[ -n "$ISSUE_DIR" ]] || { echo "$PREFIX 量不到：--issue 是必填的。" >&2; exit 2; }
 
+[[ -n "$ISSUES_ROOT" ]] || ISSUES_ROOT="$REPO_PATH"
+[[ -d "$ISSUES_ROOT" ]] || { echo "$PREFIX 量不到：--issues-root「${ISSUES_ROOT}」不存在。" >&2; exit 2; }
 ISSUE_ABS="$ISSUE_DIR"
-[[ "$ISSUE_ABS" = /* ]] || ISSUE_ABS="$REPO_PATH/$ISSUE_DIR"
+[[ "$ISSUE_ABS" = /* ]] || ISSUE_ABS="$ISSUES_ROOT/$ISSUE_DIR"
 INDEX="$ISSUE_ABS/index.md"
 [[ -f "$INDEX" ]] || { echo "$PREFIX 量不到：$INDEX 不在。" >&2; exit 2; }
 
