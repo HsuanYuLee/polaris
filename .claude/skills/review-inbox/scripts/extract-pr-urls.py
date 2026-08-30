@@ -24,7 +24,13 @@ import argparse
 import unicodedata
 
 
-TICKET_RE = re.compile(r"\b(GT-\d+|KB2CW-\d+|[A-Z][A-Z0-9]+-\d+)\b")
+# 邊界不能用 \b：底線在 regex 裡是 word 字元，所以 Slack 斜體 `_DEMO-1 …_` 的 `_` 與 `D`
+# 之間不構成邊界，整個單號抓不到。但也不能一律放行底線——`x_DEMO-1` 是一個識別字的一段，
+# 不是被標記包起來的單號。所以左邊分兩種寫法：一串底線（它自己左邊不能是英數等 word 字元），
+# 或是一個一般的非 word 邊界。右邊同理，只放行底線。
+TICKET_RE = re.compile(
+    r"(?:(?<![^\W_])_+|(?<!\w))(GT-\d+|KB2CW-\d+|[A-Z][A-Z0-9]+-\d+)(?![^\W_])"
+)
 TOPIC_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?")
 GENERIC_TOPIC_TOKENS = {
     "a",

@@ -1,10 +1,10 @@
 ---
-name: session-map
-description: "Use when one session needs to know what the other Claude sessions on this machine are doing — to direct work, to suggest which idle ones a human could close, or to ask that human a decision. Reads the local session registry only; never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼'."
+name: command-post
+description: "Use when one session needs to command the other Claude sessions on this machine — to read the map of who holds what, to direct or suggest closing work, or to escalate a decision to the human. Reads each session's own declaration plus the local registry; never reads a peer's transcript and never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼'."
 scope: universal
 ---
 
-# session-map — 一個 session 拿著地圖，其他的做事
+# command-post — 指揮所：圖、下令、往上請示
 
 多個 session 同時活著的時候，**沒有人知道全貌**。忘記關掉的吃著整台機器；兩個對同一棵樹
 動手害彼此重跑；發號施令的那一個不知道別人手上有什麼，於是重複開單。
@@ -14,17 +14,50 @@ scope: universal
 ## 一、地圖
 
 ```bash
-python3 .claude/skills/session-map/scripts/session-map.py
-python3 .claude/skills/session-map/scripts/session-map.py --json
+python3 .claude/skills/command-post/scripts/command-post.py
+python3 .claude/skills/command-post/scripts/command-post.py --json
 ```
 
 **它不問任何人。** 答案全部讀得出來——`~/.claude/sessions/{pid}.json` 是完整的登錄，
 每一份帶著 `name`、`pid`、`cwd`、`sessionId`、`messagingSocketPath`。逐個問一輪要花掉每個
 peer 一輪 context，而那一輪的答案還不一定比它自己剛寫下的話新。
 
-**「它在做什麼」是它自己說的話**，從那個 session 的 transcript 讀最後一則它說的話。不從
-名字、路徑或進程資訊推一句——**推出來的那一句長得跟讀到的一模一樣**，而它會在最需要真話的
-時候是錯的。
+**「它在做什麼」是那個 session 自己寫下的宣告**，不是它 transcript 裡最後一則說的話，
+也不從名字、路徑或進程資訊推一句——**推出來的那一句長得跟讀到的一模一樣**，而它會在最需要
+真話的時候是錯的。
+
+每個 session 自己寫自己的那一行，只寫自己的：
+
+```bash
+python3 .claude/skills/command-post/scripts/command-post.py --declare \
+  --session-id <自己的 sessionId> \
+  --holding '接的是什麼' --blocked-on '現在卡在哪；沒卡就寫「沒有」' \
+  --tickets-opened '開了哪幾張單給誰'
+```
+
+### 為什麼是宣告，不是最後一則話
+
+兩個理由，第二個才是真正的那一個。
+
+一、最後一則話是「它剛好講到哪」，不是「它在做什麼」。
+
+二、**讀不完，而且差的是數量級。** 2026-08-29 量到：
+
+| 想讀進來的東西 | 量 | 換成 200k 視窗 |
+|---|---|---|
+| 8 個活著的 session 的 transcript | 220.5 MB（最大一份 92.4 MB／45,135 筆），約 5,780 萬 token | **289 倍** |
+| `.claude/skills` 底下 184 份 `.md` | 933 KB，約 239k token | **1.2 倍**（載進去就沒有空間工作了） |
+| `issues/` 底下 1,932 份單的正文 | 15.7 MB，約 410 萬 token | **20 倍** |
+
+外部做法對這件事有直接的話，兩條指同一個方向：orchestrator 累積每個 worker 的 context，
+[四個 worker 以上就撐爆視窗](https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them)（這台機器上是 8 個）；
+而 lead agent 該收的是萃取過的結論而不是完整 transcript，因為
+[raw transcripts are source material, not durable memory](https://www.jeremydaly.com/context-engineering-for-commercial-agent-systems/)。
+
+**所以指揮讀的是索引，要細節去問那一個 session。** 框架知識同理：讀得出「有哪幾支 skill、
+各管什麼」就夠指揮，不是把 933 KB 讀進來。
+
+**閒置多久仍然由 transcript 的 mtime 算**——那是一次 stat，不打開檔案。
 
 **transcript 在哪：`cwd` 把 `/` 和 `.` 都換成 `-`。** 只換 `/` 的話，家目錄帶點的機器
 （`hsuanyu.lee` 這種）**一筆都對不到**——而輸出看起來只是「大家都讀不到」，不像壞掉。
@@ -36,9 +69,14 @@ peer 一輪 context，而那一輪的答案還不一定比它自己剛寫下的�
 
 | 讀不到什麼 | 地圖上長什麼樣 |
 |---|---|
-| transcript 檔案不存在 | 指名那個路徑 |
-| transcript 在，但裡面沒有它說過的話 | 指名那個路徑，並說出是「沒說話」不是「檔案不見」 |
+| 這個 session 從來沒寫過宣告 | 指名那個路徑，並說出修法是要它跑 `--declare` |
+| 宣告檔在，但讀不動 | 指名那個路徑，並說出是「讀不動」不是「沒寫過」 |
+| 宣告在，但缺欄位 | 指名缺的是哪幾個欄位 |
 | 登錄檔本身讀不動、或登錄目錄不存在 | 說出這不是「沒有 session」 |
+| transcript 不存在（算不出閒置多久） | 說出算不出來，不填一個 0——猜出來的 0 看起來像剛動過 |
+
+**這四種要人做的事不一樣**，所以它們不可以長成同一句話：沒寫過要去叫它寫，讀不動要去看
+那個檔，缺欄位是它寫了但沒寫全。
 
 **一個安靜的第三態，下一次就會被當成查過了。**
 
@@ -76,6 +114,35 @@ peer 一輪 context，而那一輪的答案還不一定比它自己剛寫下的�
 - **這支回答**：手上八個 session 裡，哪一個的 `cwd` 就在那棵樹上、而且閒著。
 
 前者問的是工作，後者問的是人手。**兩邊都不知道對方的答案，也不需要知道。**
+
+### 指揮者自己的兩條邊界
+
+**這兩條是 2026-08-29 真的壞掉之後補的**，兩條都有那一天的實例。它們講的是指揮者自己不該
+做什麼——不是別人。
+
+**一、按 context 邊界切分，不按工作的類型切分。**
+
+把自己切成「別人施工、我審查」聽起來像分工，實際上是把每一份工作的 context 都搬到指揮者
+這裡來：要審查就要讀對方讀過的東西，於是同一份 context 被讀兩次，而指揮者的視窗是那個會
+先滿的。外部做法把它講成
+[Dividing by type of work creates constant coordination overhead；divide by context boundaries](https://claude.com/blog/building-multi-agent-systems-when-and-how-to-use-them)。
+
+2026-08-29 的實例：指揮的 session 讀 peer 的 transcript、再自己重推一次它們的結論，
+**一整天沒有交付任何東西**。
+
+分法是按 context 邊界：一份工作連同它要的 context 整包給一個 session，指揮者只拿那一行
+宣告。要細節就去問那一個 session，不是自己把它的 context 讀進來重推一次。
+
+**二、不把別的 session 開的單收進來再轉手給第三個。**
+
+每一次轉手都掉一層保真度（telephone game）。指揮者當中繼的時候，「誰要做什麼」多了一個
+可以漏掉的地方，而漏掉的樣子是安靜的——那張單就是沒有人開始做，沒有任何東西會紅。
+
+2026-08-29 的實例：產品 session 開的 DP 要先給指揮者、再由指揮者轉給施工的 session。
+結果那天新開的四張 DP 一張都沒有到施工的 session 手上；同一天指揮者還發明了一個問題叫
+施工的 session 停下來等答案，又把它調去做一張產品 PR。
+
+**開單的人直接送給要做的那一個。** 指揮者從地圖上讀得到誰接了什麼，不需要經手。
 
 ### 送訊息給別的 session 時
 

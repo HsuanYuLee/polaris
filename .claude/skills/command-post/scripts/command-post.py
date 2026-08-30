@@ -2,10 +2,20 @@
 """這台機器上有哪些 session、各自閒置多久、各自在做什麼。
 
 **只讀。** 不對任何 session 送訊息、不送訊號、不寫任何不屬於這支 skill 的檔案。
-「在做什麼」一律是那個 session 自己留下的話，不從名字、路徑或進程資訊推一句——推出來的
-那一句看起來跟讀到的一模一樣，而它會在最需要真話的時候是錯的。
 
-問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。
+「在做什麼」讀的是**那個 session 自己寫下的宣告**（`--declare` 寫、這裡讀），不是它
+transcript 裡最後一則說的話。兩個理由，第二個才是真正的那一個：
+
+1. 最後一則話是「它剛好講到哪」，不是「它在做什麼」。
+2. **讀不完。** 這台機器上 8 個活著的 session，transcript 合計 220.5 MB（最大一份
+   92.4 MB／45,135 筆），約 5,780 萬 token——一個 200k 視窗的 289 倍。指揮者累積每個
+   worker 的完整 context 這條路在四個 worker 就走不通，何況八個。所以指揮讀的是索引，
+   要細節去問那一個 session。
+
+閒置多久仍然由 transcript 的 mtime 算——那是一次 stat，不讀內容。
+
+問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。而「從來沒
+寫過宣告」「宣告讀不動」「宣告在而缺欄位」是三件事，長成三句不同的話。
 """
 import argparse, json, os, sys, time
 
@@ -24,53 +34,74 @@ def transcript_path(cwd, session_id):
     return os.path.join(PROJECTS, slug, f"{session_id}.jsonl")
 
 
-def last_words(path):
-    """那個 session 最後說的話，以及它是什麼時候說的。
+DECLARATIONS = os.path.join(REGISTRY, "declarations")
+DECL_FIELDS = ("holding", "blocked_on", "tickets_opened")
 
-    回傳 (text, epoch, problem)。problem 不是 None 的時候 text 一定是 None——
-    「讀不到」與「它沒說話」是兩件事，不可以長成同一個值。
+
+def declaration_path(session_id):
+    """一個 session 的宣告住哪。
+
+    放在登錄目錄底下的子目錄，不跟 `{pid}.json` 並排——`read_registry()` 收的是
+    `*.json`，並排的話每一份宣告都會被當成一筆壞掉的登錄列出來。
+    """
+    return os.path.join(DECLARATIONS, f"{session_id}.json")
+
+
+def read_declaration(session_id):
+    """那個 session 自己寫下的宣告。
+
+    回傳 (decl, problem)。problem 不是 None 的時候 decl 一定是 None——三種讀不到各說
+    各的話，因為它們要人做的事不一樣：沒寫過要去叫它寫，讀不動要去看那個檔，缺欄位是
+    它寫了但沒寫全。
+    """
+    path = declaration_path(session_id)
+    if not os.path.exists(path):
+        return None, f"這個 session 從來沒寫過宣告（要它跑 --declare）：{path}"
+    try:
+        with open(path, encoding="utf-8") as fh:
+            decl = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        return None, f"宣告讀不動：{path}（{exc}）"
+    if not isinstance(decl, dict):
+        return None, f"宣告不是一個物件：{path}"
+    missing = [k for k in DECL_FIELDS if not decl.get(k)]
+    if missing:
+        return None, f"宣告缺欄位（{chr(12289).join(missing)}）：{path}"
+    return decl, None
+
+
+def declaration_line(decl):
+    """把宣告排成一行給人讀。結構的那一份仍然在 `declaration` 鍵裡。"""
+    opened = decl.get("tickets_opened")
+    if isinstance(opened, list):
+        opened = chr(12289).join(str(x) for x in opened) or "無"
+    return "｜".join([f"接：{decl['holding']}",
+                      f"卡：{decl['blocked_on']}", f"開單：{opened}"])
+
+
+def write_declaration(session_id, holding, blocked_on, tickets_opened):
+    """這個 session 寫下自己的那一行。**只寫自己的那一份，不碰別人的。**"""
+    os.makedirs(DECLARATIONS, exist_ok=True)
+    path = declaration_path(session_id)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"session_id": session_id, "holding": holding,
+                   "blocked_on": blocked_on, "tickets_opened": tickets_opened,
+                   "declared_at": time.time()}, fh, ensure_ascii=False, indent=2)
+    return path
+
+
+def idle_seconds_of(path, now):
+    """閒置多久。**stat，不讀內容**——這一支不打開 transcript。
+
+    回傳 (seconds, problem)。檔案不在的時候不猜一個 0：猜出來的 0 會讓那一列看起來
+    像剛動過，而剛動過正好是「不要關它」的理由。
     """
     if not os.path.exists(path):
-        return None, None, f"transcript 不存在：{path}"
+        return None, f"算不出閒置多久，transcript 不存在：{path}"
     try:
-        text, stamp = None, None
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    row = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if row.get("type") != "assistant":
-                    continue
-                content = (row.get("message") or {}).get("content")
-                chunks = []
-                if isinstance(content, list):
-                    for c in content:
-                        if isinstance(c, dict) and c.get("type") == "text":
-                            chunks.append(c.get("text") or "")
-                elif isinstance(content, str):
-                    chunks.append(content)
-                joined = " ".join(x.strip() for x in chunks if x and x.strip())
-                if joined:
-                    text, stamp = joined, row.get("timestamp")
-        if text is None:
-            return None, None, f"transcript 在，但裡面沒有它說過的話：{path}"
-        epoch = None
-        if stamp:
-            try:
-                import datetime
-                epoch = datetime.datetime.fromisoformat(
-                    stamp.replace("Z", "+00:00")).timestamp()
-            except ValueError:
-                epoch = None
-        if epoch is None:
-            epoch = os.path.getmtime(path)
-        return text, epoch, None
+        return max(0, int(now - os.path.getmtime(path))), None
     except OSError as exc:
-        return None, None, f"transcript 讀不動：{path}（{exc}）"
+        return None, f"算不出閒置多久：{path}（{exc}）"
 
 
 def alive(pid):
@@ -139,13 +170,19 @@ def build(now=None):
             out["not_this_machine"].append(row)
             continue
         row["running"] = alive(pid) if isinstance(pid, int) else None
-        if cwd and sid:
-            text, epoch, prob = last_words(transcript_path(cwd, sid))
-            row["doing"], row["problem"] = text, prob
-            if epoch:
-                row["idle_seconds"] = max(0, int(now - epoch))
+        row["declaration"] = None
+        if sid:
+            decl, prob = read_declaration(sid)
+            row["declaration"], row["problem"] = decl, prob
+            if decl:
+                row["doing"] = declaration_line(decl)
         else:
-            row["problem"] = "登錄裡缺 cwd 或 sessionId，找不到它說過的話"
+            row["problem"] = "登錄裡缺 sessionId，找不到它的宣告"
+        if cwd and sid:
+            idle, idle_prob = idle_seconds_of(transcript_path(cwd, sid), now)
+            row["idle_seconds"] = idle
+            if idle_prob:
+                row["idle_problem"] = idle_prob
         out["sessions"].append(row)
     return out
 
@@ -176,7 +213,7 @@ def human(m):
             lines.append(f"      讀不到它在做什麼——{s['problem']}")
         elif s["doing"]:
             t = " ".join(s["doing"].split())
-            lines.append(f"      它自己說：{t[:110]}{'…' if len(t) > 110 else ''}")
+            lines.append(f"      它自己宣告：{t[:160]}{'…' if len(t) > 160 else ''}")
     if m["not_this_machine"]:
         lines.append("")
         lines.append(f"不在這台機器上（{len(m['not_this_machine'])} 個）"
@@ -240,7 +277,24 @@ def main():
                     help="閒置多久算「可以考慮關掉」，單位是秒")
     ap.add_argument("--now-epoch", type=float, default=None,
                     help="把「現在」固定成這個時間，讓輸出可以被重現")
+    ap.add_argument("--declare", action="store_true",
+                    help="寫下這個 session 自己的那一行。只寫自己的，不碰別人的。")
+    ap.add_argument("--session-id", help="--declare 用：這個 session 的 sessionId")
+    ap.add_argument("--holding", help="--declare 用：接的是什麼")
+    ap.add_argument("--blocked-on", help="--declare 用：現在卡在哪；沒卡就寫「沒有」")
+    ap.add_argument("--tickets-opened", default="無",
+                    help="--declare 用：開了哪幾張單給誰")
     args = ap.parse_args()
+    if args.declare:
+        missing = [f for f, v in (("--session-id", args.session_id),
+                                  ("--holding", args.holding),
+                                  ("--blocked-on", args.blocked_on)) if not v]
+        if missing:
+            print("宣告要三樣都給，缺：" + chr(12289).join(missing), file=sys.stderr)
+            return 2
+        print("宣告寫在 " + write_declaration(
+            args.session_id, args.holding, args.blocked_on, args.tickets_opened))
+        return 0
     m = build(now=args.now_epoch)
     if args.closable:
         m["closable"] = [{"name": s["name"], "pid": s["pid"], "why": why}
