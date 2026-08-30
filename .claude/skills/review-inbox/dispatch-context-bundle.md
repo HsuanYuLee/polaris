@@ -8,6 +8,31 @@ the repo script or `gh`. Read only the verified project handbook paths listed in
 the prompt. If no handbook paths are listed, record `project_handbook: none` and
 continue without scanning repo guideline folders.
 
+## The Shared Checkout Is Not Yours
+
+`local path` 指的那棵樹是別人也在用的——這台機器的主人、並行的 session、以及這一輪其他每
+一個 reviewer。**它的狀態不得被改動。** 不要 `git checkout`、`git switch`、`git stash`、
+`git reset`，也不要在那裡切分支。
+
+**「切走再還原」不是一條合法的做法。** 還原本身就會 race：你要切回去的那一刻，樹可能已經
+被第三個人切到別的地方了。2026-08-27 那一輪三個 reviewer 這樣做，其中一個因此放棄還原，
+那一輪結束時該 repo 停在 detached HEAD。
+
+讀某個 commit 上的東西，兩條路都不動樹：
+
+    git -C <local path> show <sha>:<path>
+    gh api repos/<owner>/<repo>/contents/<path>?ref=<sha> --jq .content | base64 -d
+
+真的需要一棵可以動的樹的時候（要跑測試、要實際跑起來看行為），開你自己的 worktree：
+
+    wt="$(mktemp -d)/pr-<number>"
+    git -C <local path> worktree add --detach "$wt" <sha>
+    # ……用完清掉
+    git -C <local path> worktree remove --force "$wt"
+
+`worktree add` 不動原本那棵樹的 HEAD，也不動它的工作目錄。用完要清掉——留下來的會出現在
+下一個人的 `git worktree list` 裡。
+
 ## What To Actually Look For
 
 改對了不等於有用。**先問這段程式走不走得到，再問它對不對**——一個值改對了、但沒有任何地方
