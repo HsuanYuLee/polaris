@@ -40,13 +40,22 @@ bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issu
 `delivery.json` 裡，不寫在 ref 上，所以命名是給看 PR 清單的人用的慣例，屬於 repo 知識而不
 屬於關卡。忘記命名不會壞掉任何東西，只會讓清單難讀。
 
-**`issues/` 不開 branch。** 一張單只有一個狀態——最新的那個——直接推就好。理由跟 J-P1 是
-同一句話：一張單只有一個家。單分岔出兩個版本，「現在到底走到哪」就有兩個答案，而這整套
-流程的前提是那個問題只有一個答案（`{單}/.spine/loop-state.json`）。單的歷史留在 commit 裡，
-不留在並行的分支裡。
+**`issues/` 不開 branch。** 一張單只有一個狀態——最新的那個——commit 一直往前疊就好。理由
+跟 J-P1 是同一句話：一張單只有一個家。單分岔出兩個版本，「現在到底走到哪」就有兩個答案，
+而這整套流程的前提是那個問題只有一個答案（`{單}/.spine/loop-state.json`）。單的歷史留在
+commit 裡，不留在並行的分支裡。
+
+**這裡沒有「推」這個動作，因為 `issues` 沒有 remote。** 單留在本機記錄工作，沒有人要同步
+它——那是被決定的，不是還沒做的。上一段講框架 repo 的「併進去」是真的推到 `origin`，兩件事
+只差三行，所以這一句要明講。以前這裡寫的是「直接推就好」：2026-08-28 有一個 session 讀了
+它、照抄成一句指令交出去，收到指令的那一個去跑，才發現沒有東西可以推。
+
+**要不要給它一個 remote 由使用它的人決定。** `refinement` 帶著的那份殼
+（`.claude/skills/refinement/templates/issues/README.md`）就是這樣寫的，這一份不重複那個
+判斷，只說出這個 repo 現在的狀態。
 
 所以兩個 repo 的節奏不一樣，這是刻意的：框架 repo 一張單一條 branch，`issues` repo 一直
-往前推。`init` 的關卡只管框架 repo 那一邊——它跑在你開單的那個工作區上，而 `issues` 從來
+往前疊。`init` 的關卡只管框架 repo 那一邊——它跑在你開單的那個工作區上，而 `issues` 從來
 不是那個工作區。
 
 ## 舊層的東西在哪
