@@ -82,13 +82,13 @@ check_author_replied() {
 
   # 檢查 review comments（inline on diff）from author after my review
   local review_replies
-  review_replies=$(gh api "repos/$ORG/$repo/pulls/$number/comments" --paginate \
-    --jq "[.[] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
+  review_replies=$(gh api "repos/$ORG/$repo/pulls/$number/comments" --paginate --slurp 2>/dev/null \
+    | jq "[.[][] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
 
   # 檢查 issue comments（general PR comments）from author after my review
   local issue_replies
-  issue_replies=$(gh api "repos/$ORG/$repo/issues/$number/comments" --paginate \
-    --jq "[.[] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
+  issue_replies=$(gh api "repos/$ORG/$repo/issues/$number/comments" --paginate --slurp 2>/dev/null \
+    | jq "[.[][] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
 
   if [ "$review_replies" -gt 0 ] || [ "$issue_replies" -gt 0 ]; then
     echo "true"
@@ -125,8 +125,11 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   count=$((count + 1))
 
   # 取得該 PR 所有 reviews（投影含 commit_id，作為 DP-315 staleness 判定基準）
-  reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
-    --jq "[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]" 2>/dev/null || echo "[]")
+  # --paginate --slurp 之後用管線接 jq，投影套在全體上（外層是頁、內層是筆）。
+  # 只帶 --paginate 不夠：gh 的 --jq 是逐頁套用的，一頁裝得下的時候看不出來，
+  # 跨頁時會吐出每頁一個答案。而 --slurp 不能跟 --jq 併用，gh 自己會拒絕。
+  reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" --paginate --slurp 2>/dev/null \
+    | jq "[.[][] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]" 2>/dev/null || echo "[]")
 
   # 我所有 review，依 submit 時間排序（最舊→最新），供「最新且最高效力」判定使用
   my_reviews=$(echo "$reviews" | jq "[.[] | select(.user == \"$MY_USER\")] | sort_by(.submitted_at)")

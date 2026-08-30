@@ -34,14 +34,22 @@ shift
 endpoint="$1"
 shift
 jq_filter=""
-# 解析 --jq 與 --paginate 旗標
+slurp=0
+# 解析 --jq、--paginate、--slurp 旗標
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --jq) jq_filter="$2"; shift 2 ;;
     --paginate) shift ;;
+    --slurp) slurp=1; shift ;;
     *) shift ;;
   esac
 done
+# 真的 gh 拒絕這個組合，mock 也要拒絕——一個比上游寬鬆的 mock，會讓一條上游根本不接受的
+# 命令在這裡是綠的（2026-08-30 對真 API 量過）。
+if [[ $slurp -eq 1 && -n "$jq_filter" ]]; then
+  echo "the \`--slurp\` option is not supported with \`--jq\` or \`--template\`" >&2
+  exit 1
+fi
 
 # 由 endpoint 取出 PR / issue 編號
 number="$(sed -E 's#.*pulls/([0-9]+).*#\1#' <<<"$endpoint")"
@@ -143,7 +151,11 @@ case "$endpoint" in
   */pulls/12) payload='{"head":{"sha":"sha12-head"}}' ;;
 esac
 
-if [[ -n "$jq_filter" ]]; then
+# --slurp 把每一頁包成外層陣列的一個元素。這個 fixture 每個端點只有一頁，
+# 所以外層就是一個元素——形狀要對，消費端的投影是 .[][]。
+if [[ $slurp -eq 1 ]]; then
+  jq -c '[.]' <<<"$payload"
+elif [[ -n "$jq_filter" ]]; then
   jq -r "$jq_filter" <<<"$payload"
 else
   printf '%s\n' "$payload"
