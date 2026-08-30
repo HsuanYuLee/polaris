@@ -302,6 +302,28 @@ if [[ -z "$DELIVERED_IN" ]]; then
   fi
 fi
 
+# 這張單記過幾輪。**只說不擋**——沒記過輪次不使一份三層都齊備的交付變成不合格，所以這裡
+# 不會有第二個離場碼。它會被說出來，是因為位置重算拿「記過幾輪」判這張單走到哪：一張沒有
+# 人記過輪次的單，重算會把它放進「開工了、還沒有人寫下來」那一格，而那一格不是終局。
+#
+# DP-627 是這件事最貴的一次：它 tag、release、併進預設分支都做完了，而輪次紀錄是空的，
+# 於是它留在那一格，`next` 一直把一件已經出貨的事當成待辦提出來。補救是人手動做的。
+if [[ -f "$ISSUE_DIR/.spine/loop-state.json" ]]; then
+  ROUNDS_SEEN="$(python3 -c '
+import json, sys
+try:
+    print(len(json.load(open(sys.argv[1], encoding="utf-8")).get("rounds") or []))
+except Exception:
+    print("?")
+' "$ISSUE_DIR/.spine/loop-state.json" 2>/dev/null || echo '?')"
+  if [[ "$ROUNDS_SEEN" == "0" ]]; then
+    echo "NOTE: 這張單一輪都沒記過，所以位置重算讀不到它走到哪——交付紀錄寫得成，" \
+         "但它不會因此走到終局那一格。要讓它走到，跑 spine-loop-state.sh record --outcome converged。"
+  elif [[ "$ROUNDS_SEEN" == "?" ]]; then
+    echo "NOTE: 這張單的輪次狀態讀不動，所以「記過幾輪」這一次沒有問到——那不是「零輪」。"
+  fi
+fi
+
 # 證據量在哪棵樹，跟這張單宣告它落在哪，要對得上。
 #
 # 上面那段 fallback 只在「問不到」的時候拿宣告來補，兩邊**都答得出來**的時候它從來不比

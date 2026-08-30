@@ -343,8 +343,17 @@ def slot_from_spine(ticket_dir: str) -> tuple[str, str, dict] | None:
                                     "mine": True}
 
     station = state.get("station") or "engineering"
-    if station == "refinement" or not (state.get("rounds") or []):
+    if station == "refinement":
         return BACKLOG, "loop-state", {"station": station, "mine": True}
+    # 站別已經離開 refinement，而還沒有人記過一輪。以前這一種跟「還在 refinement」共用
+    # 一條判斷，於是它被說成「立案了，還沒開工」——而 backlog 那一格的意思就是那句話。
+    # 站別離開 refinement 的唯一方式是有人 advance 過，所以它已經開工了；沒記過輪次講的
+    # 是「沒有人寫下來」，不是「沒有發生」。兩件事不同，那一格因此不再由 rounds 決定。
+    # DP-627 是這個讀法最貴的一次：它一路 tag、release、併進預設分支，而標籤還寫著 backlog。
+    if not (state.get("rounds") or []):
+        return IN_PROGRESS, "loop-state", {
+            "station": station, "mine": True,
+            "why": "站別離開 refinement 了，但還沒有人記過一輪"}
     if station == "verify-ac" and pack_of(state) == CODE_PACK:
         return IN_REVIEW, "loop-state", {"station": station, "mine": True}
     if station == "verify-ac":

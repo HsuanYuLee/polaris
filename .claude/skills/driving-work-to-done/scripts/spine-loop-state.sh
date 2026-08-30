@@ -1097,6 +1097,9 @@ for issue_dir in ticket_dirs:
         "status": data.get("status"),
         # 最後一次記輪次的時間。它是「你剛剛在做哪一張」唯一寫在磁碟上的痕跡。
         "touched": rounds[-1].get("recorded_at", "") if rounds else "",
+        # 記過幾輪。位置重算拿「空的」當「還沒開工」的證據，而這裡拿它說出「開工了，
+        # 只是沒有人記下來」——同一個欄位，兩個讀法，所以兩邊都要說出自己讀到什麼。
+        "rounds": len(rounds),
     })
 
 # 「不做了」跟「做完了」一樣是有結論的，所以一樣不進待辦。差別在報告上——見 close。
@@ -1111,8 +1114,8 @@ blocked = [r for r in live if r["stopped"]]
 movable.sort(key=lambda r: (-rank.get(r["station"], 0), r["touched"] == "",
                             [-ord(c) for c in r["touched"]], r["name"]))
 
-if movable:
-    pick = movable[0]
+pick = movable[0] if movable else None
+if pick:
     seed = "" if pick["sealed"] else " 還沒簽 assertion——先走 refinement"
     print(f"next:{pick['name']} station={pick['station']}{seed}")
 else:
@@ -1124,6 +1127,13 @@ for row in blocked:
 # session 開場問的第一句就是這個——掉出這個答案的東西等於沒開。
 for row in sorted((r for r in movable if not r["sealed"]), key=lambda r: r["name"]):
     print(f"seed:{row['name']} 還沒簽 assertion——先走 refinement")
+# 簽過斷言、沒停、而且不是被取出來的那一張。這一類以前三個迴圈一個都不收：`next:` 只印
+# 一張，`seed:` 的條件是「沒 sealed」——所以它們算進 live 的數字，卻沒有任何一行指名。
+# 三個判準各自都自洽，而合起來的結果是一張在製品從清單上消失（DP-599）。
+for row in sorted((r for r in movable if r["sealed"] and r is not pick),
+                  key=lambda r: r["name"]):
+    note = "還沒記過任何一輪" if not row["rounds"] else f"記過 {row['rounds']} 輪"
+    print(f"open:{row['name']} station={row['station']} {note}")
 # 已交付與收斂的不列成清單，但要有數字。不被判定的第三態如果安靜，下一次就會有人
 # 以為那些也被看過了。
 settled = len(rows) - len(live)
