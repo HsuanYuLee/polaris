@@ -81,19 +81,25 @@ ISSUE_DIR="$ISSUES/$NAMESPACE/backlog/$SLUG"
 
 mkdir -p "$ISSUE_DIR"
 
-# frontmatter 只有 destination 一格是先填的，而且填的是最保守的那一個：一張還沒有人想過
-# 的單不該預設它會被推到別人的 repo 去。計劃那四格與 assertion 都留白——它們要人回答，而這一支
-# 存在的理由正是「現在還沒有人能回答」。填一個編出來的答案比空著糟：空著看得出來。
+# frontmatter 一格都不先填，計劃那四格與 assertion 也是——它們要人回答，而這一支存在的理由
+# 正是「現在還沒有人能回答」。填一個編出來的答案比空著糟：空著看得出來。
+#
+# `destination` 以前是例外，填的是「最保守的那一個」。那個判準是錯的，而且它教錯了東西：
+# 這一格問的是「這批檔案會不會被同步出去」，不是「風險多大」——它不是保守或大膽選出來的，
+# 是算出來的，而算它要先知道這張單會動到哪些東西。那正是一張種子單還沒想清楚的事。
+# 2026-08-28 同一天有兩張單抄著那個預設值進來，兩張的正確答案都是相反的那一個。
+#
+# 留白不會讓下游安靜地走過去：真的會讀這一格的地方讀不到值就拒絕，並且指名缺的是它。
 {
   printf -- '---\n'
-  printf 'destination: workspace\n'
+  printf '# destination: 這一格還沒有人回答。它問的是「這批檔案會不會被同步出去」，由第一關的人填。\n'
   printf -- '---\n\n'
   printf '# %s\n\n' "$SLUG"
   printf '## 前因後果\n\n'
   printf '%s\n\n' "$NOTE"
   printf '## 還沒有的東西\n\n'
   printf '這是一張種子單：它記下了一件不能消失的事，但還沒有人簽過「怎麼算成功」。\n\n'
-  printf '接手的人從 `refinement` 開始——填計劃那四格、寫 assertion、算校驗值、開輪次。\n'
+  printf '接手的人從 `refinement` 開始——填 `destination` 與計劃那四格、寫 assertion、算校驗值、開輪次。\n'
 } > "$ISSUE_DIR/index.md"
 
 bash "$LOOP_STATE" seed --state "$ISSUE_DIR/.spine/loop-state.json" --note "$NOTE" >/dev/null
