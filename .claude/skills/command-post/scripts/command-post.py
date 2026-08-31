@@ -121,6 +121,54 @@ def alive(pid):
         return False
 
 
+MAX_ANCESTRY_HOPS = 24
+
+
+def whoami(start_pid=None):
+    """跑這一趟的是哪一個 session——**推出來的，不是任何人宣告的**。
+
+    往上走進程祖先，每一跳去 `~/.claude/sessions/{pid}.json` 找。找到就是它：那份登錄檔
+    是 Claude Code 自己寫的，`pid` 就是檔名。實測兩跳就中（呼叫者的 shell → session 本身）。
+
+    **這件事不靠宣告**，所以覆蓋率不是「記得寫的那幾個」而是「凡是走過流程的都有」——
+    這台機器上 8 個 session 只有 1 份自願宣告，量過。
+
+    回傳 (sessionId, 為什麼推不出來)。推不出來一定有一句話：一個空字串會跟「沒有人接」
+    長得一模一樣，而它們要人做的事不同。
+    """
+    pid = start_pid if start_pid is not None else os.getpid()
+    seen = []
+    for _ in range(MAX_ANCESTRY_HOPS):
+        path = os.path.join(REGISTRY, f"{pid}.json")
+        if os.path.exists(path):
+            try:
+                data = json.load(open(path, encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                return None, f"pid {pid} 的登錄檔讀不動：{path}（{exc}）"
+            sid = data.get("sessionId")
+            if not sid:
+                return None, f"pid {pid} 的登錄檔裡沒有 sessionId：{path}"
+            return sid, None
+        seen.append(pid)
+        try:
+            out = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)],
+                                 capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return None, ("問不到祖先（走過 "
+                          + "→".join(str(x) for x in seen) + f"）：{exc}")
+        try:
+            parent = int(out.stdout.strip())
+        except ValueError:
+            return None, ("走到頭了，沿路沒有一個 pid 有登錄檔（走過 "
+                          + "→".join(str(x) for x in seen) + "）")
+        if parent <= 1 or parent == pid:
+            return None, ("走到 pid " + str(parent) + " 還沒找到登錄檔（走過 "
+                          + "→".join(str(x) for x in seen) + "）")
+        pid = parent
+    return None, (f"走了 {MAX_ANCESTRY_HOPS} 跳還沒找到登錄檔（走過 "
+                  + "→".join(str(x) for x in seen) + "）")
+
+
 def read_registry():
     """回傳 (rows, problem)。登錄本身讀不到是一種狀態，不是空清單。"""
     if not os.path.isdir(REGISTRY):
@@ -356,6 +404,68 @@ def spine_rows(issues_root):
     return lines, None
 
 
+def holders_of(issues_root, ticket_path):
+    """一張單現在被誰接著——**讀脊椎寫下的那一格，加上執行當下量到的死活**。
+
+    回傳一句話，給板子第五欄用。五種答案長成五句不同的話，因為它們要人做的事不同：
+
+    | 讀到什麼 | 印什麼 | 人要做什麼 |
+    |---|---|---|
+    | `holders` 有活著的對象 | 那幾個的名字 | 去問他 |
+    | `holders` 是空的／沒有這個欄位 | 沒有人接 | 去找人接 |
+    | 狀態檔讀不到、登錄讀不到 | 這一次問不到 | 去看那份檔案 |
+    | 有紀錄，而登錄裡找不到那個對象 | 紀錄在、人不在 | 這張單其實沒人在做 |
+    | 紀錄自己寫著推不出來 | 推不出來是誰（理由） | 去看為什麼推不出來 |
+
+    **死活是這一刻量的，不是紀錄裡寫的。** 一份紀錄只證明「當時它動過這張單」；那個
+    session 還在不在，只有現在去問登錄才知道。
+    """
+    state = os.path.join(issues_root, ticket_path, ".spine", "loop-state.json")
+    if not os.path.exists(state):
+        return "這一次問不到（沒有輪次狀態檔：" + state + "）"
+    try:
+        data = json.load(open(state, encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return "這一次問不到（輪次狀態檔讀不動：" + str(exc) + "）"
+    if not isinstance(data, dict):
+        return "這一次問不到（輪次狀態檔不是一個物件）"
+    holders = data.get("holders")
+    if not isinstance(holders, list) or not holders:
+        return "沒有人接"
+
+    rows, problem = read_registry()
+    if problem:
+        return "這一次問不到（" + problem + "）"
+    live = {}
+    for _, row in rows:
+        if isinstance(row, dict) and row.get("sessionId"):
+            live[row["sessionId"]] = row
+
+    said = []
+    for entry in holders:
+        if not isinstance(entry, dict):
+            continue
+        who = entry.get("identity")
+        if not who:
+            said.append("推不出來是誰（" + str(entry.get("why") or "沒有記下理由") + "）")
+            continue
+        row = live.get(who)
+        if row is None:
+            said.append("紀錄在、人不在（" + who[:8] + "…）")
+            continue
+        name = row.get("name") or "（沒有名字）"
+        pid = row.get("pid")
+        running = alive(pid) if isinstance(pid, int) else None
+        if running is False:
+            said.append("紀錄在、人不在（" + name + " 已經結束）")
+        else:
+            said.append(name)
+    if not said:
+        return "沒有人接"
+    # 不收斂成一個。同一張單被一個以上的對象接著，正是要被看見的東西。
+    return "、".join(said)
+
+
 def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600):
     """指揮官每一輪重讀的那一頁。
 
@@ -375,9 +485,17 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
     out.append("")
 
     if not session_id:
-        answer = "？次（環境裡沒有 CLAUDE_SESSION_ID，這一次問不到）"
+        answer = "？次（推不出這一趟是哪一個 session，這一次問不到）"
     else:
-        n, why = compaction_count(os.getcwd(), session_id)
+        # **cwd 要拿那個 session 自己登錄的那一個，不是呼叫者現在站的地方。** transcript
+        # 的目錄名是從 session 開場時的 cwd 算出來的；從一個 worktree 裡跑這支的話，
+        # 用 os.getcwd() 解出來的是一條不存在的路徑，而輸出只說「transcript 不在」。
+        home = None
+        for row in m["sessions"]:
+            if row.get("session_id") == session_id:
+                home = row.get("cwd")
+                break
+        n, why = compaction_count(home or os.getcwd(), session_id)
         answer = str(n) + " 次" if why is None else "？次（" + why + "）"
     out.append("這個 session 壓縮過 " + answer
                + "。**這裡不判斷該不該換一個**——壓縮間隔量過是平的，"
@@ -392,17 +510,29 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
     else:
         # `next:` 那一行是脊椎的建議，它指的那一張同時也會出現在下面的清單裡。兩者
         # 印成兩列的話，同一張單在板子上出現兩次，而讀的人分不出那是兩張還是一張。
-        table, notes = [], []
+        table, notes, suggested = [], [], None
+        listed = set()
         for ln in rows:
             kind, _, rest = ln.partition(":")
             path = rest.split()[0] if rest.split() else rest
             if kind == "next":
                 notes.append("脊椎建議的下一張：`" + path + "`")
+                # 它同時也是一張在飛的單，所以它要有自己的一列。**只當成一句話的那一版，
+                # 一張正在施工、正被人接著的單在這張表上根本沒有列**——而那正好是第五欄
+                # 最該印出東西的那一種。下面用路徑去重，所以它跟 seed／stop 重疊時不會
+                # 出現兩次。
+                suggested = path
             elif kind in ("stop", "seed"):
+                listed.add(path)
                 table.append("| `" + path + "` | " + kind + " | `"
-                             + os.path.join(issues_root, path, "index.md") + "` | |")
+                             + os.path.join(issues_root, path, "index.md") + "` | "
+                             + holders_of(issues_root, path) + " |")
             else:
                 notes.append(ln)
+        if suggested and suggested not in listed:
+            table.insert(0, "| `" + suggested + "` | next | `"
+                         + os.path.join(issues_root, suggested, "index.md") + "` | "
+                         + holders_of(issues_root, suggested) + " |")
         for n in notes[:1]:
             out.append(n)
             out.append("")
@@ -413,8 +543,16 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
         for n in notes[1:]:
             out.append(n)
         out.append("")
-        out.append("「誰在做」整欄是空的，**而它是空的有原因**：輪次狀態檔沒有任何欄位記"
-                   "「哪個 session 在做這一張」（DP-622）。一個看得出來的空白比一個手寫的猜測好。")
+        out.append("「誰在做」那一欄是產生的：值來自那張單的 `.spine/loop-state.json` 裡"
+                   "`init`／`advance`／`record` 寫下的 `holders[]`，加上**執行這一刻**去 session "
+                   "登錄量到的死活。答不出來的時候它說出是哪一種答不出來——沒有人接、這一次"
+                   "問不到、紀錄在而人不在、推不出來是誰——四句不同的話，不合併成空白。")
+        if all("沒有人接" in row.rsplit("|", 2)[-2].strip() for row in table) and table:
+            out.append("")
+            out.append("**這一欄整欄是「沒有人接」，而那是真話，不是壞掉。** `holders[]` 是 "
+                       "DP-622 才加的欄位——在它存在之前走過流程的單，沒有任何一趟寫得下"
+                       "那個值。等這幾張單各自再被 `init`／`advance`／`record` 碰一次，"
+                       "那一格才會有東西。")
         out.append("")
         out.append("「成功條件在哪」那一欄是**路徑**，不是內容。抄進來就是第二份會漂的定義，"
                    "而漂的是最不能漂的那一份。")
@@ -453,10 +591,26 @@ def main():
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
     ap.add_argument("--waiting-on", default=None,
                     help="--board 用：唯一手寫的那一格——指揮官自己在等什麼、剛決定了什麼")
+    ap.add_argument("--whoami", action="store_true",
+                    help="印出跑這一趟的那個 session 的 sessionId。推出來的，不靠任何宣告。")
     args = ap.parse_args()
+    if args.whoami:
+        # 脊椎宣告掃到的就是這個模式。**印一行，非 0 就是這一次推不出來**——理由走 stderr，
+        # 因為呼叫者把 stdout 原樣當成身分記下來，一句解釋混進去就變成一個假的身分。
+        sid, why = whoami()
+        if why:
+            print(why, file=sys.stderr)
+            return 2
+        print(sid)
+        return 0
     if args.board:
+        # 環境變數優先，推導是後備。以前只讀環境變數，而它在這裡從來沒有被設過——於是
+        # 「壓縮過幾次」每一次都印「這一次問不到」，那是同一個缺口的第二個出口。
+        sid = os.environ.get("CLAUDE_SESSION_ID")
+        if not sid:
+            sid, _ = whoami()
         print(board_text(build(now=args.now_epoch), args.issues, args.waiting_on,
-                         session_id=os.environ.get("CLAUDE_SESSION_ID"),
+                         session_id=sid,
                          idle_threshold=args.idle_threshold))
         return 0
     if args.order:

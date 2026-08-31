@@ -336,6 +336,106 @@ run_declared() {
   ( cd "$root/../.." && eval "$1" )
 }
 
+# Description: 掃所有 SKILL.md，找出「現在是誰在動這張單」由哪一條命令回答。
+# Args: $1 = skill 根目錄
+# Prints: 那條命令；沒有人宣告就印空字串。
+#
+#     <!-- {任意前綴}-ACTOR-IDENTITY: {命令} -->
+#
+# **核心不認得任何一種對象。** 它不知道 session 是什麼、不知道那個身分長什麼樣，也不去
+# 讀任何登錄檔——它只把宣告的命令跑一次，把印出來的第一行原樣記下來。所以這一條在
+# claude.ai 與 Cowork 那種沒有這個概念的環境裡不會壞：那裡沒有人宣告，於是它記下
+# 「沒有人宣告」，而那是一個答案。
+#
+# 沒有命名空間後綴，因為「現在是誰在跑這一趟」只有一個答案；`ISSUE-STATE-{命名空間}`
+# 要後綴是因為那個問題每個命名空間各有各的權威。
+actor_declaration() {
+  python3 - "$1" <<'PY_ACTOR_DECL'
+import os, re, sys
+root = sys.argv[1]
+pattern = re.compile(r"<!--\s*[A-Za-z0-9_-]*ACTOR-IDENTITY:\s*(.+?)\s*-->")
+if os.path.isdir(root):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        if "SKILL.md" not in filenames:
+            continue
+        try:
+            text = open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8").read()
+        except OSError:
+            continue
+        found = pattern.search(text)
+        if found:
+            sys.stdout.write(found.group(1))
+            break
+PY_ACTOR_DECL
+}
+
+# Description: 把「這一趟是誰在動這張單」記進狀態檔的 holders[]。
+# Args: $1 = 狀態檔, $2 = 是哪一個動作寫的（init／advance／record）
+#
+# **不覆寫，是逐個對象各佔一格。** 兩種寫法都試著想過，各自的失效方式不一樣：只有 init
+# 寫的話，一張單換手之後那一格永遠是開單的那個人；每次都覆寫的話，最後一個路過重算的人
+# 就成了「誰在做」。而且覆寫的那一版連「不只一個人接著同一張單」都表達不出來——那正是
+# 這一欄最該被看見的東西，不是要被收斂成一個的東西。
+#
+# **推不出來的時候記下理由，不記一個空字串。** 空字串會跟「沒有人接」長得一模一樣，而
+# 它們要人做的事不同：一個是去看為什麼推不出來，一個是去找人接。
+stamp_holder() {
+  local state="$1" by="$2" root declared identity="" why="" raw="" rc=0
+  [[ -f "$state" ]] || return 0
+  root="$(skills_root)" || return 0
+  declared="$(actor_declaration "$root")"
+  if [[ -z "$declared" ]]; then
+    why="沒有任何一支 skill 宣告 ACTOR-IDENTITY——這個環境裡沒有東西回答得出「現在是誰」"
+  else
+    # 先接住離場碼再取第一行。寫成 `$(... | head -1)` 的話 `$?` 是 head 的，而 head 永遠
+    # 成功——下面那條「宣告的命令回非 0」的分支就永遠走不到，而它正是 A-P4 要的那一句。
+    raw="$(run_declared "$declared" 2>/dev/null)" || rc=$?
+    identity="$(printf '%s\n' "$raw" | head -1)"
+    if [[ "$rc" -ne 0 ]]; then
+      why="宣告的命令回非 0（exit ${rc}）：${declared}"
+      identity=""
+    elif [[ -z "$identity" ]]; then
+      why="宣告的命令 exit 0 但一個字都沒印：${declared}"
+    fi
+  fi
+  python3 - "$state" "$by" "$identity" "$why" <<'PY_STAMP'
+import json, sys
+from datetime import datetime, timezone
+
+state, by, identity, why = sys.argv[1:5]
+try:
+    data = json.load(open(state, encoding="utf-8"))
+except (OSError, ValueError):
+    sys.exit(0)          # 狀態檔還沒寫好不是這一支該擋的事
+if not isinstance(data, dict):
+    sys.exit(0)
+
+holders = data.get("holders")
+if not isinstance(holders, list):
+    holders = []
+
+def key_of(entry):
+    """同一個對象只佔一格。推不出來的那幾筆用理由當鍵——同一個理由不重複累積。"""
+    who = entry.get("identity")
+    return who if who else "?" + str(entry.get("why", ""))
+
+fresh = {"identity": identity or None,
+         "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+         "by": by}
+if not identity:
+    fresh["why"] = why
+
+kept = [h for h in holders
+        if isinstance(h, dict) and key_of(h) != key_of(fresh)]
+kept.append(fresh)
+data["holders"] = kept
+with open(state, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+PY_STAMP
+}
+
 # Description: 跑指名 pack 宣告的開工條件；不成立就 die。
 # Args: $1 = pack 名字（none 代表沒有適用的領域）
 #
@@ -883,6 +983,7 @@ with open(state, "w", encoding="utf-8") as handle:
     handle.write("\n")
 print(f"INIT: {state} max_rounds={max_rounds}")
 PY
+  stamp_holder "$STATE" init
   # 覆蓋一個已經存在的檔案要說出來。一個安靜的覆蓋跟一個安靜的漏，事後看起來一樣。
   [[ "$note_seed_upgrade" -eq 1 ]] \
     && echo "[spine-loop-state] 這張單原本是一張種子（還沒簽 assertion），現在升級成真的輪次。"
@@ -1004,6 +1105,8 @@ PY
   # 沒寫進去就沒有新狀態可以投影，直接把原因原封不動送回去。
   [[ "$rc" -eq 0 ]] || return "$rc"
 
+  # 記在重算位置**之前**：重算會把這張單搬走，搬走之後 $STATE 就指不到東西了。
+  stamp_holder "$STATE" record
   reproject_position
   return 0
 }
@@ -1286,6 +1389,7 @@ PY
   # advance 會被 reproject_position 的 0 蓋掉，於是拒絕變成了成功。
   local rc=$?
   [[ "$rc" -eq 0 ]] || return "$rc"
+  stamp_holder "$STATE" advance
   reproject_position
 }
 
