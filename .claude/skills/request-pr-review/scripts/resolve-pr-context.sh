@@ -18,6 +18,10 @@
 #
 #   <!-- {任意前綴}-PR-CONTEXT-{org}: {命令} -->
 #
+# 命令裡的相對路徑，錨是**宣告它的那份 SKILL.md 所在的目錄**，不是呼叫者當下的 cwd——核心
+# 跑它之前會先切過去。所以宣告行寫得出來的是「相對於我自己」的路徑，而那在 skill 被單獨帶
+# 到別的環境時仍然成立；「這個 workspace 的 root 在哪」在那裡沒有答案。
+#
 # 那個命令要認得兩個模式，核心把第一個參數當模式名交過去：
 #
 #   {命令} notify --repo <repo>   → 印出「這個 repo 的 PR 該通知誰」
@@ -61,8 +65,10 @@ if [[ ! -d "$SKILLS_DIR" ]]; then
   exit 2
 fi
 
-# 掃出所有宣告，一行 "org<TAB>命令"。剖析走 python3：宣告行要非貪婪地吃到 `-->` 之前為止，
-# 而 BSD sed 的 ERE 沒有 lazy quantifier，寫成貪婪的話同一行有兩個註解就會整段吞掉。
+# 掃出所有宣告，一行 "org<TAB>宣告者的 skill 目錄<TAB>命令"。目錄要跟著印出來，因為宣告行
+# 寫的是相對路徑，而它的錨是宣告者自己，不是呼叫者當下站在哪。
+# 剖析走 python3：宣告行要非貪婪地吃到 `-->` 之前為止，而 BSD sed 的 ERE 沒有 lazy
+# quantifier，寫成貪婪的話同一行有兩個註解就會整段吞掉。
 collect_declarations() {
   python3 - "$SKILLS_DIR" <<'PY'
 import os, re, sys
@@ -88,7 +94,7 @@ for dirpath, _, filenames in sorted(os.walk(skills_root)):
     except (OSError, UnicodeDecodeError):
         continue
     for org, command in pattern.findall(text):
-        print(f"{org}\t{command}")
+        print(f"{org}\t{os.path.dirname(real)}\t{command}")
 PY
 }
 
@@ -109,16 +115,21 @@ case "$MODE" in
     [[ "$MODE" != "notify" || -n "$REPO" ]] || { echo "$PREFIX notify 要 --repo" >&2; exit 2; }
     # 變數用大括號界定：macOS 內建的 bash 3.2 在變數緊接多位元組字元時會把後面那個字元的
     # 位元組讀進變數名，於是 `$ORG」` 變成一個 unbound variable。
-    org_command="$(collect_declarations | awk -F'\t' -v o="${ORG}" '$1==o {print $2; exit}')"
-    if [[ -z "$org_command" ]]; then
+    org_line="$(collect_declarations | awk -F'\t' -v o="${ORG}" '$1==o {print $2 "\t" $3; exit}')"
+    org_dir="${org_line%%$'\t'*}"
+    org_command="${org_line#*$'\t'}"
+    if [[ -z "$org_line" ]]; then
       echo "${PREFIX} 沒有人宣告 org「${ORG}」，所以答不出它的 ${MODE}。" >&2
       exit 3
     fi
     # 宣告的命令自己決定怎麼回答；核心不解讀它印出來的東西，只轉交。
+    # 在宣告者自己的 skill 目錄裡跑：宣告行寫得出來的只有相對路徑，而「這個 workspace 的
+    # root 在哪」在 skill 被單獨帶走的環境裡沒有答案，「宣告我的那份 SKILL.md 在哪」有。
+    # 包成 subshell，這個 cd 不外洩給呼叫者。
     if [[ "$MODE" == "notify" ]]; then
-      eval "${org_command} notify --repo \"\${REPO}\""
+      ( cd "$org_dir" && eval "${org_command} notify --repo \"\${REPO}\"" )
     else
-      eval "${org_command} ticket"
+      ( cd "$org_dir" && eval "${org_command} ticket" )
     fi
     ;;
 

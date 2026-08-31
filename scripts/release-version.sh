@@ -10,6 +10,9 @@
 #          version exits non-zero (AC-NEG3); a tagged block that collates to zero
 #          Keep a Changelog sections exits non-zero (AC10).
 # Inputs:  --repo <path> (default: repo root inferred from this script's location)
+#          POLARIS_ISSUES_ROOT (optional) — where the ticket tree lives; defaults to
+#            <repo>/issues. Only read to classify pending changesets (DP-664); an
+#            absent tree is an answer ("cannot tell"), not an error.
 #          POLARIS_RELEASE_CHANGESET_CMD (optional) — override the changeset CLI
 #            invocation (used by the hermetic selftest to inject a stub); defaults
 #            to the workspace `pnpm exec changeset` / `npx changeset` resolution.
@@ -20,6 +23,15 @@
 #          accumulated at a single feat/DP-NNN HEAD into ONE version bump. One DP =
 #          one version: pending changesets that span more than one distinct "dp-NNN"
 #          marker fail-loud with POLARIS_RELEASE_VERSION_MULTI_DP_STACKING (AC-NEG2).
+# DP-664:  one exception, and it is the one the release tail's own prose always
+#          assumed: a changeset left behind by a `destination: workspace` ticket is
+#          absorbed here rather than counted. Such a ticket never compresses a
+#          version of its own, so its changeset has no other way out — and with the
+#          guard counting it, it blocked every later template release for good.
+#          The classification comes from that ticket's own `destination:` frontmatter,
+#          the same single declaration source gate-source-destination.sh reads.
+#          Fail-closed: a marker that cannot be resolved to a ticket is COUNTED, not
+#          absorbed, and the reason is printed.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -78,6 +90,14 @@ VERSION_FILE="$REPO_ROOT/VERSION"
 CHANGESET_DIR="$REPO_ROOT/.changeset"
 CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 
+# DP-664: where the tickets live, and who answers "where is ticket X".
+# Both are looked at only through classify_dp_marker, and both being absent is a
+# valid answer there ("unknown" → counted), not a failure of this script.
+ISSUES_ROOT_FOR_MARKERS="${POLARIS_ISSUES_ROOT:-$REPO_ROOT/issues}"
+SPINE_FIND="$REPO_ROOT/.claude/skills/driving-work-to-done/scripts/spine-loop-state.sh"
+# shellcheck source=lib/issue_destination.sh
+source "$SCRIPT_DIR/lib/issue_destination.sh"
+
 if [[ ! -f "$PKG_JSON" ]]; then
   echo "POLARIS_RELEASE_VERSION_NO_PACKAGE_JSON: $PKG_JSON" >&2
   exit 1
@@ -116,6 +136,12 @@ count_pending_changesets() {
 # with no DP marker at all (e.g. product-repo / ad-hoc changesets) carry no DP
 # boundary signal, so they do not trigger the guard — the framework feat-HEAD
 # release path is the caller that owns the one-DP invariant.
+#
+# DP-664: a marker whose ticket declares `destination: workspace` is absorbed, not
+# counted. That ticket's tail stops before this step, so nobody else will ever
+# consume its changeset; counting it turns one workspace delivery into a permanent
+# block on the next template release. Everything the classifier cannot answer stays
+# in the count — see classify_dp_marker below for why that direction is the safe one.
 distinct_pending_dp_markers() {
   local f base
   [[ -d "$CHANGESET_DIR" ]] || return 0
@@ -130,17 +156,84 @@ distinct_pending_dp_markers() {
   done | sort -u
 }
 
+# Which kind of ticket left this changeset behind? Answers `workspace`, `template`,
+# or `unknown<TAB><why>`.
+#
+# **The single declaration source is the ticket's own frontmatter**, read through
+# lib/issue_destination.sh — the same function gate-source-destination.sh uses. A
+# second reader here could disagree with that gate and neither side would know.
+#
+# Resolving a marker to a ticket is likewise not re-implemented: spine-loop-state.sh
+# `find` owns "where does this ticket live", because a ticket's position is a
+# projection of its state and moves. Its exit codes are the answer, not its output:
+# 3 = more than one ticket with that number, 4 = none.
+#
+# Every failure to answer returns `unknown`, and every `unknown` is counted by the
+# caller. That direction matters: absorbing on doubt would let a missing issues tree
+# silently disable the one-DP invariant, and nothing in the output would say so. A
+# clone without issues/ therefore behaves exactly as it did before DP-664.
+classify_dp_marker() {
+  local marker="$1" ticket dir dest rc
+  ticket="$(printf '%s' "$marker" | tr '[:lower:]' '[:upper:]')"
+  if [[ ! -d "$ISSUES_ROOT_FOR_MARKERS" ]]; then
+    printf 'unknown\tno issues tree at %s\n' "$ISSUES_ROOT_FOR_MARKERS"; return 0
+  fi
+  if [[ ! -f "$SPINE_FIND" ]]; then
+    printf 'unknown\tcannot resolve tickets: %s is missing\n' "$SPINE_FIND"; return 0
+  fi
+  dir="$(bash "$SPINE_FIND" find "$ticket" --root "$ISSUES_ROOT_FOR_MARKERS" 2>/dev/null)" && rc=0 || rc=$?
+  case "$rc" in
+    0) : ;;
+    3) printf 'unknown\t%s matches more than one ticket directory\n' "$ticket"; return 0 ;;
+    4) printf 'unknown\tno ticket named %s in the tree\n' "$ticket"; return 0 ;;
+    *) printf 'unknown\tlooking up %s failed (exit %s)\n' "$ticket" "$rc"; return 0 ;;
+  esac
+  dest="$(read_issue_destination "$dir/index.md")" || dest=""
+  case "$dest" in
+    workspace) printf 'workspace\t\n' ;;
+    template)  printf 'template\t\n' ;;
+    "")        printf 'unknown\t%s declares no destination\n' "$ticket" ;;
+    *)         printf 'unknown\t%s declares an unrecognised destination "%s"\n' "$ticket" "$dest" ;;
+  esac
+}
+
 assert_single_dp_aggregation() {
-  local markers count
+  local markers m line kind why
+  local absorbed="" counted="" notes="" count
   markers="$(distinct_pending_dp_markers)"
   # No DP marker present → no cross-DP boundary signal to enforce (no-op).
   [[ -n "$markers" ]] || return 0
-  count="$(printf '%s\n' "$markers" | grep -c .)"
+
+  while IFS= read -r m; do
+    [[ -n "$m" ]] || continue
+    line="$(classify_dp_marker "$m")"
+    kind="${line%%$'\t'*}"
+    why="${line#*$'\t'}"
+    case "$kind" in
+      workspace) absorbed="${absorbed}${m}"$'\n' ;;
+      template)  counted="${counted}${m}"$'\n' ;;
+      *)         counted="${counted}${m}"$'\n'
+                 notes="${notes}    - ${m}: ${why}"$'\n' ;;
+    esac
+  done <<< "$markers"
+
+  # Say what was absorbed and what could not be answered on BOTH paths. A silent
+  # absorption is the failure this guard exists to prevent, one level up.
+  if [[ -n "$absorbed" ]]; then
+    echo "  absorbing changeset(s) left by workspace-bound ticket(s) (DP-664):"
+    printf '    - %s\n' $absorbed
+  fi
+  if [[ -n "$notes" ]]; then
+    echo "  counted because their owning ticket could not be read:" >&2
+    printf '%s' "$notes" >&2
+  fi
+
+  count="$(printf '%s' "$counted" | grep -c . || true)"
   if [[ "$count" -gt 1 ]]; then
     {
       echo "POLARIS_RELEASE_VERSION_MULTI_DP_STACKING: pending changesets span $count distinct DPs; one DP = one version (DP-334 D1 / AC-NEG2)."
       echo "  distinct DP markers:"
-      printf '    - %s\n' $markers
+      printf '    - %s\n' $counted
       echo "  Compress each feat/DP-NNN at its own HEAD into its own version; do not stack multiple DPs into a single version."
     } >&2
     return 1

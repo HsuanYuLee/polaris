@@ -88,17 +88,11 @@ if [[ ! -f "$ISSUE_ABS/.spine/loop-state.json" ]]; then
 fi
 
 # ── 宣告 ──────────────────────────────────────────────────────────────────────
-# 只讀 frontmatter：正文裡的 `destination:` 是散文，不是宣告。
-DESTINATION="$(awk '
-  NR == 1 && $0 == "---" { inside = 1; next }
-  inside && $0 == "---"   { exit }
-  inside && /^destination:[[:space:]]*/ {
-    sub(/^destination:[[:space:]]*/, "")
-    gsub(/[[:space:]]*(#.*)?$/, "")
-    print
-    exit
-  }
-' "$INDEX")"
+# 讀 frontmatter 的那幾行在 lib/issue_destination.sh，因為 release-version.sh 也要問同一件事
+# ——同一個判斷寫兩次，兩份可以各自寫錯而沒有人發現。
+# shellcheck source=lib/issue_destination.sh
+source "$SCRIPT_LIB/issue_destination.sh"
+DESTINATION="$(read_issue_destination "$INDEX" || true)"
 
 if [[ -z "$DESTINATION" ]]; then
   {
