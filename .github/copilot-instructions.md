@@ -164,10 +164,11 @@ skill 時先問人，但要在任何 tool call 之前問，不是讀完再問。
 
 ## 常駐規則
 
-`.claude/rules/` 底下兩份，只有這兩份：
+`.claude/rules/` 底下三份，只有這三份：
 
 - `style-and-language.md`——用什麼語言寫、寫成什麼樣子。
 - `document-flow.md`——一份文件該住在哪、由誰搬。
+- `cross-session-command.md`——這台機器上同時有好幾個 session 在跑的時候，誰說了算。
 
 放在這裡的判準是「需不需要被帶走」：skill 目錄會到 claude.ai 與 Cowork，rules 不會。所以
 只有在這個 repo 裡才成立的知識才進 rules，其餘都該長在某支 skill 自己的目錄裡。
