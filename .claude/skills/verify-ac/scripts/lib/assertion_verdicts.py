@@ -33,8 +33,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 PRODUCER = "run-hardened-oracle.sh"
 
@@ -350,17 +352,26 @@ def unstartable_path(command, cwd):
     return None if os.path.exists(resolved) else target
 
 
-def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
-    """拿這條命令現在再跑一次，回 (state, 一句話)。
+def _rerun_group(command, cwd, tools, members, oracle, notes):
+    """把這一組跑一趟，組裡每一條 assertion 在同一份輸出上各自判。
 
     Args:
         command: 要跑的命令；cwd: 在哪棵樹上跑（空的就用現在站的地方）。
-        expect / forbid: 證據記下的正負向證據樣式，原樣交還給 oracle。
         tools: 證據記下的工具清單，原樣交還給 oracle 的 `--require-tool`。
+        members: `[(assertion id, expect, forbid)]`——決定「在那份輸出裡找什麼」的那幾樣。
         oracle: `run-hardened-oracle.sh` 的路徑。
         notes: 說明會被 append 進來的清單。
     Returns:
-        (PASS|FAIL|UNMEASURABLE, 說明)。
+        `{assertion id: (PASS|FAIL|UNMEASURABLE, 說明)}`，組裡每一條都有自己的一筆。
+
+    **一組一趟，不是一條一趟。** 分開兩條 assertion 的只有正負向樣式，而樣式不必重新
+    執行一次命令才問得出來——`run-hardened-oracle.sh --assertion` 本來就是在同一份輸出
+    上逐條判、逐條寫。把樣式放進「要跑幾趟」的鍵裡，換到的不是嚴謹，是同一條命令被跑 N 次。
+
+    **而且那樣換到的答案可能是假的。** 一條命令的輸出在兩趟之間變了的時候，兩條互斥的
+    assertion 會各自看到對自己有利的那一趟，於是同時綠——它們判的根本不是同一份輸出。
+    同一趟裡矛盾看得見：一條綠、另一條紅。所以這件事表面上是省時間，實際上是把一個
+    會靜靜給出假綠的地方修成會紅。
 
     跑不起來是 UNMEASURABLE 不是 FAIL：oracle 不在、證據沒說跑的是哪一條命令，說的都是
     「這一趟沒問到」，而把問不到讀成沒過，跟把它讀成通過一樣是在編一個答案。
@@ -369,34 +380,103 @@ def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
     探到的才會被 symlink 進去。不交還的話，一條當初靠 `gh` 才跑得起來的命令重跑時
     exit 127，而那份證據本身是好的——這一層就從「再驗一次」變成「懲罰用過外部工具的單」。
     """
+    def everyone(state, detail):
+        return {aid: (state, detail) for aid, _, _ in members}
+
     if not oracle or not os.path.exists(oracle):
-        return UNMEASURABLE, f"重跑不了：找不到 {oracle or 'run-hardened-oracle.sh'}"
+        return everyone(UNMEASURABLE, f"重跑不了：找不到 {oracle or 'run-hardened-oracle.sh'}")
     if not command:
-        return UNMEASURABLE, "重跑不了：證據沒說它跑的是哪一條命令"
+        return everyone(UNMEASURABLE, "重跑不了：證據沒說它跑的是哪一條命令")
     if cwd and not os.path.isdir(cwd):
         # 量測用的樹不在了不是紅燈，也不是「這一層做不成」：釋出尾段的前一步就是移除
         # 那個 worktree，所以每一張在 worktree 開工的單走到這裡都會撞上。退回現在站的
         # 地方重跑，並且說出來——一個安靜的退路下一次會被當成原本就在那棵樹上跑的。
         notes.append(f"重跑退回現在站的地方：量測用的工作區 {cwd} 已經不在")
         cwd = ""
-    argv = ["bash", oracle, "--command", command]
-    for pattern in expect or []:
-        argv += ["--expect-evidence", pattern]
-    for pattern in forbid or []:
-        argv += ["--forbid-evidence", pattern]
-    for spec in tools or ():
-        argv += ["--require-tool", spec]
-    if cwd:
-        argv += ["--cwd", cwd]
-    # 用 bytes 收再自己解碼：量測命令吐得出不是 UTF-8 的位元組（掃到二進位檔、
-    # 或 shell 把多位元組字元切斷），而 text=True 會在那一刻丟 traceback ——
-    # 那既不是 PASS 也不是「量不到」，是一個沒有判定的離場。
-    done = subprocess.run(argv, capture_output=True)
-    done = subprocess.CompletedProcess(
-        done.args, done.returncode,
-        done.stdout.decode("utf-8", "replace"),
-        done.stderr.decode("utf-8", "replace"))
-    if done.returncode == 0:
+
+    # 每一組要有自己的輸出路徑，這是 oracle 的要求，也是這件事的重點：一組一份判定。
+    # 寫進暫存目錄，因為這一層是「再驗一次」——它不得覆蓋單自己那幾份被判定過的證據。
+    workdir = tempfile.mkdtemp(prefix="verify-ac-rerun-")
+    try:
+        argv = ["bash", oracle, "--command", command]
+        outs = {}
+        for aid, expect, forbid in members:
+            outs[aid] = os.path.join(workdir, aid.replace("/", "_") + ".json")
+            argv += ["--assertion", aid]
+            for pattern in expect or ():
+                argv += ["--expect-evidence", pattern]
+            for pattern in forbid or ():
+                argv += ["--forbid-evidence", pattern]
+            argv += ["--evidence-out", outs[aid]]
+        for spec in tools or ():
+            argv += ["--require-tool", spec]
+        if cwd:
+            argv += ["--cwd", cwd]
+        # 用 bytes 收再自己解碼：量測命令吐得出不是 UTF-8 的位元組（掃到二進位檔、
+        # 或 shell 把多位元組字元切斷），而 text=True 會在那一刻丟 traceback ——
+        # 那既不是 PASS 也不是「量不到」，是一個沒有判定的離場。
+        done = subprocess.run(argv, capture_output=True)
+        done = subprocess.CompletedProcess(
+            done.args, done.returncode,
+            done.stdout.decode("utf-8", "replace"),
+            done.stderr.decode("utf-8", "replace"))
+        return {aid: _one_group_verdict(outs[aid], command, cwd, done)
+                for aid, _, _ in members}
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _why_group(payload, done):
+    """從這一組自己的證據拼出「為什麼紅的」，回一行字。
+
+    Args:
+        payload: 那一組的證據內容；done: 整趟執行的結果，證據拼不出東西時的退路。
+    Returns:
+        一行說明。
+
+    **要帶著命令自己說的那句話**，不能只有 oracle 的判定。`command exited 127` 說得出
+    它紅了，說不出 `gh: command not found`——而後者才是人要看的東西。一個判紅而說不出
+    理由的關卡，跟一個沒有理由的通過一樣不能用。
+
+    **不從整趟的 stderr 上刮**：一趟裡好幾組，oracle 把每一組的 marker 都印在後面，
+    所以最後那幾行是別條 assertion 的話。命令自己的兩個串流原樣記在每一組的證據裡，
+    那才是這一組該讀的地方。
+    """
+    parts = []
+    stream = payload.get("stderr") or ""
+    lines = [ln for ln in stream.splitlines() if ln.strip()]
+    if not lines:
+        lines = [ln for ln in (payload.get("stdout") or "").splitlines() if ln.strip()]
+    parts += lines[-(WHY_LINES - 2):] if lines else []
+    parts += [x for x in (payload.get("marker"), payload.get("detail")) if x]
+    return " / ".join(parts) if parts else _why(done)
+
+
+def _one_group_verdict(out_path, command, cwd, done):
+    """把 oracle 為某一條 assertion 寫下的那份判定，翻成這一層的三種結果。
+
+    Args:
+        out_path: 那一組的證據路徑；command / cwd: 這一趟跑的東西，只用來解釋失敗。
+        done: 整趟執行的結果，用來在證據不存在時說出為什麼。
+    Returns:
+        (PASS|FAIL|UNMEASURABLE, 說明)。
+
+    **三種結果的意思一個字都不改**，只是問的對象從離場碼換成那一組自己的判定：
+    oracle 的 `FAIL` 是命令自己紅了（重跑一次是紅的），`NOT_PASS` 是命令綠了卻沒有它
+    要求的證據（重跑量不到）。離場碼答不了這件事——一趟裡好幾組，而它只有一個。
+
+    **證據不在是第三種**，不是其中一種的溫和版本：oracle 在跑起來之前就死了（工具探不到、
+    參數不合法），那一趟沒有任何一組被判過。
+    """
+    try:
+        with open(out_path, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (OSError, ValueError):
+        return UNMEASURABLE, "重跑量不到（這一趟沒有留下判定）：" + _why(done)
+
+    verdict = payload.get("verdict")
+    detail = _why_group(payload, done)
+    if verdict == "PASS":
         return PASS, "重跑一次仍然是綠的"
     # 非零有兩種來源，而它們要的下一步不一樣：「這一趟量到了，是紅的」「這一趟沒問到」，
     # 都假設那條命令還跑得起來。而一張單交付之後會被重算搬走，於是登錄下來的那條命令要跑
@@ -409,33 +489,33 @@ def _rerun(command, cwd, expect, forbid, tools, oracle, notes):
             f"重跑指向一個不存在的位置：這條命令要跑的 {gone} 現在找不到。"
             "這不是「量到了是紅的」，也不是「這一趟沒問到」——是這條登錄下來的命令本身"
             "已經指不到東西了（單的位置會被重算，改成執行當下用 spine-loop-state.sh find 問）。"
-            + _why(done))
-    if done.returncode == 1:
-        return FAIL, "重跑一次是紅的：" + _why(done)
-    return UNMEASURABLE, "重跑量不到：" + _why(done)
+            + detail)
+    if verdict == "FAIL":
+        return FAIL, "重跑一次是紅的：" + detail
+    return UNMEASURABLE, "重跑量不到：" + detail
 
 
-def rerun_key(ev):
-    """決定一趟重跑的全部東西。**這是去重的鍵，只有這一份。**
+def rerun_exec_key(ev):
+    """決定「要跑幾趟」的鍵：命令、在哪棵樹跑、要哪些工具。**只有這一份。**
 
     Args:
         ev: 一份 oracle 產的證據。
     Returns:
-        命令、在哪棵樹跑、要求出現什麼、要求不出現什麼、要哪些工具，五樣組成的 tuple。
+        三樣組成的 tuple，正好是 `_rerun_group` 前三個參數。
 
-    **不要把這句話簡化成「照命令去重」。** 兩條 assertion 可以跑同一條命令而各自要求不同的證據
-    樣式；鍵漏掉那幾樣的話，第二條會拿到第一條的答案，而它自己的樣式從來沒有被檢查過
-    ——一條沒被量到的 assertion 看起來就跟過了一樣。
+    **正負向樣式刻意不在鍵裡。** 它們決定的是「在那份輸出裡找什麼」，不是「跑什麼」——
+    同一條命令的同一份輸出，好幾條 assertion 各自拿自己的樣式去判就好。以前把樣式也
+    算進鍵裡，於是十條共用同一支 selftest 的 assertion 要跑十趟同一件事。
+
+    這不是把樣式放掉：`_rerun_group` 拿著組裡每一條自己的樣式，逐條判、逐條回報。少了
+    那一步才是「第二條拿到第一條的答案」——一條沒被量到的 assertion 看起來就跟過了一樣。
 
     抽成一支是因為它有兩個呼叫者：跑之前數趟數的那一次，跟跑的時候。抄成兩份的話預告的
     數字會跟實際的漂開，而漂掉的那一刻預告看起來仍然很正常。
     """
     return (ev.get("command", ""),
             ev.get("measured_in") or "",
-            tuple(ev.get("expect_evidence") or ()),
-            tuple(ev.get("forbid_evidence") or ()),
             tool_specs(ev))
-
 
 
 def declared_landing(index_path):
@@ -594,33 +674,41 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
                 mark(aid, UNMEASURABLE, f"量在 {ev_head[:12]}，而這段差異量不到——{payload}")
 
     # 第三層。跑的是證據記的那條命令——走到這裡它已經被上面驗過等於登錄的那一條（登錄檔
-    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條 assertion 共用，所以去重再跑，
-    # 而去重的鍵是 `rerun_key()`——它為什麼是那五樣寫在那支函式的 docstring 裡，這裡不抄
-    # 第二份。
+    # 不在的話上面記了一句話說這一層沒做）。同一條命令通常被好幾條 assertion 共用，**而它
+    # 們共用的是同一趟執行，不是同一個判定**：分組的鍵是 `rerun_exec_key()`（跑什麼），
+    # 每一條自己的正負向樣式跟著它進那一組，在同一份輸出上各自判。為什麼樣式不在鍵裡，
+    # 寫在那支函式的 docstring 裡，這裡不抄第二份。
     if rerun:
-        # 趟數在跑第一趟之前就說出來。這一層是唯一會真的花時間的一層，而「幾條 assertion」跟
-        # 「要跑幾趟」不是同一個數字——不先說的話，看的人只能拿 assertion 數去估，然後把一趟
-        # 21 分鐘的等待當成當掉。
-        planned = {rerun_key(evidence[aid]) for aid in ids
-                   if aid not in rows and aid in evidence}
-        if planned:
-            print(f"[verify-ac] 重跑這一層：{len(planned)} 個不同的量測樣式"
-                  f"（{len(ids)} 條 assertion），所以要跑 {len(planned)} 趟。",
-                  file=sys.stderr)
-        cache = {}
+        # 分組只算一次，預告與實際讀的是同一份。以前是「跑之前算一次、跑的時候用另一個
+        # 快取再算一次」——兩個算式一致的時候沒有人看得出來它們是兩份，而漂開的那一刻
+        # 預告仍然看起來很正常。
+        groups = {}
         for aid in ids:
             if aid in rows or aid not in evidence:
                 continue
             ev = evidence[aid]
-            key = rerun_key(ev)
-            if key not in cache:
-                cache[key] = _rerun(*key, oracle, report["notes"])
-            state, detail = cache[key]
-            # 通過的那一條也要記下它憑什麼通過。以前這裡只在非 PASS 時寫，於是所有通過的
-            # 斷言都掉到下面那個常數上，而一份把每一條的理由都印成同一句話的報告，說不出
-            # 自己量到了什麼。
-            mark(aid, state, detail)
-        report["notes"].append(f"重跑了 {len(cache)} 趟（{len(ids)} 條 assertion 共用）")
+            groups.setdefault(rerun_exec_key(ev), []).append(
+                (aid, tuple(ev.get("expect_evidence") or ()),
+                 tuple(ev.get("forbid_evidence") or ())))
+        # 趟數在跑第一趟之前就說出來。這一層是唯一會真的花時間的一層，而「幾條 assertion」跟
+        # 「要跑幾趟」不是同一個數字——不先說的話，看的人只能拿 assertion 數去估，然後把一趟
+        # 21 分鐘的等待當成當掉。
+        graded = sum(len(m) for m in groups.values())
+        if groups:
+            print(f"[verify-ac] 重跑這一層：{graded} 條 assertion 分成 "
+                  f"{len(groups)} 組不同的量測命令（這張單共 {len(ids)} 條 assertion），"
+                  f"所以要跑 {len(groups)} 趟；每一趟裡每一條各自判自己的樣式。",
+                  file=sys.stderr)
+        for key, members in groups.items():
+            verdicts = _rerun_group(*key, members, oracle, report["notes"])
+            for aid, _expect, _forbid in members:
+                state, detail = verdicts[aid]
+                # 通過的那一條也要記下它憑什麼通過。以前這裡只在非 PASS 時寫，於是所有通過的
+                # 斷言都掉到下面那個常數上，而一份把每一條的理由都印成同一句話的報告，說不出
+                # 自己量到了什麼。
+                mark(aid, state, detail)
+        report["notes"].append(
+            f"重跑了 {len(groups)} 趟，{graded} 條 assertion 各自判過自己的樣式")
 
     # 一張單交付到不只一個 repo 是常態（真樹上兩張，其中一張三棵），而那件事這張單自己
     # 就宣告過了。所以「證據落在幾棵樹」不是問題本身——**落在沒有宣告過的樹上**才是。

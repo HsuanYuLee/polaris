@@ -89,8 +89,8 @@ ok "跑完一個檔案都沒動"
 # 做到第幾層要自己說。一份沒說自己做到第幾層的報告，讀起來永遠像做滿了。
 grep -Fq 'LAYERS: 檔案自洽、登錄相符、重跑一次' <<<"$OUT" \
   || fail "--rerun 要說出三層都做了：$OUT"
-grep -Fq '重跑了 1 趟（2 條 assertion 共用）' <<<"$OUT" \
-  || fail "重跑要去重，並說出跑了幾趟：$OUT"
+grep -Fq '重跑了 1 趟，2 條 assertion 各自判過自己的樣式' <<<"$OUT" \
+  || fail "重跑要說出跑了幾趟、判了幾條：$OUT"
 run_report --issue "$issue"
 grep -Fq '（沒做：重跑一次）' <<<"$OUT" || fail "沒加 --rerun 要說出那一層沒做：$OUT"
 ok "做到第幾層自己說得出來，沒做的那一層也說"
@@ -225,9 +225,9 @@ run_report --issue "$issue" --rerun
 [[ "$RC" -eq 0 ]] || fail "舊證據沒有 tools 欄位不該因此變紅；拿到 ${RC}：$OUT"
 ok "沒有工具清單的舊證據照沒探過跑"
 
-# 去重不得把另一條 assertion 的答案借給這一條。兩條 assertion 跑同一條命令、各自要求不同的證據樣式，
-# 是真單的常態；去重的鍵漏掉那幾樣的話，第二條拿到的是第一條的答案，而它自己的樣式從來
-# 沒有被檢查過——一條沒被量到的 assertion 看起來就跟過了一樣。
+# 一趟執行不得把另一條 assertion 的答案借給這一條。兩條 assertion 跑同一條命令、各自要求
+# 不同的證據樣式，是真單的常態；那一趟的輸出只判一次的話，第二條拿到的是第一條的答案，而它
+# 自己的樣式從來沒有被檢查過——一條沒被量到的 assertion 看起來就跟過了一樣。
 issue="$(new_issue shared_command_different_needles)"
 python3 - "$issue/.spine/evidence/A-P2.json" <<'PY'
 import json, sys
@@ -243,9 +243,9 @@ grep -q 'PASS  A-P1' <<<"$OUT" || fail "樣式還在的那一條該是綠的：$
 # oracle 對「命令跑完了但沒有它被要求產出的正向證據」回 exit 2 而不是 1，所以這一條落在
 # 量不到那一格。它一樣不是通過：報告 exit 2、交付照樣拒絕。
 grep -q '????  A-P2' <<<"$OUT" || fail "樣式不在的那一條該被判成量不到：$OUT"
-grep -Fq '重跑了 2 趟（2 條 assertion 共用）' <<<"$OUT" \
-  || fail "樣式不同就是兩趟，不該被去重成一趟：$OUT"
-ok "去重照整趟重跑的條件，不只照命令"
+grep -Fq '重跑了 1 趟，2 條 assertion 各自判過自己的樣式' <<<"$OUT" \
+  || fail "樣式不同不是多跑一趟的理由，該是一趟兩判：$OUT"
+ok "同一條命令跑一趟，兩條 assertion 的樣式各判各的"
 grep -Fq '量不到 1' <<<"$OUT" || fail "重跑那一層的量不到沒有被數出來：$OUT"
 ok "重跑跑不出結果時是量不到，照樣印出來、照樣被數，exit 不是 0"
 
