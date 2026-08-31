@@ -284,9 +284,46 @@ judge_group() {
   done <<< "$forbid"
 }
 
+# Description: 那個路徑上現在躺著的那一份，verdict 是什麼。$1 = 路徑。
+#              讀不到就印空字串並回 0——**「那裡沒有東西」是一個答案，不是一個死法**。
+#              手寫的、被截斷的、根本不是 JSON 的檔案都走同一條路：空字串。
+evidence_verdict_at() {
+  [[ -f "$1" ]] || return 0
+  python3 -c '
+import json, sys
+try:
+    print(json.load(open(sys.argv[1], encoding="utf-8")).get("verdict") or "")
+except Exception:
+    print("")
+' "$1" 2>/dev/null
+}
+
+# Description: 蓋掉一份 PASS 之前先留一份。$1 = 輸出路徑，$2 = 這一趟的判定。
+#
+# **照寫，但不無聲地毀掉。** 「判非 PASS 就不寫」與「不覆蓋 PASS」這兩種做法都是 fail-open：
+# 實作真的退化、oracle 判紅的那一天，磁碟上留下的會是昨天那份 PASS，而交付紀錄第一層讀的
+# 正是它。現在那份 NOT_PASS 至少是誠實的。所以判定一個字都不變，變的只有「上一份還在不在」
+# 與「有沒有人被告知」。
+#
+# 2026-08-29 DP-598 第二輪的實例：`--expect-evidence` 的樣式經過 eval 之後空白被吃掉，
+# 一趟把十九份 PASS 覆寫成 NOT_PASS，連正確的 expect_evidence 一起換掉；第二次重跑讀的是
+# 被汙染的樣式，於是又失敗一次，看起來像「這幾條真的量不到」。拿回來只因為那些證據剛好
+# commit 過。
+#
+# `.superseded` 只在**真的要毀掉一份 PASS** 的時候出現，所以它不會變成每張單都有的雜訊。
+preserve_superseded() {
+  local out="$1" verdict="$2" was
+  [[ "$verdict" != "PASS" ]] || return 0
+  was="$(evidence_verdict_at "$out")"
+  [[ "$was" == "PASS" ]] || return 0
+  cp -p "$out" "${out}.superseded" || return 0
+  echo "SUPERSEDED: ${out} 原本是 PASS，這一趟判 ${verdict}——原檔逐位元留在 ${out}.superseded"
+}
+
 # Description: 寫一份證據。$1 = 輸出路徑，$2/$3/$4 = 判定三件，$5/$6 = 這一份自己的樣式。
 write_evidence() {
   local out="$1" verdict="$2" marker="$3" detail="$4" expect="$5" forbid="$6"
+  preserve_superseded "$out" "$verdict"
   # 正負向樣式走環境變數，不擠進 argv：那串位置參數已經固定了九個再接一串工具紀錄，
   # 中間插兩個變長的清單要多一組長度欄位，而那正是會被下一個人數錯的東西。
   #
