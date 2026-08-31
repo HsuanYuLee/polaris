@@ -311,6 +311,21 @@ if exit_code in ENVIRONMENT_EXIT_CODES or any(
          f"red evidence at {path} failed because the command could not run "
          f"(exit {exit_code}); that is an environment error, not a measurement")
 
+# 這條流程自己宣告的慣例（engineering/SKILL.md）：0 綠、1 量到了而且是紅的、2 量不到。
+# 一個在 preflight 就停下來的 run 用 2 停，正是為了不要走進判定——所以它也不是紅控。
+# 它自成一種拒絕，因為下一步跟另外兩種不同：綠的去看實作，環境壞的去看機器，
+# 這一種去看那條命令量的是不是目標。
+UNMEASURABLE_EXIT_CODE = 2
+if exit_code == UNMEASURABLE_EXIT_CODE:
+    fail("POLARIS_MEASUREMENT_EVIDENCE_UNMEASURABLE",
+         f"red evidence at {path} exited 2, which this spine reserves for 'nothing was "
+         f"measured' (engineering/SKILL.md). A run that stopped at its own preflight "
+         f"never reached a verdict, so it is not a red control.\n"
+         f"  next: make the command reach its target and fail there, then capture that run "
+         f"as the red evidence.\n"
+         f"  if this command really does mean 'measured and red' when it exits 2, wrap it so "
+         f"it exits 1 — nothing downstream reads a 2 as red.")
+
 if not data.get("recorded_at"):
     fail("POLARIS_MEASUREMENT_RED_EVIDENCE_MISSING",
          f"red evidence at {path} has no recorded_at timestamp")
