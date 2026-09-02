@@ -125,8 +125,13 @@ def render_markdown(manifest):
         f"過 {counts['pass']}、沒過 {counts['fail']}、量不到 {counts['unmeasurable']}",
     ]
     if manifest["head"]:
+        # 只印工作區的名字，不印完整路徑。這份 report.md 會被當成附件送出去（見
+        # 各命名空間宣告的 evidence publisher），而一台機器的目錄配置送出去收不回來，
+        # 它說的又只是「這台機器上的哪裡」——要回答的問題是「量在哪一棵樹」，名字就夠。
+        tree = os.path.basename(os.path.normpath(manifest["measured_in"])) \
+            if manifest["measured_in"] else ""
         lines.append(f"- 量在 head `{manifest['head'][:12]}`"
-                     + (f"（{manifest['measured_in']}）" if manifest["measured_in"] else ""))
+                     + (f"（{tree}）" if tree else ""))
     layers = manifest["layers"]
     done = [name for name, label in (
         ("self_consistent", "檔案自洽"), ("registered", "登錄相符"), ("rerun", "重跑一次"),

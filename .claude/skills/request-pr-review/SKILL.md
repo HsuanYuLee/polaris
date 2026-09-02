@@ -162,6 +162,13 @@ printf '%s' "$SELECTED" | "$SKILL_DIR/scripts/plan-pr-notify.sh"
 
 一個 repo 問不到不擋其餘的：其他 repo 照常送，問不到的那幾個等答案。
 
+**訊息的預設形狀是每個 PR 的標題與連結，加一句請人看，沒有別的。** 要多說必須說得出
+「讀的人不看這段就決定不了要不要點進去」，而且形狀是一個 PR 一行。approval 數、逐位
+reviewer 狀態、CI、施工過程都不進通知——那些在上一步給使用者看的那份報告裡。判準與正反例
+在 `references/request-pr-review-reporting.md` 的〈通知訊息〉。
+
+**沒有任何東西在擋長訊息**，語言關卡只驗語言。這是刻意的：寫的人自己負責。
+
 送出前把訊息寫成 temp markdown 並通過語言關卡：
 
 ```bash

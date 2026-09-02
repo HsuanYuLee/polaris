@@ -609,7 +609,10 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     for aid in ids:
         path = os.path.join(evidence_dir, f"{aid}.json")
         if not os.path.exists(path):
-            mark(aid, FAIL, f"沒有證據（{path}）")
+            # 相對於單，不是絕對路徑：這一格會被貼進公司的 ticket，而一個貼出去的
+            # 絕對路徑收不回來，它說的又只是「這台機器上的哪裡」。
+            here = os.path.relpath(path, os.path.dirname(os.path.abspath(index_path)))
+            mark(aid, FAIL, f"沒有證據（{here}）")
             continue
         try:
             ev = json.load(open(path, encoding="utf-8"))
