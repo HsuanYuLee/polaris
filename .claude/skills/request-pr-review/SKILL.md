@@ -67,7 +67,11 @@ tools:
 MY_USER="$(gh api user --jq '.login')"
 ```
 
-approval threshold 這類判定門檻仍讀 workspace config 的 shared defaults。
+approval threshold 是公司 pack 的知識，不是這支 skill 的：幾票算看過了由那家公司說，寫在它自己
+的 pack 裡（repo-notes 那支的 PR 與 review 慣例那一份）。`check-pr-approval-status.sh` 的
+`--threshold` 沒給時用 2，公司 pack 說的數字不是 2 時就帶 `--threshold N`。以前這裡寫「讀
+workspace config 的 shared defaults」並在 pipe 裡放一個 `$APPROVAL_THRESHOLD`——那個鍵從來
+不存在，那個變數整支 skill 沒有人賦值，讀到的永遠是腳本的預設值。
 
 ## Bundled Scripts
 
@@ -100,7 +104,7 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 
 ```bash
 "$SKILL_DIR/scripts/fetch-user-open-prs.sh" \
-  | "$SKILL_DIR/scripts/check-pr-approval-status.sh" --threshold "$APPROVAL_THRESHOLD" \
+  | "$SKILL_DIR/scripts/check-pr-approval-status.sh" \
   | "$SKILL_DIR/scripts/fetch-pr-review-comments.sh" --author "$MY_USER" \
   | "$SKILL_DIR/scripts/check-pr-ci-status.sh" \
   | "$SKILL_DIR/scripts/attach-pr-ticket.sh"
@@ -131,7 +135,12 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 - 被指名但還沒回應的 reviewer（`requested_reviewers`）
 - 還沒被回覆的意見數（`unaddressed_comments`）
 - CI 狀態；`FAIL` 要帶上是哪幾個 check（`ci.failing`）
-- 這個 PR 適不適合現在請人看，不適合的話卡在哪
+- 這個 PR 適不適合現在請人看，不適合的話卡在哪。**`unaddressed_comments` 不是 0 的不請票**：
+  reviewer 留的每一串含 nit 都要處置並回在原串（`swe-knowledge` 第 5 條），還沒做到就先做，
+  請人再看一次沒處理完的東西是浪費他的時間
+- **`valid_approvals` 到了 `threshold`、`unaddressed_comments` 是 0、CI 綠的那幾顆，不是
+  「請人看」的候選，是「按 merge」的候選。** 誰按由公司 pack 說；
+  公司 pack 說作者按的，就直接按，不把「要不要 merge」列成待決
 
 最後給出總數與 repo 分布。
 

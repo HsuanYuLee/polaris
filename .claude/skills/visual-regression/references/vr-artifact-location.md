@@ -83,8 +83,8 @@ pnpm --filter polaris-toolchain mockoon:start -- \
   issues/{命名空間}/{單號}/tests/mockoon
 ```
 
-`workspace-config.yaml` 的 `fixtures` block 只留工具層設定（ports、ready_signal），
-不含路徑也不含單號。
+公司那份 `workspace-config.yaml` 的 `visual_regression.domains[].fixtures` 只留工具層設定
+（`health_ports`、`ready_signal`、runner），不含單的路徑也不含單號。
 
 ## 舊產出物在哪
 

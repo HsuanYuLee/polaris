@@ -32,11 +32,22 @@ scope: universal
 解析結果由 `$SKILL_DIR/scripts/resolve-pr-pickup-input.sh` 定義；skill 只消費該 artifact，不能再手工
 各寫一套 PR URL / thread context 判斷。
 
-## 前置：讀取 workspace config
+## 前置：這條線在哪個 org
 
-讀取 workspace config（參考 `workspace-config.yaml`）。
-本步驟需要的值：`github.org`、`slack.channels.ai_notifications`。
-若 config 不存在，使用 `workspace-config.yaml`（讀不到就用預設） 的 fallback 值。
+`resolve-pr-pickup-input.sh` 讀 Slack thread 的時候要 `--org`，因為它要在那一串裡找出屬於
+那個 org 的 PR URL。**那個值問 `request-pr-review` 帶的那支命令**，它列出這台機器上被宣告
+的每一個 org：
+
+```bash
+bash "$SKILL_DIR/../request-pr-review/scripts/resolve-pr-context.sh" orgs
+```
+
+只有一個就用它，不只一個就從那串訊息裡的 PR URL 判。**這裡不寫任何設定鍵**：org 是誰宣告
+的、宣告在哪，由那支命令回答，這一支不認得任何一家公司。
+
+以前這裡寫「讀 workspace config，本步驟需要的值：`github.org`、`slack.channels.ai_notifications`」
+——兩個鍵在任何一份 `workspace-config.yaml` 裡都不存在，`$GITHUB_ORG` 整支 skill 沒有人賦值，
+而 `slack.channels.ai_notifications` 從頭到尾沒有任何一行讀它。
 
 ## Bundled Authority
 
@@ -73,7 +84,7 @@ Slack thread，然後用同一支 script 完成第二階段解析：
 ```bash
 "$SKILL_DIR/scripts/resolve-pr-pickup-input.sh" \
   --input "$USER_INPUT" \
-  --org "$GITHUB_ORG" \
+  --org "$ORG" \
   --slack-thread-file "$SLACK_THREAD_EXPORT" \
   --format json
 ```
@@ -123,11 +134,15 @@ pr-pickup 的職責，但它要**等**——回 Slack 之前必須知道結果�
 修 PR 通常**不用立案**：review comments 改的是既有 assertion 底下的做法，成功的定義沒變。
 只有在 review 指出「成功的定義本身錯了」時才停下來走 `refinement` 重簽。
 
+**修完的判準是 `swe-knowledge` 第 5 條：每一串留言含 nit 都處置了，而且處置回在那一串上，
+最後一則是作者。** 「主要的都改了、nit 之後再說」不算修完——nit 也是一串，沒回的那一串在
+reviewer 那邊就是還沒處理。這是框架的標準，到哪一家公司都一樣。
+
 ### 2a. 可能的結果
 
 | 結果 | 含義 |
 |------|------|
-| **成功完成** | 已修正並 push；pr-pickup 只轉述 PR 的實際狀態，不自行判定「可 merge / 可 release」 |
+| **成功完成** | 已修正並 push，每一串留言都回了；pr-pickup 只轉述 PR 的實際狀態。幾票算看過、到了誰按 merge，由公司 pack 說（幾票、誰按都是那一家的知識），不在這裡判 |
 | **成功的定義要改** | review 指出的問題在 assertion 層，不在做法層——停下來，回 `refinement` |
 | **失敗** | 其他原因（build 失敗、環境問題等） |
 
@@ -146,7 +161,7 @@ pr-pickup 的職責，但它要**等**——回 Slack 之前必須知道結果�
 
 {修正摘要}
 
-已修正並 push，請 reviewer re-review。是否實際 merge 由 reviewer / owner 決定。
+已修正並 push，每一則留言都已回覆，請 reviewer re-review。
 ```
 
 ### 成功的定義要改
