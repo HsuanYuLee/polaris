@@ -44,6 +44,17 @@ PASS = "pass"
 FAIL = "fail"
 UNMEASURABLE = "unmeasurable"
 
+# 證據檔裡 oracle 寫下的判定字串（上面三個是報告這一層的狀態名，兩套不共用）。
+EVIDENCE_UNMEASURABLE = "UNMEASURABLE"
+
+
+def _unmeasurable_detail(ev):
+    """把證據自己說的理由帶出來——「量不到」不說原因的話，讀的人沒有下一步。"""
+    detail = (ev.get("detail") or "").strip()
+    marker = (ev.get("marker") or "").strip()
+    why = detail or marker or "證據沒說為什麼"
+    return "這一趟量不到：" + why
+
 
 #: 一條 bullet 抽得出來的 assertion 編號。編號後面允許接字尾（`A-P1b`）——`\w*` 是貪婪的，
 #: 最長匹配保證它停在第一個非詞字元上，所以 `A-P1 一般` 抽到的仍然是 `A-P1`。
@@ -463,7 +474,8 @@ def _one_group_verdict(out_path, command, cwd, done):
 
     **三種結果的意思一個字都不改**，只是問的對象從離場碼換成那一組自己的判定：
     oracle 的 `FAIL` 是命令自己紅了（重跑一次是紅的），`NOT_PASS` 是命令綠了卻沒有它
-    要求的證據（重跑量不到）。離場碼答不了這件事——一趟裡好幾組，而它只有一個。
+    要求的證據（重跑量不到），`UNMEASURABLE` 是命令依慣例回報這一趟量不到（離場碼 2）。
+    離場碼答不了這件事——一趟裡好幾組，而它只有一個。
 
     **證據不在是第三種**，不是其中一種的溫和版本：oracle 在跑起來之前就死了（工具探不到、
     參數不合法），那一趟沒有任何一組被判過。
@@ -640,6 +652,14 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
         # 它說它量在哪一棵樹就是一件事實，判定結果不改變那件事實。
         if ev.get("measured_in"):
             measured_in.setdefault(ev["measured_in"], []).append(aid)
+        if ev.get("verdict") == EVIDENCE_UNMEASURABLE:
+            # 這一趟沒有量到，跟「量到了而且是紅的」是兩件事，而下一步不一樣：紅的去看
+            # 程式碼，量不到去看那個東西存不存在。以前這裡把兩者都寫成 FAIL，於是統計行
+            # 的「量不到」那一格對每一張單都印 0——那一格存在的理由剛好沒有發生。
+            # 兩者一樣擋得住交付（record-delivery-intent.sh 對 FAIL 與 UNMEASURABLE
+            # 一起擋），所以這不是放寬，是把一個被藏起來的第三態說出來。
+            mark(aid, UNMEASURABLE, _unmeasurable_detail(ev))
+            continue
         if ev.get("verdict") != "PASS":
             mark(aid, FAIL, f"判定是 {ev.get('verdict')!r}，不是 PASS")
             continue

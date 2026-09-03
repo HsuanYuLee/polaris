@@ -49,8 +49,12 @@
 #
 # Exit codes:
 #   0  command exited 0, every probe answered, positive evidence present
-#   1  command exited non-zero (its own code is reported in the evidence record)
-#   2  hardening refused the run or the verdict (marker on stderr)
+#   1  command exited non-zero and that is a red (its own code is in the record)
+#   2  hardening refused the run, or the verdict could not be reached — this
+#      includes the command exiting 2, which the convention in
+#      engineering/SKILL.md defines as "this run could not measure".
+#      Verdicts written into the evidence record: PASS / FAIL / NOT_PASS /
+#      UNMEASURABLE.
 
 set -uo pipefail
 
@@ -258,6 +262,22 @@ cat "$STDOUT_FILE" "$STDERR_FILE" > "$combined"
 judge_group() {
   local expect="$1" forbid="$2" pattern
   verdict="PASS"; marker=""; detail=""
+  # 慣例（宣告在 engineering/SKILL.md）：0 綠、1 量到了而且是紅的、2 量不到。
+  # 以前這裡把任何非 0 都寫成 FAIL，於是「這一趟沒問到」與「問到了，答案是紅的」在證據上
+  # 是同一個值——而報告的統計行因此對每一張單都印「量不到 0」，也就是那一格存在的理由
+  # 剛好沒有發生。兩者的下一步不一樣：紅的去看程式碼，量不到去看那個東西存不存在。
+  #
+  # 已知的反例要說出來：**PHPUnit 的 error（不是 assertion 失敗）也回 2**（assertion
+  # 失敗回 1）。所以一條直接跑 phpunit 的量測命令，測試拋例外的時候會被記成量不到而不是
+  # 紅。兩種狀態都擋得住交付（record-delivery-intent.sh 對 FAIL 與 UNMEASURABLE 一起擋），
+  # 所以那個誤判不會放行任何東西——它讓讀報告的人先去看環境而不是先去看程式碼。要避開它，
+  # 就不要把第三方工具的離場碼直接當成判定，用一支自己的探針把它翻譯過。
+  if [[ "$COMMAND_EXIT" -eq 2 ]]; then
+    verdict="UNMEASURABLE"
+    marker="POLARIS_ORACLE_UNMEASURABLE"
+    detail="command exited 2 — 依慣例那是「這一趟量不到」，不是「量到了而且是紅的」"
+    return
+  fi
   if [[ "$COMMAND_EXIT" -ne 0 ]]; then
     verdict="FAIL"
     marker="POLARIS_ORACLE_COMMAND_FAILED"
