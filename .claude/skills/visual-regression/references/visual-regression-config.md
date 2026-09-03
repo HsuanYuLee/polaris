@@ -168,7 +168,7 @@ viewport 上看過那個 selector 出現。設定裡沒有地方分開寫的話�
 | 欄位 | 型別 | 必填 | 說明 |
 |------|------|------|------|
 | `type` | string | 否 | 工具標識（mockoon / prism / json-server）。用於 log，不影響行為 |
-| `runner` | string | 是（如果有 fixtures block） | 啟動 fixture server 的命令（預設 `pnpm --filter polaris-toolchain mockoon:start`）。Skill 在 runtime 把 `-- {company_specs_dir}/{EPIC}/tests/mockoon` 接在它後面 |
+| `runner` | string | 是（如果有 fixtures block） | 啟動 fixture server 的命令（預設 `pnpm --dir .claude/skills/visual-regression/toolchain mockoon:start`）。Skill 在 runtime 把 `-- {company_specs_dir}/{EPIC}/tests/mockoon` 接在它後面 |
 | `stop_command` | string | 是（如果有 fixtures block） | 停止 fixture server 的指令 |
 | `health_ports` | number[] | 否 | 健康檢查端口列表 |
 | `ready_signal` | string | 是（如果有 fixtures block） | 同 server.ready_signal 邏輯 |

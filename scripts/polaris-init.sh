@@ -337,9 +337,18 @@ bootstrap_runtime() {
   if printf '%s\n' "$VERIFY_SPECS" | cut -f1 | grep -qx playwright; then
     # 瀏覽器不是套件，是 playwright 自己的後續步驟；沒有人宣告 playwright 就不需要它。
     #
-    # 用 package 的名字定位，不用它的路徑：路徑寫在宣告那一份（`install: pnpm:<目錄>`）與
-    # `pnpm-workspace.yaml` 裡就夠了，這裡再抄一次就是第三份，而 DP-546 搬家的時候會漏掉它。
-    run_managed pnpm --filter polaris-toolchain playwright:install
+    # 路徑從宣告那一份拿（`install: pnpm:<目錄>`，經 plan_declared_tools 變成 VERIFY_SPECS
+    # 的第二欄），所以這裡沒有第二份路徑。以前這行走 `--filter polaris-toolchain`：那省掉了
+    # 路徑，代價是 `pnpm --filter <找不到>` 回 rc=0——這一行會 exit 0 而什麼都沒裝，跟
+    # DP-654 在修的那個 bug 是同一個病。`pnpm --dir <錯路徑>` 回 rc=1。
+    local pw_dir
+    pw_dir="$(printf '%s\n' "$VERIFY_SPECS" | awk -F'\t' '$1=="playwright"{print $2}' | head -1)"
+    pw_dir="${pw_dir#pnpm|}"
+    if [[ -z "$pw_dir" ]]; then
+      blocked_env "playwright-dir-unresolved" "宣告說要 playwright，但它的安裝目錄解不出來（VERIFY_SPECS 裡沒有 playwright 那一列）。"
+      return 1
+    fi
+    run_managed pnpm --dir "$pw_dir" playwright:install
   fi
   verify_declared_tools || return 1
 }

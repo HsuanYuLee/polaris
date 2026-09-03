@@ -20,6 +20,6 @@ try {
   process.stdout.write('PASS: browser.playwright doctor\n');
 } catch (error) {
   process.stderr.write(`FAIL: browser.playwright doctor: ${error.message}\n`);
-  process.stderr.write('Repair: pnpm --filter polaris-toolchain install\n');
+  process.stderr.write('Repair: pnpm install，在這個 package 自己的目錄下跑\n');
   process.exit(1);
 }

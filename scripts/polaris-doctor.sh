@@ -155,8 +155,11 @@ run_toolchain_doctor() {
     info "would run toolchain doctor: $label"
     return 0
   fi
-  # 用 package 的名字定位，不用它的路徑——那個路徑住在宣告與 pnpm-workspace.yaml 裡。
-  if (cd "$TOOLCHAIN_ROOT" && pnpm --filter polaris-toolchain "$script"); then
+  # 用目錄定位，不用 package 的名字。DP-546 當時選名字是為了少一份路徑，但它賣掉的是
+  # 「失敗會不會紅」：`pnpm --filter <找不到>` 回 rc=0 加一行 `No projects matched the
+  # filters`，而 `pnpm --dir <錯路徑>` 回 rc=1。這一格寧可多一個變數也不要一個不會紅的失敗。
+  # 路徑只有 TOOLCHAIN_PKG_DIR 這一份，toolchain_provides() 也用它。
+  if (pnpm --dir "$TOOLCHAIN_PKG_DIR" "$script"); then
     pass "$label passed"
   else
     fail "$label failed"
@@ -243,7 +246,7 @@ check_declared_tool() {
 # toolchain package 裝的東西不由 mise 管，問它自己的 node_modules/.bin。
 toolchain_provides() {
   local name="$1"
-  local candidate="$TOOLCHAIN_ROOT/.claude/skills/visual-regression/toolchain/node_modules/.bin/$name"
+  local candidate="$TOOLCHAIN_PKG_DIR/node_modules/.bin/$name"
   [[ -x "$candidate" ]] || return 1
   local dir
   dir="$(cd "$(dirname "$candidate")" && pwd)"
@@ -313,6 +316,9 @@ TOOLCHAIN_ROOT="$(resolve_toolchain_root)" || {
   fail "cannot resolve POLARIS_TOOLCHAIN_ROOT"
   exit 1
 }
+# toolchain package 的目錄。這個檔案裡以前有兩份完整路徑（doctor 的 --filter 靠
+# pnpm-workspace.yaml，toolchain_provides() 自己硬寫一份），現在收斂成這一份。
+TOOLCHAIN_PKG_DIR="$TOOLCHAIN_ROOT/.claude/skills/visual-regression/toolchain"
 PLAYWRIGHT_BROWSERS_PATH="$TOOLCHAIN_ROOT/.polaris/toolchain/ms-playwright"
 export POLARIS_TOOLCHAIN_ROOT="$TOOLCHAIN_ROOT"
 export PLAYWRIGHT_BROWSERS_PATH

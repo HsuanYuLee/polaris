@@ -149,6 +149,50 @@ mise run doctor
 回 `mise.toml` 再重跑一次 `mise run init`——**而你不需要記得這件事**：`init` 遇到一個沒有人
 裝的宣告會停下來，並且把要跑的那一條 `mise use` 印給你。
 
+### 這個 repo 沒有 pnpm workspace 檔，所以不要在根目錄跑 `pnpm -r`
+
+`pnpm-workspace.yaml` 在 DP-654 被拿掉了。它住在 workspace 根目錄，而 pnpm 由 cwd 往上找
+**最近的**那一份就停——所以根目錄底下並存的其他 repo（沒有自帶 workspace 檔的那些）會找到
+它，然後它們的 `pnpm install` 裝的是這個 repo 的成員、對 cwd 什麼都不做，最後 exit 0。
+
+沒有那份檔案之後，pnpm 改用**隱式探索**掃子目錄找 `package.json`。它有兩個性質要知道：
+
+- **跳過隱藏目錄。** 所以 `polaris-toolchain`（在 `.claude/skills/visual-regression/toolchain`）
+  用 `pnpm --filter polaris-toolchain` **找不到**，而且找不到的時候回 **rc=0** 加一行
+  `No projects matched the filters`。要對它動手一律用 `pnpm --dir <目錄>`——指錯路徑會回
+  rc=1。
+- **不跳過並存的產品 repo，而且不看 `.gitignore`。** 所以 **不要在這個 repo 的根目錄跑
+  `pnpm -r` 或 `pnpm --recursive`**：它會掃到那些 repo，而 `pnpm -r install` 會去動它們的
+  `node_modules`，運氣不好連 lockfile 都動。動別人 repo 的設定是紅線。
+
+**這個坑填不掉。** 填掉它的做法就是把 workspace 檔放回去，而那正是上面第一段講的 bug。
+做不掉的坑要說出來。
+
+**所以要留的是一條問得出來的命令，不是一句小心。** 症狀是安靜的（`Done in 541ms`、exit 0、
+`node_modules` 一個都沒有），而分歧點只有一個：這個目錄往上找到的是哪一份 workspace 檔。
+在那個目錄裡跑：
+
+```bash
+pnpm root -w
+```
+
+- **印出一個路徑** → 它被那個路徑底下的 workspace 檔收進作用域了。它的 `pnpm install` 裝的
+  是那份 workspace 的成員，對這個目錄什麼都不做。**下一步是拿掉上游那一份，不是在這個
+  目錄放一份自己的**——它如果是別人的 repo，動它的設定是紅線。
+- **回 `ERROR  --workspace-root may only be used inside a workspace`** → 上游一份都沒有，
+  pnpm 走隱式探索，這個目錄的 `pnpm install` 裝的是它自己。這是現在的狀態
+  （2026-08-31 從 `~/work` 一路往上到 `/` 量過）。
+
+框架自己沒有任何一處在用 `-r`，2026-08-31 量的：
+
+```bash
+grep -rn 'pnpm -r\|pnpm --recursive\|pnpm recursive' \
+  --include='*.sh' --include='*.toml' --include='*.mjs' --include='*.py' --include='*.md' . \
+  | grep -v node_modules | grep -v CHANGELOG
+```
+
+（無輸出。**要重新確認的時候跑這一條，不要相信這一句。**）
+
 接上 git hook（過不了閘的 commit 從來不存在）：
 
 ```bash

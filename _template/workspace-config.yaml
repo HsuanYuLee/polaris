@@ -119,8 +119,8 @@ visual_regression:
   #       sit_url: "https://sit.example.com"
   #     fixtures:
   #       type: "mockoon"
-  #       runner: "pnpm --filter polaris-toolchain mockoon:start"
-  #       stop_command: "pnpm --filter polaris-toolchain mockoon:stop"
+  #       runner: "pnpm --dir .claude/skills/visual-regression/toolchain mockoon:start"
+  #       stop_command: "pnpm --dir .claude/skills/visual-regression/toolchain mockoon:stop"
   #       health_ports: [4001, 4002]
   #       ready_signal: "Started"
   #       shared_config_dir: "~/work/my-company/mockoon-config"  # cross-epic shared config
