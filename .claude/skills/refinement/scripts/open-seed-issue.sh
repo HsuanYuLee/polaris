@@ -151,9 +151,11 @@ fi
 # ---------------------------------------------------------------------------
 # 查重：舉發那一種，在建立任何東西之前把撞到的那幾張端到眼前
 #
-# 鍵是「正文指名的檔案有交集」，不是標題共用實詞。2026-08-31 拿當天真的重複的 11 對當測資
+# 鍵是「正文指名的路徑有交集」，不是標題共用實詞。2026-08-31 拿當天真的重複的 11 對當測資
 # 量過：標題那個鍵抓到 6 對，檔案這個鍵抓到 10 對——漏掉的五對裡有三對一個詞都不共用，而
 # 那三對用檔案全部抓得到。
+#
+# 「有交集」比的是整段路徑，判準寫在下面那段 python 的 same_path()。
 #
 # 分母是**還沒出去的**單：開單的人要看的是「現在還在待辦裡的有沒有同一件」，不是「歷史上
 # 有沒有」。終局那幾格（released/、closed/）不進。
@@ -166,11 +168,39 @@ import os, re, sys
 issues_root = sys.argv[1]
 wanted = []
 for raw in sys.argv[2:]:
-    name = os.path.basename(raw.strip().rstrip("/"))
-    # 行號與區間不是檔名的一部分：`foo.py:128` 與 `foo.py` 指的是同一個檔。
-    name = re.split(r"[:#]", name)[0]
-    if name:
-        wanted.append(name)
+    value = raw.strip().rstrip("/")
+    # 行號與區間不是路徑的一部分：`foo.py:128` 與 `foo.py` 指的是同一個檔。
+    value = re.split(r"[:#]", value)[0]
+    if value:
+        wanted.append(value)
+
+# **比對的單位是整段路徑，不是檔名。** 一個單獨的檔名不是身分，它是一個慣例——四十幾支
+# skill 各有一份 `SKILL.md`，所以拿 `SKILL.md` 當鍵會撞到每一張提過任何一支 skill 的單
+# （2026-09-03 實測五個 --where 撈回 13 張，每一張的理由都是「共用：SKILL.md」，其中四張
+# 是別的專案的單）。判準因此是：兩條路徑其中一個是另一個**以 / 對齊**的後綴，而且重疊的
+# 部分**多於一段**，或者兩者一字不差相同。
+#
+# 判準只從手上那兩個字串算，不去掃 --where 指向的那棵樹：這支腳本住在會被帶走的 skill
+# 裡，那棵樹在 claude.ai 與 Cowork 不存在。代價是正文裡只寫得出不帶目錄的檔名的那些單撈
+# 不到——那是刻意付的，分得開它們的唯一方法就是去掃那棵樹。
+PATH_TOKEN = re.compile(r"[A-Za-z0-9_.][A-Za-z0-9_./+-]*")
+
+
+def segments(value):
+    return [seg for seg in value.split("/") if seg]
+
+
+def same_path(a, b):
+    """a 與 b 指的是不是同一個東西：整段對齊的後綴，重疊多於一段，或一字不差。"""
+    sa, sb = segments(a), segments(b)
+    if not sa or not sb:
+        return False
+    if sa == sb:
+        return True
+    short, long_ = (sa, sb) if len(sa) < len(sb) else (sb, sa)
+    if len(short) < 2:
+        return False
+    return long_[-len(short):] == short
 
 TERMINAL = ("released", "closed")
 
@@ -190,7 +220,9 @@ for dirpath, dirnames, filenames in os.walk(issues_root):
         body = open(os.path.join(dirpath, "index.md"), encoding="utf-8", errors="replace").read()
     except OSError:
         continue
-    hits = sorted({w for w in wanted if w in body})
+    mentioned = set(PATH_TOKEN.findall(body))
+    # 印出來的共用值是開單的人原樣給的那一個，不是正文裡那一段——他要認得出自己給了什麼。
+    hits = sorted({w for w in wanted if any(same_path(w, m) for m in mentioned)})
     if hits:
         rows.append((os.path.basename(dirpath), rel, hits))
 
@@ -206,9 +238,9 @@ PY
 
   if [[ -z "$COLLISIONS" ]]; then
     # 一張都沒撞到也要說出來——那是一個答案，不是沉默。
-    echo "$PREFIX 查重（鍵：正文指名的檔案有交集）：還沒出去的單裡，一張都沒有指名 ${WHERE[*]}。"
+    echo "$PREFIX 查重（鍵：正文指名的路徑有交集）：還沒出去的單裡，一張都沒有指名 ${WHERE[*]}。"
   else
-    echo "$PREFIX 查重（鍵：正文指名的檔案有交集）：還沒出去的單裡撞到這幾張——"
+    echo "$PREFIX 查重（鍵：正文指名的路徑有交集）：還沒出去的單裡撞到這幾張——"
     while IFS=$'\t' read -r name rel hits; do
       [[ -n "$name" ]] || continue
       echo "  $name"
@@ -221,11 +253,18 @@ PY
     unjudged=()
     while IFS=$'\t' read -r name rel hits; do
       [[ -n "$name" ]] || continue
-      ticket="${name%%-*}"
-      [[ "$name" =~ ^([A-Za-z]+-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
+      # 單號整段取。前綴帶數字的（`AB2CD-3993` 這種）以前對不上 `[A-Za-z]+-`，於是退回
+      # `${name%%-*}` 被切在第一個連字號——同一個前綴底下的兩張單因此在清單裡變成同一個
+      # 鍵，而下面那張表的判斷欄用整段單號去找，永遠找不到。取不出來的用整個目錄名。
+      ticket="$name"
+      [[ "$name" =~ ^([A-Za-z][A-Za-z0-9]*-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
       found=0
       for entry in ${VS[@]+"${VS[@]}"}; do
         [[ "${entry%%=*}" == "$ticket" ]] && { found=1; break; }
+      done
+      # 兩張撞到的單算得出同一個單號時，那個鍵只印一次——同一句判斷本來就答完了兩張。
+      for u in ${unjudged[@]+"${unjudged[@]}"}; do
+        [[ "$u" == "$ticket" ]] && { found=1; break; }
       done
       [[ "$found" -eq 1 ]] || unjudged+=("$ticket")
     done <<< "$COLLISIONS"
@@ -292,14 +331,14 @@ mkdir -p "$ISSUE_DIR"
     printf '\n\n'
     printf '## 開之前查了什麼\n\n'
     if [[ -z "$COLLISIONS" ]]; then
-      printf '鍵是「正文指名的檔案有交集」，分母是還沒出去的單。**一張都沒有撞到。**\n\n'
+      printf '鍵是「正文指名的路徑有交集」，分母是還沒出去的單。**一張都沒有撞到。**\n\n'
     else
-      printf '鍵是「正文指名的檔案有交集」，分母是還沒出去的單。撞到的與各自的判斷：\n\n'
+      printf '鍵是「正文指名的路徑有交集」，分母是還沒出去的單。撞到的與各自的判斷：\n\n'
       printf '| 撞到 | 在哪 | 共用的檔 | 判斷 |\n|---|---|---|---|\n'
       while IFS=$'\t' read -r name rel hits; do
         [[ -n "$name" ]] || continue
         ticket="$name"
-        [[ "$name" =~ ^([A-Za-z]+-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
+        [[ "$name" =~ ^([A-Za-z][A-Za-z0-9]*-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
         judgement=""
         for entry in ${VS[@]+"${VS[@]}"}; do
           [[ "${entry%%=*}" == "$ticket" ]] && { judgement="${entry#*=}"; break; }
