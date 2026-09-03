@@ -48,12 +48,12 @@ session 開工。
 ```
 issues/                              你自己的 git repo，框架 repo 忽略它
   {命名空間}/                        自己的框架工作、某家公司、某個專案——你決定怎麼分
-    {單號}/
-      index.md                       正文含凍結塊 fence，其餘是可以改的部分
-      .spine/loop-state.json         輪次
-      .spine/measurement-ledger.json 量測命令登錄
-    archive/
-      {單號}/                        收斂完的搬到這裡，流程自己搬
+    {格}/
+      {單號}/
+        index.md                     正文含凍結塊 fence，其餘是可以改的部分
+        .spine/loop-state.json       輪次
+        .spine/measurement-ledger.json 量測命令登錄
+        .spine/placement.json        它現在該在哪一格——流程算出來寫在這裡，不搬目錄
 ```
 
 命名空間叫什麼**不影響任何判定**——流程逐個走過去，不從名字推導行為。開一張新的單時，

@@ -253,8 +253,9 @@ if ! NUMBER="$(bash "$NEXT_NUMBER" "${number_args[@]}")"; then
 fi
 SLUG="${NUMBER}-${SLUG}"
 
-# backlog 是「立案了，還沒開工」，而一張種子單正是那個狀態。位置本來就是狀態的投影，
-# 所以之後的重算會把它放回它該在的那一格——這裡只是給它一個合理的起點。
+# backlog 是「立案了，還沒開工」，而一張種子單正是那個狀態。位置是狀態的投影，而重算不搬
+# 目錄——它把算出來的那一格寫進 `.spine/placement.json`。所以這裡選的路徑就是這張單會一直
+# 待著的地方，選一個合理的起點。
 ISSUE_DIR="$ISSUES/$NAMESPACE/backlog/$SLUG"
 [[ -e "$ISSUE_DIR" ]] && { echo "$PREFIX 那張單已經在了：$ISSUE_DIR" >&2; exit 2; }
 

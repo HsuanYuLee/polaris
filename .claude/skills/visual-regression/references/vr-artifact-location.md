@@ -36,19 +36,19 @@ issues/{命名空間}/{單號}/
 **停下來問**，不要拿時間戳或 `default` 湊一個——一批沒有單號的截圖，三天後沒有人知道它
 在驗什麼。
 
-## 換位置由流程做，不由這支 skill 做
+## 一張單在哪一格由流程算，不由這支 skill 算
 
-一張單換不換位置，由 `issues/{命名空間}/{單號}/.spine/loop-state.json` 的 `status` 決定，
+一張單算在哪一格，由 `issues/{命名空間}/{單號}/.spine/loop-state.json` 的 `status` 決定，
 沒有第二個開關。`spine-loop-state.sh record` 寫完輪次就呼叫 `place-issues-by-state.sh`，
-把每一張單重算到它的狀態說的那一格。
+把每一張單該在的那一格算出來、寫進那張單自己的 `{單}/.spine/placement.json`。
 
 ```bash
 bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issues issues --check
 ```
 
-`--check` 是用來讓「位置與狀態對不上」被看見，不是用來讓人選一邊。手動 `git mv` 一張單，
-下一次 `record` 會把它搬回它該在的地方——這是對的。想讓一張單離開待辦清單，讓它收斂，
-不要搬它。
+**重算不搬目錄。** 所以樹上的路徑說的是這張單當初被放在哪，`placement.json` 說的是它現在
+該在哪——兩者對不上是常態。要問「這張單走到哪了」讀那份紀錄，不要讀資料夾名。想讓一張單
+離開待辦清單，讓它收斂，不是搬它。
 
 ## Bootstrap：從上一張單接過來
 

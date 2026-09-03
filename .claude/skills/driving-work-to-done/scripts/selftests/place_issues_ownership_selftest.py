@@ -33,7 +33,7 @@ FAKE = {
 # 樹裡一開始沒有它，鏈上有。補出來之後它自己在 released，所以日期層長在它身上。
 MATERIALISED = {"ZZ-9": ("released", [])}
 RELEASED_ON = "2026-01-02"
-DESCRIPTION = {"ZZ-9": "第一版的規格：先做 A，再做 B。"}
+DESCRIPTION = {"AA-4": "第一版的規格：先做 A，再做 B。"}
 IN_TREE = set(FAKE)
 
 
@@ -57,8 +57,8 @@ def fake_resolver(command, ticket_name):
 def spine(path):
     """一張單的 `.spine/`，裡面放一份上一次重算留下的推導結果。
 
-    **不能只 mkdir 一個空的。** 搬完之後的清掃會把空目錄收掉，於是那張單身上代表「我是
-    一張單」的痕跡就沒了——而真實的樹上 `.spine/` 從來不是空的。
+    **不能只 mkdir 一個空的。** 真實的樹上 `.spine/` 從來不是空的，而一個空的目錄在
+    有些檔案系統操作底下會消失，於是那張單身上代表「我是一張單」的痕跡就沒了。
     """
     os.makedirs(path, exist_ok=True)
     with open(os.path.join(path, "placement.json"), "w", encoding="utf-8") as handle:
@@ -69,7 +69,7 @@ def build_tree(root):
     """每一張單一開始都平放在自己的格底下——重算要從這裡開始。
 
     另外造兩樣東西：一個**沒有宣告解析器**的命名空間（A-N5 問它的形狀變不變），以及一張
-    單底下一個**不是單**的目錄（A-P1 問它會不會被當成單搬出去）。
+    單底下一個**不是單**的目錄（A-P1 問它會不會被算成一張單）。
     """
     for name, (slot, _) in FAKE.items():
         parts = [root, "ns", slot]
@@ -94,7 +94,12 @@ def build_tree(root):
 
 
 def recompute(root):
-    """跑一次真的重算（搬 + 補 + 寫回推導結果），回重算後的 survey。"""
+    """跑一次真的重算（推導 + 把結果寫回每一張單），回重算後的 survey。
+
+    **它不搬任何目錄。** 這一支以前在這裡自己重播了一遍 `main()` 的搬動，而那一半在
+    DP-661 被拿掉了。留下來的是推導與寫回，所以下面每一條問的都是「算到哪一格」，不是
+    「被搬到哪一格」。
+    """
     placer._RESOLVER_CACHE.clear()
     placer._TOUCHED_CACHE.clear()
     original = placer.slot_from_resolver
@@ -102,33 +107,11 @@ def recompute(root):
     try:
         rows, _ = placer.survey(root, resolvers={"ns": "fake"})
         for row in rows:
-            if row["current"] is None:
-                os.makedirs(row["to_dir"], exist_ok=True)
-        remap = []
-
-        def now(path):
-            for old, new in remap:
-                if path == old or path.startswith(old + os.sep):
-                    return new + path[len(old):]
-            return path
-
-        for row in sorted((r for r in rows if r["from_dir"]),
-                          key=lambda r: r["from_dir"].count(os.sep)):
-            source = now(row["from_dir"])
-            if source == row["to_dir"] or not os.path.isdir(source):
-                continue
-            if os.path.exists(row["to_dir"]):
-                continue
-            placer.move(source, row["to_dir"])
-            remap.append((source, row["to_dir"]))
-        placer.prune_empty(root)
-        placer._RESOLVER_CACHE.clear()
-        placer._TOUCHED_CACHE.clear()
-        after, _ = placer.survey(root, resolvers={"ns": "fake"})
-        for row in after:
-            placer.write_placement(row["to_dir"], row["slot"], row["basis"],
+            if not row["from_dir"]:
+                continue  # 鏈上出現、樹裡還沒有的母單。重算不補，所以沒有東西可以寫進去。
+            placer.write_placement(row["from_dir"], row["slot"], row["basis"],
                                    row["detail"])
-            placer.write_upstream(row["to_dir"], row["detail"])
+            placer.write_upstream(row["from_dir"], row["detail"])
         placer._RESOLVER_CACHE.clear()
         placer._TOUCHED_CACHE.clear()
         final, _ = placer.survey(root, resolvers={"ns": "fake"})
@@ -185,7 +168,13 @@ def main() -> int:
         untouched = snapshot(root) == before_bytes
 
         final = recompute(root)
-        where = {r["name"]: r["current"].replace(os.sep, "/") for r in final}
+        # **問的是「算到哪一格」，不是「被搬到哪一格」。** 重算不搬，所以每一張單的
+        # `current` 永遠是它一開始被放的地方；投影的答案在 `to_dir`。
+        where = {r["name"]: os.path.relpath(r["to_dir"], root).replace(os.sep, "/")
+                 for r in final}
+        # 樹上真的有的那些路徑，A-N4 與 A-P3 要用它分「算出來」與「造出來」。
+        on_disk = {r["name"]: os.path.join(root, r["current"])
+                   for r in final if r["current"]}
         verdicts = []
 
         def check(ident, ok, note):
@@ -201,31 +190,39 @@ def main() -> int:
               f"AA-1/notes（沒有 .spine，不是單）→ "
               f"{'還在 AA-1 底下' if os.path.isfile(notes) else '不見了'}"
               f"{'，而且被當成一張單擺到 ' + where['notes'] if 'notes' in where else ''}")
-        # A-P2 格投影鏈頂，子單不因為自己的狀態搬家。
+        # A-P2 格投影鏈頂，子單不因為自己的狀態算到別的地方去。
         check("A-P2",
               where.get("AA-3") == "ns/in-progress/AA-1/AA-3"
               and where.get("AA-6") == "ns/in-progress/AA-1/AA-6",
               f"AA-3（自己 backlog）→ {where.get('AA-3')}；"
               f"AA-6（自己 released）→ {where.get('AA-6')}")
         # A-P3 鏈上每一個號都有自己的一格——包含樹裡本來沒有的那些。
+        # **它算得出 ZZ-9 該在哪一格，而且不把那個目錄造出來。** 以前這裡是造出來的，
+        # 於是樹上多一個只當路徑用、沒有內容的層——DP-661 把那件事拿掉了。
         zz = os.path.join(root, "ns", "released", RELEASED_ON, "ZZ-9")
         check("A-P3",
-              "ZZ-9" in where and os.path.isfile(os.path.join(zz, "index.md"))
+              "ZZ-9" in where and not os.path.exists(zz)
+              and "ZZ-9" not in on_disk
               and where.get("AA-4") == f"ns/released/{RELEASED_ON}/ZZ-9/AA-4",
-              f"ZZ-9（本來不在樹裡）→ {where.get('ZZ-9')}，有 index.md "
-              f"{os.path.isfile(os.path.join(zz, 'index.md'))}；AA-4 → {where.get('AA-4')}")
+              f"ZZ-9（本來不在樹裡）算到 {where.get('ZZ-9')}，"
+              f"而那個目錄沒有被造出來（{not os.path.exists(zz)}）；"
+              f"AA-4 → {where.get('AA-4')}")
         # A-P4 上層資訊讀得出來，而且上游改了會變成這個檔案的一次改動。
-        path = os.path.join(zz, "index.md")
+        #
+        # **量在一張樹裡真的有的單上（AA-4），不量 ZZ-9。** 重算不再把樹裡沒有的母單造
+        # 出來，所以 ZZ-9 沒有 `index.md` 可以寫——拿它量的話這一條會恆紅，而紅的原因是
+        # A-P3 那件事，不是上游快照壞了。
+        path = os.path.join(on_disk.get("AA-4", "AA-4-不在樹裡"), "index.md")
         first = read(path)
-        DESCRIPTION["ZZ-9"] = "第二版的規格：A 拿掉，直接做 B。"
+        DESCRIPTION["AA-4"] = "第二版的規格：A 拿掉，直接做 B。"
         recompute(root)
         second = read(path)
-        human = read(os.path.join(root, where.get("AA-3", "AA-3-不在樹裡"), "index.md"))
+        human = read(os.path.join(on_disk.get("AA-3", "AA-3-不在樹裡"), "index.md"))
         check("A-P4",
-              "ZZ-9 的標題" in first and "第一版的規格" in first
+              "AA-4 的標題" in first and "第一版的規格" in first
               and "第二版的規格" in second and "第一版的規格" not in second
               and "這一段是人寫的" in human,
-              f"ZZ-9 的 index.md 讀得到標題與描述快照；改了描述之後內容跟著變"
+              f"AA-4 的 index.md 讀得到標題與描述快照；改了描述之後內容跟著變"
               f"（{'第二版的規格' in second}）；人寫的段落沒被碰"
               f"（{'這一段是人寫的' in human}）")
         # A-P5 重算不掉單：逐個單號比，不只比總數。
@@ -238,8 +235,9 @@ def main() -> int:
               f"重算後 {sorted(names)}，至少要有 {sorted(expected)}")
         # A-N1 狀態仍然只有一個答案：AA-3 的格是它自己的 backlog，不是路徑上的
         # in-progress。
+        # 紀錄寫在 AA-3 **現在所在的目錄**，不是它算出來的那條路徑（DP-661 的 A-P6）。
         recorded = placer.read_json(os.path.join(
-            root, "ns", "in-progress", "AA-1", "AA-3", ".spine", "placement.json"))
+            on_disk.get("AA-3", "AA-3-不在樹裡"), ".spine", "placement.json"))
         check("A-N1", (recorded or {}).get("slot") == "backlog",
               f"AA-3 的 placement.json 記的格是 {(recorded or {}).get('slot')}"
               "（路徑上那一層不參與這個答案）")

@@ -29,7 +29,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 from datetime import datetime, timezone
 
@@ -55,8 +54,8 @@ UNDATED = "undated"
 # 轉場期還會遇到的舊格子。它不是一個狀態，是上一版投影留下的形狀。
 LEGACY_SLOT = "archive"
 
-# 舊形狀留下來的群組層。**只認得、不再產生**：它們是 DP-551 那一版的疤，重算會把底下的
-# 單搬到它們該去的地方，空掉之後 `prune_empty` 自己收掉。認得它是為了在轉場期間不掉單。
+# 舊形狀留下來的群組層。**只認得、不再產生**：它們是 DP-551 那一版的疤。認得它是為了不
+# 把底下的單掉掉——重算不搬也不刪，所以這些層會一直在，直到有人自己收掉它們。
 LEGACY_PARENT_PREFIX = "_"
 
 # 上游快照寫在單的 `index.md` 裡，夾在這兩行之間。**只有這中間會被重寫**——一張自己的單
@@ -93,6 +92,11 @@ RESOLVER_TIMEOUT_SECONDS = 30
 RESOLVER_COULD_NOT_ASK = 2
 
 MARKER_UNKNOWN_SLOT = "POLARIS_ISSUE_STATE_SLOT_UNKNOWN"
+
+# 單號從目錄名前綴推導。**跟解析器用的是同一條**——`resolve-issue-state.py` 拿核心交過去
+# 的目錄名 match 出 JIRA key，所以「這個目錄是哪一張單」在兩邊必須是同一個答案。推導得
+# 出來的東西不做成對照表：多一份宣告就多一個會漂的地方。
+TICKET_ID = re.compile(r"^([A-Z][A-Z0-9]+-\d+)")
 
 # `git log --format=%cs` 印出來的那一行長這樣。
 DATE_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -136,6 +140,29 @@ def chain_of(detail: dict) -> list[str]:
     if isinstance(chain, str):
         chain = [chain]
     return [str(k).strip() for k in chain if str(k).strip()]
+
+
+def ticket_id(name: str) -> str | None:
+    """目錄名前綴的單號。取不出來回 None——那是一個答案，不是一個要被猜出來的空格。"""
+    match = TICKET_ID.match(name)
+    return match.group(1) if match else None
+
+
+def units(rows: list[dict]) -> dict[tuple[str, str], list[dict]]:
+    """一個單號 → 它現在佔的那幾條路徑。**身分是單號，不是目錄名。**
+
+    以前這裡是目錄名，於是同一個號配兩個不同 slug 的兩個目錄，是兩張完全不同的單：各自
+    寫自己的 `placement.json`、各自進總數，而沒有任何一個檢查看得見它們。2026-08-31 真樹
+    上五組同號重複裡有兩組是這一種（一個號配兩個不同的 slug、一個號落在兩個日期底下）。
+    另外三組是同名的，那一種只有 `--execute` 撞得到，而給人的命令是 `--check`。
+
+    **取不出單號的自成一格，不併進任何一個號。** 併進去的話，舊層留下的 `tasks`／`T1`
+    那些目錄會被算成某張單的第二條路徑，然後被指名成一個不存在的重複。
+    """
+    by: dict[tuple[str, str], list[dict]] = {}
+    for row in rows:
+        by.setdefault((row["namespace"], ticket_id(row["name"]) or row["name"]), []).append(row)
+    return by
 
 
 def tickets(issues_root: str) -> list[tuple[str, str]]:
@@ -612,25 +639,6 @@ def write_upstream(ticket_dir: str, detail: dict) -> None:
         handle.write(body)
 
 
-def move(ticket_dir: str, destination: str) -> None:
-    """搬。目的地已經有東西就不動——覆蓋掉的是別人的單，那不是搬家是刪除。"""
-    if os.path.exists(destination):
-        raise FileExistsError(destination)
-    os.makedirs(os.path.dirname(destination), exist_ok=True)
-    shutil.move(ticket_dir, destination)
-
-
-def prune_empty(issues_root: str) -> None:
-    """搬完之後留下的空格子清掉，但六格本身留著——一個空的 `in-review/` 是一個答案。"""
-    for namespace in namespaces(issues_root):
-        base = os.path.join(issues_root, namespace)
-        for dirpath, dirnames, filenames in os.walk(base, topdown=False):
-            if dirpath == base or filenames or dirnames:
-                continue
-            relative = os.path.relpath(dirpath, base)
-            if relative in SLOTS:
-                continue
-            os.rmdir(dirpath)
 
 
 def _resolve(issues_root: str, namespace: str, ticket_dir: str, name: str,
@@ -682,7 +690,13 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
                               "current": os.path.relpath(ticket_dir, issues_root)})
             continue
         slot, basis, detail = got
-        known[(namespace, name)] = len(entries)
+        # **鍵是單號，不是目錄名。** 以前是目錄名，於是鏈上寫的光單號（`ABC-123`）對不上
+        # 樹裡帶著 slug 的目錄（`ABC-123-some-title`），下面那個佇列就「補」出一張樹裡
+        # 沒有的母單——
+        # 而它補出來的正是同一個號的第二條路徑。重算自己造出了它自己看不見的重複。
+        # 先掃到的留著：掃描順序是 `sorted()`，所以這是一個說得出來的規則，而不是
+        # 「後寫的蓋掉先寫的」那種由排列決定的答案。哪幾條路徑存在由報告逐條指名。
+        known.setdefault((namespace, ticket_id(name) or name), len(entries))
         entries.append({"namespace": namespace, "name": name, "slot": slot,
                         "basis": basis, "detail": detail, "from_dir": ticket_dir})
 
@@ -690,21 +704,22 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
     queue, referred_by = [], {}
     for entry in list(entries):
         for key in chain_of(entry["detail"]):
-            referred_by.setdefault((entry["namespace"], key), entry["name"])
+            referred_by.setdefault((entry["namespace"], ticket_id(key) or key),
+                                   entry["name"])
             queue.append((entry["namespace"], key))
     while queue:
         namespace, key = queue.pop(0)
-        if (namespace, key) in known:
+        if (namespace, ticket_id(key) or key) in known:
             continue
         got = _resolve(issues_root, namespace, "", key, resolvers)
         if got is None:
             continue  # 沒有解析器就問不到這個號，不猜一張單出來
         slot, basis, detail = got
-        known[(namespace, key)] = len(entries)
+        known[(namespace, ticket_id(key) or key)] = len(entries)
         entries.append({"namespace": namespace, "name": key, "slot": slot,
                         "basis": basis, "detail": detail, "from_dir": None})
         for k in chain_of(detail):
-            referred_by.setdefault((namespace, k), key)
+            referred_by.setdefault((namespace, ticket_id(k) or k), key)
             queue.append((namespace, k))
 
     # **母單問不到，不得讓底下那張問得到的單失去位置。** 它照樣要有一格（不然子單沒有地方
@@ -723,8 +738,9 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
         for entry in entries:
             if entry["slot"] != TRIAGE or not entry["basis"].startswith("resolver-"):
                 continue
-            referrer = referred_by.get((entry["namespace"], entry["name"]), "")
-            at = known.get((entry["namespace"], referrer))
+            referrer = referred_by.get(
+                (entry["namespace"], ticket_id(entry["name"]) or entry["name"]), "")
+            at = known.get((entry["namespace"], ticket_id(referrer) or referrer))
             if at is None or entries[at]["slot"] == TRIAGE:
                 continue
             entry["slot"] = entries[at]["slot"]
@@ -744,7 +760,7 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
         chain = chain_of(entry["detail"])
         head = entry
         if chain:
-            at = known.get((entry["namespace"], chain[0]))
+            at = known.get((entry["namespace"], ticket_id(chain[0]) or chain[0]))
             if at is not None:
                 head = entries[at]
         destination = target_dir(issues_root, entry["namespace"],
@@ -766,52 +782,76 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
     return rows, abstained
 
 
-def render(rows: list[dict], abstained: list[dict], moved: int, mode: str,
-           planned: int = 0, skipped: list[dict] | None = None,
-           carried: int = 0, vanished: list[dict] | None = None) -> str:
+def render(rows: list[dict], abstained: list[dict], mode: str,
+           written: int = 0, unwritable: list[dict] | None = None) -> str:
     """報告。每一格都有數字——包括 0，一個安靜的空格子跟一個沒被檢查的格子長得一樣。
 
-    真的搬過的那一種要三個數字：**打算搬幾張、真的搬了幾張、撞到東西沒搬成幾張**。少了
-    第三個，被跳過的那些會被「原本就在對的位置」吸收——2026-08-21 那一次寫的是「搬了 0 張，
-    原本就在對的位置的 710 張」，緊接著逐行列出 24 張位置不對的單。兩個數字互相矛盾，而讀
-    的人只會看第一行。
+    **這份報告是位置的唯一落地處。** 重算不再搬目錄，所以「這張單該在哪一格」只出現在
+    這裡與每一張單自己的 `placement.json` 裡。以前這裡要三個搬動的數字（打算搬幾張、真的
+    搬了幾張、撞到東西沒搬成幾張），那三個現在都不存在了。
     """
     lines = []
     counts = {slot: sum(1 for r in rows if r["slot"] == slot) for slot in SLOTS}
+    # **分母是單號，不是路徑。** 同一個號佔兩條路徑的時候，`len(rows)` 把它算兩次——而多算
+    # 的方向是「事情看起來比較多」，所以〈四〉那句「幾個數字加起來要等於整棵樹」守不到它。
+    # 兩個數字都印：格子的數字加起來仍然等於路徑數，而總數說的是有幾張單。
+    grouped = units(rows)
     lines.append("PLACE-ISSUES-BY-STATE " + "／".join(
-        f"{slot} {counts[slot]}" for slot in SLOTS) + f"（共 {len(rows)} 張）")
+        f"{slot} {counts[slot]}" for slot in SLOTS)
+        + f"（共 {len(grouped)} 張、{len(rows)} 條路徑）")
 
     created = [r for r in rows if r["current"] is None]
     off = [r for r in rows if r["current"] is not None and r["current"] != r["target"]]
     if mode.startswith("execute"):
-        # 「原本就在對的位置」要從搬之前那次調查算。搬完再算的話它等於總數，於是報告會同時
-        # 說「搬了 7 張」與「原本就有 7 張在對的位置」。
-        stuck, gone = skipped or [], vanished or []
-        lines.append(f"打算搬 {planned} 張＝真的搬了 {moved} 張"
-                     f"＋跟著母單一起走 {carried} 張"
-                     f"＋撞到已經存在的目的地沒搬成 {len(stuck)} 張"
-                     f"＋來源不見了 {len(gone)} 張；"
-                     f"原本就在對的位置的 {len(rows) - planned} 張")
-        if gone:
-            lines.append(f"來源不見了的 {len(gone)} 張：")
-            for row in gone[:40]:
-                lines.append(f"  {row['from']} ↛ {row['to']}")
-        if stuck:
-            # **沒搬成不得只是一個數字。** 撞到的那個位置多半是一個空殼，而那張單的內容還
-            # 留在舊路徑上——同一個單號在樹裡出現兩次，沒有東西會喊。
-            lines.append(f"沒搬成的 {len(stuck)} 張，逐張說出撞到什麼、哪一份比較新：")
-            for row in stuck[:40]:
-                here = row.get("from_touched") or "不知道"
-                there = row.get("to_touched") or "不知道"
-                lines.append(f"  {row['from']} ↛ {row['to']}（那個位置已經有東西了）")
-                lines.append(f"    上次動過：這一份 {here}／那一份 {there}"
-                             "——哪一份留下來由人決定")
-            if len(stuck) > 40:
-                lines.append(f"  …還有 {len(stuck) - 40} 張")
+        # **「位置與狀態對不上」不再是一件會被修好的事，它是一個常態的數字。** 重算不搬，
+        # 所以這一行每一次都會印出同一批單，直到有人自己去搬它們——那是刻意的：搬動是人的
+        # 動作，而重算負責的是說出來。
+        lines.append(f"寫回推導結果 {written} 張；位置與狀態對不上的 {len(off)} 張"
+                     "（重算不搬，位置由這份報告與各自的 placement.json 說出來）")
     else:
         lines.append(f"位置與狀態對不上的 {len(off)} 張，對得上的 {len(rows) - len(off)} 張"
-                     + ("（--check，不動任何東西）" if mode == "check"
-                        else "（預覽，不動任何東西；要真的搬加 --execute）"))
+                     + ("（--check）" if mode == "check" else "（預覽）")
+                     + "——兩種模式都不動任何東西，`--execute` 也不搬，它只是多寫一份紀錄")
+    # 同一個單號佔多條路徑。**三種模式都說**——以前只有 `--execute` 那條路徑撞得到
+    # （撞到既存目的地的那個清單），而 `CLAUDE.md` 與 `document-flow.md` 給人的命令是 `--check`。
+    # 這裡只指名，不決定：留哪一份是人的判斷，重算答得出「哪一邊比較新」，答不出
+    # 「哪一邊是對的」。
+    doubled = {key: group for key, group in grouped.items() if len(group) > 1}
+    if doubled:
+        lines.append(f"同一個單號佔多條路徑的 {len(doubled)} 張，"
+                     "逐張說出有哪幾條、哪一份比較新：")
+        for (namespace, tid), group in sorted(doubled.items()):
+            lines.append(f"  {namespace}/{tid}（{len(group)} 條路徑）")
+            for row in sorted(group, key=lambda r: r["current"] or r["target"]):
+                where = row["current"] or f"{row['target']}（樹裡還沒有）"
+                lines.append(f"    {where} 上次動過 {row['detail'].get('updated') or '不知道'}")
+        lines.append("  ——留哪一份由人決定；重算不合併、不刪除，也不挑一條當權威")
+
+    # 取不出單號的。**它們不是重複，也不是壞掉**——舊層的工作目錄、還沒有號的種子都長這樣。
+    # 說出來是因為它們各自佔一張的分母，而那件事看不出來的話，總數會讓人以為它只數了單號。
+    nameless = sorted((row for key, group in grouped.items() if ticket_id(key[1]) is None
+                       for row in group),
+                      key=lambda r: r["current"] or r["target"])
+    if nameless:
+        lines.append(f"目錄名取不出單號的 {len(nameless)} 個，各自算一張，不併進任何一個號：")
+        for row in nameless[:40]:
+            lines.append(f"  {row['current'] or row['target']}")
+        if len(nameless) > 40:
+            lines.append(f"  …還有 {len(nameless) - 40} 個")
+
+    # 鏈頂佔多條路徑的話，掛在它底下的單的位置只取了其中一條——而「取了哪一條」是掃描順序
+    # 決定的，不是任何人決定的（`survey()` 的 `known` 後寫的蓋掉先寫的）。說出來。
+    heads: dict[tuple[str, str], list[dict]] = {}
+    for row in rows:
+        if not row["chain"]:
+            continue
+        key = (row["namespace"], ticket_id(row["chain"][0]) or row["chain"][0])
+        if len(grouped.get(key, [])) > 1:
+            heads.setdefault(key, []).append(row)
+    for (namespace, tid), group in sorted(heads.items()):
+        lines.append(f"鏈頂 {namespace}/{tid} 有 {len(grouped[(namespace, tid)])} 條路徑，"
+                     f"掛在它底下的 {len(group)} 張只取了其中一條")
+
     for row in off[:40]:
         lines.append(f"  {row['current']} → {row['target']}"
                      f"（依據 {row['basis']}）")
@@ -821,8 +861,10 @@ def render(rows: list[dict], abstained: list[dict], moved: int, mode: str,
     if created:
         # 鏈上出現、樹裡還沒有的母單。**不印出來的話它們會安靜地長出來**，而那正是
         # 「上游不屬於我」的那幾張——最需要有人看一眼的就是它們。
+        # 以前 `--execute` 會 `os.makedirs` 把它們造出來，於是一個只當路徑用、
+        # 沒有任何內容的目錄就出現在樹上。現在只說出來。
         lines.append(f"鏈上出現、樹裡還沒有的母單 {len(created)} 張"
-                     + ("（會補出來）" if mode.startswith("execute") else "（要補出來）") + "：")
+                     + "（重算不補，由人決定要不要開）：")
         for row in created[:40]:
             lines.append(f"  {row['target']}")
         if len(created) > 40:
@@ -871,7 +913,9 @@ def main(argv=None) -> int:
     parser.add_argument("--issues", required=True, help="issues 根目錄")
     parser.add_argument("--check", action="store_true",
                         help="只報位置與狀態的落差，有落差就 exit 1")
-    parser.add_argument("--execute", action="store_true", help="真的搬")
+    parser.add_argument("--execute", action="store_true",
+                        help="把推導結果寫回每一張單，並重寫清單。"
+                             "它不搬任何目錄——位置是狀態的投影，而那個投影寫在紀錄上。")
     parser.add_argument("--spine-only", action="store_true",
                         help="不問任何解析器。記一輪之後自動跑的就是這個模式——"
                              "剛動過的是一張走主流程的單，它的答案在本機，不需要一趟網路。")
@@ -900,69 +944,28 @@ def main(argv=None) -> int:
         print("POLARIS_ISSUES_TREE_EMPTY\n一張單都沒有掃到——這不是「全部都在對的位置」")
         return 2
 
-    moved, planned, carried = 0, 0, 0
-    skipped: list[dict] = []
-    vanished: list[dict] = []
+    written, unwritable = 0, []
     if args.execute:
-        # 一、鏈上出現、樹裡還沒有的母單，先長出來。它們是別人的落腳處，晚一步的話那些
-        #     子單就沒有地方可以搬。
-        for row in rows:
-            if row["current"] is None:
-                os.makedirs(row["to_dir"], exist_ok=True)
-
-        # 二、搬。**母單先搬，而且要記得它搬去哪**——一張單搬走的時候底下的子單跟著一起
-        #     走，於是那些子單記著的來源路徑當場失效。重新調查一次可以修好，但那是七百次
-        #     子行程，所以這裡自己把路徑改寫過來。
-        remap: list[tuple[str, str]] = []
-
-        def current_path(path: str) -> str:
-            for old_dir, new_dir in remap:
-                if path == old_dir or path.startswith(old_dir + os.sep):
-                    return new_dir + path[len(old_dir):]
-            return path
-
-        # **排序用目的地的深度，不用來源的。** 來源的深度回答不了「誰要先搬」：一張單與它
-        # 的子單可以來自同樣深的兩個地方，而目的地一個在另一個底下。深度相同就沒有順序，
-        # 交給清單的排列——子單先搬的話，`move()` 會把母單的目的地當成路徑造出來，輪到母單
-        # 自己的時候那個路徑已經存在，於是它的搬動被跳過，內容永遠留在舊路徑上。
+        # **這一段以前會搬目錄，現在不搬了。** 拿掉的是 `os.makedirs` 造目的地、`move()`、
+        # 搬完的路徑改寫、`prune_empty()`、搬完那一次 `survey()`，以及只為搬動而存在的那
+        # 幾個計數。理由是那一半自己製造了它要解決的問題：一次沒搬完的搬動留下一個空殼，
+        # 而那個空殼從此是同一個單號的第二條路徑（DP-667、DP-666、DP-620 都是它的產物）。
         #
-        # 實測：2026-08-21 對真實單的目錄樹跑一次遷移，遷移前 0 組同號重複，遷移後 12 組。
-        movable = [r for r in rows if r["from_dir"] and r["current"] != r["target"]]
-        planned = len(movable)
-        for row in sorted(movable, key=lambda r: r["to_dir"].count(os.sep)):
-            source = current_path(row["from_dir"])
-            if source == row["to_dir"]:
-                # 母單搬走的時候它整個目錄一起走，底下的子單已經到位了。**這不是「沒搬」，
-                # 也不是「原本就在對的位置」**——它本來不在，是這一次被帶過去的。
-                carried += 1
-                continue
-            if not os.path.isdir(source):
-                # 來源不見了。正常不會發生（remap 就是為了這件事），發生了要有人看見。
-                vanished.append({"from": row["current"], "to": row["target"],
-                                 "name": row["name"]})
-                continue
-            if os.path.exists(row["to_dir"]):
-                # 已經有東西了：覆蓋掉的是別人的單，那不是搬家是刪除。**但也不得安靜地
-                # 跳過**——排完順序還撞到，代表樹裡本來就有兩個同號的目錄，那要有人看見。
-                # **「哪一份是權威」只有一個線索機械答得出來：兩邊各自上次動過。** 重算
-                # 不替人決定留哪一份——它答得出「哪一邊比較新」，答不出「哪一邊是對的」。
-                skipped.append({
-                    "from": row["current"], "to": row["target"], "name": row["name"],
-                    "from_touched": touched_at(issues_root, row["current"]),
-                    "to_touched": touched_at(issues_root, row["target"]),
-                })
-                continue
-            move(source, row["to_dir"])
-            remap.append((source, row["to_dir"]))
-            moved += 1
-        prune_empty(issues_root)
-        rows, abstained = survey(issues_root, resolvers)
-
-        # placement.json 只在真的重算的時候寫。預覽與 --check 說好了不動任何東西，而一份
-        # 被預覽寫出來的推導結果，會讓下一個讀它的程式以為那次搬家發生過。
+        # **推導留著，落地不留。** 位置仍然是狀態的投影，只是那個投影從此寫在紀錄與清單
+        # 上，不寫在檔案系統的路徑上——〈四之三〉本來就規定「任何要問這張單收斂了沒的程式
+        # 讀那一份，不准從資料夾名推狀態」，所以讀的那一端一個字都不用改。
         for row in rows:
-            write_placement(row["to_dir"], row["slot"], row["basis"], row["detail"])
-            write_upstream(row["to_dir"], row["detail"])
+            if not row["from_dir"]:
+                # 鏈上出現、樹裡還沒有的母單。以前這裡 `os.makedirs` 把它造出來，現在不造
+                # ——沒有東西可以寫進去。它在報告裡被逐張指名，由人決定要不要開那張單。
+                unwritable.append(row)
+                continue
+            # **寫進單現在所在的目錄，不是它「該去」的那條路徑。** 搬動還在的時候兩者是
+            # 同一個地方；搬動拿掉之後，寫到 `to_dir` 等於替每一張位置不對的單造一個空殼，
+            # 而那正是這一群單講的那件事。
+            write_placement(row["from_dir"], row["slot"], row["basis"], row["detail"])
+            write_upstream(row["from_dir"], row["detail"])
+            written += 1
         # 清單只在問過解析器的那種執行裡重寫。spine-only 看不到靠解析器回答的那些命名空間，
         # 讓它重寫等於每記一輪就把清單上的那些單全部刪掉一次。
         if not args.spine_only:
@@ -972,7 +975,7 @@ def main(argv=None) -> int:
     mode = "check" if args.check else ("execute" if args.execute else "preview")
     if args.spine_only:
         mode += "+spine-only"
-    print(render(rows, abstained, moved, mode, planned, skipped, carried, vanished))
+    print(render(rows, abstained, mode, written, unwritable))
     if args.check and any(r["current"] is None or r["current"] != r["target"]
                           for r in rows):
         return 1

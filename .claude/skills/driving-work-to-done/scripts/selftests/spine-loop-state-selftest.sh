@@ -303,42 +303,55 @@ bash "$LOOP" init --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --pack
 printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/done/OTHER/.spine/loop-state.json"
 git -C "$S10_ROOT" add -A
 git -C "$S10_ROOT" commit -qm seed
-# T 收斂了：它身上沒有釋出紀錄，所以該落 done/，不是 released/。
+# T 收斂了：它身上沒有釋出紀錄，所以該推導成 done/，不是 released/。
+#
+# **問的是推導出來的那一格，不是它躺在哪一條路徑上**（DP-661）。重算不再搬目錄，所以這張
+# 單從頭到尾都待在 `ns/backlog/T`，而「它現在該在哪一格」寫在它自己的 `placement.json`。
+T_PLACEMENT="$S10_ROOT/ns/backlog/T/.spine/placement.json"
+slot_of() { python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("slot"))' "$1"; }
+
 bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --outcome converged >/dev/null
-[[ -d "$S10_ROOT/ns/done/T" ]] \
-  || fail "收斂的單沒有落到 done/：$(find "$S10_ROOT/ns" -maxdepth 2 -type d | tr '\n' ' ')"
+[[ -f "$T_PLACEMENT" ]] \
+  || fail "重算沒有把推導結果寫回這張單：$(find "$S10_ROOT/ns" -maxdepth 3 -type d | tr '\n' ' ')"
+[[ "$(slot_of "$T_PLACEMENT")" == "done" ]] \
+  || fail "收斂的單沒有被推導成 done/：$(cat "$T_PLACEMENT")"
 [[ ! -d "$S10_ROOT/ns/backlog/backlog" && ! -d "$S10_ROOT/ns/done/done" ]] \
   || fail "重算把某一個格子當成了整棵樹"
-# 又沒收斂了：它該離開 done/，回到還在做的那一格。OTHER 收斂著，原地不動。
-bash "$LOOP" record --state "$S10_ROOT/ns/done/T/.spine/loop-state.json" --outcome unconverged >/dev/null
-[[ -d "$S10_ROOT/ns/in-progress/T" ]] \
-  || fail "沒收斂的單沒有離開 done/"
-[[ -d "$S10_ROOT/ns/done/OTHER" ]] \
-  || fail "收斂著的單被動到了"
+[[ ! -d "$S10_ROOT/ns/done/T" ]] \
+  || fail "重算搬了目錄——那一半在 DP-661 被拿掉了"
+# 又沒收斂了：推導要跟著回到還在做的那一格。OTHER 收斂著，它的紀錄不受影響。
+bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --outcome unconverged >/dev/null
+[[ "$(slot_of "$T_PLACEMENT")" == "in-progress" ]] \
+  || fail "沒收斂的單沒有離開 done/：$(cat "$T_PLACEMENT")"
+[[ "$(slot_of "$S10_ROOT/ns/done/OTHER/.spine/placement.json")" == "done" ]] \
+  || fail "收斂著的那一張被動到了：$(cat "$S10_ROOT/ns/done/OTHER/.spine/placement.json")"
 
-# 換站別也是換狀態，位置一樣要跟著換。只掛在 record 上的話，一張被推回 refinement 的單
-# 會留在 in-progress/——而那正是「位置是狀態的投影」要消除的漂移。
+# 換站別也是換狀態，推導一樣要跟著換。只掛在 record 上的話，一張被推回 refinement 的單
+# 的紀錄會停在 in-progress——而那正是「位置是狀態的投影」要消除的漂移。
 #
 # 這裡刻意不用「推到 verify-ac」當例子：T 是 `--pack none` 開的，不會動到 code 的工作
-# 沒有 review 這一格，所以它走到 verify-ac 仍然落 in-progress——那是對的行為，拿它當
+# 沒有 review 這一格，所以它走到 verify-ac 仍然推成 in-progress——那是對的行為，拿它當
 # assertion 會量到一個永遠不動的東西。
-bash "$LOOP" advance --state "$S10_ROOT/ns/in-progress/T/.spine/loop-state.json" --to refinement >/dev/null
-[[ -d "$S10_ROOT/ns/backlog/T" ]] \
-  || fail "advance 把單推回 refinement，位置卻沒跟著換：$(find "$S10_ROOT/ns" -maxdepth 2 -type d -name T)"
+bash "$LOOP" advance --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --to refinement >/dev/null
+[[ "$(slot_of "$T_PLACEMENT")" == "backlog" ]] \
+  || fail "advance 把單推回 refinement，推導卻沒跟著換：$(cat "$T_PLACEMENT")"
 echo "  ok  換站別之後位置跟著換"
 
 
-# 單會被重算搬走，所以 fixture 裡的路徑不能寫死——照單名去問它現在住哪。
+# 照單名去問它現在住哪。重算已經不搬目錄了（DP-661），但這個寫法不假設那件事——
+# 它問的是「這張單在哪」，而那個問題不論搬不搬都答得出來。
 state_of() { find "$1" -path "*/$2/.spine/loop-state.json" | head -1; }
 
 # Case 11：跨單。「手上有六張單，接下來做哪一張」原本只有人回答得出來，而每一次問人
 # 就是連續退化成單步的那一刻。
 S11="$WORK/issues11"
-mkdir -p "$S11/nsA/EARLY/.spine" "$S11/nsB/LATE/.spine" "$S11/nsB/STOPPED/.spine" "$S11/nsA/DONE/.spine"
+# DONE 一開始就放在 `done/` 底下。重算不搬目錄了（DP-661），所以「跨單掃描看得進格子
+# 底下那一層」這件事要由一張本來就住在格子裡的單來問，不能靠一次搬動把它送進去。
+mkdir -p "$S11/nsA/EARLY/.spine" "$S11/nsB/LATE/.spine" "$S11/nsB/STOPPED/.spine" "$S11/nsA/done/DONE/.spine"
 git -C "$S11" init -q
 git -C "$S11" config user.email t@t
 git -C "$S11" config user.name t
-for s in nsA/EARLY nsB/LATE nsB/STOPPED nsA/DONE; do
+for s in nsA/EARLY nsB/LATE nsB/STOPPED nsA/done/DONE; do
   bash "$LOOP" init --state "$S11/$s/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 done
 git -C "$S11" add -A && git -C "$S11" commit -qm seed
@@ -358,30 +371,30 @@ for name, stamp in (("nsA/EARLY", "2020-01-01T00:00:00Z"), ("nsB/LATE", "2030-01
     json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 PYSTAMP
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -qE 'next:nsB/[a-z-]+/LATE' \
+printf '%s' "$out" | grep -qE 'next:nsB/([a-z-]*/)*LATE' \
   || fail "同一站時沒有推薦最近動過的那一張：$out"
 echo "  ok  跨單推薦最近動過的那一張"
 
 # 往後站的先做：在製品不該堆高。名字排序會選 EARLY，站別排序該選 LATE。
 bash "$LOOP" advance --state "$(state_of "$S11" EARLY)" --to verify-ac >/dev/null
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -qE 'next:nsA/[a-z-]+/EARLY' \
+printf '%s' "$out" | grep -qE 'next:nsA/([a-z-]*/)*EARLY' \
   || fail "站別沒有壓過最近動過的：$out"
 echo "  ok  最靠近交付的先做"
 
 # 停住的要逐張列名，不能混進「可以做」裡，也不能安靜消失。
 bash "$LOOP" stop --state "$(state_of "$S11" STOPPED)" --kind surfaced_concern --note x >/dev/null
 out="$(bash "$LOOP" next --across-issues "$S11")"
-printf '%s' "$out" | grep -qE 'blocked:nsB/[a-z-]+/STOPPED .*stop=surfaced_concern' \
+printf '%s' "$out" | grep -qE 'blocked:nsB/([a-z-]*/)*STOPPED .*stop=surfaced_concern' \
   || fail "停住的單沒有被列出來：$out"
-printf '%s' "$out" | grep -qE 'next:nsB/[a-z-]+/STOPPED' \
+printf '%s' "$out" | grep -qE 'next:nsB/([a-z-]*/)*STOPPED' \
   && fail "停住的單被推薦了：$out"
 echo "  ok  停住的逐張列名，不會被推薦"
 
-# 收斂完的算成數字，不列成清單——但那個數字必須在。收斂那一刻重算會把它搬進
-# done/，所以這同時證明跨單掃描看得到格子底下那一層，不是只掃命名空間正下方。
+# 收斂完的算成數字，不列成清單——但那個數字必須在。DONE 住在 `done/` 底下，所以這同時
+# 證明跨單掃描看得到格子底下那一層，不是只掃命名空間正下方。
 bash "$LOOP" record --state "$(state_of "$S11" DONE)" --outcome converged >/dev/null
-[[ -d "$S11/nsA/done/DONE" ]] || fail "收斂之後沒有落到 done/"
+[[ -d "$S11/nsA/done/DONE" ]] || fail "DONE 不在 done/ 底下了——重算搬了目錄？"
 out="$(bash "$LOOP" next --across-issues "$S11")"
 printf '%s' "$out" | grep -qE 'counted: .*settled=[1-9]' \
   || fail "收斂完的沒有被算進 settled：$out"

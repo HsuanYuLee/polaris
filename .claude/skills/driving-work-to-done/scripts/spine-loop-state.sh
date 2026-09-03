@@ -1105,7 +1105,8 @@ PY
   # 沒寫進去就沒有新狀態可以投影，直接把原因原封不動送回去。
   [[ "$rc" -eq 0 ]] || return "$rc"
 
-  # 記在重算位置**之前**：重算會把這張單搬走，搬走之後 $STATE 就指不到東西了。
+  # 記在重算位置**之前**。重算現在不搬目錄，所以 $STATE 不會被它移走——但順序留著：
+  # 重算會寫這張單的 placement.json，而那一份要看得到剛記下來的這一輪。
   stamp_holder "$STATE" record
   reproject_position
   return 0

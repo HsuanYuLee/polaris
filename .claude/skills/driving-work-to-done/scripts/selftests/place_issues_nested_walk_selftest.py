@@ -15,7 +15,8 @@ placer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(placer)
 
 # 單號 → (格子, 鏈)。`MID` 在樹裡只是一個目錄——沒有推導結果、沒有正文，只有一個子單。
-# 它是 `move()` 建目的地時順手造出來的那種層，而真樹上有 19 張孫單卡在它後面。
+# 它是過去那些搬動建目的地時順手造出來的那種層（重算已經不搬也不造了，但樹上那些層還在），
+# 而真樹上有 19 張孫單卡在它後面。
 FAKE = {
     "P-1": ("backlog", []),
     "G-1": ("backlog", ["P-1", "MID"]),      # 埋一層：P-1/MID/G-1

@@ -84,8 +84,14 @@ moved="$(find "$REPO/issues" -name release.json -path '*T-out*' | head -1)"
 grep -Fq '"released_on": "2020-01-02"' "$moved" \
   || fail "釋出日不是訊號給的那一天——核心自己填了日期：$(cat "$moved")"
 grep -Fq '"released_on_source": "signal"' "$moved" || fail "沒說出日期是哪裡來的"
-[[ "$moved" == *"/released/2020-01-02/"* ]] \
-  || fail "位置沒有跟著訊號的日期走：$moved"
+# **位置是推導出來的，不是搬出來的**（DP-661）。重算不搬目錄，所以這裡問的是那張單自己的
+# `placement.json` 記到哪一格、哪一天，不是它躺在哪一條路徑上。
+derived="$(dirname "$moved")/placement.json"
+[[ -f "$derived" ]] || fail "沒有寫下推導結果：$(ls -a "$(dirname "$moved")")"
+grep -Fq '"slot": "released"' "$derived" \
+  || fail "推導結果沒有說它在 released：$(cat "$derived")"
+grep -Fq '"released_on": "2020-01-02"' "$derived" \
+  || fail "推導結果的日期沒有跟著訊號走：$(cat "$derived")"
 ok "訊號說出去了就寫得下紀錄，日期用訊號給的那一天，位置跟著走"
 
 run released --state "${moved%/release.json}/loop-state.json" --by selftest
@@ -146,12 +152,15 @@ ok "沒有宣告收尾時說出來，不假裝收過"
 # 從位置推身分是這套框架一路禁止的形狀，而它壞掉的樣子是安靜的——換一家公司才會發現。
 write_pack "bash .claude/skills/fakepack/yes.sh" ""
 mkdir -p "$REPO/issues/acme-inc/backlog/T-elsewhere/.spine"
-cp "$REPO/issues/ns/released/2020-01-02/T-out/.spine/loop-state.json" \
+cp "$(dirname "$moved")/loop-state.json" \
    "$REPO/issues/acme-inc/backlog/T-elsewhere/.spine/loop-state.json"
 run released --state "$REPO/issues/acme-inc/backlog/T-elsewhere/.spine/loop-state.json" --by selftest
 [[ "$RC" -eq 0 ]] || fail "換一個命名空間就換一個答案；拿到 ${RC}：$OUT"
-[[ -f "$REPO/issues/acme-inc/released/2020-01-02/T-elsewhere/.spine/release.json" ]] \
+elsewhere="$REPO/issues/acme-inc/backlog/T-elsewhere/.spine"
+[[ -f "$elsewhere/release.json" ]] \
   || fail "命名空間影響了判定：$(find "$REPO/issues/acme-inc" -name release.json)"
+grep -Fq '"slot": "released"' "$elsewhere/placement.json" \
+  || fail "換一個命名空間就推出不同的格：$(cat "$elsewhere/placement.json")"
 ok "換一個命名空間，同一張單走到同一個終局——身分從單自己身上讀"
 
 # ── 位置仍然只是投影 ─────────────────────────────────────────────────────────
@@ -162,8 +171,10 @@ state="$(new_ticket T-openrec open)"
 printf '{"schema_version":1,"released_on":"2020-01-02"}\n' > "$(dirname "$state")/release.json"
 bash "$placer" --issues "$REPO/issues" --execute --spine-only >/dev/null \
   || fail "位置重算失敗了"
-[[ -z "$(find "$REPO/issues" -path '*/released/*/T-openrec/*' -name release.json)" ]] \
-  || fail "一份釋出紀錄就讓一張沒收斂的單被判成釋出過——位置變成了第二個權威"
+openrec="$(dirname "$state")/placement.json"
+[[ -f "$openrec" ]] || fail "沒有寫下 T-openrec 的推導結果"
+grep -Fq '"slot": "released"' "$openrec" \
+  && fail "一份釋出紀錄就讓一張沒收斂的單被判成釋出過——位置變成了第二個權威"
 ok "沒收斂的單放一份釋出紀錄也不算釋出過——位置仍然只是狀態的投影"
 
 echo "PASS: spine terminal states（$PASS 項）"
