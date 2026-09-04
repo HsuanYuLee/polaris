@@ -559,6 +559,67 @@ def declared_landing(index_path):
     return [] if out == ["unlanded"] else out
 
 
+def _covers(tree_abs, cand):
+    """cand 這個位置落在 tree_abs 這棵樹裡（等於它，或在它底下）。"""
+    cand = os.path.abspath(cand)
+    return cand == tree_abs or cand.startswith(tree_abs.rstrip(os.sep) + os.sep)
+
+
+def _ancestors(path):
+    """path 自己，然後一路往上到檔案系統根。"""
+    cur = os.path.abspath(path)
+    while True:
+        yield cur
+        nxt = os.path.dirname(cur)
+        if nxt == cur:
+            return
+        cur = nxt
+
+
+def covering_landing(tree, declared, issue_dir):
+    """這棵樹被哪一個宣告的落腳處涵蓋；一個都沒有就回 None。
+
+    宣告是一個不透明字串——核心不解釋它，所以它可以是一棵工作區的絕對路徑，也可以是相對
+    某棵工作區寫的片段。**這兩種在字串上永遠不相等**，而改程式碼的單從來看不到那個差別：
+    它的改動落在那棵樹、量測也跑在那棵樹，兩者剛好重合。不改程式碼的單必然不重合——產出
+    落在單自己的目錄，而規定形狀的量測命令是相對 workspace 根寫的，只有站在根上才解得開。
+    那些單以前要人補一句 `land --authorization` 才交付得出去——2026-09-04 一張驗收單
+    六條全 PASS、三層全綠，交付紀錄仍然寫不成。
+
+    所以比對從字串相等放寬成「涵蓋」。相對片段要先解開，而**解開需要一個錨**，兩種宣告
+    各有各的錨，都不是「接到 tree 底下就算」——那樣任何一棵樹都會通過，那不是放寬是關掉：
+
+    - **宣告的是單自己的位置**（`issues/ns/box/T1`）：錨是這張單的絕對路徑。單路徑去掉
+      那個後綴就是那棵工作區，判它是不是 `tree`。**這一條不問路徑存不存在**，因為單住在
+      哪一格是它的狀態的投影，會被重算搬走。
+    - **宣告的是某棵樹的相對路徑**（一條相對 workspace 根寫的並行工作樹路徑）：
+      錨是 `tree` 自己或它的某個祖先，
+      而且解開之後那個位置要真的存在。這一類在量測當下一定存在——它就是量測跑的地方。
+
+    `/` 不會通吃：第一條要相等（它不是含著單的那棵工作區），第二條要解開的位置真的
+    存在（`/issues/ns/box/T6` 不在）。
+    """
+    tree_abs = os.path.abspath(tree)
+    issue_abs = os.path.abspath(issue_dir)
+    for d in declared:
+        if os.path.isabs(d):
+            if _covers(tree_abs, d):
+                return d
+            continue
+        suffix = os.sep + d.strip(os.sep)
+        if issue_abs.endswith(suffix):
+            # 這裡要相等，不是「tree 含著它」。宣告寫成相對片段的時候，它就是相對那一棵
+            # 工作區寫的——放寬成「含著」的話 `/` 會通吃，它含著每一棵樹。
+            if (issue_abs[: -len(suffix)] or os.sep) == tree_abs:
+                return d
+            continue
+        for anc in _ancestors(tree_abs):
+            cand = os.path.join(anc, d)
+            if os.path.exists(cand) and _covers(tree_abs, cand):
+                return d
+    return None
+
+
 def judge(index_path, evidence_dir, head=None, delta_allows=(),
           ledger_path=None, rerun=False, oracle=None):
     """逐條判定，外加幾件跨 assertion 才問得出來的事。
@@ -739,7 +800,19 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     declared = declared_landing(index_path)
     trees = [d for d in measured_in if d]
     report["trees_seen"] = sorted(trees)
-    undeclared = [t for t in trees if t not in declared] if declared else trees
+    undeclared = []
+    if declared:
+        for t in trees:
+            why = covering_landing(t, declared, os.path.dirname(os.path.abspath(index_path)))
+            if why is None:
+                undeclared.append(t)
+            elif why != t:
+                # 憑「落腳處住在它底下」放行的要說出來。一個安靜的放行跟一個沒有被檢查
+                # 的欄位長得一模一樣，而下一次就會有人以為這一項比過了。
+                report["notes"].append(
+                    f"{t} 算宣告過，憑的是落腳處 {why} 住在它底下")
+    else:
+        undeclared = trees
     # 同一棵樹上出現兩個 head 是真的歧義，宣告救不了它：那批證據量的不是同一次。
     split_tree = sorted(t for t, shas in tree_heads.items() if len(shas) > 1)
     multi_ok = bool(declared) and not undeclared and not split_tree
