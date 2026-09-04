@@ -38,7 +38,7 @@
 #   next  --across-issues <root>  prints which issue to work next, across the whole tree
 #   where --state <path>          prints station, stop, rounds, and whether this
 #                                 workspace is still the one the issue opened in
-#   advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
+#   advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>：只有單上真的有停點要解的時候收得下]
 #   stop  --state <path> --kind <kind> [--note <text>]
 #   reset --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
 #   show  --state <path>
@@ -58,6 +58,11 @@
 #
 #   This is why reset refuses an empty authorization but cannot refuse a false one.
 #   The mechanism makes the lie legible; it does not make it impossible.
+#
+#   一句原話只有在有東西可以簽的時候收得下。advance 的那個落點是「這一次換站憑什麼
+#   走過一個停點」——沒有停點就沒有那個問題，所以 advance 拒絕它，並說出哪一個子命令
+#   收得下（POLARIS_SPINE_LOOP_AUTHORIZATION_HAS_NO_STOP_TO_CLEAR）。以前那一版安靜
+#   丟掉，而呼叫的人拿到的輸出跟真的記下來一模一樣。
 #
 # Exit codes:
 #   0  the subcommand succeeded
@@ -86,7 +91,7 @@ Usage:
   spine-loop-state.sh close   --state <path> --note <為什麼不做了> [--by <human>]
   spine-loop-state.sh next    --across-issues <issues root>
   spine-loop-state.sh where   --state <path>
-  spine-loop-state.sh advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>]
+  spine-loop-state.sh advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>：只有單上真的有停點要解的時候收得下]
   spine-loop-state.sh stop    --state <path> --kind <kind> [--note <text>]
   spine-loop-state.sh reset   --state <path> --by <human> --authorization <人的原話> [--max-rounds N]
   spine-loop-state.sh show    --state <path>
@@ -1362,6 +1367,19 @@ if data.get("stop") and not by:
     print("POLARIS_SPINE_LOOP_STOP_UNCLEARED", file=sys.stderr)
     print(f"this source is stopped at '{data['stop']['kind']}'; "
           "advancing past a stop requires --by <human>", file=sys.stderr)
+    sys.exit(2)
+
+# 一句原話在這裡只有一個落點：解掉一個停點。沒有停點的時候，下面那個 if 進不去，於是
+# 這整段沒有任何一行讀得到它——而呼叫的人拿到 `STATION: x -> y` 與離場 0，跟真的記下來
+# 長得一模一樣。收了輸入卻沒有落點，要拒絕並說出來，不是安靜丟掉。
+if authorization.strip() and not data.get("stop"):
+    print("POLARIS_SPINE_LOOP_AUTHORIZATION_HAS_NO_STOP_TO_CLEAR", file=sys.stderr)
+    print("這張單現在沒有停點，advance 這裡沒有地方放這句原話，所以這一次換站不做。",
+          file=sys.stderr)
+    print("要記下一句原話的話：解停點用 advance（單上要真的有 stop 才行），"
+          "重設輪次上限用 reset --by <你> --authorization '<原話>'，"
+          "改落腳處用 land --where <路徑> --authorization '<原話>'。", file=sys.stderr)
+    print("這一次只是要換站的話，把 --authorization 拿掉再跑一次。", file=sys.stderr)
     sys.exit(2)
 
 previous = data.get("station", "engineering")
