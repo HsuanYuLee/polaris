@@ -359,8 +359,17 @@ if [[ "$COMMIT" -eq 1 ]]; then
   # 單的目錄樹是它自己的 git repo。沒 commit 的單只存在於這台機器上，而這一支的整個用途是
   # 「拿給另一個 session 開工」——另一個 session 讀的是 commit 過的那一份。
   if git -C "$ISSUES" rev-parse --git-dir >/dev/null 2>&1; then
+    # commit 帶跟 add 同一個 pathspec，而且旗標寫在 `--` 前面（`--` 之後每個 token 都是路徑）。
+    #
+    # 不帶 pathspec 的話送出去的是**整個索引**——包含任何人先前 stage 而還沒 commit 的東西。
+    # 單的目錄樹是多個 session 共用的，而索引是那棵樹上唯一的共用可寫狀態，所以這不是競態，
+    # 是預設行為：`3ee83eef5f` 那顆說自己是一張種子單，實際帶走 784 個檔，其中 782 個不是它的。
+    #
+    # 修法刻意不是「跑之前先看一眼索引」。那是 check-then-act：驗完到 commit 之間的窗由別人
+    # 什麼時候打 commit 決定，不由跑的人的仔細程度決定。2026-08-31 量到一次驗完 21 秒後
+    # 仍然被掃走。`commit -- <pathspec>` 送的是工作區那幾個路徑，完全不碰索引，所以窗不存在。
     git -C "$ISSUES" add "$NAMESPACE/backlog/$SLUG" >/dev/null
-    git -C "$ISSUES" commit -q -m "seed: $NAMESPACE/$SLUG" -m "$NOTE"
+    git -C "$ISSUES" commit -q -m "seed: $NAMESPACE/$SLUG" -m "$NOTE" -- "$NAMESPACE/backlog/$SLUG"
   else
     echo "$PREFIX 單的目錄樹不是 git repo，這張單只留在磁碟上（沒有 commit）。" >&2
   fi
