@@ -235,6 +235,9 @@ mapping = json.loads(Path(sys.argv[3]).read_text())
 assert "=== Message from" in normalized, normalized
 assert "Message TS:" in normalized, normalized
 assert "\\n" not in normalized, "normalized output must not contain literal \\n escapes"
+# DP-681：分頁狀態要跟著 normalized dump 一起交出去。payload 沒帶 pagination_info 時
+# 寫成 `(none)`——「沒有這一行」與「這一行說讀完了」在下游是兩件事。
+assert "Pagination cursor: (none)" in normalized, normalized
 
 target = "https://github.com/example-org/example-web/pull/5000"
 assert urls == [target], f"expected decoded PR URL, got {urls}"
@@ -244,7 +247,8 @@ PY
 # Probe must NOT report SOURCE_UNAVAILABLE on the normalized dump (source is healthy).
 probe_out_c="$tmp/probe-c.txt"
 set +e
-bash "$probe" --raw-dump "$normalized_c" --candidates "$urls_c" --now-epoch "$now_epoch" > "$probe_out_c" 2>&1
+bash "$probe" --raw-dump "$normalized_c" --candidates "$urls_c" \
+  --window-seconds 604800 --now-epoch "$now_epoch" > "$probe_out_c" 2>&1
 probe_rc_c=$?
 set -e
 grep -q 'POLARIS_DISCOVERY_OK' "$probe_out_c" || {
@@ -298,7 +302,8 @@ urls_e="$tmp/urls-e.txt"
 : > "$urls_e"
 probe_out_e="$tmp/probe-e.txt"
 set +e
-bash "$probe" --raw-dump "$normalized_e" --candidates "$urls_e" --now-epoch "$now_epoch" > "$probe_out_e" 2>&1
+bash "$probe" --raw-dump "$normalized_e" --candidates "$urls_e" \
+  --window-seconds 604800 --now-epoch "$now_epoch" > "$probe_out_e" 2>&1
 probe_rc_e=$?
 set -e
 grep -q 'POLARIS_DISCOVERY_SOURCE_UNAVAILABLE' "$probe_out_e" || {
@@ -307,5 +312,78 @@ grep -q 'POLARIS_DISCOVERY_SOURCE_UNAVAILABLE' "$probe_out_e" || {
   exit 1
 }
 [[ "$probe_rc_e" -eq 2 ]] || { echo "FAIL: probe should fail-closed (exit 2) on empty input, got $probe_rc_e" >&2; exit 1; }
+
+# --- Fixture F: thread 回覆接進 channel dump（DP-681 A-P3） -----------------------------
+# 這個團隊的「我改好了，再看一次」幾乎都是回在原本那條 thread 裡，而 channel scan 只讀
+# top-level。所以 thread 的回覆要接得進來，接進來之後：
+#   1. 只出現在回覆裡的 PR URL 進得了 candidate；
+#   2. 它的 thread_ts 是那條 thread 的根，不是那則回覆自己的 ts——掛錯根會讓姊妹單分群
+#      拆散，也會讓回覆貼到一個沒有人在看的地方。
+# slack_read_thread 的 detailed 用的是 From/Time/Message TS 三行，跟 channel 的
+# `=== Message from … ===` 不是同一種格式，所以 --emit-normalized-thread 要翻過來。
+raw_f="$tmp/slack-thread-f.json"
+python3 - "$raw_f" <<'PY2'
+import json
+import sys
+from pathlib import Path
+
+thread = "\n".join([
+    "=== THREAD PARENT MESSAGE ===",
+    "From: Root <root@example.com> (U0000000010)",
+    "Time: 2026-06-01 10:00:00 CST",
+    "Message TS: 1717000000.100000",
+    "[APP-5000] please review",
+    "<https://github.com/example-org/example-web/pull/5000>",
+    "",
+    "=== THREAD REPLIES (1 total) ===",
+    "",
+    "--- Reply 1 of 1 ---",
+    "From: Author <author@example.com> (U0000000011)",
+    "Time: 2026-06-01 11:00:00 CST",
+    "Message TS: 1717003600.200000",
+    "fixed and pushed, please look again "
+    "<https://github.com/example-org/example-web/pull/5001>",
+])
+Path(sys.argv[1]).write_text(
+    json.dumps({"messages": thread,
+                "pagination_info": "There are no more messages in this thread.\n"})
+)
+PY2
+
+section_f="$tmp/section-f.txt"
+"$extractor" --org example-org --emit-normalized-thread 1717000000.100000 \
+  < "$raw_f" > "$section_f"
+
+combined_f="$tmp/combined-f.txt"
+cat "$normalized_c" > "$combined_f"
+cat "$section_f" >> "$combined_f"
+
+urls_f="$tmp/urls-f.txt"
+mapping_f="$tmp/mapping-f.json"
+"$extractor" --org example-org --mapping "$mapping_f" < "$combined_f" > "$urls_f"
+
+python3 - "$section_f" "$urls_f" "$mapping_f" <<'PY3'
+import json
+import sys
+from pathlib import Path
+
+section = Path(sys.argv[1]).read_text()
+urls = [line for line in Path(sys.argv[2]).read_text().splitlines() if line]
+mapping = json.loads(Path(sys.argv[3]).read_text())
+
+marker = "=== Thread replies for TS 1717000000.100000 ==="
+assert section.startswith(marker), section[:120]
+# From/Time 三行要被翻成 channel 的抬頭，否則 channel parser 一則都認不得。
+assert "=== Message from Author <author@example.com> (U0000000011) at " \
+       "2026-06-01 11:00:00 CST ===" in section, section
+
+only_in_reply = "https://github.com/example-org/example-web/pull/5001"
+assert only_in_reply in urls, f"只出現在 thread 回覆裡的 PR 沒進 candidate：{urls}"
+got = mapping[only_in_reply]["thread_ts"]
+assert got == "1717000000.100000", (
+    f"thread 回覆裡的 PR 要掛在 thread 根上，拿到 {got}（那是回覆自己的 ts）"
+)
+print("A-P3 PASS：只出現在 thread 回覆裡的 PR 進了 candidate，thread_ts 是 thread 根")
+PY3
 
 echo "extract-pr-urls selftest: PASS"

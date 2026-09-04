@@ -10,10 +10,10 @@
 # review_status 值：
 #   - "needs_first_review"  — 從未 review 過
 #   - "needs_re_approve"    — approve 後 head 已變動（review.commit_id != head.sha，stale）
-#   - "needs_re_review"     — REQUEST_CHANGES 後作者有回覆 review comments（不論有無新 push）
+#   - "needs_re_review"     — 我上次 review 之後 head 已經推進（不論我上次投的是哪一種票、
+#                            也不論作者有沒有回留言）
 #   - "valid_approve"       — approve 仍有效（review.commit_id == head.sha），不需動作
-#   - "waiting_for_author"  — REQUEST_CHANGES 後作者未回覆 review comments（即使有新 push 也視為還在改）
-#                            或 prior_review_no_new_push：我已 review 且 review 後 head 未變
+#   - "waiting_for_author"  — prior_review_no_new_push：我已 review 且 review 後 head 未變
 #
 # DP-315：approval-staleness（APPROVED→needs_re_approve）改走共用 helper
 # 旁邊的 approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
@@ -21,6 +21,11 @@
 # ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。
 # DP-355：head.sha 改由 PR 物件 /pulls/N 的 .head.sha 取得（與 request-pr-review 一致），
 # 不再依賴 /commits 分頁的 .[-1].sha——commit 數超過分頁上限時 .[-1] 不是真 head。
+# DP-681：CHANGES_REQUESTED 之後有新 push，不再看作者有沒有回留言。以前那條分支把
+# 「推了但沒回話」判成 waiting_for_author 而被濾掉，於是一顆擋在我方舊票上、作者早就
+# 修好的 PR 永遠不會回到收件匣裡——2026-09-04 一次量到五顆。使用者拍板：作者推了就是
+# 要人看。判準因此跟底下 COMMENTED 那一支一致，都只問 head 有沒有動。
+# 連帶拿掉 check_author_replied()：它只有那一條分支在用，而那條分支不再問這件事。
 #
 # Example:
 #   ./scan-need-review-prs.sh --exclude-author your-github-user \
@@ -75,28 +80,6 @@ if [[ -z "$ORG" ]]; then
   exit 1
 fi
 
-# 檢查 PR 作者是否在指定時間後回覆了 review comments 或 issue comments
-# 回傳 "true" 或 "false"
-check_author_replied() {
-  local repo=$1 number=$2 author=$3 after_time=$4
-
-  # 檢查 review comments（inline on diff）from author after my review
-  local review_replies
-  review_replies=$(gh api "repos/$ORG/$repo/pulls/$number/comments" --paginate --slurp 2>/dev/null \
-    | jq "[.[][] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
-
-  # 檢查 issue comments（general PR comments）from author after my review
-  local issue_replies
-  issue_replies=$(gh api "repos/$ORG/$repo/issues/$number/comments" --paginate --slurp 2>/dev/null \
-    | jq "[.[][] | select(.user.login == \"$author\" and .created_at > \"$after_time\")] | length" 2>/dev/null || echo "0")
-
-  if [ "$review_replies" -gt 0 ] || [ "$issue_replies" -gt 0 ]; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
-
 # 讀取 stdin 的 PR JSON
 prs=$(cat)
 total=$(echo "$prs" | jq 'length')
@@ -142,7 +125,6 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     detail="首次 review"
   else
     my_state=$(echo "$my_latest" | jq -r '.state')
-    my_time=$(echo "$my_latest" | jq -r '.submitted_at')
     # 我這筆 review 綁定的 commit_id（approval-staleness / push-since-review 判定基準）
     my_commit_id=$(echo "$my_latest" | jq -r '.commit_id')
 
@@ -192,27 +174,10 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
         detail="⚠️ 需 re-approve（approve commit: ${my_commit_id:0:7}, 當前 head: ${head_sha:0:7}）"
       fi
     elif [ "$my_state" = "CHANGES_REQUESTED" ]; then
-      # 判斷作者是否回覆了我的 review comments（比單純看 push 更準確）
-      author_replied=$(check_author_replied "$repo" "$number" "$author" "$my_time")
-
-      if [ "$author_replied" = "true" ]; then
-        # 作者有回覆 → 不論有無新 push，都該去 re-review
-        if [ "$pushed_since_review" = "true" ]; then
-          status="needs_re_review"
-          detail="🔄 作者已修正並回覆，需 re-review"
-        else
-          status="needs_re_review"
-          detail="🔄 作者已回覆 review comments，需 re-review"
-        fi
-      else
-        # 作者沒回覆 → 即使有新 push 也視為還在改（還沒改到我提的問題）
-        status="waiting_for_author"
-        if [ "$pushed_since_review" = "true" ]; then
-          detail="⏳ 作者有新 push 但尚未回覆 review comments"
-        else
-          detail="⏳ 等作者修正"
-        fi
-      fi
+      # 走到這裡表示 head 已經動過（沒動的那一種在上面就被判成 waiting_for_author）。
+      # 作者有沒有回留言不影響結論：他推了新的東西，那就要有人看。
+      status="needs_re_review"
+      detail="🔄 我上次 CHANGES_REQUESTED（${my_commit_id:0:7}）之後有新 push，當前 head ${head_sha:0:7}，需 re-review"
     else
       # COMMENTED or other — 視為需要 review
       if [ "$pushed_since_review" = "true" ]; then

@@ -65,24 +65,41 @@ def fetch_file_metadata(candidate: dict, offline: bool) -> None:
     except Exception:
         return
 
+    # --paginate --slurp 交回的是「每頁一個陣列」包成的一個陣列，投影在這裡做。
+    # 只帶 --paginate 配 --jq 的話 gh 逐頁套用投影，超過一頁的 PR 會吐出兩個並排的
+    # JSON 陣列——json.loads 對它丟 JSONDecodeError，而底下這個 except 把它吞掉，於是
+    # 檔案清單整份不見、一行輸出都沒有。--slurp 不能跟 --jq 併用（gh 自己會拒絕）。
     try:
-        files = subprocess.check_output(
-            [
-                "gh",
-                "api",
-                f"repos/{owner}/{repo}/pulls/{number}/files",
-                "--paginate",
-                "--jq",
-                "[.[] | {filename, additions, deletions, status}]",
-            ],
-            text=True,
-            stderr=subprocess.DEVNULL,
+        pages = json.loads(
+            subprocess.check_output(
+                [
+                    "gh",
+                    "api",
+                    f"repos/{owner}/{repo}/pulls/{number}/files",
+                    "--paginate",
+                    "--slurp",
+                ],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
         )
-        parsed_files = json.loads(files)
-        if isinstance(parsed_files, list):
-            candidate["files"] = parsed_files
     except Exception:
         return
+
+    if not isinstance(pages, list):
+        return
+    candidate["files"] = [
+        {
+            "filename": item.get("filename"),
+            "additions": item.get("additions"),
+            "deletions": item.get("deletions"),
+            "status": item.get("status"),
+        }
+        for page in pages
+        if isinstance(page, list)
+        for item in page
+        if isinstance(item, dict)
+    ]
 
 
 def ticket_key(candidate: dict) -> str | None:

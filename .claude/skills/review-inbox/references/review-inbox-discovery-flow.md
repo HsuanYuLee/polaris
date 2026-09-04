@@ -30,7 +30,9 @@ Current GitHub username 必須動態取得，並排除自己的 PR。
 | `scan-need-review-prs.sh` | org-wide need review label scan |
 | `fetch-prs-by-url.sh` | PR URLs -> PR metadata |
 | `check-my-review-status.sh` | attach `review_status` and filter irrelevant PRs |
-| `extract-pr-urls.py` | Slack JSON -> PR URLs, PR-thread mapping, root ticket / topic key mapping |
+| `extract-pr-urls.py` | Slack JSON -> PR URLs, PR-thread mapping, root ticket / topic key mapping；也負責 normalize channel dump 與 thread section |
+| `scan-my-stale-reviews.sh` | 不靠 Slack 的第二來源：我投過票而 head 已推進的 open PR |
+| `analyze-channel-dump.py` | 這份 dump 讀完了沒（窗翻到底了嗎、窗內的 thread 讀了嗎）|
 | `annotate-review-candidates.py` | attach sister PR cluster metadata and model tier hints |
 | `slack-webapi.sh` | Slack MCP fallback for read and send |
 
@@ -66,6 +68,16 @@ Channel scan 一律 **newest-first**：先抓最新一頁（`limit 100`），需
 cursor / pagination 往回翻，**讀到第一則超出時間窗的訊息即停**，不無限翻頁。低流量
 channel 若整頁都還在時間窗內就讀完整頁即停（見 § Source Selection 的 7 天預設與使用者
 語意推導）。
+
+**這一段以前只是散文，而散文沒有被執行。** 2026-09-04 兩輪 discovery 各驗一次：兩輪的
+dump 都停在 66 則、最舊 08-31，而 MCP 兩次都明確回了 cursor（`next_ts:1788153051271299`）。
+兩輪的 sub-agent 指示都沒寫「看到 cursor 就翻」，而兩輪的答案都是 `POLARIS_DISCOVERY_OK`
+——一份只涵蓋窗尾巴的資料，跟一份完整的資料，在原本那四個狀態底下長得一模一樣。
+
+**現在有東西在問了**：`extract-pr-urls.py --emit-normalized` 會把 payload 的 cursor 寫成
+一行 `Pagination cursor: <值>`（沒有下一頁時寫 `(none)`），probe 讀它。所以
+**每一頁都要走 `--emit-normalized` 產生 dump 再接起來**——直接把 MCP 的回應存成檔案的話
+那一行不會存在，probe 回 `POLARIS_DISCOVERY_NO_PAGINATION_MARKER`。
 
 **不要傳 `oldest`**（不論是 MCP 參數還是 `slack-webapi.sh read-channel --oldest`）來限縮
 channel scan 的起點。
@@ -165,9 +177,11 @@ worked example：把一條原本只靠 prose「主來源不可用時應早報、
 
 ```bash
 bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
-  --raw-dump <raw_detailed_channel_dump_file> \
+  --raw-dump <normalized_channel_dump_file> \
   --candidates <parsed_pr_urls_file> \
+  --window-seconds <這一趟回溯多久，秒> \
   --stale-seconds <threshold> \
+  --mode channel|thread \
   --source-available 0|1
 ```
 
@@ -179,6 +193,10 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
   不要硬編；threshold 是 per-source 參數（見下方 § Staleness Threshold）。
 - `--source-available`：fetch 成功 / token 已設為 `1`（預設）；fetch 非零退出或 token 未設
   傳 `0`。
+- `--window-seconds`：這一趟宣告的回溯時間窗，**channel 模式必填**。它由 § Source
+  Selection 的語意推導而來（未指定時 7 天 = `604800`）。probe 不替你挑一個——挑了的話
+  「窗有多長」就有兩個答案，而其中一個沒有人看得到。
+- `--mode`：`channel`（預設）或 `thread`。`thread` 模式跳過涵蓋範圍的兩條判定。
 
 ### 四態與 fail-loud 契約
 
@@ -187,10 +205,14 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
 | source-unavailable | 2 | `POLARIS_DISCOVERY_SOURCE_UNAVAILABLE` | **fail loud 早報**；不靜默 fallback 到 label scan |
 | format-mismatch | 2 | `POLARIS_DISCOVERY_FORMAT_MISMATCH` | **fail loud 早報**（多半是 concise/detailed parser 不一致）；不靜默 fallback |
 | stale | 2 | `POLARIS_DISCOVERY_STALE` | **fail loud 早報**（資料過舊）；不靜默 fallback |
+| 沒有分頁標記 | 2 | `POLARIS_DISCOVERY_NO_PAGINATION_MARKER` | dump 不是走 `--emit-normalized` 產生的，「讀完了沒」問不到；重做那一步 |
+| 沒翻完窗 | 2 | `POLARIS_DISCOVERY_UNPAGED` | 帶訊息裡那個 cursor 再讀一頁接上去 |
+| thread 沒讀 | 2 | `POLARIS_DISCOVERY_UNREAD_THREADS` | 逐條指名，照訊息裡那條命令把回覆接上去 |
+| 算不出涵蓋範圍 | 2 | `POLARIS_DISCOVERY_DUMP_UNMEASURABLE` | dump 裡沒有可校準的訊息抬頭；先確認格式 |
 | legitimate-empty | 0 | `POLARIS_DISCOVERY_LEGITIMATE_EMPTY` | 合法空 inbox，正常結束，回報 0 candidates |
 | non-empty | 0 | `POLARIS_DISCOVERY_OK` | 帶 candidates 往下走 pipeline |
 
-三個 `exit 2` 態（前三列）一律 **fail loud**：probe 一回非零就停下，把 marker 與 human note
+前面幾個 `exit 2` 態一律 **fail loud**：probe 一回非零就停下，把 marker 與 human note
 回報給使用者，**禁止**把 degraded 狀態當成「沒有待 review PR」靜默改走 label scan 或宣告空
 inbox。只有 `exit 0`（後兩列）才允許繼續：legitimate-empty 表示主來源 fetch 成功、格式正確、
 資料新鮮、且真的 0 待 review PR，與 degraded-empty 明確區分（probe 的判定順序先排除
@@ -202,10 +224,56 @@ source-unavailable / format-mismatch，再判 stale，最後才回 legitimate-em
 channel 誤判為 stale，因此這是 per-source 參數：caller 依 channel 流量放寬，不要在 probe 內
 硬猜。需要覆寫時由 discovery sub-agent 在 invocation 帶入較大的 `--stale-seconds`。
 
+### Channel scan 也要讀 thread（不只 top-level）
+
+**這個團隊的「我改好了，再看一次」幾乎都寫在 thread 回覆裡。** 2026-09-04 量到的：
+`pull/10694` 自 09-01 起在 #b2c-web-pr 的每一則提及（09-02、09-03、09-04 各數則），
+permalink 全帶 `thread_ts=1787297348.327969`——那是一條 08-17 開的公告 thread。
+`slack_read_channel` 一頁 79 則、回溯到 08-28，`pull/10694` 命中 0 次；`pull/2979`、
+`12709`、`10698` 也都是 0。不是沒翻頁，是**這些訊息在 top-level 根本不存在**。
+
+所以 channel scan 的第二步是：dump 裡每一則帶著
+`Thread: N replies (latest: …)` 而**最新回覆落在時間窗內**的訊息，都要把它的回覆讀進來。
+判準用 `latest`，不看 top-level 自己的時間——長壽 thread 是這個團隊的常態，那條公告
+thread 的根落在窗外 14 天。
+
+```bash
+# 對每一條這樣的 thread：
+python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py --org <org> \
+  --emit-normalized-thread <那則訊息的 Message TS> < <slack_read_thread 的回應> \
+  >> <normalized_dump_file>
+```
+
+它會把 thread 的 `From:` / `Time:` / `Message TS:` 三行翻成 channel 的
+`=== Message from … ===` 抬頭（兩種格式不一樣，不翻的話 parser 一則都認不得），並在最前面
+放一行 `=== Thread replies for TS <parent> ===`。那一行有兩個作用：parser 把這一段裡的
+URL 全部掛到 `<parent>` 上（回覆自己的 ts 不是它所屬的 thread），probe 拿它當「這條讀過了」
+的證據。
+
+**哪幾條要讀不用自己數**——probe 會逐條指名（`POLARIS_DISCOVERY_UNREAD_THREADS`）。
+
+## GitHub 條件掃描（第二來源，與 Slack 取聯集）
+
+Slack 那條路徑的前提是「有人說話」。這一條沒有這個前提：
+
+```bash
+bash .claude/skills/review-inbox/scripts/scan-my-stale-reviews.sh \
+  --my-user <github_username> --org <github_org> \
+  [--merge-with <Slack 那條路徑產出的 candidates JSON>]
+```
+
+它問 GitHub：我投過票、還 open 的 PR 裡，哪幾顆的 head 已經不是我最後一票綁的那顆
+commit。輸出格式與 `fetch-prs-by-url.sh` 相同，可以直接接 `check-my-review-status.sh`。
+`--merge-with` 把兩條來源以 url 去重後取聯集——**聯集在腳本裡做**，不是散文裡的一行 jq。
+
+問不到上游時它離場 2 並印 `POLARIS_STALE_REVIEW_SCAN_UNAVAILABLE`，不回空陣列：
+`gh search` 對打錯的 owner 會回 `[]` 而且離場 0，那跟「問到了而且沒有」分不開。
+
 ## Thread Scan
 
 Thread mode 只讀單一討論串，訊息量通常小，可在主 session 直接執行同一條 pipeline。
-所有 URL 都映射到指定 `thread_ts`。
+所有 URL 都映射到指定 `thread_ts`。Probe 用 `--mode thread` 跑：那裡沒有「翻完頻道」
+這回事，涵蓋範圍的兩條判定跳過。
 
 ## Sister PR Cluster And Model Tier Annotation
 
@@ -234,10 +302,14 @@ Candidates 只保留：
 |---|---|
 | `needs_first_review` | reviewer 尚未 review |
 | `needs_re_approve` | approve 後作者有新 commit，approval stale |
-| `needs_re_review` | REQUEST_CHANGES 後作者已回覆 comments |
+| `needs_re_review` | 我上次 review 之後 head 已經推進（不論上次投的是哪一種票、也不論作者有沒有回留言）|
 
 `valid_approve` 與 `waiting_for_author` 必須被過濾。Stale approval 判定見
 `stale-approval-detection.md`。
+
+**`needs_re_review` 不再問作者有沒有回留言（DP-681）。** 以前「CHANGES_REQUESTED 之後
+有新 push 但作者沒回話」被判成 `waiting_for_author` 而濾掉，於是一顆作者早就修好的 PR
+永遠回不到收件匣——2026-09-04 一次量到五顆。使用者拍板：作者推了就是要人看。
 
 `prior_review_no_new_push` 屬於 `waiting_for_author` 的 detail 分類：只要 reviewer 最新一次
 review 是 `COMMENTED` / `CHANGES_REQUESTED` / `APPROVED` 任一狀態，且該 review 之後沒有新

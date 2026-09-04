@@ -44,7 +44,8 @@ tools:
 
 | Source | Use when |
 |---|---|
-| Slack | 預設；掃 PR channel 最近訊息中的 PR URLs |
+| Slack | 預設；掃 PR channel 最近訊息中的 PR URLs——**含 thread 回覆**，不只 top-level |
+| GitHub 條件掃描 | 一律與 Slack 取聯集：我投過票而 head 已推進的 open PR，不靠任何人說話 |
 | Thread | 使用者提供 Slack thread URL 並要求 review |
 | Label | 使用者明確提到 need review label |
 
@@ -88,6 +89,12 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    Slack timestamp 或 ISO date/datetime。
    **產出 candidates 之前要先過 `scripts/review-inbox-discovery-probe.sh`。** 它非零就停在
    那裡、把 marker 與說明回報出來——**不要宣告空的收件匣，也不要靜默改走 label scan**。
+   它現在除了「讀不讀得懂」也問「讀完了沒」：時間窗翻到底了嗎、窗內有新回覆的 thread
+   讀進來了嗎。`--window-seconds` 在 channel 模式必填，值是這一趟宣告的回溯時間窗。
+4b. **Slack 那條做完，再跑一次 GitHub 條件掃描並取聯集**：
+   `scripts/scan-my-stale-reviews.sh --my-user <u> --org <org> --merge-with <Slack 的 candidates>`。
+   頻道掃描的前提是有人說話，這一條沒有這個前提——2026-09-04 兩輪 discovery 都空手，
+   而同一時間有五顆 PR 擋在我方舊票上、作者早就推了修正。
 5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識

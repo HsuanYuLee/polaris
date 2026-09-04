@@ -114,14 +114,20 @@ base=$(echo "$pr_meta" | jq -r '.baseRefName // ""')
 head=$(echo "$pr_meta" | jq -r '.headRefName // ""')
 
 # Step 2: Files with changes
+# --paginate --slurp 之後用管線接 jq，投影套在全體上（外層是頁、內層是筆）。
+# 只帶 --paginate 不夠：gh 的 --jq 是逐頁套用的，一頁裝得下的時候看不出來，跨頁時會吐出
+# 每頁一個陣列。下面 total_additions 那一行接著把它交給 $((…))，於是超過一頁的 PR 會在
+# `syntax error in expression` 之後帶著 `total_changes: unbound variable` 離場 1，整批
+# review 被打斷。2026-09-04 實際撞到的那一顆有 105 個檔案，跨了兩頁。
+# --slurp 不能跟 --jq 併用，gh 自己會拒絕，所以投影一定要走管線。
 echo "  取得變更檔案清單..." >&2
 if declare -F polaris_gh_api >/dev/null 2>&1; then
-  files=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
-    --jq '[.[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+  files_pages=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null || echo "[]")
 else
-  files=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
-    --jq '[.[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+  files_pages=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null || echo "[]")
 fi
+files=$(printf '%s' "$files_pages" \
+  | jq '[.[][] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
 
 # 計算總變更行數
 total_additions=$(echo "$files" | jq '[.[].additions] | add // 0')

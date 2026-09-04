@@ -28,12 +28,39 @@ import sys
 
 work = sys.argv[1]
 # 上游真的回的內容：兩個 header 行、一個 PR URL。
-detailed = ("=== Message from Alice ===\n"
+# 抬頭要帶 (Uxxxx) 與牆上時間：DP-681 的涵蓋範圍判定拿「同一則的牆上時間與 epoch」
+# 校準時區偏移量，抬頭殘缺的話它校準不了。
+detailed = ("=== Message from Alice (U0000000001) at 2024-05-29 21:46:40 CST ===\n"
             "Message TS: 1717000000.100000\n"
             "please review https://github.com/acme/web/pull/123\n")
+# `Pagination cursor:` 是 extract-pr-urls.py --emit-normalized 會寫下的那一行；
+# `(none)` 代表來源說沒有更舊的了。沒有這一行的 dump 在 channel 模式是紅的（DP-681）。
+paged = detailed + "Pagination cursor: (none)\n"
+# 還有更舊的沒讀，而最舊的一則仍比窗起點新 → UNPAGED。
+unpaged = detailed + "Pagination cursor: bmV4dF90cw==\n"
+# 窗內有新回覆的 thread，而它的回覆沒有被接進來 → UNREAD_THREADS。
+unread = (detailed.rstrip("\n")
+          + "\nThread: 3 replies (latest: 2024-05-29 21:46:30 CST)\n"
+          + "Pagination cursor: (none)\n")
+# thread 在，但最新回覆落在時間窗外 → 不算沒讀，放行。長壽 thread 的反面：
+# 判準用 latest，所以一條很久沒人講話的 thread 不該把整趟 discovery 擋下來。
+stale_thread = (detailed.rstrip("\n")
+                + "\nThread: 2 replies (latest: 2024-05-01 10:00:00 CST)\n"
+                + "Pagination cursor: (none)\n")
+# 同一份，但 thread 的回覆接進來了 → 放行。
+read_thread = (unread.rstrip("\n")
+               + "\n=== Thread replies for TS 1717000000.100000 ===\n"
+               + "=== Message from Bob (U0000000002) at 2024-05-29 21:46:30 CST ===\n"
+               + "Message TS: 1717000000.200000\n"
+               + "fixed, please look again\n")
 # 這個 runtime 的 MCP detailed 就是這一種：整份擠成一行，真換行 escape 成字面的 \n。
 open(f"{work}/escaped.txt", "w", encoding="utf-8").write(json.dumps({"messages": detailed}))
-open(f"{work}/normalized.txt", "w", encoding="utf-8").write(detailed)
+open(f"{work}/normalized.txt", "w", encoding="utf-8").write(paged)
+open(f"{work}/no-cursor.txt", "w", encoding="utf-8").write(detailed)
+open(f"{work}/unpaged.txt", "w", encoding="utf-8").write(unpaged)
+open(f"{work}/unread-thread.txt", "w", encoding="utf-8").write(unread)
+open(f"{work}/stale-thread.txt", "w", encoding="utf-8").write(stale_thread)
+open(f"{work}/read-thread.txt", "w", encoding="utf-8").write(read_thread)
 open(f"{work}/no-headers.txt", "w", encoding="utf-8").write("something entirely unrelated\n")
 open(f"{work}/empty.txt", "w", encoding="utf-8").write("")
 open(f"{work}/cand-empty.txt", "w", encoding="utf-8").write("")
@@ -50,7 +77,7 @@ expect() {
   local name="$1" raw="$2" cand="$3" want_marker="$4" want_exit="$5"
   local out rc=0
   out="$(bash "$PROBE" --raw-dump "$WORK/${raw}.txt" --candidates "$WORK/${cand}.txt" \
-    --now-epoch 1717000100 2>&1)" || rc=$?
+    --window-seconds 604800 --now-epoch 1717000100 2>&1)" || rc=$?
   local marker
   marker="$(printf '%s' "$out" | head -1)"
   if [[ "$rc" != "$want_exit" ]]; then
@@ -69,7 +96,8 @@ expect "還沒 normalize 的完整 dump 說得出「先轉」，不是「拿不�
   escaped cand-empty POLARIS_DISCOVERY_NOT_NORMALIZED 2
 
 # 而且它要說得出下一步——一個沒有下一步的 fail-closed 只是擋人。
-out="$(bash "$PROBE" --raw-dump "$WORK/escaped.txt" --candidates "$WORK/cand-empty.txt" 2>&1 || true)"
+out="$(bash "$PROBE" --raw-dump "$WORK/escaped.txt" --candidates "$WORK/cand-empty.txt" \
+  --window-seconds 604800 --now-epoch 1717000100 2>&1 || true)"
 if printf '%s' "$out" | grep -q 'emit-normalized'; then
   echo "PASS 它說得出怎麼轉"; PASS=$((PASS + 1))
 else
@@ -81,8 +109,10 @@ expect "轉換過而解析器空手是格式不合" \
   normalized cand-empty POLARIS_DISCOVERY_FORMAT_MISMATCH 2
 
 # 三、兩者不得共用同一個標記：它們的下一步相反。
-a="$(bash "$PROBE" --raw-dump "$WORK/escaped.txt" --candidates "$WORK/cand-empty.txt" 2>&1 || true)"
-b="$(bash "$PROBE" --raw-dump "$WORK/normalized.txt" --candidates "$WORK/cand-empty.txt" 2>&1 || true)"
+a="$(bash "$PROBE" --raw-dump "$WORK/escaped.txt" --candidates "$WORK/cand-empty.txt" \
+  --window-seconds 604800 --now-epoch 1717000100 2>&1 || true)"
+b="$(bash "$PROBE" --raw-dump "$WORK/normalized.txt" --candidates "$WORK/cand-empty.txt" \
+  --window-seconds 604800 --now-epoch 1717000100 2>&1 || true)"
 # 只 assertion「兩者不同」是不夠的：壞掉的那一版給的是 SOURCE_UNAVAILABLE 與 FORMAT_MISMATCH，
 # 那也是兩個不同的字串，於是這一條在它身上照樣是綠的。要驗的是那一對具體的值。
 if [[ "$(printf '%s' "$a" | head -1)" == "POLARIS_DISCOVERY_NOT_NORMALIZED" \
@@ -102,6 +132,39 @@ expect "空檔案仍然是來源不可得" \
 # 五、正常的那一條要還在。只驗紅的那幾種，等於沒有驗到「它還能放行」。
 expect "轉換過而且解析器有產出，走正常的路" \
   normalized cand-one POLARIS_DISCOVERY_OK 0
+
+# 六、DP-681：讀不讀得懂之外，還要問讀完了沒。這四條以前一條都沒有，而 2026-09-04 兩輪
+# discovery 交出的都是不完整的資料、答案都是 POLARIS_DISCOVERY_OK。
+expect "沒有分頁標記的 dump 在 channel 模式是紅的" \
+  no-cursor cand-one POLARIS_DISCOVERY_NO_PAGINATION_MARKER 2
+expect "還有更舊的沒讀、而窗沒翻完是紅的" \
+  unpaged cand-one POLARIS_DISCOVERY_UNPAGED 2
+expect "窗內有新回覆的 thread 沒讀是紅的（即使 candidate 非空）" \
+  unread-thread cand-one POLARIS_DISCOVERY_UNREAD_THREADS 2
+expect "那條 thread 讀進來之後就放行" \
+  read-thread cand-one POLARIS_DISCOVERY_OK 0
+expect "最新回覆落在窗外的 thread 不算沒讀" \
+  stale-thread cand-one POLARIS_DISCOVERY_OK 0
+
+# 七、thread 模式不判涵蓋範圍——那裡沒有「翻完頻道」這回事。
+rc=0
+out="$(bash "$PROBE" --raw-dump "$WORK/no-cursor.txt" --candidates "$WORK/cand-one.txt" \
+  --mode thread --now-epoch 1717000100 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$(printf '%s' "$out" | head -1)" == "POLARIS_DISCOVERY_OK" ]]; then
+  echo "PASS thread 模式不要求分頁標記"; PASS=$((PASS + 1))
+else
+  echo "FAIL thread 模式應該放行：rc=$rc $out"; FAIL=$((FAIL + 1))
+fi
+
+# 八、A-P4：channel 模式沒交出時間窗就停，不自己挑一個。
+rc=0
+out="$(bash "$PROBE" --raw-dump "$WORK/normalized.txt" --candidates "$WORK/cand-one.txt" \
+  --now-epoch 1717000100 2>&1)" || rc=$?
+if [[ "$rc" -ne 0 ]] && printf '%s' "$out" | grep -q 'window-seconds'; then
+  echo "PASS 沒給時間窗就停，而且說得出缺的是什麼"; PASS=$((PASS + 1))
+else
+  echo "FAIL 沒給時間窗應該停：rc=$rc $out"; FAIL=$((FAIL + 1))
+fi
 
 echo "review-inbox-discovery-probe format selftest: PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

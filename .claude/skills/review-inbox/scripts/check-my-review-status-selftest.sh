@@ -135,6 +135,14 @@ case "$endpoint" in
   */pulls/12/commits) payload='[{"sha":"sha12-page1-not-head","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/12/comments|*/issues/12/comments) payload='[]' ;;
 
+  # PR 13 — DP-681 的那一格：CHANGES_REQUESTED 之後有新 push，而作者**一則留言都沒回**。
+  # 改動前這裡是 waiting_for_author 而被濾掉，於是一顆作者早就修好的 PR 永遠回不到收件匣。
+  # 現在只問 head 有沒有動 ⇒ needs_re_review。comments 兩個端點都是空的，這是重點：
+  # 只要它們一非空，這一格就退化成既有的 PR 5，量不到這次改的東西。
+  */pulls/13/reviews) payload='[{"user":{"login":"reviewer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha13-old"}]' ;;
+  */pulls/13/commits) payload='[{"sha":"sha13-new","commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
+  */pulls/13/comments|*/issues/13/comments) payload='[]' ;;
+
   # /pulls/N 物件（無 trailing path）→ .head.sha 投影（DP-355 canonical head 來源）。
   # exact pattern，永遠不會 shadow 上方 */pulls/N/{reviews,commits,comments}。
   */pulls/1) payload='{"head":{"sha":"sha1"}}' ;;
@@ -149,6 +157,7 @@ case "$endpoint" in
   */pulls/10) payload='{"head":{"sha":"sha10-new"}}' ;;
   */pulls/11) payload='{"head":{"sha":"sha11-head"}}' ;;
   */pulls/12) payload='{"head":{"sha":"sha12-head"}}' ;;
+  */pulls/13) payload='{"head":{"sha":"sha13-new"}}' ;;
 esac
 
 # --slurp 把每一頁包成外層陣列的一個元素。這個 fixture 每個端點只有一頁，
@@ -177,7 +186,8 @@ cat > "$candidates" <<'JSON'
   {"repo":"demo","number":9,"title":"approved at head plus interleaved commented","url":"https://github.com/acme/demo/pull/9","author":"ivan","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":10,"title":"stale approve plus interleaved commented with push","url":"https://github.com/acme/demo/pull/10","author":"judy","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":11,"title":"over 30 commit commented at head no push","url":"https://github.com/acme/demo/pull/11","author":"kevin","created_at":"2026-05-06T08:00:00Z"},
-  {"repo":"demo","number":12,"title":"over 30 commit approved at head","url":"https://github.com/acme/demo/pull/12","author":"laura","created_at":"2026-05-06T08:00:00Z"}
+  {"repo":"demo","number":12,"title":"over 30 commit approved at head","url":"https://github.com/acme/demo/pull/12","author":"laura","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":13,"title":"changes requested with push and no reply","url":"https://github.com/acme/demo/pull/13","author":"mallory","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
 
@@ -200,7 +210,7 @@ by_number = {item["number"]: item for item in items}
 # PR 7、9、11、12 排除（valid approve / waiting_for_author at real head）；
 # PR 8、10 必須出現。PR 11/12 是 >30-commit case：head 取自 /pulls/N 而非 /commits
 # 分頁，DP-355 修正前 head 會誤取自 /commits 第一頁非-head sha 而被錯列入 actionable。
-if sorted(by_number) != [1, 4, 5, 8, 10]:
+if sorted(by_number) != [1, 4, 5, 8, 10, 13]:
     raise SystemExit(f"unexpected actionable PRs: {sorted(by_number)}")
 if by_number[1]["review_status"] != "needs_first_review":
     raise SystemExit("PR 1 should need first review")
@@ -222,6 +232,16 @@ if 11 in by_number:
 if 12 in by_number:
     raise SystemExit("PR 12 (>30-commit APPROVED at real head) must not be actionable — "
                      "head must come from /pulls/N .head.sha, not /commits page 1")
+# DP-681 B-P3：CHANGES_REQUESTED + 新 push + 作者一則留言都沒回 ⇒ 仍要 re-review。
+# 改動前這一格是 waiting_for_author（被濾掉），所以這條 assertion 在舊版上會紅。
+if 13 not in by_number:
+    raise SystemExit("PR 13 (CHANGES_REQUESTED + push + no author reply) must be actionable: "
+                     "the author pushed, so someone has to look at it")
+if by_number[13]["review_status"] != "needs_re_review":
+    raise SystemExit("PR 13 should be needs_re_review, got "
+                     + by_number[13]["review_status"])
+print("B-P3 PASS：CHANGES_REQUESTED 之後有新 push、作者一則留言都沒回，"
+      "仍然是 needs_re_review")
 PY
 }
 

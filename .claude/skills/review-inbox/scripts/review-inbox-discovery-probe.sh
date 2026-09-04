@@ -8,6 +8,8 @@
 #          --stale-seconds <int>    staleness threshold in seconds (default 86400)
 #          --now-epoch <int>        override "now" for deterministic testing (default: date +%s)
 #          --source-available 0|1   1 = fetch succeeded / token set (default 1)
+#          --window-seconds <int>   這一趟宣告的回溯時間窗（channel 模式必填，DP-681）
+#          --mode channel|thread    thread 模式只讀一條討論串，不判涵蓋範圍（default channel）
 # Outputs: stdout  one structured POLARIS_DISCOVERY_* marker line + human note
 #          exit 0  legitimate-empty (or non-empty: candidates present)
 #          exit 2  format-mismatch / stale / source-unavailable (fail-closed)
@@ -16,8 +18,18 @@
 #          POLARIS_DISCOVERY_NOT_NORMALIZED
 #          POLARIS_DISCOVERY_FORMAT_MISMATCH
 #          POLARIS_DISCOVERY_STALE
+#          POLARIS_DISCOVERY_UNREAD_THREADS
+#          POLARIS_DISCOVERY_UNPAGED
+#          POLARIS_DISCOVERY_NO_PAGINATION_MARKER
+#          POLARIS_DISCOVERY_DUMP_UNMEASURABLE
 #          POLARIS_DISCOVERY_LEGITIMATE_EMPTY (exit 0, informational)
 #          POLARIS_DISCOVERY_OK (exit 0, candidates present)
+#
+# DP-681：原本那四個降級態全部在問「這份資料讀不讀得懂」，沒有一個在問「這份資料讀完了
+# 沒」。2026-09-04 兩輪 discovery 的 dump 都停在最新那一頁、一條 thread 都沒讀，而兩輪
+# 的答案都是 POLARIS_DISCOVERY_OK——一份不完整的資料跟一份完整的資料，在那四態底下長得
+# 一模一樣。涵蓋範圍的判定放在 STALE 之後、OK/LEGITIMATE_EMPTY 之前：那一趟有 82 個 URL
+# 而 candidate 是 0，所以它非空也要被檢查，不能只在空的時候問。
 #
 # Decision order is load-bearing (AC5 adversarial enforce + AC-NEG1): rule out
 # SOURCE_UNAVAILABLE, NOT_NORMALIZED and FORMAT_MISMATCH first, then STALE, and only a
@@ -37,12 +49,15 @@ CANDIDATES=''
 STALE_SECONDS='86400'
 NOW_EPOCH=''
 SOURCE_AVAILABLE='1'
+WINDOW_SECONDS=''
+MODE='channel'
 
 usage() {
   cat <<'USAGE'
 Usage: review-inbox-discovery-probe.sh --raw-dump <file> --candidates <file>
                                        [--stale-seconds <int>] [--now-epoch <int>]
-                                       [--source-available 0|1]
+                                       [--source-available 0|1] [--mode channel|thread]
+                                       --window-seconds <int>   (channel 模式必填)
 
 Classifies a review-inbox Slack discovery result into these states:
   - source-unavailable  (exit 2, POLARIS_DISCOVERY_SOURCE_UNAVAILABLE)
@@ -82,6 +97,14 @@ while [[ $# -gt 0 ]]; do
       SOURCE_AVAILABLE="${2:-}"
       shift 2
       ;;
+    --window-seconds)
+      WINDOW_SECONDS="${2:-}"
+      shift 2
+      ;;
+    --mode)
+      MODE="${2:-}"
+      shift 2
+      ;;
     -h | --help)
       usage
       exit 0
@@ -98,6 +121,21 @@ done
 case "$STALE_SECONDS" in
   '' | *[!0-9]*) fail_usage "--stale-seconds must be a non-negative integer, got: '$STALE_SECONDS'" ;;
 esac
+
+case "$MODE" in
+  channel | thread) ;;
+  *) fail_usage "--mode must be channel or thread, got: '$MODE'" ;;
+esac
+
+# 時間窗是這一趟自己說出來的，不是這裡猜的：它由使用者的語意推導（未指定時是 7 天），
+# 而那個推導只有呼叫的人知道。沒交進來就停——挑一個預設值等於讓「窗有多長」有兩個答案，
+# 而其中一個沒有人看得到。
+if [[ "$MODE" == 'channel' ]]; then
+  case "$WINDOW_SECONDS" in
+    '') fail_usage '--window-seconds is required in channel mode: 這一趟回溯多久只有呼叫的人知道（未指定時的預設是 7 天 = 604800）' ;;
+    *[!0-9]*) fail_usage "--window-seconds must be a non-negative integer, got: '$WINDOW_SECONDS'" ;;
+  esac
+fi
 
 if [[ -n "$NOW_EPOCH" ]]; then
   case "$NOW_EPOCH" in
@@ -211,6 +249,26 @@ if [[ "$age_seconds" -gt "$STALE_SECONDS" ]]; then
   printf 'POLARIS_DISCOVERY_STALE\n'
   printf 'stale: newest message is %ss old (threshold %ss); discovery data may be outdated, fail loud\n' "$age_seconds" "$STALE_SECONDS"
   exit 2
+fi
+
+# --- 3.5 涵蓋範圍：這份資料讀完了沒（DP-681） -------------------------------------------
+# 判準都在 dump 自己身上（thread 那一行、cursor 那一行、thread 區段標記），所以這裡不再
+# 打一次 Slack。thread 模式只讀一條討論串，沒有「翻完頻道」這回事，跳過。
+if [[ "$MODE" == 'channel' ]]; then
+  ANALYZER="$(dirname "$0")/analyze-channel-dump.py"
+  if [[ ! -f "$ANALYZER" ]]; then
+    printf 'POLARIS_DISCOVERY_DUMP_UNMEASURABLE\n'
+    printf 'coverage analyzer missing: %s\n' "$ANALYZER"
+    exit 2
+  fi
+  coverage_out=''
+  coverage_rc=0
+  coverage_out="$(python3 "$ANALYZER" --dump "$RAW_DUMP" \
+    --window-seconds "$WINDOW_SECONDS" --now-epoch "$NOW_EPOCH" 2>&1)" || coverage_rc=$?
+  if [[ "$coverage_rc" -ne 0 ]]; then
+    printf '%s\n' "$coverage_out"
+    exit 2
+  fi
 fi
 
 # --- 4. legitimate-empty / non-empty (exit 0) -----------------------------------------
