@@ -25,17 +25,14 @@ Code symbols、error messages、quoted author text、suggestion blocks 可保留
 | should-fix only | `COMMENT` |
 | any must-fix | `REQUEST_CHANGES` |
 
-Review summary 要短而具體。`REQUEST_CHANGES` summary 列 must-fix bullets；
-`COMMENT` summary 說明不擋 merge；`APPROVE` 不寫冗長稱讚。
-
-**findings 不進 review body。** 每一條 finding 都要有 inline comment 指向具體 file + line；
-把整批 findings 寫成 markdown 清單塞進 review body 當總結報告，讀的人就得自己在 diff 裡找那
-幾行。body 只放一兩句總結，例如「整體架構清晰，2 項待確認（見 inline comments）」。
+這張表決定送哪一個 event。**body 與 comment 寫成什麼形狀，在 `review-comment-form.md`**
+——那份是唯一一份，這裡不重複。
 
 ## Inline Comments
 
-每個 comment 要自然描述問題、影響、規範來源或具體建議。可精準修改 diff range 時優先用
-GitHub suggested change；缺測試、架構方向、或跨多處修改時用 pure comment。
+每個 comment 要說出問題、影響、規範來源或具體建議，形式照 `review-comment-form.md`。
+可精準修改 diff range 時優先用 GitHub suggested change；缺測試、架構方向、或跨多處修改時
+用 pure comment。
 
 Suggested change 必須確保縮排與 replacement range 正確。一個 comment 只放一個 suggestion
 block。

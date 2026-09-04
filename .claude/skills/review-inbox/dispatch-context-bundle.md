@@ -88,6 +88,9 @@ repeat existing reviewer comments with the same meaning.
 那一步用的分類，不是每則 comment 開頭要貼的標籤。強度寫在句子裡就好——「這支不擋，但⋯」
 「順手一提」「想跟你 confirm 一下」，而**不確定的時候把判斷交還給作者比猜一個嚴重度誠實**。
 
+那則 comment 長什麼樣子，由 packet 裡〈一則 review 寫成什麼形狀〉那一段決定——它是
+`review-pr/references/review-comment-form.md` 的內容，由 `build-review-prompt.sh` 原樣放進來。
+
 ## Submit Action
 
 Choose `REQUEST_CHANGES` for any must-fix, `COMMENT` for should-fix only, and

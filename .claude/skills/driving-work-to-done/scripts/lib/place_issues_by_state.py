@@ -507,10 +507,75 @@ def write_placement(ticket_dir: str, slot: str, basis: str, detail: dict) -> Non
     }
     record.update({k: v for k, v in detail.items() if v is not None})
     path = placement_path(ticket_dir)
+    # **推導結果沒變就不寫。** 以前每跑一次就把整棵樹每一張單的 `derived_at` 全部改寫一次
+    # ——2026-09-04 量到 851 份，內容一個字都沒有變。弄髒的是好幾個 session 共用的工作區，
+    # 而一份「什麼都沒變」的改動會蓋掉別人正在看的 `git status`。
+    previous = read_json(path)
+    if previous is not None:
+        before = {k: v for k, v in previous.items() if k != "derived_at"}
+        after = {k: v for k, v in record.items() if k != "derived_at"}
+        if before == after:
+            return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(record, handle, ensure_ascii=False, indent=1)
         handle.write("\n")
+
+
+def plan_moves(rows: list[dict]) -> tuple[list[dict], list[tuple[dict, str]]]:
+    """哪幾張搬得動、其餘各自卡在哪一項。
+
+    DP-661 把搬動整個拿掉，因為那一半自己製造了它要解決的問題：一次沒搬完的搬動留下一個
+    空殼，而那個空殼從此是同一個單號的第二條路徑。**這一版不靠「搬得比較小心」把它擋回去
+    ——每一張單要先證明自己搬得動**，四項缺一就不搬，而且說得出缺的是哪一項。
+
+    四項各自擋掉一種已經發生過的事：
+
+    - **鏈頂**——子單跟著母單走，各自搬家會把一個母單切成好幾塊。
+    - **身上有 `.spine/`**——舊層留在單裡的工作目錄不是單，把它們搬走等於照著一個猜出來的
+      身分動手。
+    - **單號在整棵樹裡只有一條路徑**——同號重複的那幾張，搬哪一張都是在猜。
+    - **目的地還不存在**——覆寫或合併兩棵樹，比留在原地糟。
+    """
+    by_id = units(rows)
+    moves, blocked = [], []
+    for row in rows:
+        if row["current"] is None or row["current"] == row["target"]:
+            continue
+        if row["chain"]:
+            blocked.append((row, "不是鏈頂，跟著母單走"))
+            continue
+        # **住在另一張單底下的也不搬，即使它沒有宣告母單。** 鏈是從宣告讀出來的，而樹上
+        # 真的有一些單巢在別人底下卻沒有宣告——只看鏈的話，那幾張會被搬出它的母單，而母單
+        # 就此被切成兩塊。這一項問的是檔案系統，不是宣告。
+        parent = os.path.dirname(row["from_dir"])
+        if os.path.isdir(os.path.join(parent, ".spine")):
+            blocked.append((row, "住在另一張單底下"))
+            continue
+        if not os.path.isdir(os.path.join(row["from_dir"], ".spine")):
+            blocked.append((row, "身上沒有 .spine/，不是單"))
+            continue
+        if len(by_id[(row["namespace"], ticket_id(row["name"]) or row["name"])]) > 1:
+            blocked.append((row, "這個單號在樹裡不只一條路徑"))
+            continue
+        if os.path.exists(row["to_dir"]):
+            blocked.append((row, "目的地已經有東西了"))
+            continue
+        moves.append(row)
+    return moves, blocked
+
+
+def move_home(issues_root: str, row: dict) -> None:
+    """把一張單搬到它算出來的那一格。
+
+    **用檔案系統的更名，不是 `git mv`。** `issues/` 是好幾個 session 共用的樹，而 `git mv`
+    會把改動 stage 進共用的索引——別人下一次 commit 就會把它一起送出去。更名之後 git 自己
+    認得出改名，而索引一個字都沒有被動過。
+    """
+    os.makedirs(os.path.dirname(row["to_dir"]), exist_ok=True)
+    os.rename(row["from_dir"], row["to_dir"])
+    row["from_dir"] = row["to_dir"]
+    row["current"] = row["target"]
 
 
 OPEN_INDEX = "OPEN.md"
@@ -966,6 +1031,11 @@ def main(argv=None) -> int:
             write_placement(row["from_dir"], row["slot"], row["basis"], row["detail"])
             write_upstream(row["from_dir"], row["detail"])
             written += 1
+        # **紀錄先寫、再搬。** 反過來的話，寫紀錄的那一步要處理「這張單剛剛換過位置」，
+        # 而搬動失敗留下的就是一張沒有紀錄的單。這個順序讓紀錄跟著資料夾一起走。
+        moved, blocked = plan_moves(rows)
+        for row in moved:
+            move_home(issues_root, row)
         # 清單只在問過解析器的那種執行裡重寫。spine-only 看不到靠解析器回答的那些命名空間，
         # 讓它重寫等於每記一輪就把清單上的那些單全部刪掉一次。
         if not args.spine_only:
@@ -976,6 +1046,10 @@ def main(argv=None) -> int:
     if args.spine_only:
         mode += "+spine-only"
     print(render(rows, abstained, mode, written, unwritable))
+    if args.execute:
+        print(f"歸位：搬了 {len(moved)} 張")
+        for row in blocked:
+            print(f"  沒搬 {row[0]['namespace']}/{row[0]['name']}：{row[1]}")
     if args.check and any(r["current"] is None or r["current"] != r["target"]
                           for r in rows):
         return 1

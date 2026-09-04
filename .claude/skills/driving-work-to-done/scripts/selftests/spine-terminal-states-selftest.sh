@@ -156,7 +156,9 @@ cp "$(dirname "$moved")/loop-state.json" \
    "$REPO/issues/acme-inc/backlog/T-elsewhere/.spine/loop-state.json"
 run released --state "$REPO/issues/acme-inc/backlog/T-elsewhere/.spine/loop-state.json" --by selftest
 [[ "$RC" -eq 0 ]] || fail "換一個命名空間就換一個答案；拿到 ${RC}：$OUT"
-elsewhere="$REPO/issues/acme-inc/backlog/T-elsewhere/.spine"
+# **這張單記完釋出就會被搬到它算出來的那一格**，所以不能把它的位置寫死在這裡——這一條問的
+# 是「換一個命名空間會不會換一個答案」，不是「它躺在哪」。
+elsewhere="$(dirname "$(find "$REPO/issues/acme-inc" -type d -name 'T-elsewhere' | head -1)/.spine")/.spine"
 [[ -f "$elsewhere/release.json" ]] \
   || fail "命名空間影響了判定：$(find "$REPO/issues/acme-inc" -name release.json)"
 grep -Fq '"slot": "released"' "$elsewhere/placement.json" \
@@ -171,7 +173,8 @@ state="$(new_ticket T-openrec open)"
 printf '{"schema_version":1,"released_on":"2020-01-02"}\n' > "$(dirname "$state")/release.json"
 bash "$placer" --issues "$REPO/issues" --execute --spine-only >/dev/null \
   || fail "位置重算失敗了"
-openrec="$(dirname "$state")/placement.json"
+# 這張單也會被搬到它算出來的那一格，所以去找它，不要沿用開單時那條路徑。
+openrec="$(find "$REPO/issues" -type d -name 'T-openrec' | head -1)/.spine/placement.json"
 [[ -f "$openrec" ]] || fail "沒有寫下 T-openrec 的推導結果"
 grep -Fq '"slot": "released"' "$openrec" \
   && fail "一份釋出紀錄就讓一張沒收斂的單被判成釋出過——位置變成了第二個權威"

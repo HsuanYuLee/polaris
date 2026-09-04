@@ -165,6 +165,17 @@ else
 ${EXTRA_REFS}"
 fi
 
+# 「一則 review 寫成什麼形狀」只有一份，住在 review-pr 底下。它必須 inline 進 packet：
+# 執行者是 sub-agent，一份「讀不讀由你判斷」的形式規範對它不生效。這裡讀那一份、不抄它。
+COMMENT_FORM_PATH="${REVIEW_PR_REFS:-}/review-comment-form.md"
+if [[ -n "$REVIEW_PR_REFS" && -f "$COMMENT_FORM_PATH" ]]; then
+  # 去掉 YAML frontmatter：那幾行是給讀 reference 的人看的，放進 packet 只是雜訊。
+  COMMENT_FORM_BLOCK="$(awk 'NR==1 && $0=="---" {fm=1; next} fm && $0=="---" {fm=0; next} !fm' "$COMMENT_FORM_PATH")"
+else
+  COMMENT_FORM_BLOCK="旁邊沒有 review-pr 這支 skill，拿不到那一份形式規範。照上面的 inline
+dispatch context 做完，body 與 comment 的形狀自己判斷。"
+fi
+
 MANIFEST="["
 
 for i in $(seq 0 $((COUNT - 1))); do
@@ -236,6 +247,9 @@ Slack thread_ts: ${SLACK_THREAD_TS:-N/A}
 
 **Inline Dispatch Context**：
 ${BUNDLE_TEXT}
+
+**一則 review 寫成什麼形狀（能用圖或表講的就不要寫成散文）**：
+${COMMENT_FORM_BLOCK}
 
 **送出授權**：
 ${AUTHORIZATION_BLOCK}

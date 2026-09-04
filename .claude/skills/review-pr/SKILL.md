@@ -72,6 +72,7 @@ frontmatter 的 `description` 之前先讀那 13 句，問「改完之後這 13 
 |---|---|
 | Any run | `review-pr-entry-fetch-flow.md`, `pr-input-resolver.md`, `workspace-config.yaml` |
 | Analysis | `review-pr-analysis-flow.md`, `library-change-protocol.md` as needed |
+| Writing findings up | `review-comment-form.md` |
 | Submit and notify | `review-pr-submit-flow.md`, `scripts/validate-language-policy.sh`, `external-write-gate.md`, `github-slack-user-mapping.md` |
 | Re-review | `review-pr-rereview-learning-flow.md`, `review-lesson-extraction.md` |
 

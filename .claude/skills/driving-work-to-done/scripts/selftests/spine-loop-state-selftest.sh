@@ -296,33 +296,35 @@ grep -q 'predates stations' <<<"$(bash "$LOOP" where --state "$S9")" \
 # 六格之後這個案例更該在：單本來就住在格子裡，往上數幾層永遠是錯的答案。
 S10_ROOT="$WORK/issues10"
 mkdir -p "$S10_ROOT/ns/backlog/T/.spine" "$S10_ROOT/ns/done/OTHER/.spine"
+T_DIR() { find "$S10_ROOT/ns" -type d -name T -not -path '*/.spine/*' | head -1; }
+T_STATE() { echo "$(T_DIR)/.spine/loop-state.json"; }
+T_PLACEMENT_NOW() { echo "$(T_DIR)/.spine/placement.json"; }
 git -C "$S10_ROOT" init -q
 git -C "$S10_ROOT" config user.email t@t
 git -C "$S10_ROOT" config user.name t
-bash "$LOOP" init --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
+bash "$LOOP" init --state "$(T_STATE)" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
 printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/done/OTHER/.spine/loop-state.json"
 git -C "$S10_ROOT" add -A
 git -C "$S10_ROOT" commit -qm seed
 # T 收斂了：它身上沒有釋出紀錄，所以該推導成 done/，不是 released/。
 #
-# **問的是推導出來的那一格，不是它躺在哪一條路徑上**（DP-661）。重算不再搬目錄，所以這張
-# 單從頭到尾都待在 `ns/backlog/T`，而「它現在該在哪一格」寫在它自己的 `placement.json`。
-T_PLACEMENT="$S10_ROOT/ns/backlog/T/.spine/placement.json"
+# **問的是推導出來的那一格，不是它躺在哪一條路徑上。** DP-676 之後重算會把搬得動的單搬到
+# 那一格，所以這裡不寫死路徑——每次去找那張單現在在哪，然後讀它自己的 `placement.json`。
 slot_of() { python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("slot"))' "$1"; }
 
-bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --outcome converged >/dev/null
-[[ -f "$T_PLACEMENT" ]] \
+bash "$LOOP" record --state "$(T_STATE)" --outcome converged >/dev/null
+[[ -f "$(T_PLACEMENT_NOW)" ]] \
   || fail "重算沒有把推導結果寫回這張單：$(find "$S10_ROOT/ns" -maxdepth 3 -type d | tr '\n' ' ')"
-[[ "$(slot_of "$T_PLACEMENT")" == "done" ]] \
-  || fail "收斂的單沒有被推導成 done/：$(cat "$T_PLACEMENT")"
+[[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "done" ]] \
+  || fail "收斂的單沒有被推導成 done/：$(cat "$(T_PLACEMENT_NOW)")"
 [[ ! -d "$S10_ROOT/ns/backlog/backlog" && ! -d "$S10_ROOT/ns/done/done" ]] \
   || fail "重算把某一個格子當成了整棵樹"
-[[ ! -d "$S10_ROOT/ns/done/T" ]] \
-  || fail "重算搬了目錄——那一半在 DP-661 被拿掉了"
+[[ -d "$S10_ROOT/ns/done/T" ]] \
+  || fail "重算沒有把這張單搬到它算出來的那一格（DP-676）：$(T_DIR)"
 # 又沒收斂了：推導要跟著回到還在做的那一格。OTHER 收斂著，它的紀錄不受影響。
-bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --outcome unconverged >/dev/null
-[[ "$(slot_of "$T_PLACEMENT")" == "in-progress" ]] \
-  || fail "沒收斂的單沒有離開 done/：$(cat "$T_PLACEMENT")"
+bash "$LOOP" record --state "$(T_STATE)" --outcome unconverged >/dev/null
+[[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "in-progress" ]] \
+  || fail "沒收斂的單沒有離開 done/：$(cat "$(T_PLACEMENT_NOW)")"
 [[ "$(slot_of "$S10_ROOT/ns/done/OTHER/.spine/placement.json")" == "done" ]] \
   || fail "收斂著的那一張被動到了：$(cat "$S10_ROOT/ns/done/OTHER/.spine/placement.json")"
 
@@ -332,9 +334,9 @@ bash "$LOOP" record --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --ou
 # 這裡刻意不用「推到 verify-ac」當例子：T 是 `--pack none` 開的，不會動到 code 的工作
 # 沒有 review 這一格，所以它走到 verify-ac 仍然推成 in-progress——那是對的行為，拿它當
 # assertion 會量到一個永遠不動的東西。
-bash "$LOOP" advance --state "$S10_ROOT/ns/backlog/T/.spine/loop-state.json" --to refinement >/dev/null
-[[ "$(slot_of "$T_PLACEMENT")" == "backlog" ]] \
-  || fail "advance 把單推回 refinement，推導卻沒跟著換：$(cat "$T_PLACEMENT")"
+bash "$LOOP" advance --state "$(T_STATE)" --to refinement >/dev/null
+[[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "backlog" ]] \
+  || fail "advance 把單推回 refinement，推導卻沒跟著換：$(cat "$(T_PLACEMENT_NOW)")"
 echo "  ok  換站別之後位置跟著換"
 
 
