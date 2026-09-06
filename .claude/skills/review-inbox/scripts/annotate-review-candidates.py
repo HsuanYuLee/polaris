@@ -94,6 +94,10 @@ def fetch_file_metadata(candidate: dict, offline: bool) -> None:
             "additions": item.get("additions"),
             "deletions": item.get("deletions"),
             "status": item.get("status"),
+            # 區塊就在同一份回應裡，不用多打一次 API。留的是 base 那一側的行號範圍，
+            # 不是整份 patch：兩顆 PR 從同一個 base 長出來，只有 base 那一側可比——
+            # 新的那一側各自被自己的新增行推移過，比出來的重疊是假的。
+            "hunks": old_side_hunks(item),
         }
         for page in pages
         if isinstance(page, list)
@@ -137,6 +141,91 @@ def thread_ts(candidate: dict, mapping: dict) -> str | None:
         if candidate.get(key):
             return str(candidate[key])
     return None
+
+
+HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+")
+
+# 整個檔案都算數的那一種：新增或刪除掉整個檔案時，base 那一側沒有可比的行號範圍，
+# 而「兩顆 PR 都動了同一個路徑的存在與否」本來就是最強的交集。
+WHOLE_FILE = "whole-file"
+
+
+def old_side_hunks(item: dict) -> list | str:
+    """一個檔案在 base 那一側被動到的行號範圍。"""
+    if item.get("status") in ("added", "removed", "renamed"):
+        return WHOLE_FILE
+    patch = item.get("patch")
+    if not isinstance(patch, str) or not patch:
+        # 二進位檔、或 GitHub 因為太大而省略 patch 的檔案。**不要當成沒動到**——
+        # 回 None 讓上層讀成「這個檔量不到」，而量不到走完整 review。
+        return None
+    ranges = []
+    for line in patch.splitlines():
+        match = HUNK_RE.match(line)
+        if not match:
+            continue
+        start = int(match.group(1))
+        count = int(match.group(2)) if match.group(2) is not None else 1
+        # count 0 是純插入：base 那一側沒有被刪掉的行，插入點本身就是它的位置。
+        ranges.append((start, start + count - 1) if count else (start, start))
+    return ranges or None
+
+
+def hunks_by_file(candidate: dict) -> dict | None:
+    """這顆 PR 每個檔案在 base 那一側動到哪裡。整顆量不到就回 None。"""
+    files = candidate.get("files")
+    if not isinstance(files, list) or not files:
+        return None
+    out = {}
+    for item in files:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("filename")
+        if not name:
+            continue
+        out[str(name)] = item.get("hunks", None)
+    return out or None
+
+
+def shared_change(left: dict, right: dict) -> tuple[bool, str]:
+    """兩顆 PR 的改動有沒有交集，以及一句說得出憑什麼的理由。
+
+    回 (False, 理由) 的三種情形要分得開，因為它們要人做的事不同：沒有共用檔案、
+    共用了而區塊不重疊、以及根本量不到。**量不到不得讀成有交集**——判錯成 cluster
+    的代價是一顆 PR 只被半審過，判錯成 standalone 的代價只是多花一次 review。
+    """
+    left_files = hunks_by_file(left)
+    right_files = hunks_by_file(right)
+    if left_files is None or right_files is None:
+        return False, "same_repo_unmeasurable:兩顆之中有一顆量不到改動清單"
+
+    shared = sorted(set(left_files) & set(right_files))
+    if not shared:
+        return False, "same_repo_no_shared_file:兩顆沒有共用任何一個檔案"
+
+    unmeasurable = []
+    for name in shared:
+        lh = left_files[name]
+        rh = right_files[name]
+        if lh is None or rh is None:
+            unmeasurable.append(name)
+            continue
+        if lh == WHOLE_FILE or rh == WHOLE_FILE:
+            return True, f"same_repo_overlap:{name}（整個檔案）"
+        for l_start, l_end in lh:
+            for r_start, r_end in rh:
+                if l_start <= r_end and r_start <= l_end:
+                    return True, f"same_repo_overlap:{name}@{l_start}-{l_end}"
+
+    if unmeasurable:
+        return False, (
+            "same_repo_unmeasurable:共用 "
+            + ", ".join(unmeasurable)
+            + " 而這幾個檔沒有區塊資訊"
+        )
+    return False, (
+        "same_repo_disjoint_hunks:共用 " + ", ".join(shared) + " 而區塊完全不重疊"
+    )
 
 
 def file_names(candidate: dict) -> list[str]:
@@ -223,6 +312,7 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
         candidate["cluster_size"] = 1
         candidate["cluster_lead_url"] = ""
         candidate["cluster_lead_summary"] = str(candidate.get("cluster_lead_summary") or "")
+        candidate["cluster_reason"] = "standalone:沒有第二顆 PR 共用這個 cluster 鍵" if cluster_key else "standalone:算不出 cluster 鍵"
         enriched.append(candidate)
         if cluster_key:
             cluster_groups.setdefault(cluster_key, []).append(candidate)
@@ -232,8 +322,37 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
             continue
         group.sort(key=lambda item: (str(item.get("repo") or ""), int(item.get("number") or 0)))
         lead = group[0]
-        for item in group:
-            item["cluster_size"] = len(group)
+
+        # 鍵相同不等於同一批改動。**同一個 repo 的兩顆要量得到交集才算 sibling**——
+        # 一則 Slack thread 裡放兩張不同單的 PR 是常態，而 sibling 走的是 lead summary
+        # 的六條判準，不做完整 review。真跑量到過一次：兩張不同單的 PR 落在同一則
+        # thread，同一個 repo、同一個 controller 檔案，而區塊零重疊。
+        #
+        # **跨 repo 的兩顆不套這條**，因為那裡量不到交集，而「同一件事在三個 repo 各開
+        # 一顆」正是 sister PR 這個功能要服務的形狀。這一格是刻意放行的，理由字串說得出來。
+        kept = [lead]
+        for item in group[1:]:
+            if str(item.get("repo") or "") != str(lead.get("repo") or ""):
+                item["cluster_reason"] = "cross_repo_key_only:跨 repo，改動交集量不到，鍵相同即成立"
+                kept.append(item)
+                continue
+            overlaps, reason = shared_change(lead, item)
+            item["cluster_reason"] = reason
+            if overlaps:
+                kept.append(item)
+
+        if len(kept) < 2:
+            # 只剩 lead 自己：這一組不是 cluster。**lead 的理由要覆寫**——它進來時帶著
+            # 「沒有第二顆 PR 共用這個 cluster 鍵」那句預設，而那句在這裡是假的：有第二顆，
+            # 只是它量不到交集。寫成 `or` 的那一版永遠不會覆寫，因為預設值恆為真值。
+            lead["cluster_reason"] = (
+                f"demoted:鍵相同的有 {len(group)} 顆，沒有一顆量得到與這一顆的改動交集"
+            )
+            continue
+
+        lead["cluster_reason"] = "cluster_lead:這一組的 lead"
+        for item in kept:
+            item["cluster_size"] = len(kept)
             item["cluster_lead_url"] = lead.get("url") or ""
             item["cluster_role"] = "cluster_lead" if item is lead else "cluster_sibling"
 

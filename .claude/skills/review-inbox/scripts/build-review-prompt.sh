@@ -228,6 +228,9 @@ print(m.group(1) if m else f'UNRESOLVED-REPO-SLUG-FROM/{url}')
   CLUSTER_SIZE=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_size',1))")
   CLUSTER_LEAD_URL=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_url',''))")
   CLUSTER_LEAD_SUMMARY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_summary',''))")
+  # 這一顆為什麼被判成 cluster（或為什麼沒有）。一個沒有人讀得到的理由等於沒有理由，
+  # 所以它同時進 packet 與 manifest。
+  CLUSTER_REASON=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_reason',''))")
   TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ticket_key') or '')")
   ROOT_TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_ticket_key') or '')")
   ROOT_TOPIC_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_topic_key') or '')")
@@ -327,6 +330,7 @@ ${EXTRA_REFS_BLOCK}
 - **送出之前把 existing comments 再抓一次。** 你 review 的期間別人可能也留了意見——2026-08-26 的 #3009 就是這樣重複了兩則。
 
 **Cluster / Model Tier Rules**：
+- 這一顆的 cluster 判定憑什麼：${CLUSTER_REASON:-N/A}。\`same_repo_overlap\` 是量到的改動交集，\`cross_repo_key_only\` 是跨 repo 量不到交集而憑鍵放行的——後者代表「同一批改動」這件事沒有被驗證過，sibling-diff mode 下要自己確認。
 - Model class hint 是一個事實，不是一道指令：它說的是這張 PR 的規模與風險等級。派工的人拿它判斷，adapter 認不認得這個類別由那一層決定。
 - \`cluster_lead\`：完整 review 本 PR，Detail artifact 必須留下可被 sibling PR 使用的一句 lead review summary。
 - \`cluster_sibling\`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL:-N/A}。Lead summary = ${CLUSTER_LEAD_SUMMARY:-N/A}。
@@ -378,7 +382,7 @@ PROMPT
 
   # Build manifest entry
   if [[ $i -gt 0 ]]; then MANIFEST+=","; fi
-  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\",\"ticket_key\":\"${TICKET_KEY}\",\"root_ticket_key\":\"${ROOT_TICKET_KEY}\",\"root_topic_key\":\"${ROOT_TOPIC_KEY}\",\"slack_thread_ts\":\"${SLACK_THREAD_TS}\"}"
+  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\",\"cluster_reason\":\"${CLUSTER_REASON}\",\"ticket_key\":\"${TICKET_KEY}\",\"root_ticket_key\":\"${ROOT_TICKET_KEY}\",\"root_topic_key\":\"${ROOT_TOPIC_KEY}\",\"slack_thread_ts\":\"${SLACK_THREAD_TS}\"}"
 done
 
 MANIFEST+="]"

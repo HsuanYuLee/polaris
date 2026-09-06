@@ -99,6 +99,18 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
    topic，使用 `root_topic_key`；最後才 fallback 到每張 PR 自己的 ticket。
+
+   **鍵相同不等於同一批改動。** 同一個 repo 的兩顆 PR 要進同一個 cluster，還要量得到改動
+   交集——共用一個檔案，而且該檔在 base 那一側的 hunk 區塊重疊。量不到就兩顆都走完整
+   review：sibling 走的是 lead summary 的六條判準，判錯的代價是一顆 PR 只被半審過，而判成
+   standalone 的代價只是多花一次 review。**跨 repo 的兩顆不套這條**，因為那裡量不到交集，
+   而「同一件事在三個 repo 各開一顆」正是 sister PR 要服務的形狀。每一顆都帶著一句
+   `cluster_reason` 說出憑什麼——它分得出這一顆的交集是量到的（`same_repo_overlap`）還是
+   量不到而放行的（`cross_repo_key_only`）。
+
+   這條規則來自一次真跑的收件匣：同一則 thread 裡有兩張不同單的 PR，同一個 repo、
+   同一個 controller 檔案，而區塊零重疊。舊的判準讓後面那顆走 sibling，於是它只被
+   lead 的六條判準看過，漏掉一條 must-fix。
 6. 若 candidates 為空**而且 probe 回的是 `POLARIS_DISCOVERY_LEGITIMATE_EMPTY`**，回報目前
    沒有需要 review 的 PR 並停止。probe 沒過的空清單不是空的收件匣，是來源壞掉了。
 7. 顯示排序後清單，然後全部進入 review。**不問「先看哪一批」、不問「要不要送」、不因為
