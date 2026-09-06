@@ -559,15 +559,34 @@ def declared_landing(index_path):
     return [] if out == ["unlanded"] else out
 
 
+def _real(path):
+    """把一個路徑正規化到「檔案系統上的同一個地方只有一種寫法」。
+
+    `os.path.realpath` 把沿路的 symlink 解開，解不開的部分原樣留著（不存在的路徑不會
+    報錯）——所以它對「還沒存在的目的地」與「真的在那裡的工作區」都答得出來。
+
+    **為什麼不能只用 `abspath`。** macOS 的 `/var` 是 `/private/var` 的 symlink，而
+    使用者也可以把工作樹放在自己做的 symlink 底下。那時候證據記下的是解開之後的實體
+    路徑（`run-hardened-oracle.sh` 從它讓命令跑起來的那個目錄取），而單的落腳處宣告是
+    人寫的、多半是那條 symlink——**兩個字串永遠不相等，而它們指的是同一個地方**。
+    比對回 `None`，讀起來是「這棵樹不在宣告的落腳處裡」，那句話是假的。
+
+    這個洞 2026-09-06 被 DP-683 的探針繞開過一次（它用 realpath 建 fixture 才跑得動），
+    所以那一輪沒有修到這一半。"""
+    return os.path.realpath(path)
+
+
 def _covers(tree_abs, cand):
-    """cand 這個位置落在 tree_abs 這棵樹裡（等於它，或在它底下）。"""
-    cand = os.path.abspath(cand)
+    """cand 這個位置落在 tree_abs 這棵樹裡（等於它，或在它底下）。
+
+    兩邊都先解開 symlink，否則同一個地方的兩種寫法會被判成兩棵樹。"""
+    cand = _real(cand)
     return cand == tree_abs or cand.startswith(tree_abs.rstrip(os.sep) + os.sep)
 
 
 def _ancestors(path):
     """path 自己，然後一路往上到檔案系統根。"""
-    cur = os.path.abspath(path)
+    cur = _real(path)
     while True:
         yield cur
         nxt = os.path.dirname(cur)
@@ -599,8 +618,9 @@ def covering_landing(tree, declared, issue_dir):
     `/` 不會通吃：第一條要相等（它不是含著單的那棵工作區），第二條要解開的位置真的
     存在（`/issues/ns/box/T6` 不在）。
     """
-    tree_abs = os.path.abspath(tree)
-    issue_abs = os.path.abspath(issue_dir)
+    # 兩邊都解開 symlink：宣告與證據對同一個地方可以有兩種寫法，而字串比對分不出來。
+    tree_abs = _real(tree)
+    issue_abs = _real(issue_dir)
     for d in declared:
         if os.path.isabs(d):
             if _covers(tree_abs, d):

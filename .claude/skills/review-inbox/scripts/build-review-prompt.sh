@@ -16,6 +16,7 @@
 #                 明講未授權，執行者產出 payload 但不送出。轉述不算授權——D-N1。
 #
 # Output: One file per PR in out-dir: review-prompt-{repo}-{number}.txt
+#         （repo 裡的 `/` 在檔名上換成 `-`；repo 這個值本身不動）
 #         Also writes manifest with [{file, pr_url, number, repo}]
 #
 # Usage:
@@ -248,7 +249,17 @@ print(m.group(1) if m else f'UNRESOLVED-REPO-SLUG-FROM/{url}')
       ;;
   esac
 
-  PROMPT_FILE="$OUT_DIR/review-prompt-${REPO}-${NUMBER}.txt"
+  # repo 可能是 `owner/name`。直接嵌進檔名的話，那條路徑指向一個不存在的子目錄，
+  # `cat >` 失敗——而失敗的樣子是這顆 PR 的 packet 寫不出來，review 安靜地少一顆。
+  # 今天沒壞是因為真實候選 JSON 的 repo 恰好是裸名字，那是巧合不是契約。
+  #
+  # 只換檔名，不換 repo 這個值本身：packet 正文與 manifest 的 `repo` 欄位仍然是候選
+  # 給的那個字串，因為下游拿它去組本機路徑（`${BASE_DIR}/${REPO}`）。
+  # 名字不能叫 REPO_SLUG——那個名字上面 :215 已經在用了，裝的是從 PR URL 解出來的
+  # owner/name，packet 裡三處 `--repository` 都吃它。第一版就是這樣蓋掉它的，
+  # review-packet-head-binding-selftest 當場判紅並指名那三處的值變成了裸名字。
+  REPO_FILE_PART="${REPO//\//-}"
+  PROMPT_FILE="$OUT_DIR/review-prompt-${REPO_FILE_PART}-${NUMBER}.txt"
 
   cat > "$PROMPT_FILE" <<PROMPT
 Review PR: ${URL}
