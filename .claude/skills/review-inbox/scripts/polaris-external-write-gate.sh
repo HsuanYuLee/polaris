@@ -23,6 +23,26 @@ EOF
   exit 2
 }
 
+# **署名標記的宣告源。** 字串與適用範圍都在這裡，別處不重寫一份字面值——要用的人跑
+# `--print-attribution-mark` 問它。兩份各自演化的字面值會讓「送出時加的那一句」與「讀的
+# 那一端認的那一句」慢慢對不上，而對不上的那一刻沒有任何輸出說得出來。
+#
+# 帳號記的是誰送的，不記誰想的。用別人的帳號貼出去的東西，下一輪讀回來作者是那個人，
+# 於是它變成那個人的意圖——2026-08 有一條六步的鏈就是這樣走完的：我寫的一則留言在下一輪
+# 被抬成「規格權威」，蓋掉真正提單的人寫的東西。
+#
+# Slack 不在這張表上：那個管道自己就標著「Sent using @Claude」，再署一次是同一個資訊的
+# 第二份，而它佔的是末尾最後被讀到的位置。
+POLARIS_ATTRIBUTION_MARK="由 Claude Code 代發"
+POLARIS_ATTRIBUTED_SURFACES=(
+  "github-review"
+  "github-comment"
+)
+if [[ "${1:-}" == "--print-attribution-mark" ]]; then
+  printf '%s\n' "$POLARIS_ATTRIBUTION_MARK"
+  exit 0
+fi
+
 surface=""
 body_file=""
 mode="artifact"
@@ -153,6 +173,19 @@ fi
 # 拿去寫 jira-comment，而沒有任何一步會問。所以登錄多一筆的同一輪要把它放大到每一個 surface。
 if [[ "${writer_token##*:}" != "$surface" ]]; then
   echo "POLARIS_EXTERNAL_WRITE_WRITER_SURFACE_MISMATCH:writer=$writer_token:surface=$surface" >&2
+  exit 2
+fi
+
+# 宣告在檔案開頭（那裡也開著 --print-attribution-mark 的口）。這裡只用它。
+attribution_required=0
+for attributed_surface in "${POLARIS_ATTRIBUTED_SURFACES[@]}"; do
+  [[ "$attributed_surface" == "$surface" ]] && { attribution_required=1; break; }
+done
+if [[ "$attribution_required" -eq 1 ]] && ! grep -qF "$POLARIS_ATTRIBUTION_MARK" "$body_file"; then
+  echo "POLARIS_EXTERNAL_WRITE_ATTRIBUTION_MISSING:surface=$surface" >&2
+  echo "這個 surface 掛在一個人的帳號底下送出，所以內容要說出這是誰代誰發的。" >&2
+  echo "body 裡要出現「${POLARIS_ATTRIBUTION_MARK}」，例如結尾接一行：" >&2
+  echo "  _（${POLARIS_ATTRIBUTION_MARK}）_" >&2
   exit 2
 fi
 

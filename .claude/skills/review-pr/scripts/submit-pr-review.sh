@@ -149,6 +149,25 @@ list_commits_between() {
 # 送出前再問一次當下 head。**這一段刻意排在 external write gate 前面**：它會往 body 尾巴
 # 接一段附註，而那段字必須跟 body 的其餘部分走同一道語言與 payload 檢查——接在閘後面的話，
 # 送出去的內容就有一段沒有人驗過。
+# 署名。**這一段跟下面的 head 附註一樣要排在 external write gate 前面**：閘會要求
+# body 帶著這個標記（宣告源在 polaris-external-write-gate.sh 的 POLARIS_ATTRIBUTED_SURFACES
+# 那一段），而接在閘後面的字沒有過語言與 payload 檢查。
+#
+# 這則 review 掛在一個人的 GitHub 帳號底下，而 GitHub 沒有原生標示。不署名的話它讀起來
+# 就是那個人自己寫的——然後下一輪讀回來，它是那個人的意圖。
+# 標記字串問閘，不在這裡重寫一份——閘等一下就要拿它檢查這份 body，兩份字面值對不上的
+# 那一刻沒有任何輸出說得出來。
+POLARIS_ATTRIBUTION_MARK="$(bash "$ROOT/scripts/polaris-external-write-gate.sh" --print-attribution-mark)"
+if [[ "$submit" -eq 1 && -n "$POLARIS_ATTRIBUTION_MARK" ]] \
+   && ! grep -qF "$POLARIS_ATTRIBUTION_MARK" "$body_file"; then
+  signed_body="$(mktemp -t polaris-pr-review-signed.XXXXXX.md)"
+  {
+    cat "$body_file"
+    printf '\n\n_（%s）_\n' "$POLARIS_ATTRIBUTION_MARK"
+  } > "$signed_body"
+  body_file="$signed_body"
+fi
+
 head_note=""
 head_advanced=0
 head_unresolved=0
@@ -184,7 +203,7 @@ if [[ "$head_advanced" -eq 1 ]]; then
 fi
 
 tmp="$(mktemp -t polaris-pr-review.XXXXXX.json)"
-trap 'rm -f "$tmp" "${merged_body:-}"' EXIT
+trap 'rm -f "$tmp" "${merged_body:-}" "${signed_body:-}"' EXIT
 python3 - "$repository" "$pull_number" "$event" "$body_file" "$comments_file" "$reviewed_head" "$tmp" <<'PY'
 import json, sys
 from pathlib import Path
