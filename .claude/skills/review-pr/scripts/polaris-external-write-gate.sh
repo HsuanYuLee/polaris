@@ -122,6 +122,12 @@ starlight_gate="$workspace/scripts/validate-starlight-authoring.sh"
 # 目錄，指過去的路徑在那裡永遠解不出來。一份宣告只有一個家，而它的家是用它的地方。
 POLARIS_EXTERNAL_WRITERS=(
   "review-pr:github-review"
+  # 回一則 review thread 的純留言（更正、補充、回作者的問題）。這個 surface 一直都在
+  # 支援清單裡、散文那一份也一直寫著它適用，缺的只有這一筆登錄——於是一個每天都在做的
+  # 動作被 fail-closed 擋住，而擋住它的結果不是那個動作不發生，是它改走別的路：
+  # 2026-09-04 那一次繞去 validate-language-policy.sh，那條路不做 surface 與 payload 檢查。
+  # **一道擋住日常動作的閘，會把自己教成一道沒有人走的閘。**
+  "review-pr:github-comment"
 )
 
 if [[ -z "$writer_token" ]]; then
@@ -138,14 +144,19 @@ if [[ "$writer_registered" -ne 1 ]]; then
   exit 2
 fi
 
+# writer token 形如 {skill}:{surface}；surface 段必須與 --surface 相符，避免註冊給某一個
+# surface 的 writer 被拿去寫另一個。
+# （原本由已退役的 transition registry 提供，改由 token 自身推導，不新增對照表。）
+#
+# **這條檢查以前只管 github-review。** 那時候表上只有一筆，所以「跨 surface 用」沒有第二個
+# 目標可跨；表上一多一筆，那個前提就不成立了——`review-pr:github-review` 這個 token 可以
+# 拿去寫 jira-comment，而沒有任何一步會問。所以登錄多一筆的同一輪要把它放大到每一個 surface。
+if [[ "${writer_token##*:}" != "$surface" ]]; then
+  echo "POLARIS_EXTERNAL_WRITE_WRITER_SURFACE_MISMATCH:writer=$writer_token:surface=$surface" >&2
+  exit 2
+fi
+
 if [[ "$surface" == "github-review" ]]; then
-  # writer token 形如 {skill}:{surface}；surface 段必須與 --surface 相符，
-  # 避免註冊給其他 surface 的 writer 被拿來送 GitHub review。
-  # （原本由已退役的 transition registry 提供，改由 token 自身推導，不新增對照表。）
-  if [[ "${writer_token##*:}" != "$surface" ]]; then
-    echo "POLARIS_EXTERNAL_WRITE_WRITER_SURFACE_MISMATCH:writer=$writer_token:surface=$surface" >&2
-    exit 2
-  fi
   [[ -f "$payload_file" ]] || {
     echo "POLARIS_EXTERNAL_WRITE_PAYLOAD_REQUIRED:github-review" >&2
     exit 2
