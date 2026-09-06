@@ -87,6 +87,18 @@ INDEX="$ISSUE_DIR/index.md"
 
 # A source that cannot prove its assertions are the ones that were signed has
 # nothing to deliver against.
+# fence 的 NEW 狀態在這裡不可能是合法的。`verify` 對它回 0 是刻意的——seal 與凍結那顆
+# commit 之間本來就會看到它——但那個區間在流程的另一頭，而這裡是出貨前最後一刻。
+# 讓它過去的話，交出去的是一份「成功的定義從來沒有被 commit 過」的交付：事後補 commit
+# 之後 fence 會綠，而「這段期間沒有人動過斷言」永遠證明不了。
+FENCE_OUT="$(bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$INDEX" 2>&1)" || true
+if printf '%s' "$FENCE_OUT" | grep -q '^NEW: '; then
+  die "POLARIS_SPINE_DELIVERY_FENCE_NEVER_COMMITTED" \
+    "$INDEX 的 fence 從來沒有被 commit 過，交付紀錄不寫。" \
+    "凍結＝commit。verify 印的是：" \
+    "$(printf '%s' "$FENCE_OUT" | sed -n '/^NEW: /,$p' | sed 's/^/  /')" \
+    "修法：把這張單 commit 進它自己的 repo，然後重跑這一條。"
+fi
 if ! bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$INDEX" >/dev/null 2>&1; then
   die "POLARIS_DELIVERY_INTENT_FENCE_UNVERIFIED" \
     "$INDEX did not pass fence verification; refusing to record delivery intent." \

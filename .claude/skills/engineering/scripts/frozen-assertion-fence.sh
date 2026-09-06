@@ -236,8 +236,14 @@ assert_unchanged_since() {
       echo "MOVED: $rel 在 ${ref} 上叫 ${renamed_from}；比對的是它搬家前的內容"
       rel="$renamed_from"
     else
-      # A new fence is signed, not compared.
+      # A new fence is signed, not compared. **離場碼刻意是 0**：第一次 seal 之後、
+      # 凍結那顆 commit 之前，檔案本來就不在 HEAD，而 refinement 說「隨時可重算比對」。
+      # 但那一行以前讀起來像一句中性的狀態，於是它在錯的時間點出現時沒有人當一回事
+      # ——真的有一張單走完三站，實作做完了才有人讀到它。所以話要說完。
       echo "NEW: $rel does not exist at ${ref}; nothing to compare against"
+      echo "     凍結還沒有發生：凍結＝commit，而這個檔案還不在歷史裡。現在這個校驗值"
+      echo "     證明不了任何事——它跟一份事後補上去的 fence 長得一模一樣。"
+      echo "     這一行只有在 seal 與凍結那顆 commit 之間才是正常的。"
       return 0
     fi
   fi

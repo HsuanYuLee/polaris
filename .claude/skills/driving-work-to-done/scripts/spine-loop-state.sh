@@ -874,8 +874,45 @@ print(" ".join(out))' "$STATE")"
   return "$rc"
 }
 
+refuse_if_issue_never_committed() {
+  # Description: 這張單的正文在不在它自己那個 repo 的 HEAD 上。
+  # Args: $1 = 這張單的 .spine/loop-state.json 路徑。
+  # Side effects: 不在就 die；問不到 git 歷史就說出來並放行。
+  #
+  # **凍結＝commit，而在這一條之前沒有任何一站問過那顆 commit 在不在。** 未追蹤的單身上
+  # `seal` 簽得下去、`verify` 回 0（印一行 NEW: … does not exist at HEAD）、`init` 不問、
+  # 交付那一站走的也是同一支 verify 而它一樣回 0——四站全綠。真的發生過一次，而那一次是**有人讀到那行字**
+  # 才發現的，不是被擋下來的，而那時候實作已經全部做完。
+  #
+  # 只問「在不在 HEAD」，不問 fence 的內文對不對得上：refinement 明講「第 2 步之前先跑一次
+  # init 是划算的」，那個時候 fence 還沒簽。要問內文的是交付那一站，它在流程的另一頭。
+  local state="$1" issue_dir repo_root prefix rel
+  issue_dir="$(cd "$(dirname "$state")/.." 2>/dev/null && pwd)" || return 0
+  [[ -f "$issue_dir/index.md" ]] || return 0
+  repo_root="$(git -C "$issue_dir" rev-parse --show-toplevel 2>/dev/null)" || {
+    echo "[spine-loop-state] 這張單不在一個 git repo 裡，所以「它有沒有被 commit」問不到，這一條不適用。" >&2
+    return 0
+  }
+  # **不要拿 issue_dir 減掉 repo_root。** macOS 的 /var 是 /private/var 的 symlink，而
+  # `cd && pwd` 給的是邏輯路徑、`rev-parse --show-toplevel` 給的是實體路徑——同一個地方
+  # 的兩種寫法，相減剪不掉，rel 於是變成一條絕對路徑，然後 cat-file 永遠說找不到。
+  # 已經 commit 進去的單也會被判成沒 commit，而那個紅跟真的沒 commit 長得一模一樣。
+  prefix="$(git -C "$issue_dir" rev-parse --show-prefix 2>/dev/null)" || return 0
+  rel="${prefix}index.md"
+  git -C "$repo_root" cat-file -e "HEAD:$rel" 2>/dev/null && return 0
+  # HEAD 本身不存在（一顆 commit 都還沒有的 repo）也走到這裡，而那跟「單沒被 commit」
+  # 是同一件事：沒有任何歷史證明得了這張單當時長什麼樣。
+  die "POLARIS_SPINE_ISSUE_NOT_COMMITTED" \
+    "這張單的 ${rel} 不在 ${repo_root} 的 HEAD 上，輪次不開。
+凍結＝commit。單沒有 commit 的話，seal 算出來的那個校驗值證明不了任何事——它跟一份
+事後補上去的 fence 長得一模一樣，而「這段期間沒有人動過斷言」永遠證明不了。
+修法：git -C ${repo_root} add -- ${rel%/index.md} && git -C ${repo_root} commit -m 'freeze: … assertion'
+然後重跑這一條。"
+}
+
 cmd_init() {
   parse_args "$@"
+  refuse_if_issue_never_committed "$STATE"
   local note_seed_upgrade=0
   [[ -n "$MAX_ROUNDS" ]] || MAX_ROUNDS="$DEFAULT_MAX_ROUNDS"
   [[ "$MAX_ROUNDS" =~ ^[1-9][0-9]*$ ]] \
