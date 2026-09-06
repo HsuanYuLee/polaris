@@ -35,6 +35,20 @@ diff。
 | all prior must-fix resolved or accepted, no new must-fix | `APPROVE` |
 | unresolved prior must-fix or new must-fix | `REQUEST_CHANGES` |
 | prior should-fix / nit resolved | `APPROVE` |
+| **prior should-fix / nit not landed** | **`APPROVE`**；那一則留在原地，不再擋 |
+| **prior should-fix / nit — author says they will not fix** | **`APPROVE`**；不同意就回一則說明，不改 verdict |
+
+**上一輪的 `should-fix` 沒落地，不擋。** 它從來沒有到過擋人的門檻，所以「上一輪提過」也
+不會讓它到。擋人的門檻只有一條——**這份 diff 讓系統變壞**，不是「我發現了一件真的事」。
+它的宣告源是 Severity Boundary 那一段，這裡不重講第二遍。
+
+**舊的擋、新的不擋，那個不對稱本身就是寫錯了的證據**——同一件事第一次提出來的時候只值
+`should-fix`，它不會因為被提過一次就升級。
+
+2026-09-06 的標本：一顆 must-fix 與一條 should-fix 都落地，第三條是一個**這顆 PR 一個
+hunk 都沒動的檔案**上的過期 docblock。當時派工的 prompt 手寫了一條「有任何一條沒落地就
+維持 `REQUEST_CHANGES`」——那條規則不在任何檔案裡，是因為這張表當時沒有那一列，於是下判斷
+的人自己填了一個。一顆已經有人 approve、當天要進 milestone 的 PR 差點被一則既有註解擋住。
 
 送出 review 前，先向使用者說明判斷與理由，取得確認後再送出。
 

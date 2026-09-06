@@ -176,6 +176,30 @@ else
 dispatch context 做完，body 與 comment 的形狀自己判斷。"
 fi
 
+# 「什麼擋 merge」跟「一則 review 寫成什麼形狀」是同一類東西：它是判定規則，而下判斷的
+# 是 sub-agent——一份列在「延伸參考、讀不讀由你判斷」裡的規則對它不生效。2026-09-06 真的
+# 發生過：那張判定表當時沒有「上一輪的 should-fix 沒落地」那一列，派工的人自己補了一條
+# 「沒落地就維持 REQUEST_CHANGES」，一顆已經有人 approve 的 PR 差點被一則既有註解擋住。
+#
+# 所以這裡把兩段 inline 進 packet，**讀 review-pr 那兩份、不抄它們**：門檻只有一個宣告源，
+# 改一次兩邊就都對。抄一份進來的話，下一次改的人只會改到其中一份。
+SEVERITY_PATH="${REVIEW_PR_REFS:-}/../SKILL.md"
+REREVIEW_PATH="${REVIEW_PR_REFS:-}/review-pr-rereview-learning-flow.md"
+VERDICT_RULES_BLOCK=""
+if [[ -n "$REVIEW_PR_REFS" && -f "$SEVERITY_PATH" ]]; then
+  VERDICT_RULES_BLOCK+="$(awk '/^## Severity Boundary/{f=1} f && /^## /  && !/^## Severity Boundary/{exit} f' "$SEVERITY_PATH")
+"
+fi
+if [[ -n "$REVIEW_PR_REFS" && -f "$REREVIEW_PATH" ]]; then
+  VERDICT_RULES_BLOCK+="
+$(awk '/^## Re-approve Decision/{f=1} f && /^## / && !/^## Re-approve Decision/{exit} f' "$REREVIEW_PATH")"
+fi
+if [[ -z "${VERDICT_RULES_BLOCK//[[:space:]]/}" ]]; then
+  VERDICT_RULES_BLOCK="旁邊沒有 review-pr 這支 skill，拿不到「什麼擋 merge」那份判定規則。
+**這種時候不要自己補一條**——擋人的門檻是「這份 diff 讓系統變壞」，不是「我發現了一件真的
+事」；判不出來的就留 COMMENT，不要升級成 REQUEST_CHANGES。"
+fi
+
 MANIFEST="["
 
 for i in $(seq 0 $((COUNT - 1))); do
@@ -250,6 +274,9 @@ ${BUNDLE_TEXT}
 
 **一則 review 寫成什麼形狀（能用圖或表講的就不要寫成散文）**：
 ${COMMENT_FORM_BLOCK}
+
+**什麼擋 merge（判定規則，不是參考）**：
+${VERDICT_RULES_BLOCK}
 
 **送出授權**：
 ${AUTHORIZATION_BLOCK}

@@ -103,6 +103,17 @@ Completion Envelope。Sub-agent 只做 analysis，不送出 review、不改檔�
 或違反關鍵規範。外部 API 行為、language/library behavior、或僅基於慣例的推論，在未驗證前
 最多是 `should-fix`。
 
+**擋人的門檻是「這份 diff 讓系統變壞」，不是「我發現了一件真的事」。** 這兩句常常同時成立
+而答案相反：一顆 PR 把事情往好的方向推，同時它旁邊躺著一個真的問題——那個問題是真的，但它
+不是這顆 PR 造成的，擋掉這顆 PR 也修不好它。
+
+所以**這顆 PR 一個 hunk 都沒動的檔案上的既有問題，不是 `must-fix`**。它仍然是一個發現，
+要有地方去：留一則 `COMMENT`，或開一張單。**不要讓它沒有落點**——一個沒有出口的發現，下一
+次會回到 `must-fix` 那一格，因為那是唯一保證有人看的地方。
+
+同一句話的另外兩個面：跨 repo 的上線順序、別人手上還沒做完的決定，這一份 diff 都改不了，
+所以它們也不擋。
+
 ## Write Rules
 
 - GitHub review、inline comments、Slack replies 都是 external write。
