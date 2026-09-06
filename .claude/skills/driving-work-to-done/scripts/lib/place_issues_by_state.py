@@ -578,6 +578,66 @@ def move_home(issues_root: str, row: dict) -> None:
     row["current"] = row["target"]
 
 
+def commit_moves(issues_root: str, pairs: list[tuple[str, str]]) -> list[str]:
+    """把這一次的搬動 commit 進單的目錄樹的歷史，只帶被搬的那幾張單的路徑。
+
+    **為什麼由這一支做，不由呼叫端做。** 搬動有三個呼叫端——釋出尾段、記一輪、關一張單
+    ——而洞在被呼叫的這一支身上。修其中一個呼叫端的話，另外兩條路上的單照樣躺在一個沒有
+    任何 commit 指著的路徑上：舊路徑在 git 眼裡是 `D`、新路徑是 `??`。任何人跑一次
+    `git clean -fd`，那些目錄整個消失，而 `git checkout -- .` 只救得回舊路徑那一份。
+    2026-09-06 這件事在一天內發生兩次：一次在釋出尾段（DP-619），一次在 `close`（五張單）。
+
+    **只有真的搬動了才寫。** 一次沒有搬動任何單的重算不留下任何 commit——而重算被記一輪
+    順手觸發是常態，所以這個條件不是省事，是這一段能掛在這裡的前提。
+
+    **窄且逐一指名的路徑，因為這棵樹是共用的。** 索引是這棵樹上唯一的共用可寫狀態：
+    `git add -A` 收整棵樹，不帶 pathspec 的 `git commit` 送出整個索引，兩者都會以這一次
+    搬動的名義帶走別人手上還沒 commit 的東西。而「先看一眼索引再 commit」是 check-then-act
+    ——那個窗由別人什麼時候打 commit 決定，不由跑的人的仔細程度決定。
+
+    形狀跟 `refinement/scripts/open-seed-issue.sh` 那一份一樣，不發明第二種：旗標寫在 `--`
+    前面（`--` 之後每個 token 都是路徑）。新路徑是未追蹤的，所以要先 `add` 才 commit 得到
+    它——那一小段窗裡別人的裸 commit 會把這次搬動帶走，但帶走的仍然只是這次搬動本身。
+
+    **失敗不讓重算失敗。** 搬動已經發生了，這一步回頭把整支判成失敗只會讓紀錄跟事實更遠。
+    但它不安靜：說出失敗的原因，以及一條把這件事補完的命令。
+    """
+    if not pairs:
+        return []
+    try:
+        subprocess.run(["git", "-C", issues_root, "rev-parse", "--git-dir"],
+                       check=True, capture_output=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ["搬動沒有 commit：單的目錄樹不是一個 git repo，這幾張只留在磁碟上。"]
+
+    paths: list[str] = []
+    for old, new in pairs:
+        for path in (old, new):
+            rel = os.path.relpath(path, issues_root)
+            if rel not in paths:
+                paths.append(rel)
+    subject = f"place: 歸位 {len(pairs)} 張"
+    body = "\n".join(f"{os.path.relpath(o, issues_root)} -> "
+                      f"{os.path.relpath(n, issues_root)}" for o, n in pairs)
+    try:
+        subprocess.run(["git", "-C", issues_root, "add", "--"] + paths,
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", issues_root, "commit", "-q",
+                        "-m", subject, "-m", body, "--"] + paths,
+                       check=True, capture_output=True)
+    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        detail = getattr(error, "stderr", b"") or b""
+        first = detail.decode("utf-8", "replace").strip().splitlines()
+        return [
+            "搬動沒有 commit——這一步沒有發生（搬動本身已經完成）。"
+            f"它說：{first[0] if first else error}",
+            "  補完：git -C " + issues_root + " add -- " + " ".join(paths),
+            "        git -C " + issues_root + " commit -m '" + subject + "' -- "
+            + " ".join(paths),
+        ]
+    return [f"搬動已經 commit 進歷史（{len(pairs)} 張，{len(paths)} 條路徑）"]
+
+
 OPEN_INDEX = "OPEN.md"
 
 
@@ -1034,8 +1094,12 @@ def main(argv=None) -> int:
         # **紀錄先寫、再搬。** 反過來的話，寫紀錄的那一步要處理「這張單剛剛換過位置」，
         # 而搬動失敗留下的就是一張沒有紀錄的單。這個順序讓紀錄跟著資料夾一起走。
         moved, blocked = plan_moves(rows)
+        # `move_home` 把 row["from_dir"] 改寫成新的位置，所以舊路徑要在搬之前留下來
+        # ——commit 那一步要同時指名舊路徑（它的刪除）與新路徑（它的新增）。
+        move_pairs = [(row["from_dir"], row["to_dir"]) for row in moved]
         for row in moved:
             move_home(issues_root, row)
+        commit_notes = commit_moves(issues_root, move_pairs)
         # 清單只在問過解析器的那種執行裡重寫。spine-only 看不到靠解析器回答的那些命名空間，
         # 讓它重寫等於每記一輪就把清單上的那些單全部刪掉一次。
         if not args.spine_only:
@@ -1048,6 +1112,8 @@ def main(argv=None) -> int:
     print(render(rows, abstained, mode, written, unwritable))
     if args.execute:
         print(f"歸位：搬了 {len(moved)} 張")
+        for line in commit_notes:
+            print(f"  {line}")
         for row in blocked:
             print(f"  沒搬 {row[0]['namespace']}/{row[0]['name']}：{row[1]}")
     if args.check and any(r["current"] is None or r["current"] != r["target"]
