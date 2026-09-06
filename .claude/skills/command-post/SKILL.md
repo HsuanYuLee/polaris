@@ -1,15 +1,24 @@
 ---
 name: command-post
-description: "Use when one session needs to command the other Claude sessions on this machine — to read the map of who holds what, to direct or suggest closing work, or to escalate a decision to the human. Reads each session's own declaration plus the local registry; never reads a peer's transcript and never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼'."
+description: "Commander mode: use when one session commands the other Claude sessions on this machine — to read the map of who holds what, to dispatch work (one-to-one or a mutual review between several sessions), to watch its own stability signals, to hand the commander role to the next session, or to escalate a decision to the human. Reads each session's own declaration plus the local registry; never reads a peer's transcript and never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼', '指揮官交棒', '指派互審'."
 scope: universal
 ---
 
-# command-post — 指揮所：圖、下令、往上請示
+# 指揮官模式 — 圖、下令、交棒、往上請示
 
 多個 session 同時活著的時候，**沒有人知道全貌**。忘記關掉的吃著整台機器；兩個對同一棵樹
 動手害彼此重跑；發號施令的那一個不知道別人手上有什麼，於是重複開單。
 
-這支 skill 做三件事：**畫地圖**、**指揮**、**問人的時候問得清楚**。
+這支 skill 做四件事：**畫地圖**、**指揮**（一對一派工，或指派幾個 session 互審）、
+**交棒**、**問人的時候問得清楚**。
+
+**指揮官是一個角色，不是一個 session。** 狀態全部住在檔案裡——session 登錄、每個 session
+自己寫的宣告、單樹的輪次狀態、板子上唯一手寫的那一格。任何讀了那幾份檔的 session 都接得
+起來，所以換一個不需要交接會議，只需要照〈五、交棒〉那一節走。
+
+**目錄名與腳本檔名仍然是 `command-post`。** 它是識別字：`POLARIS-ACTOR-IDENTITY` 那一行
+指著那條路徑，改名會讓每一張單的 `holders[]` 從下一次寫入起推不出是誰。名字給人讀，路徑
+給機器讀，兩者不必是同一個字。
 
 ## 一、地圖
 
@@ -190,6 +199,36 @@ python3 .claude/skills/command-post/scripts/command-post.py --order \
 只有板子答不出下一步、或自己走不下去，才停著等。少了它，「做完要回報」會被讀成「做完要
 停下來等回話」，而那正是 `driving-work-to-done` 列為退化訊號的第二條。
 
+### 指派兩個以上的 session 互審
+
+一對一的派工回答「誰去做」。有些問題不是「誰去做」，是**「這個結論站不站得住」**——而那個
+問題一個 session 自己答不了：它會去驗自己的結論，而去驗它會回綠
+（`.claude/rules/` 那一份講的同一件事：自己剛寫出來的判斷是草稿，不是根據）。
+
+```bash
+python3 .claude/skills/command-post/scripts/command-post.py --review \
+  --issue <那張單的路徑> --to <session A> --to <session B> [--to <session C>]... \
+  --about '<要互相下判斷的是什麼>' [--from <回報給誰>]
+```
+
+它**一個收件者產一則**，每一則指名它自己與其餘的人。**不產群發的那一種**：一則沒有指名
+收件者的指令，每一個收到的人都會以為對方會做。
+
+跟一對一差三樣，而那三樣正是「互審」與「兩則獨立的派工」的差別：
+
+| 多的那一格 | 少了它會怎樣 |
+|---|---|
+| 對方是誰 | 兩邊各做各的，回來兩份沒有對照過的結論 |
+| 要對對方的**什麼**下判斷（`--about`） | 一邊審實作、一邊審結論，兩份講的不是同一件事 |
+| 收斂不了的時候，**兩邊各自的結論與證據一起**送回指揮官 | 其中一邊自己挑一個送，而**分歧本身才是指揮官要的東西** |
+
+`--about` 缺了就 exit 2 並說出理由。**人數與模式對不上的兩種也各自擋**：`--review` 只給
+一個收件者是 exit 5（一個人審不了「互相」），`--order` 給超過一個是 exit 6（它是一對一，
+訊息會指去 `--review`）。**不安靜地產出一則看起來像的東西**——一個人的「互審」讀起來跟
+互審一模一樣，而收到的人沒有對象可以互審。
+
+**它跟一對一一樣不重講那份成功定義，只給路徑。**
+
 ### 指揮台那一頁：每一輪重讀
 
 ```bash
@@ -239,11 +278,56 @@ lost-in-the-middle（Manus 講的 recitation，
 一張正在施工、正被人接著的單在這張表上根本沒有列，而那正好是第五欄最該印出東西的那一種。
 它跟 `seed`／`stop` 重疊時用路徑去重，不會出現兩次。
 
-**它印出這個 session 壓縮過幾次，然後就停在那裡。** 不判斷該不該換一個——壓縮間隔量過
-是平的（1099／1248／1268／1149／1543／1270／1231／1111／1122），沒有加速的特徵，所以
-「開始過度壓縮」那一刻偵測不出來。發明一個門檻只會讓一個猜測看起來像一個量測。
+### 板子上的兩個不穩訊號
 
-### 派工的同時訂一次靜默
+**兩個都只印，不判斷該不該換一個。**
+
+| 訊號 | 從哪裡量到 | 為什麼不配門檻 |
+|---|---|---|
+| 壓縮過幾次 | transcript 裡的 `isCompactSummary` | 壓縮間隔量過是平的（1099／1248／1268／1149／1543／1270／1231／1111／1122），沒有加速的特徵，所以「開始過度壓縮」那一刻偵測不出來 |
+| 連續失敗的工具呼叫 | transcript 尾端 512 KB 裡的工具結果，從最新的往回數到第一次成功為止 | 沒有量過門檻。發明一個只會讓一個猜測看起來像一個量測 |
+
+第二個為什麼是**連續**而不是總數：總數會隨 session 變長而單調上升，於是它對「現在還穩不
+穩」永遠給同一個方向的答案。連續失敗會被任何一次成功歸零，所以它量得到的是當下。
+
+**只讀尾巴。** 這台機器上最大一份 transcript 92 MB，為了一個訊號讀完它，這支就變成它自己
+要避免的那件事。
+
+**「看了 43 筆、沒有一筆失敗」與「這個視窗裡一筆工具結果都沒有」是兩件事**，而它們都會是
+0，所以板子把它們印成兩句不同的話。後者答不出這個問題。
+
+外部做法對「誰來判不穩」有直接的一句：self-evaluation 有偏差，不穩要由外部量，不由那個
+agent 自己判（<https://www.anthropic.com/engineering/harness-design-for-long-running-applications>）。
+這兩個訊號是外部量的——它們讀的是磁碟上的 transcript，不是問那個 session「你還好嗎」。
+**而判斷仍然留給人**：印出來的是量，不是結論。
+
+### 心跳：靠排程，不靠某個人想起來
+
+**一條鏈的心跳不該是那個人。** 上面〈三〉開頭那一段量到的 22–24 小時全停，成因是唯一會
+叫醒它們的東西是有人送訊息。
+
+**以前這裡的解法是 `notify_when_idle`，那一版不夠**——它自己量到一個偵測不到的第三態
+（下一段），而一個有洞的偵測配上「有網子接著」的印象，比沒有網子糟。
+
+現在的解法是指揮官自己排一個班：**定期重讀板子、掃自己的收件匣**，不等任何人來敲。
+
+- **一次性的下一次**：`ScheduleWakeup`，說出這一次要等的是什麼、等多久。
+- **反覆的班表**：`CronCreate` / `CronList` / `CronDelete`。
+
+**間隔照那個要等的東西挑，不照一個好看的數字挑。** 等的是 CI 就照那條 pipeline 的長度；
+沒有特定訊號要等就拉長（20–30 分鐘一次），讓安靜的醒來很少。
+
+**這個做法自己的限制要說出來，它有兩個**：
+
+1. **排程活在那個 session 裡。** 那個 session 結束，班表跟著沒了——所以它守不住「指揮官
+   自己掛掉」這一種。守那一種的是〈五、交棒〉：狀態全住在檔案裡，換一個 session 讀得回來。
+2. **醒來的是指揮官，不是被派工的那一個。** 它讓指揮官定期回頭看，不會讓一個停住的
+   session 自己動起來。看到它停住之後要做的仍然是送一則訊息。
+
+### `notify_when_idle` 那一格：它偵測不到的第三態
+
+排程取代的是「心跳」，不是這一格——`notify_when_idle` 仍然可以在派工時順手訂，只是**不要
+把它當成網子**。
 
 `SendMessage` 的 `notify_when_idle: true` 讓那個 session 下次閒下來時回一則通知。
 **它是 one-shot，所以每一次派工都要重訂一次**——上一次的訂閱已經用掉了。
@@ -254,8 +338,8 @@ permission class as this one (or is one this session spawned); otherwise it is o
 here」，而它**從來不說這一次落在哪一邊**。`success: true` 在兩種情況下長得一模一樣。
 
 所以這條偵測有一個偵測不到的第三態：permission class 不同的 session 靜默了，通知只留在
-紀錄裡，指揮官這邊什麼都不會發生——而那跟「它還在忙」長得一樣。**這一種要靠指揮官自己
-回頭看地圖，不要當成有網子接著。**
+紀錄裡，指揮官這邊什麼都不會發生——而那跟「它還在忙」長得一樣。**這一種要靠上面那個排程
+自己回頭看地圖，不要當成有網子接著。**
 
 ### 收到 idle 通知不要立刻重訂，會自轉
 
@@ -289,10 +373,107 @@ here」，而它**從來不說這一次落在哪一邊**。`success: true` 在�
 每個 session 有自己的視窗，人看得見它在做什麼、隨時插得進去。收進同一個進程裡的那些
 只有指揮官看得到。
 
-Agent Teams 那一套（`TeamCreate` 之類）在這一版證不出來能用，而且就算能用，它的模式跟
-上面那句相反。**這支 skill 不依賴它。**
+### Agent Teams：這一次量到什麼
 
-## 四、問人的時候
+**以前這裡寫「證不出來能用」。那是一句沒有量的話**——它讀起來像一個結論，實際上只說了
+「我沒試」。2026-09-06 量了一次，量到的與沒量到的分開寫。
+
+**量到的**（在這台機器、CLI `2.1.260`、一個一般的互動 session 裡）：
+
+| 量的是 | 結果 |
+|---|---|
+| 這個 session 有沒有建立 team 的工具 | **沒有**。`ToolSearch 'select:TeamCreate,TeamAdd,TeammateIdle,TaskList'` 回 `No matching deferred tools found` |
+| 這個 session 有沒有 teammate | **沒有**。`ListAgents` 列 14 個 peer session、0 個 teammate |
+| 這台機器有沒有 team 的狀態 | `~/.claude/teams/` 存在（2026-08-30 建的）但**是空的** |
+| 這個 build 認不認得 team 這個概念 | **認得**。`TaskStop` 收 `name@team` 形狀的 id，`SendMessage` 與 `Agent` 的說明都提到 teammate |
+
+**所以量到的結論是**：功能在這個 build 裡，但**這個 session 呼叫不到它**。這跟「證不出來
+能用」不是同一句話——前者說得出缺的是什麼。
+
+**文件說的**（<https://code.claude.com/docs/en/agent-teams>，讀來的，不是量到的）：lead
+固定不能換、team 不能巢狀、`/resume` 不還原 teammate、有 `TeammateIdle` 與 `TaskCompleted`
+兩個 hook、teammate 之間有共用的 task list 與依賴。**這一段標成文件說的**，因為它一條都
+沒有在這台機器上被跑過。
+
+**還沒量到的，以及要怎麼驗**（留給下一個指揮官，一個新 session 才做得到）：
+
+1. 開一個新的互動 session，第一件事跑
+   `ToolSearch 'select:TeamCreate,TeamAdd'`。有東西回來就記下它的完整 schema；沒有就記
+   下這個 build 對一般 session 一律不給。
+2. 有的話，建一個兩人的 team，指派一件小工作，然後回答三個問題：**別的 session 看不看得
+   到那些 teammate**（`ListAgents` 有沒有列）、**人在自己的終端機看不看得到它們在做什麼**、
+   **`TeammateIdle` 會不會叫醒 lead**。
+3. 第二題的答案決定要不要用它。**那一題不是效能問題，是可見性問題**——下面〈每個 session
+   維持是自己的視窗〉那一段就是為它存在的。
+
+**在那之前，這支 skill 不依賴 Agent Teams。** 不依賴的理由不是「它不能用」，是**上面第 2
+步還沒有人跑過**。
+
+## 四、交棒：指揮官是角色，不是 session
+
+換一個指揮官不需要交接會議。**要交的東西只有一格，其餘全部讀得回來。**
+
+### 接手的人照這個順序讀
+
+一步一步，每一步答一個問題。**前四步都不需要問任何人。**
+
+| 序 | 讀什麼 | 答的是 |
+|---|---|---|
+| 1 | `--board --issues <單樹根>` | 在飛的單有哪些、誰接著、這台機器上有哪些 session、前一個指揮官在等什麼 |
+| 2 | `--whoami` | 我自己是哪一個 session。**它印的是 sessionId，不是名字**——要名字的話拿它去比板子那份 session 清單的宣告路徑 |
+| 3 | 板子上還在飛的那幾張單 | 這一輪真正的優先序。**不是「第一列那張」**——第一列是脊椎建議的下一張，那跟指揮官手上的優先序常常不同 |
+| 4 | 這一份 SKILL.md | 指揮官這個角色能做什麼、不能做什麼 |
+| 5 | 前一個指揮官交過來的那一句 `--waiting-on` | **唯一讀不回來的東西**，見下 |
+
+**順序不能換。** 先讀板子再讀單：反過來的話會從一張單的內容去推整盤狀況，而那張單答不出
+「別人手上有什麼」。
+
+**第一步答不出「誰扮什麼角色」，這是已知的洞。** 板子的「在做什麼」那一欄只讀每個 session
+自己寫的宣告，而 2026-09-06 量到的覆蓋率是 0/10——十個活著的 session 零份宣告。所以接手的
+人看得到有十個 session，看不出哪一個是 review、哪一個在跑 DP 線。**補法不是另開一份角色
+表**（那就是下面〈交棒不新增任何要人維護的狀態〉禁止的東西），是讓宣告真的被寫：`--order`
+與 `--review` 產出的指令第一段就要收件者跑一次 `--declare`。那一格由做事的那個 session
+自己寫，不由指揮官代寫。
+
+### 唯一手寫的那一格怎麼交
+
+`--waiting-on` 是板子上唯一不是產生的東西——**它也是交棒時唯一會遺失的東西**。它裝的是
+「指揮官自己在等什麼」，而那件事沒有任何檔案記得住：等的可能是使用者一句還沒回的話、一個
+還沒到期的外部答覆、或一個剛決定但還沒發出去的順序。
+
+交法只有一步：**前一個指揮官把它現在那一句原樣送給下一個**，下一個第一次跑 `--board` 的
+時候原樣帶進去。
+
+```bash
+# 交出去的那一個：把它現在那一句印出來，原樣送過去
+python3 .claude/skills/command-post/scripts/command-post.py --board \
+  --issues <單樹根> --waiting-on '<現在在等什麼>' | head -20
+
+# 接手的那一個：第一次跑板子就把那一句帶進去
+python3 .claude/skills/command-post/scripts/command-post.py --board \
+  --issues <單樹根> --waiting-on '<接過來的那一句>'
+```
+
+**沒有在等任何東西的時候要寫「沒有」，不要留空。** 空的那一格跟「前一個指揮官忘了交」
+長得一模一樣，而它們要人做的事相反。
+
+### 什麼時候該交
+
+**這裡不給門檻**，理由跟〈板子上的兩個不穩訊號〉是同一個：那兩個訊號偵測不出「開始不穩」
+那一刻，配一個門檻只會讓一個猜測看起來像一個量測。
+
+**決定是人做的**，板子把兩個量印給他看。真的要換的時候照上面兩步走。
+
+### 交棒不新增任何要人維護的狀態
+
+接手讀的五樣裡，**四樣是既有的**：session 登錄（機器寫的）、每個 session 自己的宣告
+（它自己寫的）、單樹的輪次狀態與 `holders[]`（脊椎寫的）、這一份 SKILL.md。第五樣就是
+那一格。
+
+**不要為交棒另開一份「指揮官交接文件」。** 一份手寫的交接文件會跟這四樣漂開，而漂掉的
+那一刻正好是有人要接手、最需要一句真話的時候。板子每一輪都重讀，所以它不會過期。
+
+## 五、問人的時候
 
 ### 形狀就是這個 workspace 既有的那一份
 

@@ -337,6 +337,13 @@ def order_text(issue_path, to_name, from_name):
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
         "",
+        "**動它之前先宣告你自己**（一行，之後不用再跑）：",
+        "  CP=.claude/skills/command-post/scripts/command-post.py",
+        "  python3 $CP --declare --session-id \"$(python3 $CP --whoami)\" \\",
+        "    --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
+        "板子的「在做什麼」那一欄只讀這份宣告。沒宣告的話那一欄是空的，而它跟",
+        "「這個 session 沒人接」長得一模一樣——下一個指揮官接手時就分不出來了。",
+        "",
         "做完，或撞到四種停點的任何一種（assertion_wrong／surfaced_concern／",
         "unconverged_cap／unauthorized_action），SendMessage 回 " + from_name + "。",
         "判準是一句話：**你接下來需不需要有人告訴你做什麼。**",
@@ -352,6 +359,120 @@ def order_text(issue_path, to_name, from_name):
         "",
         "（這則指令由 command-post 產出，收件者是 " + to_name + "）",
     ])
+
+
+def review_order_text(issue_path, me, others, about, from_name):
+    """一則互審指令的全文，寫給 `me` 那一個。
+
+    它跟一對一的派工差三樣，而那三樣正是「互審」與「兩則獨立的派工」的差別：**對方是誰**、
+    **要對對方的什麼下判斷**、**兩邊不同意的時候結果回到哪裡**。少了任何一樣，收到的人
+    會各自做各自的，然後各自回報一份沒有對照過的結論。
+
+    它仍然不重講那份成功定義，只給路徑——理由跟 `order_text` 是同一個。
+    """
+    others_text = chr(12289).join(others)
+    return "\n".join([
+        "去看 " + issue_path + "，然後跟 " + others_text + " 互審。",
+        "",
+        "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
+        "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
+        "",
+        "**動它之前先宣告你自己**（一行，之後不用再跑）：",
+        "  CP=.claude/skills/command-post/scripts/command-post.py",
+        "  python3 $CP --declare --session-id \"$(python3 $CP --whoami)\" \\",
+        "    --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
+        "板子的「在做什麼」那一欄只讀這份宣告。沒宣告的話那一欄是空的，而它跟",
+        "「這個 session 沒人接」長得一模一樣——下一個指揮官接手時就分不出來了。",
+        "",
+        "**要互相下判斷的是**：" + about,
+        "",
+        "怎麼互審：",
+        "  1. 先自己做出結論，帶證據。",
+        "  2. 把結論送給 " + others_text + "，並且去看它們的。",
+        "  3. 對它們的結論逐條說「同意」或「不同意，因為……」，不同意要帶得出證據。",
+        "  4. 收斂不了就把**兩邊各自的結論與各自的證據**一起送回 " + from_name + "，",
+        "     不要挑一個送。指揮官要的是分歧本身，不是一個被抹平的答案。",
+        "",
+        "做完，或撞到四種停點的任何一種（assertion_wrong／surfaced_concern／",
+        "unconverged_cap／unauthorized_action），SendMessage 回 " + from_name + "。",
+        "判準是一句話：**你接下來需不需要有人告訴你做什麼。**",
+        "",
+        "回報只要三樣：",
+        "  1. 你的結論，以及跟對方收斂到哪裡（同意了、還是分歧還在）。",
+        "  2. 需不需要指引。",
+        "  3. 需要的話，缺的是什麼。",
+        "逐條判定不用講——它們留在那張單的 .spine/ 裡，要細節的人自己去讀。",
+        "",
+        "**回報不等於停下來等。** 送完那一則就自己抽下一張繼續。只有兩種情況才停著等：",
+        "板子答不出下一步，或你自己走不下去。**輪次邊界不是停點。**",
+        "",
+        "（這則互審指令由 command-post 產出，收件者是 " + me + "；"
+        "同一批還送給了 " + others_text + "）",
+    ])
+
+
+def review_orders(issue_path, to_names, about, from_name):
+    """一批互審指令：一個收件者一則，每一則指名它自己與其餘的人。
+
+    **不產一則群發的**。一則沒有指名收件者的指令，每一個收到的人都會以為對方會做。
+    """
+    blocks = []
+    for i, me in enumerate(to_names):
+        others = [n for j, n in enumerate(to_names) if j != i]
+        blocks.append("── 給 " + me + " ──")
+        blocks.append(review_order_text(issue_path, me, others, about, from_name))
+        blocks.append("")
+    return "\n".join(blocks).rstrip("\n")
+
+
+def recent_tool_failures(cwd, session_id, tail_bytes=512 * 1024):
+    """這個 session 最近**連續**失敗了幾次工具呼叫。
+
+    為什麼是連續而不是總數：總數會隨 session 變長而單調上升，於是它對「現在還穩不穩」
+    永遠給同一個方向的答案。連續失敗會被任何一次成功歸零，所以它量得到的是當下。
+
+    **只讀尾巴。** 整份 transcript 這台機器上最大一份 92 MB，為了一個訊號讀完它，這支
+    就變成它自己要避免的那件事。
+
+    回傳 (連續失敗次數, 這個視窗裡看到幾筆工具結果, 問題)。三個值都要，因為
+    **「看了 26 筆、沒有一筆失敗」與「這個視窗裡一筆工具結果都沒有」是兩件事**——後者
+    答不出這個問題，而它們都會是 0。
+    """
+    path = transcript_path(cwd, session_id)
+    if not os.path.exists(path):
+        return None, None, "transcript 不在：" + path
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            if size > tail_bytes:
+                fh.seek(size - tail_bytes)
+            raw = fh.read()
+    except OSError as exc:
+        return None, None, "transcript 讀不動：" + str(exc)
+    lines = raw.decode("utf-8", "replace").split("\n")
+    if size > tail_bytes:
+        # 第一行多半是從中間切開的，丟掉。留著只會多一個解析失敗。
+        lines = lines[1:]
+    results = []
+    for line in lines:
+        if '"tool_result"' not in line:
+            continue
+        try:
+            data = json.loads(line)
+        except ValueError:
+            continue
+        content = (data.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                results.append(bool(block.get("is_error")))
+    streak = 0
+    for failed in reversed(results):
+        if not failed:
+            break
+        streak += 1
+    return streak, len(results), None
 
 
 def compaction_count(cwd, session_id):
@@ -497,9 +618,29 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
                 break
         n, why = compaction_count(home or os.getcwd(), session_id)
         answer = str(n) + " 次" if why is None else "？次（" + why + "）"
-    out.append("這個 session 壓縮過 " + answer
-               + "。**這裡不判斷該不該換一個**——壓縮間隔量過是平的，"
-                 "偵測不出「開始過度壓縮」那一刻，所以判斷留給人。")
+    out.append("這個 session 壓縮過 " + answer + "（數的是 transcript 裡的 "
+               + "isCompactSummary）。")
+
+    # 第二個訊號。**兩個都只印，不判定**——理由跟壓縮次數是同一個：偵測不出那一刻的
+    # 東西配上一個門檻，只會讓一個猜測看起來像一個量測。
+    if not session_id:
+        fail_line = "連續失敗的工具呼叫：？（推不出這一趟是哪一個 session，這一次問不到）"
+    else:
+        streak, seen, why2 = recent_tool_failures(home or os.getcwd(), session_id)
+        if why2:
+            fail_line = "連續失敗的工具呼叫：？（" + why2 + "）"
+        elif seen == 0:
+            fail_line = ("連續失敗的工具呼叫：這一次答不出來"
+                         "（transcript 尾端 512 KB 裡一筆工具結果都沒有，"
+                         "所以 0 在這裡不代表沒有失敗）")
+        else:
+            fail_line = ("連續失敗的工具呼叫：" + str(streak)
+                         + "（看的是 transcript 尾端 512 KB 裡的 " + str(seen)
+                         + " 筆工具結果，從最新的往回數到第一次成功為止）")
+    out.append(fail_line)
+    out.append("**這兩個訊號只印，不判斷該不該換一個。** 壓縮間隔量過是平的、"
+               "連續失敗沒有量過門檻，兩者都偵測不出「開始不穩」那一刻，"
+               "所以判斷留給人。要換的時候照〈交棒〉那一節走。")
     out.append("")
 
     out.append("## 在飛的單（產生的，不要手改）")
@@ -583,7 +724,14 @@ def main():
     ap.add_argument("--order", action="store_true",
                     help="產一則派工指令的全文。只印出來，不送給任何人。")
     ap.add_argument("--issue", help="--order 用：那張單的路徑")
-    ap.add_argument("--to", dest="to_name", help="--order 用：要它去做的那個 session")
+    ap.add_argument("--to", dest="to_names", action="append", default=None,
+                    help="要它去做的那個 session。--order 收剛好一個；"
+                         "--review 給幾次就是幾個人互審")
+    ap.add_argument("--review", action="store_true",
+                    help="產一批互審指令：一個收件者一則，每一則指名它自己與其餘的人。"
+                         "只印出來，不送給任何人。")
+    ap.add_argument("--about", default=None,
+                    help="--review 用：要互相下判斷的是什麼")
     ap.add_argument("--from", dest="from_name", default=None,
                     help="--order 用：回報給誰。預設是這個 session 自己的名字（$CLAUDE_SESSION_NAME）")
     ap.add_argument("--board", action="store_true",
@@ -613,11 +761,19 @@ def main():
                          session_id=sid,
                          idle_threshold=args.idle_threshold))
         return 0
-    if args.order:
+    if args.order or args.review:
+        which = "--review" if args.review else "--order"
+        to_names = args.to_names or []
         missing = [f for f, v in (("--issue", args.issue),
-                                  ("--to", args.to_name)) if not v]
+                                  ("--to", to_names)) if not v]
+        if args.review and not args.about:
+            missing.append("--about")
         if missing:
-            print("派工要兩樣都給，缺：" + chr(12289).join(missing), file=sys.stderr)
+            print(which + " 要的東西沒給齊，缺："
+                  + chr(12289).join(missing), file=sys.stderr)
+            if "--about" in missing:
+                print("互審少了「要對對方的什麼下判斷」，收到的人會各自做各自的"
+                      "——那跟兩則獨立的派工沒有差別。", file=sys.stderr)
             return 2
         if not os.path.isdir(args.issue):
             print("這條路徑不在：" + args.issue, file=sys.stderr)
@@ -630,7 +786,23 @@ def main():
                   file=sys.stderr)
             print("一則沒有收件者的回報要求，等於沒有回報要求。", file=sys.stderr)
             return 4
-        print(order_text(args.issue, args.to_name, frm))
+        # 人數與模式對不上的兩種，各自說各自的話。**不要安靜地產出一則看起來像的東西**：
+        # 一個人的「互審」讀起來跟互審一模一樣，而收到的人沒有對象可以互審。
+        if args.review and len(to_names) < 2:
+            print("互審至少要兩個收件者，現在只有 " + str(len(to_names))
+                  + " 個：" + chr(12289).join(to_names), file=sys.stderr)
+            print("一個人審不了「互相」。要派給一個人就用 --order。", file=sys.stderr)
+            return 5
+        if args.order and len(to_names) > 1:
+            print("--order 是一對一，收剛好一個 --to，現在有 " + str(len(to_names))
+                  + " 個：" + chr(12289).join(to_names), file=sys.stderr)
+            print("要它們互相審對方的結論就用 --review（它會一人產一則，"
+                  "並且說出對方是誰）。", file=sys.stderr)
+            return 6
+        if args.review:
+            print(review_orders(args.issue, to_names, args.about, frm))
+        else:
+            print(order_text(args.issue, to_names[0], frm))
         return 0
     if args.declare:
         missing = [f for f, v in (("--session-id", args.session_id),
