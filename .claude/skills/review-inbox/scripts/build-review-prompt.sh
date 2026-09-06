@@ -264,7 +264,47 @@ print(m.group(1) if m else f'UNRESOLVED-REPO-SLUG-FROM/{url}')
   REPO_FILE_PART="${REPO//\//-}"
   PROMPT_FILE="$OUT_DIR/review-prompt-${REPO_FILE_PART}-${NUMBER}.txt"
 
-  cat > "$PROMPT_FILE" <<PROMPT
+  # 這幾個在 manifest 裡要保留原值（沒有就是空字串），所以另外取一個只給本文用的名字。
+  # 就地覆寫的話，manifest 的欄位會從 "" 變成 "N/A"。
+  CLUSTER_KEY_TEXT="${CLUSTER_KEY:-N/A}"
+  CLUSTER_LEAD_URL_TEXT="${CLUSTER_LEAD_URL:-N/A}"
+  CLUSTER_LEAD_SUMMARY_TEXT="${CLUSTER_LEAD_SUMMARY:-N/A}"
+  CLUSTER_REASON_TEXT="${CLUSTER_REASON:-N/A}"
+  TICKET_KEY_TEXT="${TICKET_KEY:-N/A}"
+  ROOT_TICKET_KEY_TEXT="${ROOT_TICKET_KEY:-N/A}"
+  ROOT_TOPIC_KEY_TEXT="${ROOT_TOPIC_KEY:-N/A}"
+  SLACK_THREAD_TS_TEXT="${SLACK_THREAD_TS:-N/A}"
+
+  # 本文寫在一個**帶引號**的 heredoc 裡，所以反引號、$(…)、裸 $VAR 全部是字面值，
+  # 不需要任何逸出。要展開的東西一律寫成 ${NAME}，由下面這一段明確地填進去。
+  # 只認得 ${NAME} 這一種形狀：帶預設值的 ${NAME:-…} 不支援是刻意的——支援它的話，
+  # 一個打錯的名字會安靜地拿到預設值；不支援的話，它沒有值就是紅的。
+  export AUTHOR AUTHORIZATION_BLOCK BASE_DIR BUNDLE_TEXT CI_ROLLUP_RULE CLUSTER_KEY_TEXT CLUSTER_LEAD_SUMMARY_TEXT CLUSTER_LEAD_URL_TEXT CLUSTER_REASON_TEXT CLUSTER_ROLE CLUSTER_SIZE COMMENT_FORM_BLOCK DETAIL EXTRA_REFS_BLOCK HANDBOOK_BLOCK MODEL_TIER MODEL_TIER_REASON MODE_INSTRUCTION MY_USER NUMBER REPO REPO_SLUG ROOT_TICKET_KEY_TEXT ROOT_TOPIC_KEY_TEXT SCRIPT_DIR SLACK_THREAD_TS_TEXT STATUS TICKET_KEY_TEXT TITLE URL VERDICT_RULES_BLOCK
+  fill_prompt_placeholders() {
+    python3 -c '
+import os, re, sys
+text = sys.stdin.read()
+missing = []
+
+
+def fill(match):
+    name = match.group(1)
+    if name not in os.environ:
+        missing.append(name)
+        return ""
+    return os.environ[name]
+
+
+out = re.sub(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", fill, text)
+if missing:
+    sys.stderr.write(
+        "POLARIS_REVIEW_PROMPT_PLACEHOLDER_UNSET: " + ", ".join(sorted(set(missing))) + "\n")
+    raise SystemExit(3)
+sys.stdout.write(out)
+'
+  }
+
+  fill_prompt_placeholders > "$PROMPT_FILE" <<'PROMPT'
 Review PR: ${URL}
 Repo: ${REPO} (local path: ${BASE_DIR}/${REPO})
 PR #${NUMBER}: ${TITLE} by @${AUTHOR}
@@ -272,13 +312,13 @@ Review status: ${STATUS} (${DETAIL})
 Review mode: ${MODE_INSTRUCTION}
 Model class hint: ${MODEL_TIER} (${MODEL_TIER_REASON})
 Cluster role: ${CLUSTER_ROLE}
-Cluster key: ${CLUSTER_KEY:-N/A}
+Cluster key: ${CLUSTER_KEY_TEXT}
 Cluster size: ${CLUSTER_SIZE}
-Cluster lead PR: ${CLUSTER_LEAD_URL:-N/A}
-Ticket key: ${TICKET_KEY:-N/A}
-Root ticket key: ${ROOT_TICKET_KEY:-N/A}
-Root topic key: ${ROOT_TOPIC_KEY:-N/A}
-Slack thread_ts: ${SLACK_THREAD_TS:-N/A}
+Cluster lead PR: ${CLUSTER_LEAD_URL_TEXT}
+Ticket key: ${TICKET_KEY_TEXT}
+Root ticket key: ${ROOT_TICKET_KEY_TEXT}
+Root topic key: ${ROOT_TOPIC_KEY_TEXT}
+Slack thread_ts: ${SLACK_THREAD_TS_TEXT}
 
 你正在執行 Code Reviewer review packet。請直接依照以下 inline dispatch context 執行 review。
 這份 packet 自足——不需要讀任何 skill 就做得完；不要掃 repo guideline folders。
@@ -303,16 +343,16 @@ ${EXTRA_REFS_BLOCK}
 
 **Reviewed Head（先做，其餘每一步都綁在它上面）**：
 - 這一次 review 依據哪一顆 sha，由這一行決定，之後不要再重算：
-  \`REVIEWED_HEAD=\$(bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --print-head)\`
-- 完整 diff 一律對那一顆取，存到 \`/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff\`：
-  \`bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "\$REVIEWED_HEAD" --print-diff\`
+  `REVIEWED_HEAD=$(bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --print-head)`
+- 完整 diff 一律對那一顆取，存到 `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff`：
+  `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "$REVIEWED_HEAD" --print-diff`
 - **不要用 gh 的 pr diff 子命令讀內容。** 它與 REST 之間有過 34 分鐘的落差（2026-07-27 實測），
   讀到舊版會讓你對作者已經修好的東西再提一次。它只能用來取 changed-file 名單。
 
 **Token Budget Rules**：
-- Diff sampling: 先執行 \`gh pr diff ${URL} --name-only\` 取得完整 changed-file list。
+- Diff sampling: 先執行 `gh pr diff ${URL} --name-only` 取得完整 changed-file list。
 - 主 session raw diff output 對單 PR 累積上限為 100 行。超過後本 PR 維持 hunk-only / sample-only 到 review 完成。
-- 完整 diff（上面那條釘住 sha 的命令取回來的）優先存到 \`/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff\`，後續用 \`inspect-pr-section.sh\` 取 bounded section，不要用 Read 工具回讀完整 diff。
+- 完整 diff（上面那條釘住 sha 的命令取回來的）優先存到 `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff`，後續用 `inspect-pr-section.sh` 取 bounded section，不要用 Read 工具回讀完整 diff。
 - 在 sub-agent envelope 內，若那份 diff 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
 - 單檔 diff 小於 200 行只適用於 sub-agent envelope；大檔只 sample changed hunks。
 - **在 sub-agent envelope 內，讀 diff 以外的檔案不需要先落進某一類風險。** 以前這裡
@@ -323,17 +363,17 @@ ${EXTRA_REFS_BLOCK}
   artifact 裡列出來。這一條只在 sub-agent 那一層成立，主 session 仍然受上面那條 100 行的限制。
 - ${CI_ROLLUP_RULE}
 - Existing comments: **主 session 只拿 dedup metadata**，完整 comment body 不進主 context：
-  \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
+  `gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'`
   **sub-agent envelope 內讀得到完整的 comment body**——接續別人的意見往下推（「上面
   那則講的其實也會一起解掉」）需要讀得懂別人在說什麼，而 80 個字讀不出來。
-- Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
+- Dedup 只比對 `(user, path, line, head)` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
 - **送出之前把 existing comments 再抓一次。** 你 review 的期間別人可能也留了意見——2026-08-26 的 #3009 就是這樣重複了兩則。
 
 **Cluster / Model Tier Rules**：
-- 這一顆的 cluster 判定憑什麼：${CLUSTER_REASON:-N/A}。\`same_repo_overlap\` 是量到的改動交集，\`cross_repo_key_only\` 是跨 repo 量不到交集而憑鍵放行的——後者代表「同一批改動」這件事沒有被驗證過，sibling-diff mode 下要自己確認。
+- 這一顆的 cluster 判定憑什麼：${CLUSTER_REASON_TEXT}。`same_repo_overlap` 是量到的改動交集，`cross_repo_key_only` 是跨 repo 量不到交集而憑鍵放行的——後者代表「同一批改動」這件事沒有被驗證過，sibling-diff mode 下要自己確認。
 - Model class hint 是一個事實，不是一道指令：它說的是這張 PR 的規模與風險等級。派工的人拿它判斷，adapter 認不認得這個類別由那一層決定。
-- \`cluster_lead\`：完整 review 本 PR，Detail artifact 必須留下可被 sibling PR 使用的一句 lead review summary。
-- \`cluster_sibling\`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL:-N/A}。Lead summary = ${CLUSTER_LEAD_SUMMARY:-N/A}。
+- `cluster_lead`：完整 review 本 PR，Detail artifact 必須留下可被 sibling PR 使用的一句 lead review summary。
+- `cluster_sibling`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL_TEXT}。Lead summary = ${CLUSTER_LEAD_SUMMARY_TEXT}。
   **Lead summary 是起點不是全部——lead PR 自己的 description 要去讀一次。** 它講的是 lead 找到
   什麼，而 lead 對「哪些情況不歸我管」的宣稱只寫在它自己的 description 裡，不會出現在 summary
   上。那種宣稱正是 sibling 拿來對照的東西：lead 說「這一類我不做，因為上游沒有 X」，而 sibling
@@ -345,17 +385,17 @@ ${EXTRA_REFS_BLOCK}
   **「兩邊不一致」本身就是一個發現，不是只是一個要標記的例外。** 姊妹 repo 的同一段是這一邊的
   對照組——兩端行為對不上的時候，先問哪一邊是對的，再把那個答案寫成意見；不要只回報「不一致所以
   需要標準 review」。
-- \`standalone\`：正常 review。
+- `standalone`：正常 review。
 
 **執行步驟**：
 1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
-2. 取 \$REVIEWED_HEAD（見 Reviewed Head 區塊），再用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、changed-file names、reviews；diff 對 \$REVIEWED_HEAD 取
+2. 取 $REVIEWED_HEAD（見 Reviewed Head 區塊），再用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、changed-file names、reviews；diff 對 $REVIEWED_HEAD 取
 3. 只讀 Project Handbook 區塊列出的 verified paths；若是 no project handbook，略過 handbook 讀取
 4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
 6. 送出 GitHub review，綁在同一顆上：
-   \`bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "\$REVIEWED_HEAD" --event EVENT --body-file BODY --comments-file COMMENTS --submit\`
-   沒有 \`--reviewed-head\` 會被擋。stderr 出現 \`POLARIS_PR_HEAD_ADVANCED\` 表示作者在你 review
+   `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file BODY --comments-file COMMENTS --submit`
+   沒有 `--reviewed-head` 會被擋。stderr 出現 `POLARIS_PR_HEAD_ADVANCED` 表示作者在你 review
    期間又 push 了——review 已經送出且正確綁在你讀過的那一版，要不要再看一次由你判斷
 7. 查詢 approve 狀態
 
