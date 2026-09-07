@@ -107,8 +107,15 @@ REVIEWED_HEAD="$(bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull
 bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
   --reviewed-head "$REVIEWED_HEAD" --print-diff
 bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
-  --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file BODY --submit
+  --reviewed-head "$REVIEWED_HEAD" --event EVENT \
+  --body-file /tmp/review-inbox-runs/{run_id}/pr-N-body.md --submit
 ```
+
+**Do not pick the body path yourself.** One run dispatches several reviewers into the same
+`{run_id}` directory, so every artifact path carries the PR number — the packet lists them.
+The body's first line must be `<!-- polaris-review-target: OWNER/REPO#N -->`, written by you
+while you still know which PR you are reading. The pre-submit gate compares that anchor with
+the PR the payload is bound for and refuses a mismatch.
 
 Submitting without `--reviewed-head` is refused. `POLARIS_PR_HEAD_ADVANCED` on stderr
 means the author pushed while you were reviewing: the review was submitted and is

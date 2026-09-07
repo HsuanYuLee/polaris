@@ -34,6 +34,11 @@ EOF
 # Slack 不在這張表上：那個管道自己就標著「Sent using @Claude」，再署一次是同一個資訊的
 # 第二份，而它佔的是末尾最後被讀到的位置。
 POLARIS_ATTRIBUTION_MARK="由 Claude Code 代發"
+# **這份 body 是為哪一顆 PR 寫的。** 寫下它的是撰寫那份 review 的人，在他還知道自己在看
+# 哪一顆的時候；送出的那一步不補、也補不了——2026-09-07 撞到的那一次，送出端填的
+# --pull-number 是對的（3100），錯的是它讀到的檔（另一個並行 reviewer 剛覆蓋掉的 #10720）。
+# 所以任何在送出時才由送出端填的錨都是從它自己的認知推導的，量不到這件事。
+POLARIS_REVIEW_TARGET_PREFIX="<!-- polaris-review-target:"
 POLARIS_ATTRIBUTED_SURFACES=(
   "github-review"
   "github-comment"
@@ -196,7 +201,7 @@ if [[ "$surface" == "github-review" ]]; then
   }
   payload_text_file="$(mktemp -t polaris-external-write-review.XXXXXX.txt)"
   trap 'rm -f "$payload_text_file"' EXIT
-  python3 - "$payload_file" "$body_file" "$payload_text_file" <<'PY'
+  python3 - "$payload_file" "$body_file" "$payload_text_file" "$POLARIS_REVIEW_TARGET_PREFIX" <<'PY'
 import json, re, sys
 from pathlib import Path
 
@@ -248,6 +253,28 @@ for index, comment in enumerate(data["comments"]):
 body_text = Path(sys.argv[2]).read_text(encoding="utf-8")
 if data["body"] != body_text:
     fail("payload body does not equal gated body file")
+# **這份 body 是為哪一顆 PR 寫的，由 body 自己說。** 上面那一條比的是 payload 與檔案，兩邊
+# 都由送出的那一端在同一刻讀出來，所以它們一致證明不了內容屬於這顆 PR：另一個並行 reviewer
+# 在 payload 造好之前就覆蓋掉那個檔的話，兩邊會一致地都是別顆 PR 的正文。
+#
+# 錨是 HTML 註解，GitHub 算繪時看不見，所以它跟著 body 送出去、留在那則 review 上，之後
+# 還答得出「這份正文當初是為誰寫的」。
+target_prefix = sys.argv[4]
+matches = re.findall(re.escape(target_prefix) + r"\s*([^\s>]+?)/([^\s>]+?)#(\d+)\s*-->", body_text)
+if not matches:
+    fail(
+        "body 沒有帶 review target 錨。撰寫 review 的人要在 body 第一行寫下他正在看的那一顆："
+        f"{target_prefix} {data['owner']}/{data['repo']}#{data['pull_number']} -->"
+    )
+if len(set(matches)) > 1:
+    fail(f"body 帶著不只一顆 PR 的 review target 錨：{sorted(set(matches))}")
+anchor_owner, anchor_repo, anchor_number = matches[0]
+if (anchor_owner, anchor_repo, int(anchor_number)) != (data["owner"], data["repo"], data["pull_number"]):
+    fail(
+        "這份 body 不是為這顆 PR 寫的："
+        f"body 的錨說 {anchor_owner}/{anchor_repo}#{anchor_number}，"
+        f"payload 要送去 {data['owner']}/{data['repo']}#{data['pull_number']}"
+    )
 combined = [body_text] + [comment["body"] for comment in data["comments"]]
 Path(sys.argv[3]).write_text("\n\n".join(combined), encoding="utf-8")
 PY

@@ -27,7 +27,7 @@ SUBJECT="${SUBJECT_OVERRIDE:-$SCRIPTS/submit-pr-review.sh}"
 # 這支腳本在兩支 skill 底下各有一份副本，而副本沒有任何關卡在守（見 DP-459 活區）。
 SIBLING_SKILLS=(review-pr review-inbox)
 
-EXPECTED=14
+EXPECTED=16
 RAN=0
 SKIPPED=0
 FAILED=0
@@ -75,7 +75,14 @@ STUB
 chmod +x "$WORK/bin/gh"
 
 printf '{"head":{"sha":"%s"},"base":{"sha":"%s"}}\n' "$CURRENT_HEAD" "$BASE_SHA" > "$WORK/pr.json"
-printf '這是一則審查意見，指出兩個需要處理的問題。\n' > "$WORK/body.txt"
+# 第一行是「這份 body 是為哪一顆 PR 寫的」的錨。送出前那道閘拿它跟要送去的 PR 對一次，
+# 所以少了它送不出去（DP-690）——這裡的 fixture 一律用被量的那一顆 o/r#12。
+printf -- '<!-- polaris-review-target: o/r#12 -->\n這是一則審查意見，指出兩個需要處理的問題。\n' > "$WORK/body.txt"
+# 為另一顆 PR 寫的 body。2026-09-07 事故的形狀：兩個並行 reviewer 共用一個落檔路徑，後送出
+# 的那個讀到的是別人剛覆蓋進去的正文，而它自己填的 --pull-number 是對的。
+printf -- '<!-- polaris-review-target: o/other#99 -->\n這是為另一顆 PR 寫的審查意見。\n' > "$WORK/body-other-pr.txt"
+# 完全沒有錨的 body。閘認不出它屬於誰，所以要擋——問不到不得比答得出來寬。
+printf -- '這是一則沒有錨的審查意見。\n' > "$WORK/body-no-anchor.txt"
 
 export STUB_LOG="$WORK/log.txt"
 export STUB_PR_JSON="$WORK/pr.json"
@@ -249,6 +256,28 @@ fi
 # H-P5 的另一半——「產出的 packet 帶著同一套三步」——住在 review-inbox 自己那一側
 # （review-packet-head-binding-selftest.sh），因為 packet 是那支 skill 的產物。寫在這裡
 # 的話，這支腳本會在 review-pr 底下指向一個不存在的東西，而那正是斷指標。
+
+# ── H-N5：body 是為另一顆 PR 寫的就不准送 ────────────────────────────────────
+# 這一條守的是 2026-09-07 那次事故：以使用者名義送出的 review，body 講的是另一顆 PR。
+# 它沒有 diff——那是一次 API 呼叫，看 diff 的人看不見，送出去也收不回來。
+run_subject --repository o/r --pull-number 12 --reviewed-head "$REVIEWED_OLD" \
+  --event COMMENT --body-file "$WORK/body-other-pr.txt" --submit
+if [[ "$RC" -ne 0 && "$(post_count)" -eq 0 && "$ERR" == *"o/other#99"* && "$ERR" == *"o/r#12"* ]]; then
+  pass "H-N5 body 的錨指向另一顆 PR 時，一次 POST 都沒有發出且訊息指名兩顆"
+else
+  fail "H-N5 body 的錨指向另一顆 PR 時，一次 POST 都沒有發出且訊息指名兩顆" "rc=$RC posts=$(post_count) err=$ERR"
+fi
+
+# ── H-N6：沒有錨就不准送 ─────────────────────────────────────────────────────
+# 「認不出它屬於誰」與「它屬於這一顆」不得長得一樣。少了這一條，一個把錨拿掉的實作會在
+# H-N5 上全綠——因為那時候沒有錨可以對不上。
+run_subject --repository o/r --pull-number 12 --reviewed-head "$REVIEWED_OLD" \
+  --event COMMENT --body-file "$WORK/body-no-anchor.txt" --submit
+if [[ "$RC" -ne 0 && "$(post_count)" -eq 0 && "$ERR" == *"polaris-review-target"* ]]; then
+  pass "H-N6 body 沒有錨時，一次 POST 都沒有發出且說出要寫哪一行"
+else
+  fail "H-N6 body 沒有錨時，一次 POST 都沒有發出且說出要寫哪一行" "rc=$RC posts=$(post_count) err=$ERR"
+fi
 
 printf -- '---\n'
 if [[ $((RAN + SKIPPED)) -ne "$EXPECTED" ]]; then

@@ -353,6 +353,29 @@ ${EXTRA_REFS_BLOCK}
 - Diff sampling: 先執行 `gh pr diff ${URL} --name-only` 取得完整 changed-file list。
 - 主 session raw diff output 對單 PR 累積上限為 100 行。超過後本 PR 維持 hunk-only / sample-only 到 review 完成。
 - 完整 diff（上面那條釘住 sha 的命令取回來的）優先存到 `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff`，後續用 `inspect-pr-section.sh` 取 bounded section，不要用 Read 工具回讀完整 diff。
+
+**落檔路徑（不要自己取名）**：一輪裡好幾個 reviewer 並行跑，而 `{run_id}` 那個目錄是整輪
+共用的。**下面這幾個路徑各帶著這顆 PR 的編號，所以兩個 reviewer 在結構上寫不到同一個檔**：
+
+| 這個東西 | 落在哪 |
+|---|---|
+| 完整 diff | `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff` |
+| review body | `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-body.md` |
+| inline comments | `/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-comments.json` |
+| 中間檔（草稿、逐則 comment） | 同一個目錄，檔名一律以 `pr-${NUMBER}-` 開頭 |
+
+2026-09-07 有一則以使用者名義送出的 review，body 講的是另一顆 PR 的 sitemap——兩個 reviewer
+相隔 14 秒寫讀同一個 `body.md`。那個名字是當時的 agent 自己取的，因為這裡沒有說。
+
+**review body 的第一行要寫下你正在看的那一顆**：
+
+```
+<!-- polaris-review-target: ${REPO_SLUG}#${NUMBER} -->
+```
+
+它是 HTML 註解，GitHub 算繪時看不見。**送出前那道閘會拿它跟要送去的 PR 對一次**，對不上就
+擋下來——所以這一行不是裝飾，少了它送不出去。寫下它的必須是你（正在看這顆 PR 的人），
+送出的那一步補不了：那一步只知道你叫它送去哪，不知道你讀到的檔是誰寫的。
 - 在 sub-agent envelope 內，若那份 diff 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
 - 單檔 diff 小於 200 行只適用於 sub-agent envelope；大檔只 sample changed hunks。
 - **在 sub-agent envelope 內，讀 diff 以外的檔案不需要先落進某一類風險。** 以前這裡
@@ -394,7 +417,7 @@ ${EXTRA_REFS_BLOCK}
 4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
 6. 送出 GitHub review，綁在同一顆上：
-   `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file BODY --comments-file COMMENTS --submit`
+   `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file /tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-body.md --comments-file /tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-comments.json --submit`
    沒有 `--reviewed-head` 會被擋。stderr 出現 `POLARIS_PR_HEAD_ADVANCED` 表示作者在你 review
    期間又 push 了——review 已經送出且正確綁在你讀過的那一版，要不要再看一次由你判斷
 7. 查詢 approve 狀態
