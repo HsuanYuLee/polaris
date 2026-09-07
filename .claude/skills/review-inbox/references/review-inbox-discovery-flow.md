@@ -263,8 +263,15 @@ bash .claude/skills/review-inbox/scripts/scan-my-stale-reviews.sh \
 ```
 
 它問 GitHub：我投過票、還 open 的 PR 裡，哪幾顆的 head 已經不是我最後一票綁的那顆
-commit。輸出格式與 `fetch-prs-by-url.sh` 相同，可以直接接 `check-my-review-status.sh`。
-`--merge-with` 把兩條來源以 url 去重後取聯集——**聯集在腳本裡做**，不是散文裡的一行 jq。
+commit。**它自己會把找到的那幾顆交給 `check-my-review-status.sh` 補上 `review_status` 與
+`review_detail` 再輸出**，所以輸出跟 Slack 那條路徑的 candidates 同形，不要再接一次。
+補不到的時候它印 `POLARIS_STALE_REVIEW_STATUS_UNAVAILABLE` 並說出有幾顆沒有狀態——那幾顆
+下游接不住，不是安靜地少一個欄位。
+
+`--merge-with` 把兩條來源取聯集——**聯集在腳本裡做**，不是散文裡的一行 jq。同一個 `url`
+在兩邊都有時合併的是**欄位**，不是挑一整列留下：挑一列的寫法保留的是輸入順序的第一列，
+而這條路徑固定把自己掃出來的那一列放在前面，於是欄位比較多的另一列每次都輸。每一個鍵取
+兩邊非空的值排序後的第一個，所以結果由值本身決定，不由誰先進陣列決定。
 
 問不到上游時它離場 2 並印 `POLARIS_STALE_REVIEW_SCAN_UNAVAILABLE`，不回空陣列：
 `gh search` 對打錯的 owner 會回 `[]` 而且離場 0，那跟「問到了而且沒有」分不開。

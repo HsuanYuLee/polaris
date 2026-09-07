@@ -4,7 +4,8 @@
 #          B-N1 綁在 head 上的不進（不論投的是哪一種票）；
 #          B-N2 自己開的 PR 不進；
 #          B-N3 問不到上游時離場非 0 且不印空陣列；
-#          B-P2 --merge-with 取聯集並以 url 去重。
+#          B-P2 --merge-with 取聯集並以 url 去重；
+#          B-P3 兩邊都有的那一顆保住兩邊的欄位，只在這條路徑出現的也帶 review_status。
 # Inputs:  無（自行在 temp dir 建 mock gh）。
 # Outputs: stdout "scan-my-stale-reviews selftest: PASS"；成功 exit 0，否則非 0。
 
@@ -128,9 +129,11 @@ echo "B-N3 PASS：上游問不到時離場 ${fail_rc}、沒印空陣列、標記
 
 # B-P2：--merge-with 取聯集並以 url 去重。另一條來源給兩顆，其中一顆與 21 重複。
 other="$tmp/other.json"
+# 21 帶兩個這條路徑產不出來的欄位（ticket_key、cluster_key）。舊的 fixture 兩邊欄位集合
+# 完全相同，所以它看不見「合併挑掉了欄位比較多的那一列」——B-P3 就是為了那個盲點加的。
 cat > "$other" <<'JSON'
 [
-  {"repo":"demo","number":21,"title":"same pr from slack","url":"https://github.com/acme/demo/pull/21","author":"alice","created_at":"2026-05-01T08:00:00Z"},
+  {"repo":"demo","number":21,"title":"same pr from slack","url":"https://github.com/acme/demo/pull/21","author":"alice","created_at":"2026-05-01T08:00:00Z","ticket_key":"DEMO-1","cluster_key":"DEMO-1"},
   {"repo":"demo","number":99,"title":"slack only","url":"https://github.com/acme/demo/pull/99","author":"erin","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
@@ -148,6 +151,26 @@ if nums != [21, 22, 99]:
 if len([r for r in rows if r["number"] == 21]) != 1:
     raise SystemExit("B-P2: 兩邊都有的那一顆出現了不只一次")
 print("B-P2 PASS：兩條來源取聯集後是 [21, 22, 99]，兩邊都有的 21 只出現一次")
+PY
+
+# B-P3：兩邊都有的那一顆，欄位不會被挑掉。舊的寫法（unique_by(.url)）保留輸入順序的第一列，
+#       而這支固定把自己掃出來的那一列放前面——於是只有另一條來源有的欄位每次都不見，下游
+#       build-review-prompt.sh 讀不到就整批中斷。
+python3 - "$merged" <<'PY'
+import json, sys
+from pathlib import Path
+rows = {r["number"]: r for r in json.loads(Path(sys.argv[1]).read_text())}
+r21 = rows[21]
+missing = [k for k in ("ticket_key", "cluster_key") if k not in r21]
+if missing:
+    raise SystemExit(f"B-P3: 21 兩邊都有，只有另一條來源帶的欄位被挑掉了：{missing}")
+if r21.get("ticket_key") != "DEMO-1":
+    raise SystemExit(f"B-P3: 21 的 ticket_key 應為 DEMO-1，拿到 {r21.get('ticket_key')!r}")
+if "review_status" not in r21:
+    raise SystemExit("B-P3: 21 少了 review_status——這條路徑自己補的那一半沒進來")
+if "review_status" not in rows[22]:
+    raise SystemExit("B-P3: 22 只在這條路徑出現，它也必須帶 review_status，否則下游會中斷")
+print("B-P3 PASS：兩邊都有的 21 同時帶著兩邊的欄位；只在這條路徑出現的 22 也帶著 review_status")
 PY
 
 echo "scan-my-stale-reviews selftest: PASS"

@@ -10,12 +10,17 @@
 # 用法：
 #   scan-my-stale-reviews.sh --my-user <username> --org <org> [--limit N] [--merge-with <file>]
 #
-# 輸出（stdout）：JSON 陣列，欄位與 scan-need-review-prs.sh / fetch-prs-by-url.sh 相同
-#   （repo, number, title, url, author, created_at），可以直接接 check-my-review-status.sh。
+# 輸出（stdout）：JSON 陣列，欄位是 repo, number, title, url, author, created_at,
+#   review_status, review_detail——後兩個由 check-my-review-status.sh 補，這支自己不判
+#   （同一個判斷寫第二份的話，錯的那一份可以永遠錯）。所以輸出跟 Slack 那條路徑的
+#   candidates 同形，**不要再接一次 check-my-review-status.sh**。補不到時印
+#   POLARIS_STALE_REVIEW_STATUS_UNAVAILABLE 並說出有幾顆沒有狀態。
 # 進度（stderr）。
 #
-# --merge-with <file>：另一個來源的同形 JSON 陣列，兩邊取聯集、以 url 去重。聯集在這裡做，
-#   不寫成散文裡的一行 jq——那一行沒被跑的時候，少掉的那一半跟「沒有」長得一樣。
+# --merge-with <file>：另一個來源的同形 JSON 陣列，兩邊取聯集。聯集在這裡做，不寫成散文裡
+#   的一行 jq——那一行沒被跑的時候，少掉的那一半跟「沒有」長得一樣。
+#   同一個 url 在兩邊都有時合併的是**欄位**，不是挑一整列留下：挑一列保留的是輸入順序的
+#   第一列，而這裡固定把自己掃出來的那一列放在前面，於是欄位比較多的那一列每次都輸。
 #
 # 離場碼：
 #   0  問到了（可能是 0 顆，那是一個答案）
@@ -23,6 +28,8 @@
 #   2  問不到上游（搜尋失敗）。**不回空陣列**：問不到與沒有是兩件事，而它們的下一步相反。
 
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 MY_USER=""
 ORG=""
@@ -131,6 +138,27 @@ else
   mine='[]'
 fi
 
+# 補上 review_status／review_detail。到這裡為止這條路徑只答得出「head 動過了」，答不出
+# 「我上次投的是哪一種票」——而下游 build-review-prompt.sh 讀 review_status 讀不到就中斷，
+# 整批 packet 從那一顆起停掉。
+#
+# **不在這裡自己判。** 那個判斷 check-my-review-status.sh 已經有一份（APPROVED 走
+# approval-staleness、CHANGES_REQUESTED 與 COMMENTED 各自的分支），在這裡重寫一次就是同一
+# 個判斷的第二份實作，而錯的那一份可以永遠錯——兩份都在跑，沒有東西會說它們不一樣。
+#
+# 它會濾掉 valid_approve 與 waiting_for_author。這條路徑只送 head 已經動過的那幾顆進去，
+# 所以正常不會有；真的濾掉了就是那一顆本來就不該進這一批。
+if [[ "$mine" != "[]" ]]; then
+  enriched="$(printf '%s' "$mine" \
+    | "$SCRIPT_DIR/check-my-review-status.sh" --my-user "$MY_USER" --org "$ORG" 2>/dev/null)" || enriched=""
+  if [[ -n "$enriched" ]] && printf '%s' "$enriched" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    mine="$enriched"
+  else
+    # 補不到就說出來，不要安靜地送一批下游接不住的列出去。
+    echo "⚠️ POLARIS_STALE_REVIEW_STATUS_UNAVAILABLE：check-my-review-status.sh 沒有回一個陣列，這 $(printf '%s' "$mine" | jq 'length') 顆沒有 review_status，下游會在第一顆就中斷" >&2
+  fi
+fi
+
 if [[ -n "$MERGE_WITH" ]]; then
   if [[ ! -r "$MERGE_WITH" ]]; then
     echo "ERROR: --merge-with 指的檔案讀不到：${MERGE_WITH}" >&2
@@ -141,8 +169,31 @@ if [[ -n "$MERGE_WITH" ]]; then
     exit 1
   fi
   other_count="$(jq 'length' "$MERGE_WITH")"
-  printf '%s' "$mine" | jq -s --slurpfile other "$MERGE_WITH" \
-    'add + $other[0] | unique_by(.url) | sort_by(.created_at)'
+  # 兩邊都有同一個 url 時，合併的是**欄位**，不是挑一整列留下。挑一列的寫法
+  # （`unique_by(.url)`）保留的是輸入順序的第一列——而這條路徑固定把自己掃出來的那一列
+  # 放在前面，那一列沒有 review_status，於是欄位比較多的另一列每次都輸。下游
+  # build-review-prompt.sh 讀 review_status 讀不到就中斷，整批 packet 從那一顆起停掉。
+  #
+  # 每一個鍵取「兩邊非空的值排序後的第一個」：非空優先，所以少一邊沒填不會蓋掉有填的；
+  # 排序後取第一個，所以兩邊值不同時結果由值本身決定，不由誰先進陣列決定。兩邊都是空的
+  # 就照樣留那個空值，不要換成 null。
+  printf '%s' "$mine" | jq -s --slurpfile other "$MERGE_WITH" '
+    add + $other[0]
+    | group_by(.url)
+    | map(
+        (map(to_entries) | add)
+        | group_by(.key)
+        | map({
+            key: .[0].key,
+            value: (
+              [.[].value] as $vs
+              | ([$vs[] | select(. != null and . != "")] | unique) as $filled
+              | if ($filled | length) > 0 then $filled[0] else ($vs | unique | .[0]) end
+            )
+          })
+        | from_entries
+      )
+    | sort_by(.created_at)'
   echo "🔗 聯集：這條路徑 ${moved} 顆 ＋ 另一條 ${other_count} 顆，去重後如上" >&2
 else
   printf '%s\n' "$mine"
