@@ -141,9 +141,14 @@ deterministic enforcement（`contract-design.md` Heuristic 1 — Deterministic-F
    下游有兩個 consumer（parser 與 probe），而它們必須看到**同一份**文字：
 
    ```bash
-   python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py \
-     --emit-normalized <normalized_dump_file> ...
+   python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py --org <org> \
+     --emit-normalized < <MCP 回應的檔> > <normalized_dump_file>
    ```
+
+   **`--emit-normalized` 不吃參數**，它把結果寫到 stdout，所以那個檔名要用 `>` 導向，
+   不能接在旗標後面（接了會拿到 `error: unrecognized arguments`）。下面 § Channel scan 也要讀
+   thread（不只 top-level）用的 `--emit-normalized-thread` **吃一個 TS**——兩個旗標長得像，只有後者
+   收參數。
 
    這個 runtime 的 MCP detailed 回的是單行 escaped-JSON——真換行被 escape 成字面的 `\n`，
    header 藏在字串裡（見上方 § MCP detailed 輸出格式）。
