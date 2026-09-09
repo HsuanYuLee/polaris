@@ -96,9 +96,9 @@ def build_tree(root):
 def recompute(root):
     """跑一次真的重算（推導 + 把結果寫回每一張單），回重算後的 survey。
 
-    **它不搬任何目錄。** 這一支以前在這裡自己重播了一遍 `main()` 的搬動，而那一半在
-    DP-661 被拿掉了。留下來的是推導與寫回，所以下面每一條問的都是「算到哪一格」，不是
-    「被搬到哪一格」。
+    **這個 helper 只做推導與寫回**，不重播 `main()` 的搬動那一段。所以
+    下面每一條問的都是「算到哪一格」，不是「被搬到哪一格」；搬動本身由 A-P2 那一組在真的
+    跑過 `--execute` 的地方量。
     """
     placer._RESOLVER_CACHE.clear()
     placer._TOUCHED_CACHE.clear()
@@ -168,8 +168,8 @@ def main() -> int:
         untouched = snapshot(root) == before_bytes
 
         final = recompute(root)
-        # **問的是「算到哪一格」，不是「被搬到哪一格」。** 重算不搬，所以每一張單的
-        # `current` 永遠是它一開始被放的地方；投影的答案在 `to_dir`。
+        # **問的是「算到哪一格」，不是「被搬到哪一格」。** 上面那個 helper 不搬，所以每
+        # 一張單的 `current` 永遠是它一開始被放的地方；投影的答案在 `to_dir`。
         where = {r["name"]: os.path.relpath(r["to_dir"], root).replace(os.sep, "/")
                  for r in final}
         # 樹上真的有的那些路徑，A-N4 與 A-P3 要用它分「算出來」與「造出來」。

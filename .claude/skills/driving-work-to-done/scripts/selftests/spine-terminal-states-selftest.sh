@@ -84,8 +84,8 @@ moved="$(find "$REPO/issues" -name release.json -path '*T-out*' | head -1)"
 grep -Fq '"released_on": "2020-01-02"' "$moved" \
   || fail "釋出日不是訊號給的那一天——核心自己填了日期：$(cat "$moved")"
 grep -Fq '"released_on_source": "signal"' "$moved" || fail "沒說出日期是哪裡來的"
-# **位置是推導出來的，不是搬出來的**（DP-661）。重算不搬目錄，所以這裡問的是那張單自己的
-# `placement.json` 記到哪一格、哪一天，不是它躺在哪一條路徑上。
+# **位置是推導出來的。** 這裡問的是那張單自己的 `placement.json` 記到哪一格、哪一天，不是
+# 它躺在哪一條路徑上——路徑是那個推導的投影，而搬不動的單留在原地。
 derived="$(dirname "$moved")/placement.json"
 [[ -f "$derived" ]] || fail "沒有寫下推導結果：$(ls -a "$(dirname "$moved")")"
 grep -Fq '"slot": "released"' "$derived" \

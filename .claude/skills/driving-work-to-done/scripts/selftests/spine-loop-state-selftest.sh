@@ -347,8 +347,8 @@ state_of() { find "$1" -path "*/$2/.spine/loop-state.json" | head -1; }
 # Case 11：跨單。「手上有六張單，接下來做哪一張」原本只有人回答得出來，而每一次問人
 # 就是連續退化成單步的那一刻。
 S11="$WORK/issues11"
-# DONE 一開始就放在 `done/` 底下。重算不搬目錄了（DP-661），所以「跨單掃描看得進格子
-# 底下那一層」這件事要由一張本來就住在格子裡的單來問，不能靠一次搬動把它送進去。
+# DONE 一開始就放在 `done/` 底下。「跨單掃描看得進格子底下那一層」這件事要由一張本來就住
+# 在格子裡的單來問，不靠一次搬動把它送進去——這一支不跑 `--execute`，搬動不在它的範圍裡。
 mkdir -p "$S11/nsA/EARLY/.spine" "$S11/nsB/LATE/.spine" "$S11/nsB/STOPPED/.spine" "$S11/nsA/done/DONE/.spine"
 git -C "$S11" init -q
 git -C "$S11" config user.email t@t

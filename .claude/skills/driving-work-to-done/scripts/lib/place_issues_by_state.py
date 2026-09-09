@@ -55,7 +55,8 @@ UNDATED = "undated"
 LEGACY_SLOT = "archive"
 
 # 舊形狀留下來的群組層。**只認得、不再產生**：它們是 DP-551 那一版的疤。認得它是為了不
-# 把底下的單掉掉——重算不搬也不刪，所以這些層會一直在，直到有人自己收掉它們。
+# 把底下的單掉掉——重算搬的是單，不是這些層，也不刪它們，所以它們會一直在，直到有人自己
+# 收掉。
 LEGACY_PARENT_PREFIX = "_"
 
 # 上游快照寫在單的 `index.md` 裡，夾在這兩行之間。**只有這中間會被重寫**——一張自己的單
@@ -928,15 +929,14 @@ def render(rows: list[dict], abstained: list[dict], mode: str,
     created = [r for r in rows if r["current"] is None]
     off = [r for r in rows if r["current"] is not None and r["current"] != r["target"]]
     if mode.startswith("execute"):
-        # **「位置與狀態對不上」不再是一件會被修好的事，它是一個常態的數字。** 重算不搬，
-        # 所以這一行每一次都會印出同一批單，直到有人自己去搬它們——那是刻意的：搬動是人的
-        # 動作，而重算負責的是說出來。
+        # **這一行剩下的是搬不動的那幾張。** `--execute` 會把先決條件都成立的搬過去，所以
+        # 留在這個數字裡的每一張都卡在四項的其中一項——搬動那一段自己會逐張說出卡在哪裡。
         lines.append(f"寫回推導結果 {written} 張；位置與狀態對不上的 {len(off)} 張"
-                     "（重算不搬，位置由這份報告與各自的 placement.json 說出來）")
+                     "（搬得動的這一趟已經搬了，其餘逐張說出卡在哪一項）")
     else:
         lines.append(f"位置與狀態對不上的 {len(off)} 張，對得上的 {len(rows) - len(off)} 張"
                      + ("（--check）" if mode == "check" else "（預覽）")
-                     + "——兩種模式都不動任何東西，`--execute` 也不搬，它只是多寫一份紀錄")
+                     + "——這兩種模式都不動任何東西；`--execute` 才寫紀錄、才搬目錄")
     # 同一個單號佔多條路徑。**三種模式都說**——以前只有 `--execute` 那條路徑撞得到
     # （撞到既存目的地的那個清單），而 `CLAUDE.md` 與 `document-flow.md` 給人的命令是 `--check`。
     # 這裡只指名，不決定：留哪一份是人的判斷，重算答得出「哪一邊比較新」，答不出
@@ -1039,8 +1039,9 @@ def main(argv=None) -> int:
     parser.add_argument("--check", action="store_true",
                         help="只報位置與狀態的落差，有落差就 exit 1")
     parser.add_argument("--execute", action="store_true",
-                        help="把推導結果寫回每一張單，並重寫清單。"
-                             "它不搬任何目錄——位置是狀態的投影，而那個投影寫在紀錄上。")
+                        help="把推導結果寫回每一張單、重寫清單，並把四項先決條件都成立的"
+                             "那幾張搬到算出來的那一格（搬之前逐張說出打算搬哪些，搬完把"
+                             "那次搬動 commit 進單的目錄樹）。")
     parser.add_argument("--spine-only", action="store_true",
                         help="不問任何解析器。記一輪之後自動跑的就是這個模式——"
                              "剛動過的是一張走主流程的單，它的答案在本機，不需要一趟網路。")
@@ -1071,14 +1072,16 @@ def main(argv=None) -> int:
 
     written, unwritable = 0, []
     if args.execute:
-        # **這一段以前會搬目錄，現在不搬了。** 拿掉的是 `os.makedirs` 造目的地、`move()`、
-        # 搬完的路徑改寫、`prune_empty()`、搬完那一次 `survey()`，以及只為搬動而存在的那
-        # 幾個計數。理由是那一半自己製造了它要解決的問題：一次沒搬完的搬動留下一個空殼，
-        # 而那個空殼從此是同一個單號的第二條路徑（DP-667、DP-666、DP-620 都是它的產物）。
+        # **這一段寫紀錄，也搬目錄。** DP-661 曾經把搬動整個拿掉，因為那一半自己製造了它要
+        # 解決的問題：一次沒搬完的搬動留下一個空殼，而那個空殼從此是同一個單號的第二條路徑
+        # （DP-667、DP-666、DP-620 都是它的產物）。回來的那一版靠的不是「搬得比較小心」，
+        # 是 `plan_moves` 那四項先決條件——每一張單要先證明自己搬得動。
         #
-        # **推導留著，落地不留。** 位置仍然是狀態的投影，只是那個投影從此寫在紀錄與清單
-        # 上，不寫在檔案系統的路徑上——〈四之三〉本來就規定「任何要問這張單收斂了沒的程式
-        # 讀那一份，不准從資料夾名推狀態」，所以讀的那一端一個字都不用改。
+        # **搬得動先算，紀錄後寫。** 順序不能反：`write_placement` 會在單身上造出 `.spine/`，
+        # 而「身上有 `.spine/`」正是那四項的其中一項——先寫的話，一個不是單的目錄會在被判定
+        # 的前一刻長出那個痕跡，然後被搬走。那一項因此在寫回之後恆真，而恆真跟守住了長得
+        # 一模一樣。
+        moved, blocked = plan_moves(rows)
         for row in rows:
             if not row["from_dir"]:
                 # 鏈上出現、樹裡還沒有的母單。以前這裡 `os.makedirs` 把它造出來，現在不造
@@ -1093,10 +1096,16 @@ def main(argv=None) -> int:
             written += 1
         # **紀錄先寫、再搬。** 反過來的話，寫紀錄的那一步要處理「這張單剛剛換過位置」，
         # 而搬動失敗留下的就是一張沒有紀錄的單。這個順序讓紀錄跟著資料夾一起走。
-        moved, blocked = plan_moves(rows)
         # `move_home` 把 row["from_dir"] 改寫成新的位置，所以舊路徑要在搬之前留下來
         # ——commit 那一步要同時指名舊路徑（它的刪除）與新路徑（它的新增）。
         move_pairs = [(row["from_dir"], row["to_dir"]) for row in moved]
+        # **先說出打算搬哪幾張，再搬。** 搬動改寫的是好幾個 session 共用的那棵樹，而且會
+        # 落一顆 commit——一個做完才報數的動作，被打斷的時候沒有人知道它動到哪裡為止。
+        print(f"要搬 {len(moved)} 張：" if moved else "沒有要搬的單")
+        for row in moved:
+            print(f"  {row['namespace']}/{row['name']}："
+                  f"{os.path.relpath(row['from_dir'], issues_root)}"
+                  f" → {os.path.relpath(row['to_dir'], issues_root)}")
         for row in moved:
             move_home(issues_root, row)
         commit_notes = commit_moves(issues_root, move_pairs)
