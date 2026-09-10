@@ -21,29 +21,36 @@ mkdir -p "$mock_bin"
 
 cat > "$mock_bin/gh" <<'MOCK'
 #!/usr/bin/env bash
-# mock gh：支援 `search prs`（回搜尋結果）與 `api`（回 PR 物件／reviews）。
+# mock gh：支援 `api /search/issues`（回搜尋結果）與 `api`（回 PR 物件／reviews）。
 # POLARIS_MOCK_SEARCH_FAILS=1 時 search 走失敗那條路，用來驗 B-N3。
+#
+# **搜尋回的是上游真的會回的形狀**，含 `total_count` 與 `incomplete_results`（DP-700）。
+# 少了那兩格的 mock 會讓一條這一版根本不會走的路徑在這裡是綠的。
 set -uo pipefail
 
-if [[ "${1:-}" == "search" && "${2:-}" == "prs" ]]; then
+if [[ "$*" == *"/search/issues"* ]]; then
   if [[ "${POLARIS_MOCK_SEARCH_FAILS:-0}" == "1" ]]; then
     echo 'Invalid search query.' >&2
     exit 1
   fi
   cat <<'JSON'
-[
-  {"repository":{"nameWithOwner":"acme/demo","name":"demo"},"number":21,"title":"my CR, head moved","url":"https://github.com/acme/demo/pull/21","author":{"login":"alice"},"createdAt":"2026-05-01T08:00:00Z"},
-  {"repository":{"nameWithOwner":"acme/demo","name":"demo"},"number":22,"title":"my approve, head moved","url":"https://github.com/acme/demo/pull/22","author":{"login":"bob"},"createdAt":"2026-05-02T08:00:00Z"},
-  {"repository":{"nameWithOwner":"acme/demo","name":"demo"},"number":23,"title":"my CR, head unchanged","url":"https://github.com/acme/demo/pull/23","author":{"login":"carol"},"createdAt":"2026-05-03T08:00:00Z"},
-  {"repository":{"nameWithOwner":"acme/demo","name":"demo"},"number":24,"title":"my approve, head unchanged","url":"https://github.com/acme/demo/pull/24","author":{"login":"dan"},"createdAt":"2026-05-04T08:00:00Z"},
-  {"repository":{"nameWithOwner":"acme/demo","name":"demo"},"number":25,"title":"mine, head moved","url":"https://github.com/acme/demo/pull/25","author":{"login":"reviewer"},"createdAt":"2026-05-05T08:00:00Z"}
-]
+{
+  "total_count": 5,
+  "incomplete_results": false,
+  "items": [
+    {"repository_url":"https://api.github.com/repos/acme/demo","number":21,"title":"my CR, head moved","html_url":"https://github.com/acme/demo/pull/21","user":{"login":"alice"},"created_at":"2026-05-01T08:00:00Z"},
+    {"repository_url":"https://api.github.com/repos/acme/demo","number":22,"title":"my approve, head moved","html_url":"https://github.com/acme/demo/pull/22","user":{"login":"bob"},"created_at":"2026-05-02T08:00:00Z"},
+    {"repository_url":"https://api.github.com/repos/acme/demo","number":23,"title":"my CR, head unchanged","html_url":"https://github.com/acme/demo/pull/23","user":{"login":"carol"},"created_at":"2026-05-03T08:00:00Z"},
+    {"repository_url":"https://api.github.com/repos/acme/demo","number":24,"title":"my approve, head unchanged","html_url":"https://github.com/acme/demo/pull/24","user":{"login":"dan"},"created_at":"2026-05-04T08:00:00Z"},
+    {"repository_url":"https://api.github.com/repos/acme/demo","number":25,"title":"mine, head moved","html_url":"https://github.com/acme/demo/pull/25","user":{"login":"reviewer"},"created_at":"2026-05-05T08:00:00Z"}
+  ]
+}
 JSON
   exit 0
 fi
 
 if [[ "${1:-}" != "api" ]]; then
-  echo "mock gh only supports 'api' and 'search prs'" >&2
+  echo "mock gh only supports 'api'" >&2
   exit 2
 fi
 shift

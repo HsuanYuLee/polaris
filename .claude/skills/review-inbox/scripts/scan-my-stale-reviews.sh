@@ -25,7 +25,9 @@
 # 離場碼：
 #   0  問到了（可能是 0 顆，那是一個答案）
 #   1  參數不對
-#   2  問不到上游（搜尋失敗）。**不回空陣列**：問不到與沒有是兩件事，而它們的下一步相反。
+#   2  問不到上游。**不回空陣列**：問不到與沒有是兩件事，而它們的下一步相反。四種都算
+#      問不到——搜尋離場碼非 0、回應的形狀不對、上游說它這一趟沒查完
+#      （`incomplete_results`）、上游說有 N 筆卻給回比 N 少（空陣列是這一種的極端）。
 
 set -uo pipefail
 
@@ -56,37 +58,77 @@ done
 
 echo "🔍 問 GitHub：${ORG} 底下我投過票、還 open 的 PR..." >&2
 
-# `gh search prs` 走搜尋 API：打錯的 owner 會回 [] 而且離場 0，所以「空的」不能拿來當
-# 「問到了而且沒有」。這裡用離場碼分開兩者，回非 0 就當成問不到。
-# stderr 不併進 stdout：併進去的話 gh 的一行警告就會讓底下那個「是不是 JSON 陣列」的
-# 檢查判紅，而那跟真的問不到分不開。
+# **問的是同一個搜尋 API，但走 `gh api`，不走 `gh search prs`。** 差別是上游自己給的兩個
+# 答案：這一趟查完了沒有（`incomplete_results`）、總共有幾筆（`total_count`）。`gh search
+# prs` 把那兩格丟掉，於是「離場碼 0 ＋ 一個合法的空陣列 ＋ 內容是錯的」跟「問到了而且
+# 沒有」長得一模一樣——而那正是實際發生的那一格。
+#
+# 2026-09-09 實測：同一個命令在幾分鐘內回 25 顆、0 顆、2 顆。那個 0 進了 `--merge-with`
+# 之後聯集變成 no-op，整輪候選退化成只有 Slack 那一條——而這支腳本存在的整個理由，就是
+# Slack 那條的前提（有人說話）不成立的時候。失敗往「比較少」那邊倒，沒有人會抱怨。
+#
+# **不另外打一個對照查詢當零點。** 那要多花一次額度，而重複打同一個搜尋正是那天觸發
+# secondary rate limit 的事；零點由上游自己那兩格給，不由我們再問一次。
+#
+# stderr 不併進 stdout：併進去的話 gh 的一行警告就會讓底下那幾個形狀檢查判紅，而那跟真的
+# 問不到分不開。
+[[ "$LIMIT" =~ ^[0-9]+$ ]] || { echo "ERROR: --limit 要是數字，收到的是 ${LIMIT}" >&2; exit 1; }
+PER_PAGE="$LIMIT"
+[[ "$PER_PAGE" -gt 100 ]] && PER_PAGE=100
+[[ "$PER_PAGE" -lt 1 ]] && PER_PAGE=1
+
 search_err="$(mktemp)"
-search_out="$(gh search prs \
-  --owner "$ORG" \
-  --state open \
-  --reviewed-by "$MY_USER" \
-  --limit "$LIMIT" \
-  --json repository,number,title,url,author,createdAt 2>"$search_err")"
+raw="$(gh api -X GET "/search/issues" \
+  -f q="org:${ORG} is:pr is:open reviewed-by:${MY_USER}" \
+  -F per_page="$PER_PAGE" 2>"$search_err")"
 search_rc=$?
 
-if [[ "$search_rc" -ne 0 ]]; then
+unavailable() {
   echo "POLARIS_STALE_REVIEW_SCAN_UNAVAILABLE" >&2
-  echo "問不到上游：gh search prs 離場碼 ${search_rc}" >&2
+  echo "問不到上游：$1" >&2
   cat "$search_err" >&2
   rm -f "$search_err"
   exit 2
-fi
+}
 
-if ! printf '%s' "$search_out" | jq -e 'type == "array"' >/dev/null 2>&1; then
-  echo "POLARIS_STALE_REVIEW_SCAN_UNAVAILABLE" >&2
-  echo "問不到上游：gh search prs 的輸出不是一個 JSON 陣列" >&2
-  cat "$search_err" >&2
-  rm -f "$search_err"
-  exit 2
-fi
+[[ "$search_rc" -eq 0 ]] || unavailable "gh api /search/issues 離場碼 ${search_rc}"
+
+printf '%s' "$raw" \
+  | jq -e 'type == "object" and has("total_count") and has("incomplete_results") and (.items | type == "array")' \
+    >/dev/null 2>&1 \
+  || unavailable "gh api /search/issues 的輸出不是一份帶著 total_count／incomplete_results／items 的回應"
+
+total_count="$(printf '%s' "$raw" | jq '.total_count')"
+returned="$(printf '%s' "$raw" | jq '.items | length')"
+incomplete="$(printf '%s' "$raw" | jq -r '.incomplete_results')"
+
+# 上游自己說它沒查完。這不是「沒有」，是「這一趟不算數」。
+[[ "$incomplete" == "true" ]] \
+  && unavailable "上游說這一趟沒查完（incomplete_results=true，total_count=${total_count}、給回 ${returned} 筆）"
+
+# 這一頁本來該有幾筆：總數與這一頁上限取小的那個。給回來的比它少，就是上游給了一份殘的
+# ——而殘的那一份裡最極端的形狀就是空陣列。
+expected="$total_count"
+[[ "$expected" -gt "$PER_PAGE" ]] && expected="$PER_PAGE"
+[[ "$returned" -ge "$expected" ]] \
+  || unavailable "上游說有 ${total_count} 筆，這一頁上限 ${PER_PAGE}，卻只給回 ${returned} 筆"
 
 rm -f "$search_err"
-total="$(printf '%s' "$search_out" | jq 'length')"
+
+# 換成 `gh search prs` 那一版的形狀，底下每一段因此一個字都不用動。`repository_url` 長
+# 這樣：https://api.github.com/repos/{owner}/{repo}。
+search_out="$(printf '%s' "$raw" | jq '[.items[] | {
+  repository: {
+    nameWithOwner: (.repository_url | sub("^https://api\\.github\\.com/repos/"; "")),
+    name: (.repository_url | split("/") | last)
+  },
+  number: .number,
+  title: .title,
+  url: .html_url,
+  author: {login: .user.login},
+  createdAt: .created_at
+}]')"
+total="$returned"
 echo "📦 我投過票的 open PR 共 ${total} 顆，逐顆比我最後一票綁的 commit 與現在的 head" >&2
 
 tmpfile="$(mktemp)"
