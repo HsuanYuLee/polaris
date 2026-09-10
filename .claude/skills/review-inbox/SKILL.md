@@ -81,7 +81,7 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
 1. 讀 workspace config 與 defaults，取得 GitHub org、PR channel、approval threshold。
 2. 解析 mode：Thread 優先，其次 explicit Label，其餘走 Slack。
 3. 取得 current GitHub username，作為 exclude author 與 review-status 判定依據。
-4. 依 discovery reference 產生 candidates JSON；scan snapshot 超過 60 秒不可沿用。
+4. 依 discovery reference 產生 candidates JSON；派工前照〈Scan Freshness〉重核一次，60 秒從那次重核起算。
    Slack channel scan 使用 MCP 時指定 **detailed** output——`concise` 不輸出
    `=== Message from ` 與 `Message TS: ` 這兩個 marker，parser 會找不到 message header 而
    **靜默回傳 0 個 URL**（stderr 只印一行 WARN，離場碼仍然是 0），而那跟「channel 真的空」

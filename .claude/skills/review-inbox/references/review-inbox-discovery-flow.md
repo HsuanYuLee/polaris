@@ -330,5 +330,22 @@ commit，就不進 actionable candidate list。例外情境只能用明確 rerun
 
 ## Scan Freshness
 
-Scan 是 point-in-time snapshot。每次 show list 或開始 review 前，檢查 scan result mtime。
-若距離現在超過 60 秒，必須重跑 discovery；不可沿用舊 candidates JSON。
+Scan 是 point-in-time snapshot。不可沿用舊 candidates JSON：**派工之前，對候選清單再核
+一次**，而 60 秒的門檻對那次重核計時。
+
+**門檻錨在重核，不錨在 discovery 產出。** discovery 自己可以跑得比門檻久——逐條讀完一個
+頻道的 thread 可以要二十幾分鐘，跑完的那一刻清單就已經過期，照字面「重跑 discovery」永遠
+追不上。所以真正讓清單新鮮的是派工前那一次核對：
+
+1. 把最新一頁**整頁**重抽 PR URL，跟清單比，新出現的補進去（照一般路徑查狀態）。
+2. 重跑第二來源（〈GitHub 條件掃描〉那一支），新出現的一樣補進去。
+3. 從這一刻起 60 秒內開始派工；超過就再核一次。
+
+**只讀 ts 比上一輪新的訊息，不算重跑，也不算重核。** Slack 編輯一則訊息不會更新它的
+ts，所以一則被編輯過、內容換成另一顆 PR 的訊息，照時間過濾會被判成舊的而略過。
+2026-09-10 的實例：有人在頻道裡把一則訊息裡的 PR 劃掉、補上新開的那一顆，那則訊息的時間
+仍是早上那一刻；只讀新訊息的那一次重驗漏掉它，是整頁重抽 URL 才抓到。整頁重抽讀的是訊息
+**現在**的文字，所以編輯過的內容自然在裡面，不需要另外看編輯標記。
+
+**重核不重讀 thread。** discovery 跑完之後才出現在某一條 thread 裡的回覆，這次重核看不到；
+那一類要等下一次 discovery。
