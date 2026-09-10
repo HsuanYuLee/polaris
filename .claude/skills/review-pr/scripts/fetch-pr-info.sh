@@ -47,7 +47,8 @@ fetch-pr-info.sh — 取得一個 PR 的完整資訊（metadata + files + review
 離場碼：
   0  取到了
   1  參數不對，或這個 PR 不該被 review（非 OPEN、或還是 draft）
-  2  跑不起來（旁邊的 lib/github-rest.sh 不在）
+  2  跑不起來（旁邊的 lib/github-rest.sh 不在），或問不到這顆 PR 的檔案清單
+     （POLARIS_PR_FILES_UNAVAILABLE）——問不到不吐出一份 file_count 是 0 的資訊
 
 例：
   fetch-pr-info.sh your-org/your-repo 1882
@@ -121,13 +122,28 @@ head=$(echo "$pr_meta" | jq -r '.headRefName // ""')
 # review 被打斷。2026-09-04 實際撞到的那一顆有 105 個檔案，跨了兩頁。
 # --slurp 不能跟 --jq 併用，gh 自己會拒絕，所以投影一定要走管線。
 echo "  取得變更檔案清單..." >&2
+# **問不到就停，不要吐出一份「這顆 PR 什麼都沒改」的資訊。** 這三行以前各帶一個
+# `|| echo "[]"`：拿不到檔案清單的時候 `files` 是空陣列，於是 `file_count` 是 0、
+# `total_changes` 是 0、`review_strategy` 是 single——一份看起來完整、而且看起來很好審的
+# PR 資訊。往「比較少」倒的錯沒有人會抱怨，所以它會一直是綠的。
+# `rc=$?` 不能寫成獨立的一行：這支開著 `set -e`，賦值失敗會當場離場。
+files_rc=0
 if declare -F polaris_gh_api >/dev/null 2>&1; then
-  files_pages=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null || echo "[]")
+  files_pages=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null) || files_rc=$?
 else
-  files_pages=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null || echo "[]")
+  files_pages=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate --slurp 2>/dev/null) || files_rc=$?
+fi
+if [[ "$files_rc" -ne 0 ]]; then
+  echo "POLARIS_PR_FILES_UNAVAILABLE" >&2
+  echo "問不到 ${REPO}#${PR_NUMBER} 的檔案清單（離場碼 ${files_rc}）——這一趟沒有結論" >&2
+  exit 2
 fi
 files=$(printf '%s' "$files_pages" \
-  | jq '[.[][] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+  | jq '[.[][] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null) || {
+  echo "POLARIS_PR_FILES_UNAVAILABLE" >&2
+  echo "${REPO}#${PR_NUMBER} 的檔案清單剖析不了——這一趟沒有結論" >&2
+  exit 2
+}
 
 # 計算總變更行數
 total_additions=$(echo "$files" | jq '[.[].additions] | add // 0')

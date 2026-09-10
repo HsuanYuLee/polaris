@@ -233,8 +233,16 @@ polaris_pr_checks_rest() {
   head_sha="$(printf '%s' "$pr_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("headRefOid") or "")')"
   [[ -n "$head_sha" ]] || return 1
 
-  checks_json="$(polaris_gh_api "repos/${gh_repo}/commits/${head_sha}/check-runs" --method GET -f "per_page=100" 2>/dev/null || echo '{"check_runs":[]}')"
-  statuses_json="$(polaris_gh_api "repos/${gh_repo}/commits/${head_sha}/statuses" --method GET -f "per_page=100" 2>/dev/null || echo '[]')"
+  # **問不到就回非 0，不要交出一份空的 check 清單。** 這兩行以前各帶一個 `|| echo`，於是
+  # 被限流的那一趟會產出「這顆 PR 一個 check 都沒有」。**兩個呼叫端其實都分得開**——一個
+  # 把問不到算成 `UNREACHABLE`、把空的算成 `NONE`，另一個成功才採用這份結果——而那個分辨
+  # 在這一層就被取消掉了：上層分得開，下層先合併了。所以修法是在這裡回非 0，呼叫端一個字
+  # 都不用改。
+  #
+  # （這裡不指名是哪兩支：這個檔在好幾支 skill 底下各有一份逐位元相同的副本，而那幾支各自
+  # 有哪些腳本並不一樣——指名一個只有其中一支才有的檔案，副本搬過去就是一句假話。）
+  checks_json="$(polaris_gh_api "repos/${gh_repo}/commits/${head_sha}/check-runs" --method GET -f "per_page=100" 2>/dev/null)" || return 1
+  statuses_json="$(polaris_gh_api "repos/${gh_repo}/commits/${head_sha}/statuses" --method GET -f "per_page=100" 2>/dev/null)" || return 1
 
   python3 - "$checks_json" "$statuses_json" <<'PY'
 import json
