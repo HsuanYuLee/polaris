@@ -909,7 +909,7 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
 
 
 def render(rows: list[dict], abstained: list[dict], mode: str,
-           written: int = 0, unwritable: list[dict] | None = None) -> str:
+           written: int = 0, vanished: list[dict] | None = None) -> str:
     """報告。每一格都有數字——包括 0，一個安靜的空格子跟一個沒被檢查的格子長得一樣。
 
     **這份報告是位置的唯一落地處。** 重算不再搬目錄，所以「這張單該在哪一格」只出現在
@@ -995,6 +995,17 @@ def render(rows: list[dict], abstained: list[dict], mode: str,
         if len(created) > 40:
             lines.append(f"  …還有 {len(created) - 40} 張")
 
+    if vanished:
+        # **這一類跟上面那一類不是同一件事。** 上面那些是還沒有人開的母單，這些是剛剛還在、
+        # 寫回的時候已經不在原地的單——多半是另一次重算把它搬走了。兩者都沒有東西可以寫
+        # 進去，但要人做的事不一樣：一個是決定要不要開那張單，一個是不用做任何事。
+        lines.append(f"寫回之前目錄就不在原地的 {len(vanished)} 張"
+                     + "（多半是另一次重算把它搬走了，這一趟不替它造回舊路徑）：")
+        for row in vanished[:40]:
+            lines.append(f"  {row['namespace']}/{row['name']}")
+        if len(vanished) > 40:
+            lines.append(f"  …還有 {len(vanished) - 40} 張")
+
     deep = [r for r in rows if r["chain"]]
     if deep:
         depths: dict[int, int] = {}
@@ -1070,7 +1081,18 @@ def main(argv=None) -> int:
         print("POLARIS_ISSUES_TREE_EMPTY\n一張單都沒有掃到——這不是「全部都在對的位置」")
         return 2
 
-    written, unwritable = 0, []
+    written, vanished = 0, []
+    vanished_keys: set[tuple[str, str]] = set()
+
+    def note_vanished(row: dict) -> None:
+        """這張單不在原地了，記一次。**同一張只記一次**——寫回那一圈與搬動那一圈各問一次
+        它還在不在，而同一張單兩邊都答「不在」是常態，不是兩件事。"""
+        key = (row["namespace"], row["name"])
+        if key in vanished_keys:
+            return
+        vanished_keys.add(key)
+        vanished.append(row)
+
     if args.execute:
         # **這一段寫紀錄，也搬目錄。** DP-661 曾經把搬動整個拿掉，因為那一半自己製造了它要
         # 解決的問題：一次沒搬完的搬動留下一個空殼，而那個空殼從此是同一個單號的第二條路徑
@@ -1085,8 +1107,21 @@ def main(argv=None) -> int:
         for row in rows:
             if not row["from_dir"]:
                 # 鏈上出現、樹裡還沒有的母單。以前這裡 `os.makedirs` 把它造出來，現在不造
-                # ——沒有東西可以寫進去。它在報告裡被逐張指名，由人決定要不要開那張單。
-                unwritable.append(row)
+                # ——沒有東西可以寫進去。報告自己算得出這一類（`current is None`），逐張印在
+                # 「鏈上出現、樹裡還沒有的母單」那一段，由人決定要不要開那張單。
+                continue
+            if not os.path.isdir(row["from_dir"]):
+                # **這張單在掃完之後、寫回之前不在原地了。** 這棵樹是好幾個 session 共用的，
+                # 另一次重算會把單搬走——而 `write_placement` 與 `write_upstream` 的
+                # `os.makedirs(exist_ok=True)` 會把這條舊路徑整個造回來。造回來的那個目錄
+                # 裡只有這一趟寫進去的紀錄，於是同一個單號有兩條路徑、兩份紀錄說不同的話。
+                #
+                # **而空殼一造出來就自己維持自己**：「單號在整棵樹裡只有一條路徑」是搬得動
+                # 的四項先決條件之一，不成立的那張單從此再也搬不動，於是它永遠停在那裡等著
+                # 下一次重算再造一次。2026-09-10 在 DP-700 身上真的發生過一次。
+                #
+                # 所以這裡不寫。**問不到不得讓重算安靜地不做**，那一趟的報告會逐張說出來。
+                note_vanished(row)
                 continue
             # **寫進單現在所在的目錄，不是它「該去」的那條路徑。** 搬動還在的時候兩者是
             # 同一個地方；搬動拿掉之後，寫到 `to_dir` 等於替每一張位置不對的單造一個空殼，
@@ -1098,6 +1133,14 @@ def main(argv=None) -> int:
         # 而搬動失敗留下的就是一張沒有紀錄的單。這個順序讓紀錄跟著資料夾一起走。
         # `move_home` 把 row["from_dir"] 改寫成新的位置，所以舊路徑要在搬之前留下來
         # ——commit 那一步要同時指名舊路徑（它的刪除）與新路徑（它的新增）。
+        # **搬之前再問一次它還在不在。** `plan_moves` 算完之後、真的搬之前，另一次重算
+        # 可能已經把它搬走了。少了這一問，`move_home` 的 `os.rename` 會拋 FileNotFoundError
+        # 而整趟重算停在那裡——前面已經寫回去的那些單留在半路上，而下一次重跑會從頭再來
+        # 一次。那不是「擋住了」，那是這一趟做了一半。
+        for row in moved:
+            if not os.path.isdir(row["from_dir"]):
+                note_vanished(row)
+        moved = [row for row in moved if os.path.isdir(row["from_dir"])]
         move_pairs = [(row["from_dir"], row["to_dir"]) for row in moved]
         # **先說出打算搬哪幾張，再搬。** 搬動改寫的是好幾個 session 共用的那棵樹，而且會
         # 落一顆 commit——一個做完才報數的動作，被打斷的時候沒有人知道它動到哪裡為止。
@@ -1118,7 +1161,7 @@ def main(argv=None) -> int:
     mode = "check" if args.check else ("execute" if args.execute else "preview")
     if args.spine_only:
         mode += "+spine-only"
-    print(render(rows, abstained, mode, written, unwritable))
+    print(render(rows, abstained, mode, written, vanished))
     if args.execute:
         print(f"歸位：搬了 {len(moved)} 張")
         for line in commit_notes:
