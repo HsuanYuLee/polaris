@@ -32,7 +32,7 @@ Current GitHub username 必須動態取得，並排除自己的 PR。
 | `check-my-review-status.sh` | attach `review_status` and filter irrelevant PRs |
 | `extract-pr-urls.py` | Slack JSON -> PR URLs, PR-thread mapping, root ticket / topic key mapping；也負責 normalize channel dump 與 thread section |
 | `scan-my-stale-reviews.sh` | 不靠 Slack 的第二來源：我投過票而 head 已推進的 open PR |
-| `analyze-channel-dump.py` | 這份 dump 讀完了沒（窗翻到底了嗎、窗內的 thread 讀了嗎）|
+| `analyze-channel-dump.py` | 這份 dump 讀完了沒、而且只有這一趟嗎（窗翻到底了嗎、窗內的 thread 讀了嗎、有沒有混進別趟的 thread 區段）|
 | `annotate-review-candidates.py` | attach sister PR cluster metadata and model tier hints |
 | `slack-webapi.sh` | Slack MCP fallback for read and send |
 
@@ -201,7 +201,7 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
 - `--window-seconds`：這一趟宣告的回溯時間窗，**channel 模式必填**。它由 § Source
   Selection 的語意推導而來（未指定時 7 天 = `604800`）。probe 不替你挑一個——挑了的話
   「窗有多長」就有兩個答案，而其中一個沒有人看得到。
-- `--mode`：`channel`（預設）或 `thread`。`thread` 模式跳過涵蓋範圍的兩條判定。
+- `--mode`：`channel`（預設）或 `thread`。`thread` 模式跳過涵蓋範圍的三條判定。
 
 ### 四態與 fail-loud 契約
 
@@ -213,6 +213,7 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
 | 沒有分頁標記 | 2 | `POLARIS_DISCOVERY_NO_PAGINATION_MARKER` | dump 不是走 `--emit-normalized` 產生的，「讀完了沒」問不到；重做那一步 |
 | 沒翻完窗 | 2 | `POLARIS_DISCOVERY_UNPAGED` | 帶訊息裡那個 cursor 再讀一頁接上去 |
 | thread 沒讀 | 2 | `POLARIS_DISCOVERY_UNREAD_THREADS` | 逐條指名，照訊息裡那條命令把回覆接上去 |
+| 混進別趟的 thread | 2 | `POLARIS_DISCOVERY_NOT_ONLY_THIS_RUN` | 逐條指名；把不屬於這一趟的那幾段從 dump 裡拿掉 |
 | 算不出涵蓋範圍 | 2 | `POLARIS_DISCOVERY_DUMP_UNMEASURABLE` | dump 裡沒有可校準的訊息抬頭；先確認格式 |
 | legitimate-empty | 0 | `POLARIS_DISCOVERY_LEGITIMATE_EMPTY` | 合法空 inbox，正常結束，回報 0 candidates |
 | non-empty | 0 | `POLARIS_DISCOVERY_OK` | 帶 candidates 往下走 pipeline |
@@ -257,6 +258,18 @@ URL 全部掛到 `<parent>` 上（回覆自己的 ts 不是它所屬的 thread�
 
 **哪幾條要讀不用自己數**——probe 會逐條指名（`POLARIS_DISCOVERY_UNREAD_THREADS`）。
 
+**接回 dump 的時候明列這一趟的那幾個 TS，不要用 `threads/*.json` 這種 glob。** session 的
+scratchpad 跨天重用，那個目錄裡躺著上一輪的 payload；glob 一次接回來的是兩趟的東西。
+2026-09-14 量到的：正確的 dump 100 顆候選，接上 47 個舊 payload 之後 108 顆，多出來的 8 顆
+全是舊窗的 PR。**多出來的候選會被真的派去 review**，而「多看了幾顆」沒有人會抱怨，所以
+這個誤差方向本來永遠不會有人來報。
+
+現在 probe 會問這一題（`POLARIS_DISCOVERY_NOT_ONLY_THIS_RUN`）：**判準是那一段的 parent**
+——它要是這份 dump 裡一則帶著 `Thread:` 行、而且最新回覆落在窗內的訊息，也就是上一段說的
+那個唯一來源。判準不看那一段裡面回覆的時間：讀一條 thread 本來就會帶回它全部的回覆，而
+長壽 thread 是這個團隊的常態。真的要讀一條 top-level 不在這一頁的 thread，就把 channel
+那一頁先翻到涵蓋它。
+
 ## GitHub 條件掃描（第二來源，與 Slack 取聯集）
 
 Slack 那條路徑的前提是「有人說話」。這一條沒有這個前提：
@@ -285,7 +298,7 @@ commit。**它自己會把找到的那幾顆交給 `check-my-review-status.sh` �
 
 Thread mode 只讀單一討論串，訊息量通常小，可在主 session 直接執行同一條 pipeline。
 所有 URL 都映射到指定 `thread_ts`。Probe 用 `--mode thread` 跑：那裡沒有「翻完頻道」
-這回事，涵蓋範圍的兩條判定跳過。
+這回事，涵蓋範圍的三條判定跳過。
 
 ## Sister PR Cluster And Model Tier Annotation
 

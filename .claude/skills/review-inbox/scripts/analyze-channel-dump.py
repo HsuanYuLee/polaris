@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""channel dump 讀完了沒：時間窗翻到底了嗎、窗內有新回覆的 thread 讀進來了嗎。
+"""channel dump 讀完了沒、而且只有這一趟嗎。
+
+三個問題：時間窗翻到底了嗎、窗內有新回覆的 thread 讀進來了嗎、這份 dump 裡的 thread
+區段是不是全都屬於這一趟。
 
 存在的理由：這兩件事以前寫在 review-inbox-discovery-flow.md 的散文裡，由 discovery
 sub-agent 執行。2026-09-04 兩輪各驗了一次，兩輪都沒有執行：dump 停在 66 則（MCP 明確
@@ -11,13 +14,22 @@ POLARIS_DISCOVERY_OK**——一份不完整的資料跟一份完整的資料，�
   - 每則有回覆的訊息底下有一行 `Thread: N replies (latest: YYYY-MM-DD HH:MM:SS CST)`；
   - `extract-pr-urls.py --emit-normalized` 會把 payload 的 cursor 寫成一行
     `Pagination cursor: <值>`（讀完了寫 `(none)`）；
-  - 讀進來的 thread 由 `=== Thread replies for TS <parent> ===` 這一行證明。
+  - 讀進來的 thread 由 `=== Thread replies for TS <parent> ===` 這一行證明；同一行也
+    說得出它屬不屬於這一趟——這一趟該讀的 thread 只有一個來源，就是這份 dump 裡那幾則
+    「帶 `Thread:` 行、最新回覆落在窗內」的訊息（DP-710）。
+
+「讀完了」與「只有這一趟」是兩個方向相反的問題，少了後面那個，多接進來的東西一律安靜：
+session 的 scratchpad 跨天重用時，`threads/*.json` 這種 glob 會把上一輪的 payload 一起接
+上去。2026-09-14 量到的：正確的 dump 100 顆候選，接上 47 個舊 payload 之後 108 顆，多出來
+的 8 顆全是舊窗的 PR——而兩種情況這裡都回 `POLARIS_DISCOVERY_WINDOW_COVERED`。多看幾顆
+沒有人會抱怨，所以這個誤差方向永遠不會有人來報。
 
 時區不寫死：訊息抬頭的牆上時間與同一則的 `Message TS` 一起出現，兩者相減就是這個
 workspace 的偏移量。寫死 +8 的話，換一個 workspace 就會安靜地把窗算錯。
 
 用法：analyze-channel-dump.py --dump <file> --window-seconds N [--now-epoch E]
-離場：0＝讀完了、2＝沒讀完（逐條指名）、3＝量不到（dump 裡沒有可校準的訊息）
+離場：0＝讀完了而且只有這一趟、2＝沒讀完或混進了別趟的東西（逐條指名）、
+      3＝量不到（dump 裡沒有可校準的訊息）
 """
 
 import argparse
@@ -147,6 +159,43 @@ def main():
             "--emit-normalized-thread <那個 TS> < <thread payload> >> <dump>"
         )
 
+    # --- 不屬於這一趟的 thread 區段 (DP-710) --------------------------------------
+    # 判準是那一段的 parent，不是那一段裡面那幾則回覆的時間：讀一條 thread 本來就會帶回
+    # 它全部的回覆，而長壽 thread 是這個團隊的常態（那條公告 thread 的根落在窗外 14 天）。
+    by_ts = {message["ts"]: message for message in messages}
+    foreign = []
+    for raw in sorted(read_sections):
+        parent = by_ts.get(float(raw))
+        if parent is None:
+            foreign.append((raw, "這份 dump 裡沒有這則 top-level 訊息"))
+            continue
+        if not parent["thread"]:
+            foreign.append((raw, "這則訊息身上沒有 `Thread:` 那一行，它沒有回覆"))
+            continue
+        latest_epoch = naive_epoch(parent["thread"][1]) + offset
+        if latest_epoch < window_start:
+            foreign.append(
+                (raw, f"這條 thread 的最新回覆是 {parent['thread'][1]} CST，落在窗外")
+            )
+
+    if foreign:
+        problems.append("POLARIS_DISCOVERY_NOT_ONLY_THIS_RUN")
+        problems.append(
+            f"{len(foreign)} 段 thread 回覆不屬於這一趟。這一趟該讀的 thread 只有一個來源"
+            "——這份 dump 裡那幾則帶 `Thread:` 行、最新回覆落在窗內的訊息："
+        )
+        for raw, why in foreign:
+            problems.append(f"  Thread replies for TS {raw}：{why}")
+        problems.append(
+            "  修法：把不屬於這一趟的那幾段從 dump 裡拿掉。"
+            "接 dump 的時候明列這一趟的 TS，不要用 `threads/*.json` 這種 glob"
+            "——跨天重用的 scratchpad 裡躺著上一輪的 payload。"
+        )
+        problems.append(
+            "  那一條真的要讀的話，先把 channel 那一頁翻到涵蓋它的 top-level 訊息，"
+            "它才有辦法被算成這一趟的一部分。"
+        )
+
     # --- 沒翻完的時間窗 -------------------------------------------------------------
     if not cursors:
         problems.append("POLARIS_DISCOVERY_NO_PAGINATION_MARKER")
@@ -178,7 +227,8 @@ def main():
     print(
         f"涵蓋範圍夠了：{len(messages)} 則訊息、最舊 {oldest:.0f}"
         f"（窗起點 {window_start}）、"
-        f"窗內有新回覆的 thread {len(read_sections)} 條都讀過了"
+        f"窗內有新回覆的 thread {len(read_sections)} 條都讀過了，"
+        f"而且沒有不屬於這一趟的 thread 區段"
     )
     return 0
 
