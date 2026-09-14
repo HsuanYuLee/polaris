@@ -59,18 +59,25 @@ def naive_epoch(text):
 
 
 def parse(lines):
-    """Walk the dump once, collecting everything the two checks need."""
-    messages = []      # {ts, wall, thread_replies: (count, latest_wall) | None}
+    """Walk the dump once, collecting everything the three checks need.
+
+    `in_section` 分開兩種訊息：channel 那一頁的 top-level，以及 thread 區段裡的。少了這一格
+    就分不開，而它們**會撞在同一個 ts 上**——`slack_read_thread` 的第一則就是 parent 自己，
+    區段裡因此有一份它的影子，那一份沒有 `Thread:` 行（DP-712）。
+    """
+    messages = []      # {ts, wall, thread: (count, latest_wall) | None, in_section: bool}
     read_sections = set()
     cursors = []
     current = None
     pending_wall = None
+    in_section = False
 
     for line in lines:
         section = SECTION_RE.match(line)
         if section:
             read_sections.add(section.group(1))
             current = None
+            in_section = True
             continue
         cursor = CURSOR_RE.match(line)
         if cursor:
@@ -83,7 +90,7 @@ def parse(lines):
         ts_line = TS_RE.match(line)
         if ts_line:
             current = {"ts": float(ts_line.group(1)), "wall": pending_wall,
-                       "thread": None}
+                       "thread": None, "in_section": in_section}
             messages.append(current)
             pending_wall = None
             continue
@@ -127,11 +134,19 @@ def main():
         return 3
     offset = offsets[len(offsets) // 2]
 
+    # channel 那一頁的 top-level。三條判定裡有兩條問的是它，不是「dump 裡所有的訊息」
+    # ——thread 區段裡的回覆不屬於這一頁，拿它們回答「這一頁翻到哪」會答錯（DP-712）。
+    page = [m for m in messages if not m["in_section"]]
+    if not page:
+        print("POLARIS_DISCOVERY_DUMP_UNMEASURABLE")
+        print("這份 dump 只有 thread 區段，沒有 channel 那一頁的訊息，涵蓋範圍算不出來")
+        return 3
+
     problems = []
 
     # --- 沒讀到的 thread -----------------------------------------------------------
     unread = []
-    for message in messages:
+    for message in page:
         if not message["thread"]:
             continue
         count, latest_wall = message["thread"]
@@ -162,7 +177,9 @@ def main():
     # --- 不屬於這一趟的 thread 區段 (DP-710) --------------------------------------
     # 判準是那一段的 parent，不是那一段裡面那幾則回覆的時間：讀一條 thread 本來就會帶回
     # 它全部的回覆，而長壽 thread 是這個團隊的常態（那條公告 thread 的根落在窗外 14 天）。
-    by_ts = {message["ts"]: message for message in messages}
+    # parent 只從這一頁的 top-level 找。區段裡那一份 parent 的影子沒有 `Thread:` 行，
+    # 用它來判的話每一段都會被判成外來——DP-712 之前就是這樣，work-30 一趟 52 段全紅。
+    by_ts = {message["ts"]: message for message in page}
     foreign = []
     for raw in sorted(read_sections):
         parent = by_ts.get(float(raw))
@@ -207,7 +224,7 @@ def main():
             "產生 dump，那一步才會把 cursor 留下來。"
         )
     elif cursors[-1] != NO_CURSOR:
-        oldest = min(m["ts"] for m in messages)
+        oldest = min(m["ts"] for m in page)
         if oldest > window_start:
             short = int(oldest - window_start)
             problems.append("POLARIS_DISCOVERY_UNPAGED")
@@ -222,10 +239,10 @@ def main():
             print(line)
         return 2
 
-    oldest = min(m["ts"] for m in messages)
+    oldest = min(m["ts"] for m in page)
     print("POLARIS_DISCOVERY_WINDOW_COVERED")
     print(
-        f"涵蓋範圍夠了：{len(messages)} 則訊息、最舊 {oldest:.0f}"
+        f"涵蓋範圍夠了：這一頁 {len(page)} 則訊息、最舊 {oldest:.0f}"
         f"（窗起點 {window_start}）、"
         f"窗內有新回覆的 thread {len(read_sections)} 條都讀過了，"
         f"而且沒有不屬於這一趟的 thread 區段"

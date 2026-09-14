@@ -270,6 +270,12 @@ scratchpad 跨天重用，那個目錄裡躺著上一輪的 payload；glob 一�
 長壽 thread 是這個團隊的常態。真的要讀一條 top-level 不在這一頁的 thread，就把 channel
 那一頁先翻到涵蓋它。
 
+**parent 只從 channel 那一頁的 top-level 找，區段裡那一份不算。** `slack_read_thread` 的第
+一則就是 parent 自己，所以每一段裡面都有一份它——而那一份沒有 `Thread:` 那一行。拿它來回答
+「這一段的 parent 長什麼樣」，每一段都會被判成外來：2026-09-14 一趟 52 段全紅，而那 52 段
+每一段都是對的（DP-712）。同一個理由，「這一頁翻到哪」也只問這一頁的 top-level——區段裡一
+則舊回覆就足以讓那個判定安靜下來。
+
 ## GitHub 條件掃描（第二來源，與 Slack 取聯集）
 
 Slack 那條路徑的前提是「有人說話」。這一條沒有這個前提：
