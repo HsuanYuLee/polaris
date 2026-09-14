@@ -137,10 +137,19 @@ if [[ "$MODE" == 'channel' ]]; then
   esac
 fi
 
+# 一個時間窗有兩個參數：多長、從哪裡開始。上面那一段要求呼叫者說出前者，而後者以前由這裡
+# 挑一個（`date +%s`）——於是同一趟 run 的第二次 probe 算的是另一個窗，窗跟著時鐘往前爬。
+# 兩個方向都真的發生過（DP-714）：一段合法的 thread 回覆在 12 分鐘後被判成不屬於這一趟
+# （假紅，而它印的修法是去刪掉那幾段——刪的是正確的資料），一份沒翻完窗的 dump 在 12 分鐘
+# 後過關（假綠——宣告的窗自己縮短到剛好容得下手上的資料，而沒有人會來報一個假綠）。
+#
+# thread 模式照舊：那個模式跳過涵蓋範圍的三條判定，窗在那裡不參與任何事。
 if [[ -n "$NOW_EPOCH" ]]; then
   case "$NOW_EPOCH" in
     *[!0-9]*) fail_usage "--now-epoch must be a non-negative integer, got: '$NOW_EPOCH'" ;;
   esac
+elif [[ "$MODE" == 'channel' ]]; then
+  fail_usage '--now-epoch is required in channel mode: 窗的起點跟窗的長度一樣，由這一趟自己說出來，probe 不替你挑一個。一趟 run 開始時定一次（date +%s），之後每一次 probe 都交同一個值——每次各自重算的話窗會往前漂，同一份 dump 的判定會隨著現在幾點翻面'
 else
   NOW_EPOCH="$(date +%s)"
 fi

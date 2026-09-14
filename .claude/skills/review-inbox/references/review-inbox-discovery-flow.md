@@ -185,6 +185,7 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
   --raw-dump <normalized_channel_dump_file> \
   --candidates <parsed_pr_urls_file> \
   --window-seconds <這一趟回溯多久，秒> \
+  --now-epoch <這一趟開始的那一刻，epoch 秒> \
   --stale-seconds <threshold> \
   --mode channel|thread \
   --source-available 0|1
@@ -201,7 +202,15 @@ bash .claude/skills/review-inbox/scripts/review-inbox-discovery-probe.sh \
 - `--window-seconds`：這一趟宣告的回溯時間窗，**channel 模式必填**。它由 § Source
   Selection 的語意推導而來（未指定時 7 天 = `604800`）。probe 不替你挑一個——挑了的話
   「窗有多長」就有兩個答案，而其中一個沒有人看得到。
-- `--mode`：`channel`（預設）或 `thread`。`thread` 模式跳過涵蓋範圍的三條判定。
+- `--now-epoch`：窗的**起點**，**channel 模式必填**。一趟 run 開始時定一次
+  （`date +%s`），寫下來，之後**每一次 probe 都交同一個值**。理由跟上一條是同一個：窗有
+  多長與窗從哪裡開始是同一個參數的兩半，probe 兩半都不替你挑。
+  **每次各自重算會怎樣**：窗的起點跟著時鐘往前爬，於是同一份 dump 的判定會隨著現在幾點
+  翻面——一段合法的 thread 回覆在十幾分鐘後被判成不屬於這一趟（假紅，而它印的修法是去刪掉
+  那幾段），而一份沒翻完窗的 dump 在十幾分鐘後過關（假綠）。兩個方向都在真的 run 上出現過
+  （DP-714）。
+- `--mode`：`channel`（預設）或 `thread`。`thread` 模式跳過涵蓋範圍的三條判定，窗在那裡
+  不參與任何事，所以那個模式不必交 `--now-epoch`。
 
 ### 四態與 fail-loud 契約
 
