@@ -91,8 +91,10 @@ workflow authority。這條有兩個方向，兩個都要擋：
    `{base_dir}/standups/` 底下今天以前最新的那一份，而且**每次都說出拿哪一份比的**。
    **比的是內容不是號碼**，而且空的TDT不算一個計畫——規則在 `standup-planning-flow.md`。
    同一張單描述與留言衝突時留言勝出，且把落差說出來。
-5. 收集今日 candidates：JIRA open sprint、open PR status、review-requested PR，
-   **以及今天要上線的那幾張**——那一個來源有自己的問法，見〈今天要上線的，向 tracker 問〉。
+5. 收集今日 candidates：JIRA open sprint、open PR status，**以及今天要上線的那幾張**
+   ——那一個來源有自己的問法，見〈今天要上線的，向 tracker 問〉。
+   **別人請我 review 的 PR 不是候選**（使用者 2026-09-16 拍板：站會要收斂的是自己的工作）。
+   我自己的 PR 在等別人看仍然收——那是我的工作，下一步是去請人看，見下面第 6 步那一條。
 6. 收集卡關：JIRA discuss status、前幾天持續 blocker、使用者口述。每一項過
    `standup-planning-flow.md` 的准入判準——「我現在還有沒有下一步動作可做」加上那張措辭表；
    自己動得了的是待辦不是卡關。**「等 review」預設不是卡關**，判準與三種被退回的形狀寫在
