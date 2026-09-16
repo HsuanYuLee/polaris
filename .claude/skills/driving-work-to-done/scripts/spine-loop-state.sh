@@ -704,6 +704,16 @@ for path in paths:
         continue
     if data.get("station") != terminal:
         continue
+    # 走到終局站別不等於「還佔著這裡」。**釋出過的單已經出去了，它的歷史不會再被疊上。**
+    # 站別只走到 verify-ac 的釋出、以及釋出之後沒有人推站別，兩件事都是常態——所以這一格
+    # 要問的是「那張單出去了沒」，而釋出紀錄就是那個問題唯一的答案（釋出尾段與
+    # spine-loop-state.sh released 兩條路都寫它，寫的是同一個路徑）。
+    #
+    # 少了這一問的那一版，拒絕訊息建議的第一條路走不通：它說「把那張單的釋出尾段走完」，
+    # 而那張單早就走完了，走完也不會讓這個判定改變答案。於是每一張新單各自開一條繞路的
+    # branch 過去——2026-09-16 量到 ~/.claude/skills 上六條那樣留下來的 branch。
+    if os.path.exists(os.path.join(os.path.dirname(path), "release.json")):
+        continue
     w = data.get("workspace_identity") or {}
     theirs = set(w.get("values") or ([w["value"]] if w.get("value") else []))
     shared = theirs & now
