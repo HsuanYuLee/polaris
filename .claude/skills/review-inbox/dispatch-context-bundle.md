@@ -56,6 +56,23 @@ continue without scanning repo guideline folders.
 
 給修法比描述問題有用：能貼上去就直接貼一段可用的 code，不要只說「這裡有問題」。
 
+**一格綠的檢查，先問它跑過這條 branch 沒有。** CI 狀態在 review 裡被當成一項證據讀，而它
+只有在相關的 job 真的在這顆 PR 的 base 上跑過的時候才是證據。**沒跑過的綠與跑過而通過的綠，
+在 `statusCheckRollup` 裡長得一模一樣**——那張表列的是「有哪幾格」，不是「哪幾格該有」。
+
+所以問的對象是那份 workflow 的觸發條件（`when.branch`／path 過濾），不是那張表：
+
+- 涵蓋得到這顆 PR 的 base → 那一格綠是證據，照舊讀。
+- 不涵蓋 → 那一格不是綠，是**沒有量**。要在意見裡說出來，而且那條相關的檢查要自己跑一次。
+
+2026-09-16 的實例：一顆 sync PR 兩格 check 全綠，而它帶著一份 git 自動合出來、有 3 個重複
+mapping key 的 lockfile，`pnpm install --frozen-lockfile` 直接紅——image build 與 lint 都走
+那條路。全綠的原因是那份 lint workflow 的 `when.branch` 只有兩條主線分支，而那顆 PR 的 base
+不在裡面，所以它從來沒有跑過 `pnpm install`。**誤差方向是「看起來比較安全」，所以沒有人會來報。**
+
+這跟「同名 check 重跑之後舊的失敗還留在表上」是兩個不同的失效模式：那一個是結果過期，
+取最新那筆就解得掉；這一個是那份 job 根本不存在，取最新那筆不會讓它出現。
+
 ## Severity And Write Rules
 
 Prioritize bugs, regressions, security, type safety, key rule violations, and

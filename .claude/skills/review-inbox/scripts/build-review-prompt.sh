@@ -93,6 +93,9 @@ if [[ "$SHOW_ALL_CHECKS" == "true" ]]; then
 else
   CI_ROLLUP_RULE="CI rollup: only FAILURE / ERROR checks may enter main context. PASS checks must be omitted. Use gh pr view --json statusCheckRollup with a jq filter that selects failure/error only."
 fi
+# 一格綠的檢查只有在它真的跑過這條 branch 的時候才是證據。沒跑過的綠與跑過而通過的綠，
+# 在 statusCheckRollup 裡長得一模一樣——所以要問的不是那張表，是那份 workflow 的觸發條件。
+CI_ROLLUP_RULE="${CI_ROLLUP_RULE} 綠不等於跑過：把這顆 PR 的 base 拿去對那份 workflow 的觸發條件（branch／path 過濾）。涵蓋得到的話那一格綠是證據；不涵蓋的話那一格不是綠，是**沒有量**——要在意見裡說出來，不要拿它當「CI 全綠」的依據。"
 # 這一段以前指向 review-inbox 自己抄的一份 resolver，而它讀的是工作區底下沒有版控的
 # polaris-config。那份補充現在住在提供它的那支 skill 自己的目錄裡（DP-484），所以這裡改成
 # 掃宣告：核心不認得任何一家公司，也不去讀任何一支 skill 的目錄。
