@@ -32,6 +32,7 @@ Current GitHub username 必須動態取得，並排除自己的 PR。
 | `check-my-review-status.sh` | attach `review_status` and filter irrelevant PRs |
 | `extract-pr-urls.py` | Slack JSON -> PR URLs, PR-thread mapping, root ticket / topic key mapping；也負責 normalize channel dump 與 thread section |
 | `scan-my-stale-reviews.sh` | 不靠 Slack 的第二來源：我投過票而 head 已推進的 open PR |
+| `scan-unreviewed-prs.sh` | 不等任何人動作的第三來源：指名的 repo 裡我一票都沒投過的 open PR |
 | `analyze-channel-dump.py` | 這份 dump 讀完了沒、而且只有這一趟嗎（窗翻到底了嗎、窗內的 thread 讀了嗎、有沒有混進別趟的 thread 區段）|
 | `annotate-review-candidates.py` | attach sister PR cluster metadata and model tier hints |
 | `slack-webapi.sh` | Slack MCP fallback for read and send |
@@ -309,6 +310,65 @@ commit。**它自己會把找到的那幾顆交給 `check-my-review-status.sh` �
 問不到上游時它離場 2 並印 `POLARIS_STALE_REVIEW_SCAN_UNAVAILABLE`，不回空陣列：
 `gh search` 對打錯的 owner 會回 `[]` 而且離場 0，那跟「問到了而且沒有」分不開。
 
+## GitHub 首次 review 掃描（第三來源，與前兩條取聯集）
+
+前兩條都錨在**有人針對我做了動作**：Slack 那條要有人把 PR 貼進頻道，`scan-my-stale-reviews.sh`
+的定義域是「我投過票、而 head 已經推進」。兩個定義域的交集是空的，聯集也不涵蓋**一顆我還
+沒碰過的 PR**——那一類結構上進不了任何一條。
+
+```bash
+bash .claude/skills/review-inbox/scripts/scan-unreviewed-prs.sh \
+  --my-user <github_username> --org <github_org> \
+  --repo <name> [--repo <name>]... \
+  [--updated-within-seconds <秒，預設 604800>] \
+  [--merge-with <前兩條產出的 candidates JSON>]
+```
+
+它問 GitHub：指名的那幾個 repo 裡，哪幾顆 open、非 draft、不是我開的 PR 我一票都還沒投。
+輸出與另外兩條同形（`review_status` 由 `check-my-review-status.sh` 補，不要再接一次），
+`--merge-with` 的聯集跟那一條走同一份實作（`lib/merge-candidates.sh`）。
+
+### 為什麼「有人指名要我」不是這條腿的判準
+
+`review-requested:<me>` 漏掉的是同一類：**review request 常常指到 team 而不是個人。**
+2026-09-16 的實例——某個 repo 上一顆 PR 的 review request 指的是兩個 team，於是
+那一組 38 顆裡沒有它；它也沒有任何 label，所以 Label mode 一樣看不到。三條既有路徑同時
+為零，而那顆 PR 在等人看。
+
+### `--repo` 沒有預設，一個都不給就拒絕執行
+
+**這支不掃整個 org。** org-wide 的搜尋會被單頁上限截斷，而上游仍然回離場碼 0——那跟
+「問到了而且就這幾顆」分不開。同一天實測：一次 org-wide 查詢在其中一個 repo 上只回
+9 顆，單問那個 repo 是 35 顆。**誤差方向是「比較少」，所以沒有人會來報。**
+
+要問哪幾個 repo 是呼叫者的知識，讀公司自己的 `workspace-config.yaml` 的
+`github.review_repos`。那份清單由人列，**不從 `reviewed-by` 的歷史動態推**：那樣推有冷啟動
+問題——一個剛加入的 repo 不會出現在歷史裡，於是它的 PR 永遠掃不到，而那正是這條腿要修的
+形狀。
+
+### 窗由呼叫者傳
+
+`--updated-within-seconds` 預設 7 天，跟 § Source Selection 的頻道掃描預設窗一致。**沒有窗
+的話長尾會淹掉清單**：2026-09-16 對三個 repo 實測共 40 顆，只有 15 顆是七天內更新過的，其餘
+最舊的一顆是兩年前開的。要不設窗傳 `0`。
+
+### 走 repo 自己的 pulls 清單，不走搜尋端點
+
+搜尋端點一句話就問得到「我沒投過票的 open PR」，但它的次級限流極緊：2026-09-16 實測，三個
+repo 連著問在第三個撞 403，中間隔 3 秒再問還是撞。**而撞到的代價是整批候選消失**——這一支
+照設計離場 2，那是對的行為，但收件匣那一天就是空的。
+
+`repos/{owner}/{repo}/pulls` 走另一個額度桶（每小時 5000 次），代價是「我投過票沒」要逐顆
+問。三個 repo、七天窗實測是十幾次呼叫、27 秒，離那個上限很遠。換桶還順帶解掉搜尋索引的延遲
+——同一趟裡剛開幾分鐘的 PR，搜尋端點還看不到，清單端點已經有了。
+
+### 被擋住不等於沒有
+
+離場碼 2 ＋ `POLARIS_UNREVIEWED_SCAN_UNAVAILABLE`，三種情況都算問不到：清單端點離場非 0
+（**限流回的 403 是這一種**）、回應形狀不對、**某一顆的票數問不到**。最後那一種特別要說：
+問不到不得當成「我沒投過」——那個方向會把一顆已經看過的 PR 再送一次，而它跟真的沒看過長得
+一樣。**一顆都不回，不回空陣列**：問不到與沒有的下一步相反。
+
 ## Thread Scan
 
 Thread mode 只讀單一討論串，訊息量通常小，可在主 session 直接執行同一條 pipeline。
@@ -367,7 +427,9 @@ Scan 是 point-in-time snapshot。不可沿用舊 candidates JSON：**派工之�
 
 1. 把最新一頁**整頁**重抽 PR URL，跟清單比，新出現的補進去（照一般路徑查狀態）。
 2. 重跑第二來源（〈GitHub 條件掃描〉那一支），新出現的一樣補進去。
-3. 從這一刻起 60 秒內開始派工；超過就再核一次。
+3. 重跑第三來源（〈GitHub 首次 review 掃描〉那一支），同樣補進去。**這一條不能省**：
+   重核之間新開的 PR 只有這條腿看得到——它不必等任何人把它貼出來，也不必等我先投過票。
+4. 從這一刻起 60 秒內開始派工；超過就再核一次。
 
 **只讀 ts 比上一輪新的訊息，不算重跑，也不算重核。** Slack 編輯一則訊息不會更新它的
 ts，所以一則被編輯過、內容換成另一顆 PR 的訊息，照時間過濾會被判成舊的而略過。

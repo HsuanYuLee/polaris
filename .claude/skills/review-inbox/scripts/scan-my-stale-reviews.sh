@@ -32,6 +32,8 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/merge-candidates.sh
+source "${SCRIPT_DIR}/lib/merge-candidates.sh"
 
 MY_USER=""
 ORG=""
@@ -202,41 +204,9 @@ if [[ "$mine" != "[]" ]]; then
 fi
 
 if [[ -n "$MERGE_WITH" ]]; then
-  if [[ ! -r "$MERGE_WITH" ]]; then
-    echo "ERROR: --merge-with 指的檔案讀不到：${MERGE_WITH}" >&2
-    exit 1
-  fi
-  if ! jq -e 'type == "array"' "$MERGE_WITH" >/dev/null 2>&1; then
-    echo "ERROR: --merge-with 指的檔案不是一個 JSON 陣列：${MERGE_WITH}" >&2
-    exit 1
-  fi
-  other_count="$(jq 'length' "$MERGE_WITH")"
-  # 兩邊都有同一個 url 時，合併的是**欄位**，不是挑一整列留下。挑一列的寫法
-  # （`unique_by(.url)`）保留的是輸入順序的第一列——而這條路徑固定把自己掃出來的那一列
-  # 放在前面，那一列沒有 review_status，於是欄位比較多的另一列每次都輸。下游
-  # build-review-prompt.sh 讀 review_status 讀不到就中斷，整批 packet 從那一顆起停掉。
-  #
-  # 每一個鍵取「兩邊非空的值排序後的第一個」：非空優先，所以少一邊沒填不會蓋掉有填的；
-  # 排序後取第一個，所以兩邊值不同時結果由值本身決定，不由誰先進陣列決定。兩邊都是空的
-  # 就照樣留那個空值，不要換成 null。
-  printf '%s' "$mine" | jq -s --slurpfile other "$MERGE_WITH" '
-    add + $other[0]
-    | group_by(.url)
-    | map(
-        (map(to_entries) | add)
-        | group_by(.key)
-        | map({
-            key: .[0].key,
-            value: (
-              [.[].value] as $vs
-              | ([$vs[] | select(. != null and . != "")] | unique) as $filled
-              | if ($filled | length) > 0 then $filled[0] else ($vs | unique | .[0]) end
-            )
-          })
-        | from_entries
-      )
-    | sort_by(.created_at)'
-  echo "🔗 聯集：這條路徑 ${moved} 顆 ＋ 另一條 ${other_count} 顆，去重後如上" >&2
+  # 聯集那一段是共用的，見 lib/merge-candidates.sh——它同時是這一支與 scan-unreviewed-prs.sh
+  # 的實作。抄成兩份的話它們會漂，而漂掉的那一刻沒有東西會說它們不一樣。
+  merge_candidate_arrays "$mine" "$MERGE_WITH" "$moved" || exit 1
 else
   printf '%s\n' "$mine"
 fi
