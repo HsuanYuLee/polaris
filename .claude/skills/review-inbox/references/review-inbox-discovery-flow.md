@@ -254,11 +254,21 @@ permalink 全帶 `thread_ts=1787297348.327969`——那是一條 08-17 開的公
 thread 的根落在窗外 14 天。
 
 ```bash
-# 對每一條這樣的 thread：
-python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py --org <org> \
-  --emit-normalized-thread <那則訊息的 Message TS> < <slack_read_thread 的回應> \
-  >> <normalized_dump_file>
+# 一批一條命令，TS 明列在迴圈裡：
+for ts in <這一批的 TS…>; do
+  python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py --org <org> \
+    --emit-normalized-thread "$ts" < threads/"$ts".json >> <normalized_dump_file>
+done
 ```
+
+**一批的 `slack_read_thread` 在同一個回合裡一起發出去，不要一條一條輪流。** 這一段的成本
+幾乎全是往返：2026-09-16 實測一趟 discovery 59 分 30 秒，其中 **52 分鐘（88%）**花在逐條讀
+43 條 thread——每條 72 秒，而 Slack 的回應本身不用那麼久。probe 本來就一次把該讀的全部指名
+了，所以它分得了批。
+
+**批要多大不寫在這裡。** `analyze-channel-dump.py` 的 `THREAD_READ_BATCH_SIZE` 說了算，而
+probe 把切好的批直接印出來——一份抄在散文裡的數字會跟那一邊漂開，而漂掉的那一刻沒有人在看。
+
 
 它會把 thread 的 `From:` / `Time:` / `Message TS:` 三行翻成 channel 的
 `=== Message from … ===` 抬頭（兩種格式不一樣，不翻的話 parser 一則都認不得），並在最前面
@@ -266,7 +276,7 @@ python3 .claude/skills/review-inbox/scripts/extract-pr-urls.py --org <org> \
 URL 全部掛到 `<parent>` 上（回覆自己的 ts 不是它所屬的 thread），probe 拿它當「這條讀過了」
 的證據。
 
-**哪幾條要讀不用自己數**——probe 會逐條指名（`POLARIS_DISCOVERY_UNREAD_THREADS`）。
+**哪幾條要讀、分成幾批，都不用自己數**——probe 會把該讀的逐條指名，然後切好批印出來（`POLARIS_DISCOVERY_UNREAD_THREADS`）。**切批不改「哪幾條該讀」**：少讀幾條換到的時間，買的是一份不完整的 dump，而它跟完整的那一份長得一樣。
 
 **接回 dump 的時候明列這一趟的那幾個 TS，不要用 `threads/*.json` 這種 glob。** session 的
 scratchpad 跨天重用，那個目錄裡躺著上一輪的 payload；glob 一次接回來的是兩趟的東西。

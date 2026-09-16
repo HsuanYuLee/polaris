@@ -58,6 +58,55 @@ def naive_epoch(text):
     ).timestamp()
 
 
+
+# 一個回合發幾條。**這個數字在這裡，不在散文裡**——散文說了不算，讀指示的那一端照著它做。
+#
+# 挑 10 的理由是往返成本：2026-09-16 實測一趟 discovery 59 分 30 秒，其中 52 分鐘（88%）
+# 花在逐條讀 43 條 thread——每條 72 秒，而那 72 秒幾乎都是往返，不是 Slack 回應本身。
+# 43 條照這個上限是 5 批，不是 43 個回合。
+THREAD_READ_BATCH_SIZE = 10
+
+
+def unread_batch_instructions(keys):
+    """把該讀的那幾條切成批，每一批講成「一個回合做完」的一組動作。
+
+    以前這裡印的是「對每一條跑 slack_read_thread」——而讀指示的那一端照著做，就是 N 個
+    回合。切批之後回合數是 N 除以上限無條件進位：N 變大數倍，回合只多一個。
+
+    **切批不改「哪幾條該讀」**。傳進來的就是涵蓋判定算出來的那一組，這裡一條都不丟——
+    少讀幾條換到的時間，買的是一份不完整的 dump，而它跟完整的那一份長得一樣。
+    """
+    lines = []
+    total = len(keys)
+    batches = [
+        keys[i : i + THREAD_READ_BATCH_SIZE]
+        for i in range(0, total, THREAD_READ_BATCH_SIZE)
+    ]
+    lines.append(
+        f"  修法：分成 {len(batches)} 批讀完（一批 {THREAD_READ_BATCH_SIZE} 條）。"
+        f"**每一批的 slack_read_thread 在同一個回合裡一起發出去**，不要一條一條輪流："
+    )
+    for index, batch in enumerate(batches, start=1):
+        lines.append(f"  ── 第 {index}／{len(batches)} 批（{len(batch)} 條）")
+        lines.append("     這一批一起發：" + " ".join(batch))
+        lines.append(
+            "     每一條的回應各存成 threads/<TS>.json，然後這一批用一條命令接進 dump："
+        )
+        lines.append(
+            "       for ts in " + " ".join(batch) + "; do \\"
+        )
+        lines.append(
+            "         python3 extract-pr-urls.py --org <org> "
+            "--emit-normalized-thread \"$ts\" < threads/\"$ts\".json >> <dump>; \\"
+        )
+        lines.append("       done")
+    lines.append(
+        "  上面那個迴圈明列這一趟的那幾個 TS，**不要換成 threads/*.json**："
+        "scratchpad 跨天重用，萬用字元會把上一輪的 payload 一起接回來。"
+    )
+    return lines
+
+
 def parse(lines):
     """Walk the dump once, collecting everything the three checks need.
 
@@ -166,13 +215,7 @@ def main():
         )
         for key, count, latest_wall in unread:
             problems.append(f"  Message TS {key}：{count} 則回覆，最新 {latest_wall} CST")
-        problems.append(
-            "  修法：對每一條跑 slack_read_thread，然後把它接到 dump 後面："
-        )
-        problems.append(
-            "    python3 extract-pr-urls.py --org <org> "
-            "--emit-normalized-thread <那個 TS> < <thread payload> >> <dump>"
-        )
+        problems.extend(unread_batch_instructions([key for key, _, _ in unread]))
 
     # --- 不屬於這一趟的 thread 區段 (DP-710) --------------------------------------
     # 判準是那一段的 parent，不是那一段裡面那幾則回覆的時間：讀一條 thread 本來就會帶回
