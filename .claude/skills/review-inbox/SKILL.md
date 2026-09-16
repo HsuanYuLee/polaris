@@ -81,7 +81,9 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
 1. 讀 workspace config 與 defaults，取得 GitHub org、PR channel、approval threshold。
 2. 解析 mode：Thread 優先，其次 explicit Label，其餘走 Slack。
 3. 取得 current GitHub username，作為 exclude author 與 review-status 判定依據。
-4. 依 discovery reference 產生 candidates JSON；派工前照〈Scan Freshness〉重核一次，60 秒從那次重核起算。
+4. 依 discovery reference 產生 candidates JSON（Label mode 走 `scripts/scan-need-review-prs.sh`，
+   Slack mode 走 channel dump ＋ `scripts/extract-pr-urls.py`）；派工前照〈Scan Freshness〉重核
+   一次，60 秒從那次重核起算。
    Slack channel scan 使用 MCP 時指定 **detailed** output——`concise` 不輸出
    `=== Message from ` 與 `Message TS: ` 這兩個 marker，parser 會找不到 message header 而
    **靜默回傳 0 個 URL**（stderr 只印一行 WARN，離場碼仍然是 0），而那跟「channel 真的空」
@@ -91,10 +93,19 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    那裡、把 marker 與說明回報出來——**不要宣告空的收件匣，也不要靜默改走 label scan**。
    它現在除了「讀不讀得懂」也問「讀完了沒」：時間窗翻到底了嗎、窗內有新回覆的 thread
    讀進來了嗎。`--window-seconds` 在 channel 模式必填，值是這一趟宣告的回溯時間窗。
-4b. **Slack 那條做完，再跑一次 GitHub 條件掃描並取聯集**：
-   `scripts/scan-my-stale-reviews.sh --my-user <u> --org <org> --merge-with <Slack 的 candidates>`。
-   頻道掃描的前提是有人說話，這一條沒有這個前提——2026-09-04 兩輪 discovery 都空手，
-   而同一時間有五顆 PR 擋在我方舊票上、作者早就推了修正。
+4b. **Slack 那條做完，再跑兩支 GitHub 條件掃描，逐支取聯集**。頻道掃描的前提是有人說話，
+   這兩支都沒有這個前提，而它們的定義域不重疊——**兩支都要跑**：
+
+   - `scripts/scan-my-stale-reviews.sh --my-user <u> --org <org> --merge-with <Slack 的 candidates>`
+     ——我投過票、而 head 已經推進的 open PR。2026-09-04 兩輪 discovery 都空手，而同一時間
+     有五顆 PR 擋在我方舊票上、作者早就推了修正。
+   - `scripts/scan-unreviewed-prs.sh --my-user <u> --org <org> --repo <name>... --merge-with <上一支的輸出>`
+     ——指名的 repo 裡**我一票都沒投過**的 open PR。前兩條來源都錨在「有人針對我做了動作」，
+     一顆沒有人貼、我也還沒碰過的 PR 結構上進不了它們。實跑一趟：43 秒撈 29 顆，其中
+     **13 顆是另外兩條都撈不到的**；那 13 顆批次讀完 28 秒。
+
+   要問哪幾個 repo 是呼叫者的知識，讀公司自己的 config，這一支不掃整個 org。其餘旗標、
+   預設值與為什麼判準不是「有人指名要我」，都在 discovery reference 的第三來源那一節。
 5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
