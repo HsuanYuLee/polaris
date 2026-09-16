@@ -56,7 +56,10 @@ def fetch_file_metadata(candidate: dict, offline: bool) -> None:
                 "api",
                 f"repos/{owner}/{repo}/pulls/{number}",
                 "--jq",
-                "{changed_files: .changed_files, additions: .additions, deletions: .deletions}",
+                (
+                    "{changed_files: .changed_files, additions: .additions, "
+                    "deletions: .deletions, base_ref: .base.ref, head_ref: .head.ref}"
+                ),
             ],
             text=True,
             stderr=subprocess.DEVNULL,
@@ -185,6 +188,31 @@ def hunks_by_file(candidate: dict) -> dict | None:
             continue
         out[str(name)] = item.get("hunks", None)
     return out or None
+
+
+def stacked_on_group_member(item: dict, group: list) -> tuple[bool, str]:
+    """這一顆是不是疊在同一組另一顆上面（同一個 repo 的串行堆疊）。
+
+    **檔案交集對串行堆疊恆為真**，所以它分不出這兩種形狀：同一件事在幾個 repo 各開一顆
+    （sister PR，交集量不到、鍵相同即成立），跟同一個 repo 裡第二顆踩在第一顆改過的檔案上
+    往前疊。後者的第 N 顆帶的是它自己那一段新功能，只是順便帶著前面那幾顆的行——
+    把它判成附屬顆，等於用第一顆的 summary 去半審一份沒有人讀過的改動。
+
+    分得開它們的是**這一顆從哪裡長出來的**：base 落在同組另一顆的 head 上，就是串行。
+    """
+    base = str(item.get("base_ref") or "")
+    if not base:
+        return False, ""
+    repo = str(item.get("repo") or "")
+    for other in group:
+        if other is item or str(other.get("repo") or "") != repo:
+            continue
+        if str(other.get("head_ref") or "") == base:
+            return True, (
+                f"stacked_on_group_member:base 是同組 #{other.get('number')} 的 head"
+                f"（{base}），同一個 repo 串行的第 N 顆，走完整 review"
+            )
+    return False, ""
 
 
 def shared_change(left: dict, right: dict) -> tuple[bool, str]:
@@ -336,6 +364,19 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
                 item["cluster_reason"] = "cross_repo_key_only:跨 repo，改動交集量不到，鍵相同即成立"
                 kept.append(item)
                 continue
+            # **同一個 repo 的兩顆，先問它們是不是疊在一起的。** 交集對串行堆疊恆為真，
+            # 所以這一問要排在交集前面，不然第 N 顆每次都被判成附屬顆。
+            stacked, why = stacked_on_group_member(item, group)
+            if stacked:
+                item["cluster_reason"] = why
+                continue
+            if not item.get("base_ref") or not lead.get("base_ref"):
+                # 問不到其中一顆從哪裡長出來的，就分不出平行與串行。**量不到不得判成附屬顆**
+                # ——判錯成附屬顆的代價是一顆 PR 只被半審過，判成自己一顆只是多花一次 review。
+                item["cluster_reason"] = (
+                    "same_repo_lineage_unmeasurable:問不到其中一顆的 base，分不出平行與串行"
+                )
+                continue
             overlaps, reason = shared_change(lead, item)
             item["cluster_reason"] = reason
             if overlaps:
@@ -346,7 +387,7 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
             # 「沒有第二顆 PR 共用這個 cluster 鍵」那句預設，而那句在這裡是假的：有第二顆，
             # 只是它量不到交集。寫成 `or` 的那一版永遠不會覆寫，因為預設值恆為真值。
             lead["cluster_reason"] = (
-                f"demoted:鍵相同的有 {len(group)} 顆，沒有一顆量得到與這一顆的改動交集"
+                f"demoted:鍵相同的有 {len(group)} 顆，沒有一顆跟這一顆成立為同一批改動"
             )
             continue
 

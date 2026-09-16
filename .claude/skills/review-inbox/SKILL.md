@@ -122,6 +122,17 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    這條規則來自一次真跑的收件匣：同一則 thread 裡有兩張不同單的 PR，同一個 repo、
    同一個 controller 檔案，而區塊零重疊。舊的判準讓後面那顆走 sibling，於是它只被
    lead 的六條判準看過，漏掉一條 must-fix。
+
+   **但交集量得到也還不夠，因為它對串行堆疊恆為真。** 同一個 repo 裡第二顆踩在第一顆改過
+   的檔案上往前疊，交集必然量得到——而第 N 顆帶的是它自己那一段沒有人讀過的改動，只是
+   順便帶著前面那幾顆的行。所以同一個 repo 的兩顆還要問**這一顆從哪裡長出來的**：base 落在
+   同組另一顆的 head 上就是串行，那幾顆一律走完整 review（`stacked_on_group_member`）。
+   問不到其中一顆的 base 時分不出平行與串行，也走完整 review
+   （`same_repo_lineage_unmeasurable`）——量不到不得讀成可以半審。
+
+   2026-09-16 的實例，一批八顆：`b2c-web` 的 PR-1 建護欄、後七顆逐顆疊在上面，八顆同一張
+   單、同一則 thread。舊的判準把它們判成一個 cluster，其中 +3155／+6578／+11222 行的三顆
+   走了 sibling 的半審，由人手動覆寫回來。
 6. 若 candidates 為空**而且 probe 回的是 `POLARIS_DISCOVERY_LEGITIMATE_EMPTY`**，回報目前
    沒有需要 review 的 PR 並停止。probe 沒過的空清單不是空的收件匣，是來源壞掉了。
 7. 顯示排序後清單，然後全部進入 review。**不問「先看哪一批」、不問「要不要送」、不因為

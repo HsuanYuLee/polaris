@@ -19,7 +19,13 @@ cat > "$mapping" <<'JSON'
   "https://github.com/acme/acme-ios/pull/30": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
   "https://github.com/acme/acme-api/pull/60": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"},
   "https://github.com/acme/acme-web/pull/70": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"},
-  "https://github.com/acme/acme-ios/pull/80": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"}
+  "https://github.com/acme/acme-ios/pull/80": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"},
+  "https://github.com/acme/acme-web/pull/100": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
+  "https://github.com/acme/acme-web/pull/101": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
+  "https://github.com/acme/acme-web/pull/102": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
+  "https://github.com/acme/acme-api/pull/200": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"},
+  "https://github.com/acme/acme-api/pull/201": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"},
+  "https://github.com/acme/acme-api/pull/202": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"}
 }
 JSON
 
@@ -112,6 +118,83 @@ cat > "$candidates" <<'JSON'
     "additions": 35,
     "deletions": 2,
     "files": [{"filename": "Sources/JsBridge.swift", "additions": 35, "deletions": 2}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 100,
+    "title": "DEMO-900 PR-1 建護欄",
+    "url": "https://github.com/acme/acme-web/pull/100",
+    "author": "gale",
+    "base_ref": "main",
+    "head_ref": "feat/demo-900-guardrail",
+    "changed_files": 1,
+    "additions": 120,
+    "deletions": 4,
+    "files": [{"filename": "src/guard.ts", "additions": 120, "deletions": 4, "hunks": [[10, 30]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 101,
+    "title": "DEMO-900 PR-2 踩在護欄上",
+    "url": "https://github.com/acme/acme-web/pull/101",
+    "author": "gale",
+    "base_ref": "feat/demo-900-guardrail",
+    "head_ref": "feat/demo-900-step-2",
+    "changed_files": 12,
+    "additions": 3155,
+    "deletions": 60,
+    "files": [{"filename": "src/guard.ts", "additions": 3155, "deletions": 60, "hunks": [[10, 30]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 102,
+    "title": "DEMO-900 PR-3 再疊一層",
+    "url": "https://github.com/acme/acme-web/pull/102",
+    "author": "gale",
+    "base_ref": "feat/demo-900-step-2",
+    "head_ref": "feat/demo-900-step-3",
+    "changed_files": 20,
+    "additions": 6578,
+    "deletions": 120,
+    "files": [{"filename": "src/guard.ts", "additions": 6578, "deletions": 120, "hunks": [[10, 30]]}]
+  },
+  {
+    "repo": "acme-api",
+    "number": 200,
+    "title": "DEMO-901 同一段的第一顆",
+    "url": "https://github.com/acme/acme-api/pull/200",
+    "author": "hana",
+    "base_ref": "main",
+    "head_ref": "feat/demo-901-a",
+    "changed_files": 1,
+    "additions": 80,
+    "deletions": 10,
+    "files": [{"filename": "src/shared.ts", "additions": 80, "deletions": 10, "hunks": [[40, 60]]}]
+  },
+  {
+    "repo": "acme-api",
+    "number": 201,
+    "title": "DEMO-901 同一段的第二顆",
+    "url": "https://github.com/acme/acme-api/pull/201",
+    "author": "hana",
+    "base_ref": "main",
+    "head_ref": "feat/demo-901-b",
+    "changed_files": 1,
+    "additions": 90,
+    "deletions": 12,
+    "files": [{"filename": "src/shared.ts", "additions": 90, "deletions": 12, "hunks": [[50, 70]]}]
+  },
+  {
+    "repo": "acme-api",
+    "number": 202,
+    "title": "DEMO-901 問不到 base 的那一顆",
+    "url": "https://github.com/acme/acme-api/pull/202",
+    "author": "hana",
+    "head_ref": "feat/demo-901-c",
+    "changed_files": 1,
+    "additions": 70,
+    "deletions": 8,
+    "files": [{"filename": "src/shared.ts", "additions": 70, "deletions": 8, "hunks": [[50, 70]]}]
   }
 ]
 JSON
@@ -146,6 +229,24 @@ assert by_number[70]["cluster_key"] == "1777000000.000000:topic:jsbridgeutils-pl
 assert by_number[70]["model_tier"] == "small_fast", by_number[70]
 assert by_number[80]["cluster_role"] == "cluster_sibling", by_number[80]
 assert by_number[80]["cluster_size"] == 3, by_number[80]
+
+# 同一個 repo 的串行堆疊：後面那幾顆疊在前一顆的 head 上，檔案交集恆為真，而它們各自
+# 帶著沒有人讀過的改動。三顆都要走完整 review，整組不成立為 cluster。
+for number in (100, 101, 102):
+    assert by_number[number]["cluster_role"] == "standalone", by_number[number]
+assert by_number[101]["cluster_reason"].startswith("stacked_on_group_member:"), by_number[101]
+assert by_number[102]["cluster_reason"].startswith("stacked_on_group_member:"), by_number[102]
+assert by_number[101]["model_tier"] == "standard_coding", by_number[101]
+assert by_number[102]["model_tier"] == "standard_coding", by_number[102]
+
+# 同一個 repo 裡真的平行的兩顆（各自從 main 長出來、改動區塊重疊）仍然是同一組。
+assert by_number[200]["cluster_role"] == "cluster_lead", by_number[200]
+assert by_number[201]["cluster_role"] == "cluster_sibling", by_number[201]
+assert by_number[201]["cluster_reason"].startswith("same_repo_overlap"), by_number[201]
+
+# 問不到 base 的那一顆分不出平行與串行，所以它不當附屬顆——量不到走完整 review。
+assert by_number[202]["cluster_role"] == "standalone", by_number[202]
+assert by_number[202]["cluster_reason"].startswith("same_repo_lineage_unmeasurable:"), by_number[202]
 PY
 
 echo "annotate-review-candidates selftest: PASS"

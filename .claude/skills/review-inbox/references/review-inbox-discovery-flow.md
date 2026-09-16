@@ -398,6 +398,21 @@ Discovery 結束後，所有來源都必須執行 `annotate-review-candidates.py
   `PROJECT-NNN`。
 - 同一 cluster 內按 `(repo, PR number)` 排序，第一筆是 `cluster_lead`，其餘是
   `cluster_sibling`。
+- **同一個 repo 的那幾顆要再過兩問才成立為 sibling**，因為鍵相同、甚至改動交集量得到，
+  都不保證它們是同一批改動：
+
+  | 問 | 不成立的時候 | 理由字串 |
+  |---|---|---|
+  | 這一顆是不是疊在同組另一顆上面（base 落在那一顆的 head 上） | 是 → 串行堆疊，走完整 review | `stacked_on_group_member` |
+  | 兩顆的 base 都問得到嗎 | 問不到 → 分不出平行與串行，走完整 review | `same_repo_lineage_unmeasurable` |
+  | 改動有沒有交集（共用檔案，且 base 那一側的 hunk 重疊） | 沒有 → 兩顆都走完整 review | `same_repo_no_overlap`／`same_repo_unmeasurable` |
+
+  **串行那一問要排在交集前面**：第 N 顆踩在前一顆改過的檔案上，交集恆為真，所以交集那一
+  問對這個形狀永遠答「是」。2026-09-16 的實例，一批八顆同一張單的 PR 逐顆往前疊，其中三顆
+  分別是 +3155／+6578／+11222 行，全部被判成 sibling 半審。
+
+  `base_ref` 與 `head_ref` 由 `fetch_file_metadata` 跟著 PR metadata 一起取（`--jq` 的投影
+  裡多兩格，不多打一次 API）。**跨 repo 的那幾顆不套這兩問**，理由跟交集那一問相同。
 - `cluster_lead` 使用 `standard_coding`，完整 review 並留下 lead summary。
 - `cluster_sibling` 使用 `small_fast` model class hint 跑 sibling-diff mode；若行為差異或
   confidence 不足，輸出 `needs_standard_review` 讓主流程升級。
