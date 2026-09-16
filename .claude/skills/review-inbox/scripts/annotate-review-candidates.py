@@ -317,6 +317,52 @@ def classify_model_tier(candidate: dict, cluster_role: str) -> tuple[str, str]:
     return "standard_coding", "default review risk"
 
 
+def link_stacked_edges(candidates: list[dict]) -> None:
+    """誰站在誰身上。**這一問不需要兩顆屬於同一組。**
+
+    cluster 那一層問的是「這幾顆是不是同一批改動」，所以它以成組為前提；而三顆不同單、
+    落在不同 Slack thread 的 PR 鍵不同，從頭就沒有進同一組。它們之間仍然有一條真的關係：
+    **這一顆的 base 是另一顆 open PR 的 head。** 那是一條邊，不是一個組。
+
+    邊帶來的不是深度（三顆都該走完整 review），是兩件便宜的事：底下那顆先派，上面那幾顆
+    的 packet 說得出自己站在誰身上。2026-09-16 的實例：#3208 與 #3210 都疊在 #3159 上，
+    而那兩顆在同一支函式上語意衝突——合起來之後的行為，兩份 review 都沒有在看。
+    """
+    heads: dict[tuple, dict] = {}
+    for item in candidates:
+        repo = str(item.get("repo") or "")
+        head = str(item.get("head_ref") or "")
+        if repo and head:
+            heads[(repo, head)] = item
+
+    for item in candidates:
+        item.setdefault("stacked_on", None)
+        item.setdefault("stacked_by", [])
+
+    for item in candidates:
+        repo = str(item.get("repo") or "")
+        base = str(item.get("base_ref") or "")
+        if not repo or not base:
+            # 問不到這一顆從哪裡長出來的。**不得因此宣稱它沒有疊在別人身上**——
+            # 那跟「問到了而且它站在預設分支上」是兩件事。
+            item["stacked_reason"] = "unmeasurable:問不到這一顆的 base"
+            continue
+        parent = heads.get((repo, base))
+        if parent is None or parent is item:
+            item["stacked_reason"] = "not_stacked:base 不是任何一顆候選的 head"
+            continue
+        item["stacked_on"] = {
+            "url": parent.get("url") or "",
+            "number": parent.get("number"),
+            "branch": base,
+        }
+        item["stacked_reason"] = (
+            f"stacked_on_candidate:base 是 #{parent.get('number')} 的 head（{base}），"
+            "那一顆同一輪也在被 review"
+        )
+        parent.setdefault("stacked_by", []).append(item.get("number"))
+
+
 def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]:
     enriched = []
     cluster_groups: dict[str, list[dict]] = {}
@@ -396,6 +442,9 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
             item["cluster_size"] = len(kept)
             item["cluster_lead_url"] = lead.get("url") or ""
             item["cluster_role"] = "cluster_lead" if item is lead else "cluster_sibling"
+
+    # 站在誰身上這一問跨整份候選，所以它在分組之外跑——**而且它不參與深度判定**。
+    link_stacked_edges(enriched)
 
     for candidate in enriched:
         tier, reason = classify_model_tier(candidate, candidate["cluster_role"])

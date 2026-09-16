@@ -185,6 +185,58 @@ cat > "$candidates" <<'JSON'
     "files": [{"filename": "src/shared.ts", "additions": 90, "deletions": 12, "hunks": [[50, 70]]}]
   },
   {
+    "repo": "acme-web",
+    "number": 700,
+    "title": "被疊的那一顆（沒有跟任何人成組）",
+    "url": "https://github.com/acme/acme-web/pull/700",
+    "author": "ivan",
+    "base_ref": "develop",
+    "head_ref": "task/A/main",
+    "changed_files": 3,
+    "additions": 300,
+    "deletions": 10,
+    "files": [{"filename": "src/list.ts", "additions": 300, "deletions": 10, "hunks": [[1, 40]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 701,
+    "title": "疊在 700 上面的第一顆",
+    "url": "https://github.com/acme/acme-web/pull/701",
+    "author": "ivan",
+    "base_ref": "task/A/main",
+    "head_ref": "task/B",
+    "changed_files": 2,
+    "additions": 120,
+    "deletions": 8,
+    "files": [{"filename": "src/list.ts", "additions": 120, "deletions": 8, "hunks": [[1, 40]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 702,
+    "title": "疊在 700 上面的第二顆",
+    "url": "https://github.com/acme/acme-web/pull/702",
+    "author": "ivan",
+    "base_ref": "task/A/main",
+    "head_ref": "task/C",
+    "changed_files": 1,
+    "additions": 20,
+    "deletions": 2,
+    "files": [{"filename": "src/list.ts", "additions": 20, "deletions": 2, "hunks": [[1, 40]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 703,
+    "title": "跟它們同一個 repo，但自己從預設分支長出來",
+    "url": "https://github.com/acme/acme-web/pull/703",
+    "author": "judy",
+    "base_ref": "develop",
+    "head_ref": "task/D",
+    "changed_files": 1,
+    "additions": 15,
+    "deletions": 1,
+    "files": [{"filename": "src/other.ts", "additions": 15, "deletions": 1, "hunks": [[5, 9]]}]
+  },
+  {
     "repo": "acme-api",
     "number": 202,
     "title": "DEMO-901 問不到 base 的那一顆",
@@ -247,6 +299,21 @@ assert by_number[201]["cluster_reason"].startswith("same_repo_overlap"), by_numb
 # 問不到 base 的那一顆分不出平行與串行，所以它不當附屬顆——量不到走完整 review。
 assert by_number[202]["cluster_role"] == "standalone", by_number[202]
 assert by_number[202]["cluster_reason"].startswith("same_repo_lineage_unmeasurable:"), by_number[202]
+
+# 站在誰身上這一條邊不需要成組：700／701／702 的 cluster 鍵都是空的。
+assert by_number[701]["stacked_on"]["number"] == 700, by_number[701]
+assert by_number[702]["stacked_on"]["number"] == 700, by_number[702]
+assert by_number[700]["stacked_on"] is None, by_number[700]
+assert sorted(by_number[700]["stacked_by"]) == [701, 702], by_number[700]
+assert by_number[703]["stacked_on"] is None, by_number[703]
+assert by_number[703]["stacked_reason"].startswith("not_stacked:"), by_number[703]
+for number in (700, 701, 702, 703):
+    assert by_number[number]["cluster_key"] == "", by_number[number]
+# 這條邊不改深度：702 只動一個檔、22 行，照舊是 small_fast。
+assert by_number[702]["model_tier"] == "small_fast", by_number[702]
+# 問不到 base 的那一顆不得被說成「沒有疊在別人身上」。
+assert by_number[202]["stacked_on"] is None, by_number[202]
+assert by_number[202]["stacked_reason"].startswith("unmeasurable:"), by_number[202]
 PY
 
 echo "annotate-review-candidates selftest: PASS"

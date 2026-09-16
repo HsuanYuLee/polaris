@@ -99,6 +99,16 @@ Prompt envelope 必須包含：
 - 送出授權狀態。
 - 延伸參考的路徑。
 
+Stacked scheduling（**跟 cluster 無關，兩顆不成組也成立**）：
+
+- 一顆候選的 `stacked_on` 有值，表示它的 base 是另一顆候選的 head。**被疊的那顆先派**，
+  它的 review 結果是上面那幾顆的前提——上面那幾顆的 diff 裡有一部分是它的。
+- 上面那幾顆的 packet 會說出自己站在誰身上；被疊的那顆會說出誰疊在它上面。
+- **這條邊不改任何一顆的 review 深度。** 它改的只有順序與 packet 裡的一句話。
+- 疊在同一顆上的那幾顆之間要互相對照：2026-09-16 的實例，#3208 與 #3210 都疊在 #3159 上，
+  兩顆在同一支函式上語意衝突，而那件事是人手動把前一顆的結果轉給後一顆才看到的——
+  **合起來之後的行為沒有任何一份單獨的 review 在看。**
+
 Cluster scheduling：
 
 - `cluster_lead` 必須先於同 cluster siblings 完成，並在 Detail artifact 提供一句
