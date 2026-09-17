@@ -403,16 +403,24 @@ Discovery 結束後，所有來源都必須執行 `annotate-review-candidates.py
 
   | 問 | 不成立的時候 | 理由字串 |
   |---|---|---|
-  | 這一顆是不是疊在同組另一顆上面（base 落在那一顆的 head 上） | 是 → 串行堆疊，走完整 review | `stacked_on_group_member` |
-  | 兩顆的 base 都問得到嗎 | 問不到 → 分不出平行與串行，走完整 review | `same_repo_lineage_unmeasurable` |
+  | 這一顆是不是疊在某顆 open PR 上面（base 落在那一顆的 head 上） | 是 → 串行堆疊，走完整 review | `stacked_on_pr` |
+  | 它疊在誰身上這一輪答得出來嗎 | 答不出來 → 分不出平行與串行，走完整 review | `same_repo_lineage_unmeasurable` |
   | 改動有沒有交集（共用檔案，且 base 那一側的 hunk 重疊） | 沒有 → 兩顆都走完整 review | `same_repo_no_overlap`／`same_repo_unmeasurable` |
 
   **串行那一問要排在交集前面**：第 N 顆踩在前一顆改過的檔案上，交集恆為真，所以交集那一
   問對這個形狀永遠答「是」。2026-09-16 的實例，一批八顆同一張單的 PR 逐顆往前疊，其中三顆
   分別是 +3155／+6578／+11222 行，全部被判成 sibling 半審。
 
+  **第一問問的是「某顆 open PR」，不是「同組另一顆」，也不是「本輪某顆候選」。** 這三個
+  範圍不一樣，而判錯的方向是固定的：parent 看不見 → 判成沒有疊 → 交集恆真 → 半審。
+  2026-09-17 一輪裡三顆中招，parent 各被第三腿的三道濾網之一濾掉（兩顆「我方投過票」、
+  一顆 draft），其中一顆是 9 層 stack 唯一的修正收斂點。答案由 `link_stacked_edges` 算在
+  分組之前，這兩問直接讀它的結論——**組內與跨組不各建一份表**。
+
   `base_ref` 與 `head_ref` 由 `fetch_file_metadata` 跟著 PR metadata 一起取（`--jq` 的投影
-  裡多兩格，不多打一次 API）。**跨 repo 的那幾顆不套這兩問**，理由跟交集那一問相同。
+  裡多兩格，不多打一次 API）；該 repo 全部 open PR 的 head 表由第三腿的 `--open-prs-out`
+  寫出來，預設分支問不到表的時候逐 repo 問一次（`--offline` 底下不問，就落在答不出來那一
+  格）。**跨 repo 的那幾顆不套這兩問**，理由跟交集那一問相同。
 - `cluster_lead` 使用 `standard_coding`，完整 review 並留下 lead summary。
 - `cluster_sibling` 使用 `small_fast` model class hint 跑 sibling-diff mode；若行為差異或
   confidence 不足，輸出 `needs_standard_review` 讓主流程升級。

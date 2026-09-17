@@ -9,6 +9,7 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 mapping="$tmp/mapping.json"
+open_prs="$tmp/open-prs.json"
 candidates="$tmp/candidates.json"
 out="$tmp/annotated.json"
 
@@ -23,6 +24,8 @@ cat > "$mapping" <<'JSON'
   "https://github.com/acme/acme-web/pull/100": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
   "https://github.com/acme/acme-web/pull/101": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
   "https://github.com/acme/acme-web/pull/102": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
+  "https://github.com/acme/acme-web/pull/810": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
+  "https://github.com/acme/acme-web/pull/811": {"thread_ts": "1778000000.000000", "root_ticket_key": "DEMO-900"},
   "https://github.com/acme/acme-api/pull/200": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"},
   "https://github.com/acme/acme-api/pull/201": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"},
   "https://github.com/acme/acme-api/pull/202": {"thread_ts": "1779000000.000000", "root_ticket_key": "DEMO-901"}
@@ -237,6 +240,32 @@ cat > "$candidates" <<'JSON'
     "files": [{"filename": "src/other.ts", "additions": 15, "deletions": 1, "hunks": [[5, 9]]}]
   },
   {
+    "repo": "acme-web",
+    "number": 810,
+    "title": "DEMO-900 疊在一顆「我投過票、這一輪沒進候選集」的 open PR 上",
+    "url": "https://github.com/acme/acme-web/pull/810",
+    "author": "gale",
+    "base_ref": "task/E-not-in-this-round",
+    "head_ref": "task/E-child",
+    "changed_files": 44,
+    "additions": 900,
+    "deletions": 300,
+    "files": [{"filename": "src/guard.ts", "additions": 900, "deletions": 300, "hunks": [[10, 30]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 811,
+    "title": "DEMO-900 疊在一顆 draft 的 open PR 上，而且自己只動一個小檔",
+    "url": "https://github.com/acme/acme-web/pull/811",
+    "author": "gale",
+    "base_ref": "task/F-not-in-this-round",
+    "head_ref": "task/F-child",
+    "changed_files": 1,
+    "additions": 12,
+    "deletions": 2,
+    "files": [{"filename": "src/guard.ts", "additions": 12, "deletions": 2, "hunks": [[10, 30]]}]
+  },
+  {
     "repo": "acme-api",
     "number": 202,
     "title": "DEMO-901 問不到 base 的那一顆",
@@ -251,9 +280,33 @@ cat > "$candidates" <<'JSON'
 ]
 JSON
 
-"$annotator" --offline --mapping "$mapping" < "$candidates" > "$out"
+# **這份表取的是濾網之前那一份**：#800 是 draft、#801 我方投過票，兩顆都不會出現在候選集
+# 裡，但它們真的是別人的 base。真跑那一輪的形狀（2026-09-17 的 9 層 stack）就是這樣。
+cat > "$open_prs" <<'JSON'
+{
+  "acme-web": {
+    "default_branch": "develop",
+    "heads": {
+      "task/A/main": {"number": 700, "url": "https://github.com/acme/acme-web/pull/700"},
+      "task/B": {"number": 701, "url": "https://github.com/acme/acme-web/pull/701"},
+      "task/C": {"number": 702, "url": "https://github.com/acme/acme-web/pull/702"},
+      "task/D": {"number": 703, "url": "https://github.com/acme/acme-web/pull/703"},
+      "task/E-not-in-this-round": {"number": 800, "url": "https://github.com/acme/acme-web/pull/800"},
+      "task/F-not-in-this-round": {"number": 801, "url": "https://github.com/acme/acme-web/pull/801"}
+    }
+  },
+  "acme-api": {"default_branch": "main", "heads": {}},
+  "acme-ios": {"default_branch": "main", "heads": {}}
+}
+JSON
 
-python3 - "$out" <<'PY'
+"$annotator" --offline --mapping "$mapping" --open-prs "$open_prs" < "$candidates" > "$out"
+
+# 同一份候選，這一趟不給表：判定要退成「問不到」，不得說成沒有疊。
+out_no_table="$tmp/annotated-no-open-prs.json"
+"$annotator" --offline --mapping "$mapping" < "$candidates" > "$out_no_table"
+
+python3 - "$out" "$out_no_table" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -286,8 +339,8 @@ assert by_number[80]["cluster_size"] == 3, by_number[80]
 # 帶著沒有人讀過的改動。三顆都要走完整 review，整組不成立為 cluster。
 for number in (100, 101, 102):
     assert by_number[number]["cluster_role"] == "standalone", by_number[number]
-assert by_number[101]["cluster_reason"].startswith("stacked_on_group_member:"), by_number[101]
-assert by_number[102]["cluster_reason"].startswith("stacked_on_group_member:"), by_number[102]
+assert by_number[101]["cluster_reason"].startswith("stacked_on_pr:"), by_number[101]
+assert by_number[102]["cluster_reason"].startswith("stacked_on_pr:"), by_number[102]
 assert by_number[101]["model_tier"] == "standard_coding", by_number[101]
 assert by_number[102]["model_tier"] == "standard_coding", by_number[102]
 
@@ -306,7 +359,7 @@ assert by_number[702]["stacked_on"]["number"] == 700, by_number[702]
 assert by_number[700]["stacked_on"] is None, by_number[700]
 assert sorted(by_number[700]["stacked_by"]) == [701, 702], by_number[700]
 assert by_number[703]["stacked_on"] is None, by_number[703]
-assert by_number[703]["stacked_reason"].startswith("not_stacked:"), by_number[703]
+assert by_number[703]["stacked_reason"].startswith("not_stacked:base 是這個 repo 的預設分支"), by_number[703]
 for number in (700, 701, 702, 703):
     assert by_number[number]["cluster_key"] == "", by_number[number]
 # 這條邊不改深度：702 只動一個檔、22 行，照舊是 small_fast。
@@ -314,6 +367,41 @@ assert by_number[702]["model_tier"] == "small_fast", by_number[702]
 # 問不到 base 的那一顆不得被說成「沒有疊在別人身上」。
 assert by_number[202]["stacked_on"] is None, by_number[202]
 assert by_number[202]["stacked_reason"].startswith("unmeasurable:"), by_number[202]
+
+# ── parent 是 open PR，但這一輪不在候選集 ──────────────────────────────────
+# 2026-09-17 真跑撞到的形狀：#3225 疊在 #3224（我投過票）、#3222 疊在 #3133（draft）。
+# 候選集決定誰被派，不決定誰算 parent——所以這兩顆帶得出 parent。
+for number, parent in ((810, 800), (811, 801)):
+    edge = by_number[number]["stacked_on"]
+    assert edge is not None, by_number[number]
+    assert edge["number"] == parent, by_number[number]
+    assert edge["in_this_round"] is False, by_number[number]
+    assert by_number[number]["stacked_reason"].startswith("stacked_on_open_pr:"), by_number[number]
+
+# **而 parent 在這一輪的那幾顆，理由要跟上面那一句分得開。**
+assert by_number[101]["stacked_on"]["in_this_round"] is True, by_number[101]
+assert by_number[101]["stacked_reason"].startswith("stacked_on_candidate:"), by_number[101]
+
+# 那兩顆不因為 cluster 鍵相同、檔案交集恆真而被判成附屬顆——串行的第 N 顆走完整 review。
+for number in (810, 811):
+    assert by_number[number]["cluster_role"] == "standalone", by_number[number]
+    assert by_number[number]["cluster_reason"].startswith("stacked_on_pr:"), by_number[number]
+
+# **#811 只動一個 12 行的小檔，所以它照舊是 small_fast。** 這條邊帶的是「你站在誰身上」，
+# 不是深度——把 stacked 一律升級成完整深度，等於拿掉 tier 這個功能。
+assert by_number[811]["model_tier"] == "small_fast", by_number[811]
+
+# ── 同一份候選，沒給 open PR 表 ────────────────────────────────────────────
+# **問不到不得說成沒有疊。** 沒有表就分不出「base 不是任何人的 head」與「parent 在候選集
+# 之外」，所以這兩顆落在問不到那一格，走完整 review。
+no_table = {item["number"]: item for item in json.loads(Path(sys.argv[2]).read_text())}
+for number in (810, 811):
+    assert no_table[number]["stacked_on"] is None, no_table[number]
+    assert no_table[number]["stacked_reason"].startswith("unmeasurable:"), no_table[number]
+    assert no_table[number]["cluster_role"] != "cluster_sibling", no_table[number]
+
+# 而 parent 在候選集的那幾顆不需要表就答得出來——那份表是加的，不是換的。
+assert no_table[101]["stacked_on"]["number"] == 100, no_table[101]
 PY
 
 echo "annotate-review-candidates selftest: PASS"

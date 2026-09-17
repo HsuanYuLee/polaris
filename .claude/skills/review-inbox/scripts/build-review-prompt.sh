@@ -239,18 +239,22 @@ print(m.group(1) if m else f'UNRESOLVED-REPO-SLUG-FROM/{url}')
   STACKED_ON_URL=$(echo "$PR_JSON" | python3 -c "import sys,json; print((json.load(sys.stdin).get('stacked_on') or {}).get('url',''))")
   STACKED_ON_NUMBER=$(echo "$PR_JSON" | python3 -c "import sys,json; print((json.load(sys.stdin).get('stacked_on') or {}).get('number') or '')")
   STACKED_BY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(','.join(str(n) for n in (json.load(sys.stdin).get('stacked_by') or [])))")
+  STACKED_IN_ROUND=$(echo "$PR_JSON" | python3 -c "import sys,json; print('1' if (json.load(sys.stdin).get('stacked_on') or {}).get('in_this_round') else '')")
+  STACKED_REASON=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('stacked_reason') or '')")
   TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ticket_key') or '')")
   ROOT_TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_ticket_key') or '')")
   ROOT_TOPIC_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_topic_key') or '')")
   SLACK_THREAD_TS=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('slack_thread_ts') or '')")
 
   # 那一句要讀得懂：兩個方向各一種說法，沒有邊的時候明講「站在預設分支上」。
-  if [[ -n "$STACKED_ON_NUMBER" ]]; then
+  if [[ -n "$STACKED_ON_NUMBER" && -n "$STACKED_IN_ROUND" ]]; then
     STACKED_TEXT="這顆 PR 的 base 是 #${STACKED_ON_NUMBER}（${STACKED_ON_URL}），那一顆**同一輪也在被 review、還沒有人 approve**。你看到的 diff 有一部分是它的。先讀它的 review 結果（或它的 description）再判這一顆——兩顆在同一個檔案上的改動合起來之後的行為，沒有任何一份單獨的 review 在看。"
+  elif [[ -n "$STACKED_ON_NUMBER" ]]; then
+    STACKED_TEXT="這顆 PR 的 base 是 #${STACKED_ON_NUMBER}（${STACKED_ON_URL}），那一顆是 open PR，但**這一輪不在 review 範圍內**——多半是我方已經投過票、或它還是 draft。意思是你的 base 裡有一段沒有人在這一輪看的改動，而它可能還帶著沒解除的 CHANGES_REQUESTED。先去那一顆確認它現在的 review 狀態，再判這一顆。"
   elif [[ -n "$STACKED_BY" ]]; then
     STACKED_TEXT="這顆 PR 是別人的 base：#${STACKED_BY} 疊在它上面，同一輪也在被 review。**先做完這一顆**，你的結論是它們的前提。"
   else
-    STACKED_TEXT="沒有別的候選疊在它上面，它的 base 也不是任何一顆候選的 head。"
+    STACKED_TEXT="沒有別的候選疊在它上面。它自己站在哪裡：${STACKED_REASON:-問不到}。"
   fi
 
   # Map review_status to review mode instruction
@@ -296,7 +300,7 @@ print(m.group(1) if m else f'UNRESOLVED-REPO-SLUG-FROM/{url}')
   # 不需要任何逸出。要展開的東西一律寫成 ${NAME}，由下面這一段明確地填進去。
   # 只認得 ${NAME} 這一種形狀：帶預設值的 ${NAME:-…} 不支援是刻意的——支援它的話，
   # 一個打錯的名字會安靜地拿到預設值；不支援的話，它沒有值就是紅的。
-  export AUTHOR AUTHORIZATION_BLOCK BASE_DIR BUNDLE_TEXT CI_ROLLUP_RULE CLUSTER_KEY_TEXT CLUSTER_LEAD_SUMMARY_TEXT CLUSTER_LEAD_URL_TEXT CLUSTER_REASON_TEXT CLUSTER_ROLE CLUSTER_SIZE STACKED_TEXT COMMENT_FORM_BLOCK DETAIL EXTRA_REFS_BLOCK HANDBOOK_BLOCK MODEL_TIER MODEL_TIER_REASON MODE_INSTRUCTION MY_USER NUMBER REPO REPO_SLUG ROOT_TICKET_KEY_TEXT ROOT_TOPIC_KEY_TEXT SCRIPT_DIR SLACK_THREAD_TS_TEXT STATUS TICKET_KEY_TEXT TITLE URL VERDICT_RULES_BLOCK
+  export AUTHOR AUTHORIZATION_BLOCK BASE_DIR BUNDLE_TEXT CI_ROLLUP_RULE CLUSTER_KEY_TEXT CLUSTER_LEAD_SUMMARY_TEXT CLUSTER_LEAD_URL_TEXT CLUSTER_REASON_TEXT CLUSTER_ROLE CLUSTER_SIZE STACKED_TEXT STACKED_REASON COMMENT_FORM_BLOCK DETAIL EXTRA_REFS_BLOCK HANDBOOK_BLOCK MODEL_TIER MODEL_TIER_REASON MODE_INSTRUCTION MY_USER NUMBER REPO REPO_SLUG ROOT_TICKET_KEY_TEXT ROOT_TOPIC_KEY_TEXT SCRIPT_DIR SLACK_THREAD_TS_TEXT STATUS TICKET_KEY_TEXT TITLE URL VERDICT_RULES_BLOCK
   fill_prompt_placeholders() {
     python3 -c '
 import os, re, sys

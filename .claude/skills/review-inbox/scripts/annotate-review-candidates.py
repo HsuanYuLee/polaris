@@ -19,6 +19,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Add model_tier and review_cluster fields to PR candidates.")
     parser.add_argument("--mapping", default="", help="Optional PR URL -> Slack thread mapping JSON from extract-pr-urls.py.")
     parser.add_argument("--offline", action="store_true", help="Do not call gh for missing PR file metadata.")
+    parser.add_argument(
+        "--open-prs",
+        default="",
+        help="Optional JSON: per-repo open PR heads and default branch, from scan-unreviewed-prs.sh --open-prs-out.",
+    )
     return parser.parse_args()
 
 
@@ -33,12 +38,64 @@ def load_mapping(path: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def load_open_prs(path: str) -> dict:
+    """該 repo **全部** open PR 的 head 表，加上它的預設分支。
+
+    **候選集決定誰被派，不決定誰算 parent。** 這兩件事以前是同一份表，於是一顆 PR 疊在
+    一顆「我投過票、head 沒動」的 open PR 上的時候，判定說它沒有疊在任何人身上——而那句話
+    的主詞是錯的：它問的是候選集，講出來的是全世界。2026-09-17 一輪裡三個實例，其中一個
+    打到 9 層 stack 的 lead（#3222 疊在 draft 的 #3133 上）。
+
+    **所以這份表要取濾網之前那一份。** 產它的第三腿有三道濾網（draft、作者、更新窗），
+    而 parent 正是那三道各濾掉一種：#3224／#3229 是「我投過票」、#3133 是 draft。
+    """
+    if not path:
+        return {}
+    open_prs_path = Path(path)
+    if not open_prs_path.exists():
+        return {}
+    with open_prs_path.open() as handle:
+        data = json.load(handle)
+    return data if isinstance(data, dict) else {}
+
+
 def owner_repo_number(candidate: dict) -> tuple[str | None, str | None, int | None]:
     url = str(candidate.get("url") or "")
     match = re.search(r"github\.com/([^/]+)/([^/]+)/pull/(\d+)", url)
     if not match:
         return None, candidate.get("repo"), candidate.get("number")
     return match.group(1), match.group(2), int(match.group(3))
+
+
+def fetch_default_branch(candidate: dict, offline: bool, cache: dict) -> str:
+    """這個 repo 的預設分支。**別寫死成 master 或 main**——真跑那個 repo 是 `develop`。
+
+    它跟 open PR 的 head 表是**兩件事**，所以分開問：base 是預設分支的時候，「它不是任何
+    PR 的 head」不需要任何表就成立。少了這一分，沒帶 `--open-prs` 的那幾輪會把每一顆正常
+    PR 都判成問不到——而 cluster 這個功能等於關掉，跨 repo 的 sister PR 首當其衝。
+
+    一個 repo 只問一次（cache 的鍵是 owner/repo）。`--offline` 底下不問，答不出來就是
+    答不出來。
+    """
+    owner, repo, _ = owner_repo_number(candidate)
+    if not owner or not repo:
+        return ""
+    key = f"{owner}/{repo}"
+    if key in cache:
+        return cache[key]
+    if offline:
+        cache[key] = ""
+        return ""
+    try:
+        branch = subprocess.check_output(
+            ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".default_branch"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        branch = ""
+    cache[key] = branch
+    return branch
 
 
 def fetch_file_metadata(candidate: dict, offline: bool) -> None:
@@ -190,31 +247,6 @@ def hunks_by_file(candidate: dict) -> dict | None:
     return out or None
 
 
-def stacked_on_group_member(item: dict, group: list) -> tuple[bool, str]:
-    """這一顆是不是疊在同一組另一顆上面（同一個 repo 的串行堆疊）。
-
-    **檔案交集對串行堆疊恆為真**，所以它分不出這兩種形狀：同一件事在幾個 repo 各開一顆
-    （sister PR，交集量不到、鍵相同即成立），跟同一個 repo 裡第二顆踩在第一顆改過的檔案上
-    往前疊。後者的第 N 顆帶的是它自己那一段新功能，只是順便帶著前面那幾顆的行——
-    把它判成附屬顆，等於用第一顆的 summary 去半審一份沒有人讀過的改動。
-
-    分得開它們的是**這一顆從哪裡長出來的**：base 落在同組另一顆的 head 上，就是串行。
-    """
-    base = str(item.get("base_ref") or "")
-    if not base:
-        return False, ""
-    repo = str(item.get("repo") or "")
-    for other in group:
-        if other is item or str(other.get("repo") or "") != repo:
-            continue
-        if str(other.get("head_ref") or "") == base:
-            return True, (
-                f"stacked_on_group_member:base 是同組 #{other.get('number')} 的 head"
-                f"（{base}），同一個 repo 串行的第 N 顆，走完整 review"
-            )
-    return False, ""
-
-
 def shared_change(left: dict, right: dict) -> tuple[bool, str]:
     """兩顆 PR 的改動有沒有交集，以及一句說得出憑什麼的理由。
 
@@ -317,17 +349,37 @@ def classify_model_tier(candidate: dict, cluster_role: str) -> tuple[str, str]:
     return "standard_coding", "default review risk"
 
 
-def link_stacked_edges(candidates: list[dict]) -> None:
-    """誰站在誰身上。**這一問不需要兩顆屬於同一組。**
+def link_stacked_edges(
+    candidates: list[dict], open_prs: dict | None = None, default_branches: dict | None = None
+) -> None:
+    """誰站在誰身上。**這一問不需要兩顆屬於同一組，也不需要 parent 在這一輪。**
 
     cluster 那一層問的是「這幾顆是不是同一批改動」，所以它以成組為前提；而三顆不同單、
     落在不同 Slack thread 的 PR 鍵不同，從頭就沒有進同一組。它們之間仍然有一條真的關係：
     **這一顆的 base 是另一顆 open PR 的 head。** 那是一條邊，不是一個組。
 
-    邊帶來的不是深度（三顆都該走完整 review），是兩件便宜的事：底下那顆先派，上面那幾顆
-    的 packet 說得出自己站在誰身上。2026-09-16 的實例：#3208 與 #3210 都疊在 #3159 上，
-    而那兩顆在同一支函式上語意衝突——合起來之後的行為，兩份 review 都沒有在看。
+    邊帶來的不是深度（每一顆都該走完整 review），是兩件便宜的事：底下那顆先派（前提是它
+    被派得到），上面那幾顆的 packet 說得出自己站在誰身上。
+
+    **parent 分兩種，而它們給 reviewer 的指示不一樣**：
+
+    - `stacked_on_candidate`：那一顆這一輪也在被 review，結論待會兒出來，可能影響你。
+    - `stacked_on_open_pr`：那一顆是 open PR 但不在這一輪。意思是你的 base 裡有一段沒有人
+      在看的改動，而它可能還帶著沒解除的 CHANGES_REQUESTED。
+
+    第二種以前判成 `not_stacked`。2026-09-17：#3225 疊在 #3224、#3232 疊在 #3229、#3222
+    疊在 #3133，三顆 parent 都 open，都因為不在候選集而看不見，而 #3232 是那條 9 層 stack
+    唯一的修正收斂點（44 個檔）。
+
+    **base 是預設分支的時候不需要任何表。** 預設分支不會是誰的 head，所以那一格是量到的
+    結論，不是退回來的——少了這一分，沒有 open PR 表的那幾輪會把每一顆正常 PR 都判成
+    問不到，而 cluster 這個功能等於關掉。
     """
+    open_prs = open_prs or {}
+    default_branches = default_branches or {}
+
+    # 候選集自己的 head 也算數：`--open-prs` 沒給的時候它是唯一的表，給了的時候它是
+    # 那份表的子集（候選都是 open PR），兩種情形都不衝突。
     heads: dict[tuple, dict] = {}
     for item in candidates:
         repo = str(item.get("repo") or "")
@@ -347,29 +399,83 @@ def link_stacked_edges(candidates: list[dict]) -> None:
             # 那跟「問到了而且它站在預設分支上」是兩件事。
             item["stacked_reason"] = "unmeasurable:問不到這一顆的 base"
             continue
-        parent = heads.get((repo, base))
-        if parent is None or parent is item:
-            item["stacked_reason"] = "not_stacked:base 不是任何一顆候選的 head"
+
+        repo_info = open_prs.get(repo) or {}
+        # 表裡帶的優先（它跟那份 head 表是同一次問到的，所以一定對得起來）；沒有表就用
+        # 逐 repo 問到的那一份。
+        default_branch = str(repo_info.get("default_branch") or default_branches.get(repo) or "")
+        if default_branch and base == default_branch:
+            item["stacked_reason"] = (
+                f"not_stacked:base 是這個 repo 的預設分支（{default_branch}），"
+                "預設分支不會是任何一顆 PR 的 head"
+            )
             continue
-        item["stacked_on"] = {
-            "url": parent.get("url") or "",
-            "number": parent.get("number"),
-            "branch": base,
-        }
+
+        parent = heads.get((repo, base))
+        if parent is not None and parent is not item:
+            item["stacked_on"] = {
+                "url": parent.get("url") or "",
+                "number": parent.get("number"),
+                "branch": base,
+                # 讀 packet 的人要知道的不只是「疊在誰身上」，還有「那一顆這一輪有沒有人在看」
+                # ——兩種狀態給的指示不一樣，而它們在 stacked_on 裡長得一模一樣。
+                "in_this_round": True,
+            }
+            item["stacked_reason"] = (
+                f"stacked_on_candidate:base 是 #{parent.get('number')} 的 head（{base}），"
+                "那一顆同一輪也在被 review"
+            )
+            parent.setdefault("stacked_by", []).append(item.get("number"))
+            continue
+
+        repo_heads = repo_info.get("heads") or {}
+        outside = repo_heads.get(base) if isinstance(repo_heads, dict) else None
+        if isinstance(outside, dict):
+            item["stacked_on"] = {
+                "url": str(outside.get("url") or ""),
+                "number": outside.get("number"),
+                "branch": base,
+                "in_this_round": False,
+            }
+            item["stacked_reason"] = (
+                f"stacked_on_open_pr:base 是 #{outside.get('number')} 的 head（{base}），"
+                "那一顆是 open PR，但這一輪不在 review 範圍內——你的 base 裡有一段沒有人在看的改動"
+            )
+            continue
+
+        if not repo_info:
+            # 一個**出現在表裡、heads 是空的** repo 不算問不到：那句話的意思是「這個 repo
+            # 現在沒有任何 open PR 的 head 對得上」。分不開的話，一個真的沒有 stack 的
+            # repo 會被整批判成問不到。
+            # **問不到不得說成沒有疊。** base 不是預設分支，而手上沒有這個 repo 的 open PR
+            # 清單——它疊在誰身上這一輪答不出來。走完整 review，理由說出這是問不到。
+            known = f"預設分支是 {default_branch}" if default_branch else "連預設分支是哪一條都問不到"  # noqa: E501
+            item["stacked_reason"] = (
+                f"unmeasurable:沒有 {repo} 的 open PR 清單（{known}），而 base（{base}）"
+                "不是候選集裡任何一顆的 head——分不出它疊在誰身上"
+            )
+            continue
+
         item["stacked_reason"] = (
-            f"stacked_on_candidate:base 是 #{parent.get('number')} 的 head（{base}），"
-            "那一顆同一輪也在被 review"
+            f"not_stacked:base（{base}）不是這個 repo 任何一顆 open PR 的 head"
         )
-        parent.setdefault("stacked_by", []).append(item.get("number"))
 
 
-def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]:
+def annotate(candidates: list[dict], mapping: dict, offline: bool, open_prs: dict | None = None) -> list[dict]:
     enriched = []
     cluster_groups: dict[str, list[dict]] = {}
+
+    default_branches: dict[str, str] = {}
+    branch_cache: dict[str, str] = {}
 
     for raw in candidates:
         candidate = dict(raw)
         fetch_file_metadata(candidate, offline)
+        repo_name = str(candidate.get("repo") or "")
+        if repo_name and repo_name not in default_branches:
+            branch = fetch_default_branch(candidate, offline, branch_cache)
+            if branch:
+                default_branches[repo_name] = branch
 
         ticket = ticket_key(candidate)
         root_ticket = root_ticket_key(candidate, mapping)
@@ -391,6 +497,12 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
         if cluster_key:
             cluster_groups.setdefault(cluster_key, []).append(candidate)
 
+    # **站在誰身上這一問排在分組前面。** 它跨整份候選、而且看得到候選集以外的 open PR，
+    # 所以它答得出的東西比分組多；而分組那一層要用它的答案（串行堆疊的第 N 顆不是附屬顆）。
+    # 以前這一問在分組之後跑，於是同一件事被問了兩次——組內一次、跨組一次，兩份表各自
+    # 只看候選集。合成一份之後，組內那一問直接讀這裡的結論。
+    link_stacked_edges(enriched, open_prs, default_branches)
+
     for group in cluster_groups.values():
         if len(group) < 2:
             continue
@@ -411,10 +523,22 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
                 kept.append(item)
                 continue
             # **同一個 repo 的兩顆，先問它們是不是疊在一起的。** 交集對串行堆疊恆為真，
-            # 所以這一問要排在交集前面，不然第 N 顆每次都被判成附屬顆。
-            stacked, why = stacked_on_group_member(item, group)
-            if stacked:
-                item["cluster_reason"] = why
+            # 所以這一問要排在交集前面，不然第 N 顆每次都被判成附屬顆。答案上面已經算好了
+            # ——而且它看得到候選集以外的 open PR，所以 parent 不在這一輪的那幾顆也擋得下來。
+            parent_ref = item.get("stacked_on")
+            if parent_ref:
+                item["cluster_reason"] = (
+                    f"stacked_on_pr:base 是 #{parent_ref.get('number')} 的 head"
+                    f"（{parent_ref.get('branch')}），同一個 repo 串行的第 N 顆，走完整 review"
+                )
+                continue
+            if str(item.get("stacked_reason") or "").startswith("unmeasurable:"):
+                # **問不到它疊在誰身上，就不當附屬顆。** 交集對串行堆疊恆為真，所以這裡
+                # 判錯的方向是固定的：第 N 顆被 lead 的 summary 半審過去。沒有 open PR 表
+                # 的那幾輪要落在這一格，不是落在交集那一格。
+                item["cluster_reason"] = (
+                    f"same_repo_lineage_unmeasurable:{item.get('stacked_reason')}"
+                )
                 continue
             if not item.get("base_ref") or not lead.get("base_ref"):
                 # 問不到其中一顆從哪裡長出來的，就分不出平行與串行。**量不到不得判成附屬顆**
@@ -443,9 +567,6 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
             item["cluster_lead_url"] = lead.get("url") or ""
             item["cluster_role"] = "cluster_lead" if item is lead else "cluster_sibling"
 
-    # 站在誰身上這一問跨整份候選，所以它在分組之外跑——**而且它不參與深度判定**。
-    link_stacked_edges(enriched)
-
     for candidate in enriched:
         tier, reason = classify_model_tier(candidate, candidate["cluster_role"])
         candidate["model_tier"] = tier
@@ -466,7 +587,8 @@ def main() -> int:
         return 2
 
     mapping = load_mapping(args.mapping)
-    json.dump(annotate(candidates, mapping, args.offline), sys.stdout, ensure_ascii=False, indent=2)
+    open_prs = load_open_prs(args.open_prs)
+    json.dump(annotate(candidates, mapping, args.offline, open_prs), sys.stdout, ensure_ascii=False, indent=2)
     print()
     return 0
 

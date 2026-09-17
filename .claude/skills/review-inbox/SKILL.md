@@ -99,14 +99,17 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    - `scripts/scan-my-stale-reviews.sh --my-user <u> --org <org> --merge-with <Slack 的 candidates>`
      ——我投過票、而 head 已經推進的 open PR。2026-09-04 兩輪 discovery 都空手，而同一時間
      有五顆 PR 擋在我方舊票上、作者早就推了修正。
-   - `scripts/scan-unreviewed-prs.sh --my-user <u> --org <org> --repo <name>... --merge-with <上一支的輸出>`
+   - `scripts/scan-unreviewed-prs.sh --my-user <u> --org <org> --repo <name>... --merge-with <上一支的輸出> --open-prs-out <表>`
      ——指名的 repo 裡**我一票都沒投過**的 open PR。前兩條來源都錨在「有人針對我做了動作」，
      一顆沒有人貼、我也還沒碰過的 PR 結構上進不了它們。實跑一趟：43 秒撈 29 顆，其中
      **13 顆是另外兩條都撈不到的**；那 13 顆批次讀完 28 秒。
+     `--open-prs-out` 順手把那幾個 repo **全部** open PR 的 head 與預設分支寫成一份表——
+     它取的是那三道濾網（draft、作者、更新窗）**之前**那一份，因為判「這一顆疊在誰身上」
+     問的是「誰是 open PR」，不是「誰該被派」。第 5 步的 `--open-prs` 讀它。
 
    要問哪幾個 repo 是呼叫者的知識，讀公司自己的 config，這一支不掃整個 org。其餘旗標、
    預設值與為什麼判準不是「有人指名要我」，都在 discovery reference 的第三來源那一節。
-5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
+5. 將 candidates JSON 經 `annotate-review-candidates.py --open-prs <上一步的表>` enrich，補上 sister PR cluster
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
    必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
    topic，使用 `root_topic_key`；最後才 fallback 到每張 PR 自己的 ticket。

@@ -11,6 +11,7 @@
 # 用法：
 #   scan-unreviewed-prs.sh --my-user <username> --org <org> \
 #     --repo <name> [--repo <name>]... [--updated-within-seconds N] [--merge-with <file>]
+#     [--open-prs-out <file>]
 #
 # --repo：**至少要有一個，而且沒有預設。** 一個都沒給就拒絕執行，不退回掃整個 org
 #   ——org-wide 的搜尋會被單頁上限靜靜截斷（2026-09-16 實測：一次 org-wide 查詢在某個
@@ -48,6 +49,7 @@ source "${SCRIPT_DIR}/lib/merge-candidates.sh"
 MY_USER=""
 ORG=""
 MERGE_WITH=""
+OPEN_PRS_OUT=""
 UPDATED_WITHIN="604800"
 REPOS=()
 
@@ -62,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --repo) REPOS+=("${2:-}"); shift 2 ;;
     --updated-within-seconds) UPDATED_WITHIN="${2:-}"; shift 2 ;;
     --merge-with) MERGE_WITH="${2:-}"; shift 2 ;;
+    --open-prs-out) OPEN_PRS_OUT="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "scan-unreviewed-prs.sh: 不認得的參數 $1" >&2; usage; exit 1 ;;
   esac
@@ -99,7 +102,8 @@ fi
 
 search_err="$(mktemp)"
 tmpfile="$(mktemp)"
-trap 'rm -f "$search_err" "$tmpfile"' EXIT
+openprs_tmp="$(mktemp)"
+trap 'rm -f "$search_err" "$tmpfile" "$openprs_tmp"' EXIT
 
 unavailable() {
   echo "POLARIS_UNREVIEWED_SCAN_UNAVAILABLE" >&2
@@ -129,6 +133,18 @@ for repo in "${REPOS[@]}"; do
 
   printf '%s' "$raw" | jq -e 'type == "array" and (all(.[]; type == "array"))' >/dev/null 2>&1 \
     || unavailable "${ORG}/${repo}：輸出不是一份分頁過的清單"
+
+  # **head 表取濾網之前這一份。** 底下三道濾網（draft、作者、更新窗）各濾掉一種真的當過
+  # parent 的 PR：2026-09-17 那條 9 層 stack 裡，#3224／#3229 被「我投過票」濾掉、最底下
+  # 的 #3133 是 draft。判「這一顆疊在誰身上」問的是「誰是 open PR」，不是「誰該被派」。
+  if [[ -n "$OPEN_PRS_OUT" ]]; then
+    default_branch="$(gh api "repos/${ORG}/${repo}" --jq '.default_branch' 2>/dev/null)" || default_branch=""
+    # 問不到預設分支就留空，讓下游說出它不知道——**不要猜一個 main 或 master**。
+    printf '%s' "$raw" | jq -c --arg repo "$repo" --arg db "$default_branch" '
+      {($repo): {default_branch: $db,
+                 heads: ([.[][] | {key: .head.ref, value: {number, url: .html_url}}] | from_entries)}}' \
+      >>"$openprs_tmp"
+  fi
 
   # 窗、draft、作者三道過濾在這裡做。判 updated_at，不判 created_at——一顆兩年前開、
   # 昨天才被推新 commit 的 PR 是這一批要抓的，反過來不是。
@@ -161,6 +177,14 @@ for repo in "${REPOS[@]}"; do
   echo "   ${repo_found} 顆我一票都沒投過" >&2
   found=$((found + repo_found))
 done
+
+if [[ -n "$OPEN_PRS_OUT" ]]; then
+  # 每個 repo 一個物件，合成一份。一個 repo 都沒寫出來就是一個空物件——**那跟檔案不存在
+  # 要分得開**：下游對空物件說「沒有這個 repo 的清單」，對不存在的檔案說同一句話，兩種
+  # 都往完整 review 走，所以這裡不需要第三種狀態。
+  jq -s 'add // {}' "$openprs_tmp" >"$OPEN_PRS_OUT"
+  echo "🧬 open PR head 表：$(jq 'to_entries | map(.value.heads | length) | add // 0' "$OPEN_PRS_OUT") 條 head，$(jq 'length' "$OPEN_PRS_OUT") 個 repo → ${OPEN_PRS_OUT}" >&2
+fi
 
 if [[ -s "$tmpfile" ]]; then
   mine="$(jq -s 'sort_by(.created_at)' "$tmpfile")"
