@@ -60,15 +60,36 @@ continue without scanning repo guideline folders.
 只有在相關的 job 真的在這顆 PR 的 base 上跑過的時候才是證據。**沒跑過的綠與跑過而通過的綠，
 在 `statusCheckRollup` 裡長得一模一樣**——那張表列的是「有哪幾格」，不是「哪幾格該有」。
 
-所以問的對象是那份 workflow 的觸發條件（`when.branch`／path 過濾），不是那張表：
+**問的對象是這顆 sha 上的 commit status，不是那張 rollup 表、也不是那份 workflow 設定檔：**
 
-- 涵蓋得到這顆 PR 的 base → 那一格綠是證據，照舊讀。
-- 不涵蓋 → 那一格不是綠，是**沒有量**。要在意見裡說出來，而且那條相關的檢查要自己跑一次。
+```bash
+gh api repos/{owner}/{repo}/commits/{head_sha}/statuses --paginate \
+  --jq '.[] | "\(.context)\t\(.state)\t\(.created_at)"' | sort
+```
 
-2026-09-16 的實例：一顆 sync PR 兩格 check 全綠，而它帶著一份 git 自動合出來、有 3 個重複
-mapping key 的 lockfile，`pnpm install --frozen-lockfile` 直接紅——image build 與 lint 都走
-那條路。全綠的原因是那份 lint workflow 的 `when.branch` 只有兩條主線分支，而那顆 PR 的 base
-不在裡面，所以它從來沒有跑過 `pnpm install`。**誤差方向是「看起來比較安全」，所以沒有人會來報。**
+逐個 context 看兩件事，它們是兩種形狀、要人做的事不同：
+
+- **pending 到 success 的秒數差。** 太短就是沒真的跑。**不要用寫死的門檻**——同一顆 sha 上
+  本來就有 7 秒跑完的 job。對照拿同名 context 在別顆真的跑完的 sha 上要多久。
+- **那個 context 在不在。** 整組缺席跟「跑很快」不一樣：缺席的那幾條在 rollup 上根本沒有
+  格子，而剩下真的跑完的那幾格讓整張表看起來全綠。
+
+兩種都不是綠，是**沒有量**。要在意見裡說出來，而且那條相關的檢查要自己跑一次。
+
+**statuses 問不到的時候**（權限、API 失敗）說出這一趟沒問到，並退回舊那招：把這顆 PR 的
+base 拿去對那份 workflow 的觸發條件（`when.branch`／path 過濾）。**問不到不是全綠的溫和
+版本。**
+
+2026-09-16／17 在一個走 woodpecker 的 repo 上量到的：同一個 context 名
+`continuous-integration/drone/pr/woodpecker/lint-frontend`，在一顆真的跑完的 sha 上
+pending→success 是 **689 秒**；在四顆沒跑的上面是 **9／22／11／20 秒**。第五顆更難看——
+整個 woodpecker 家族一條 context 都沒出現，rollup 上只剩兩條真的跑完的 `b2c-ci/*`，
+看起來全綠。
+
+更早那一顆的形狀是同一件事：一顆 sync PR 兩格 check 全綠，而它帶著一份有 3 個重複 mapping
+key 的 lockfile，`pnpm install --frozen-lockfile` 直接紅。那份 lint workflow 的 `when.branch`
+只有兩條主線分支，那顆 PR 的 base 不在裡面，所以它從來沒有跑過 `pnpm install`。
+**誤差方向是「看起來比較安全」，所以沒有人會來報。**
 
 這跟「同名 check 重跑之後舊的失敗還留在表上」是兩個不同的失效模式：那一個是結果過期，
 取最新那筆就解得掉；這一個是那份 job 根本不存在，取最新那筆不會讓它出現。

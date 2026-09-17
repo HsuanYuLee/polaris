@@ -94,8 +94,21 @@ else
   CI_ROLLUP_RULE="CI rollup: only FAILURE / ERROR checks may enter main context. PASS checks must be omitted. Use gh pr view --json statusCheckRollup with a jq filter that selects failure/error only."
 fi
 # 一格綠的檢查只有在它真的跑過這條 branch 的時候才是證據。沒跑過的綠與跑過而通過的綠，
-# 在 statusCheckRollup 裡長得一模一樣——所以要問的不是那張表，是那份 workflow 的觸發條件。
-CI_ROLLUP_RULE="${CI_ROLLUP_RULE} 綠不等於跑過：把這顆 PR 的 base 拿去對那份 workflow 的觸發條件（branch／path 過濾）。涵蓋得到的話那一格綠是證據；不涵蓋的話那一格不是綠，是**沒有量**——要在意見裡說出來，不要拿它當「CI 全綠」的依據。"
+# 在 statusCheckRollup 裡長得一模一樣。
+#
+# **問的是這顆 sha 上的 commit status，不是那份 workflow 設定檔。** 以前教的是「把 base 拿
+# 去對觸發條件」——那要人開一份 YAML、自己算條件成不成立，而同一件事 GitHub 上有一個直接
+# 答得出來的地方。實測（2026-09-16／17，一個走 woodpecker 的 repo）：同一個 context 名
+# `pr/woodpecker/lint-frontend`，在一顆真的跑完的 sha 上 pending→success 是 **689 秒**，
+# 在四顆沒跑的上面是 9／22／11／20 秒；而第五顆連那個 context 都沒出現，rollup 上卻仍然
+# 全綠（只有兩條真的跑完的 `b2c-ci/*`）。
+#
+# **兩種形狀要分開講**，因為它們要人做的事不同：太快的那一種要去看那個 build 到底做了什麼，
+# 整個 context 缺席的那一種要問「這個 repo 的 PR 本來該有哪幾條」。
+#
+# **不寫死秒數。** 同一顆 sha 上 `check_changeset` 7 秒、`baseline-refresh` 12 秒，兩者都是
+# 真的跑完——一個絕對門檻會把它們一起標紅。對照拿同名 context 的別顆 sha。
+CI_ROLLUP_RULE="${CI_ROLLUP_RULE} 綠不等於跑過。判準問 commit status，不要去讀 workflow 的觸發條件：\`gh api repos/{owner}/{repo}/commits/{head_sha}/statuses --paginate --jq '.[] | \"\(.context)\t\(.state)\t\(.created_at)\"' | sort\`。逐個 context 看兩件事：(1) pending 到 success 的秒數差——同一個 context 名在別顆真的跑完的 sha 上要多久，拿那個當對照，不要用寫死的門檻（同一顆 sha 上本來就有 7 秒跑完的 job）；(2) 那個 context 在不在——整組缺席跟「跑很快」是兩種形狀，而它在 rollup 上一樣是全綠。兩種都不是綠，是**沒有量**：要在意見裡說出來，不要拿它當「CI 全綠」的依據。statuses 問不到的時候（權限、API 失敗）說出這一趟沒問到，並退回舊那招：把這顆 PR 的 base 拿去對那份 workflow 的觸發條件。**問不到不是全綠的溫和版本。**"
 # 這一段以前指向 review-inbox 自己抄的一份 resolver，而它讀的是工作區底下沒有版控的
 # polaris-config。那份補充現在住在提供它的那支 skill 自己的目錄裡（DP-484），所以這裡改成
 # 掃宣告：核心不認得任何一家公司，也不去讀任何一支 skill 的目錄。
