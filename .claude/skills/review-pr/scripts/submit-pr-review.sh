@@ -28,6 +28,12 @@ usage:
   submit-pr-review.sh --repository OWNER/REPO --pull-number N --reviewed-head SHA \
     --event EVENT --body-file PATH [--comments-file PATH] \
     [--tool-identity github.pull_request_review.submit] [--submit]
+
+  # 4. 改一則已經送出的 review 的正文。**走這裡，不要自己打 gh api**——
+  #    事後修正是這條路上最常見的一步，而它以前沒有口，於是每一次都得離開這支腳本。
+  #    不用再報一次 head：那一則綁的 commit 在它送出那一刻就定下來了，PUT 換不掉。
+  submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+    --update-review-id REVIEW_ID --body-file PATH
 USAGE
   exit 2
 }
@@ -35,7 +41,7 @@ USAGE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GH_BIN="${POLARIS_GH_BIN:-gh}"
 repository="" pull_number="" event="" body_file="" comments_file="" submit=0
-reviewed_head="" print_head=0 print_diff=0
+reviewed_head="" print_head=0 print_diff=0 update_review_id=""
 # 預設是揭露不攔截，那是這支腳本本來的決定（見下面送出前那一段的註解）。要「head 動了
 # 就不要送」的呼叫端明講一次——把它做成預設會讓一則已經寫完的 review 被作者的 push 取消，
 # 而作者何時 push 不是 reviewer 控制得了的。
@@ -54,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --comments-file) comments_file="${2:-}"; shift 2 ;;
     --tool-identity) tool_identity="${2:-}"; shift 2 ;;
     --submit) submit=1; shift ;;
+    --update-review-id) update_review_id="$2"; submit=1; shift 2 ;;
     -h|--help) usage ;;
     *) echo "POLARIS_SUBMIT_PR_REVIEW_UNKNOWN_ARGUMENT:$1" >&2; usage ;;
   esac
@@ -126,13 +133,22 @@ if [[ "$print_diff" -eq 1 ]]; then
     "repos/$repository/compare/$base_sha...$reviewed_head"
 fi
 
-[[ "$event" == "APPROVE" || "$event" == "COMMENT" || "$event" == "REQUEST_CHANGES" ]] || { echo "POLARIS_SUBMIT_PR_REVIEW_EVENT_INVALID:$event" >&2; exit 2; }
+# 改一則已經送出的 review 不帶 event：那一則的 state 在它送出那一刻就定下來了，PUT 只換
+# 正文。要求這裡重報一次，等於要呼叫端說一件它改不動的事——而它報錯的話，改的就是別的東西。
+if [[ -z "$update_review_id" ]]; then
+  [[ "$event" == "APPROVE" || "$event" == "COMMENT" || "$event" == "REQUEST_CHANGES" ]] || { echo "POLARIS_SUBMIT_PR_REVIEW_EVENT_INVALID:$event" >&2; exit 2; }
+elif [[ -n "$event" ]]; then
+  echo "POLARIS_SUBMIT_PR_REVIEW_EVENT_IGNORED_ON_UPDATE:$event" >&2
+  echo "  PUT 換不掉一則已送出 review 的 state，這個值不會被送出去。" >&2
+fi
 [[ -f "$body_file" ]] || { echo "POLARIS_SUBMIT_PR_REVIEW_BODY_MISSING:$body_file" >&2; exit 2; }
 [[ "$tool_identity" == "github.pull_request_review.submit" ]] || { echo "POLARIS_EXTERNAL_WRITE_TOOL_IDENTITY_INVALID:$tool_identity" >&2; exit 2; }
 
 # 沒宣告讀的是哪一版就不准送。不宣告而送出去的話，GitHub 會把這則 review 綁在它認為
 # 的當下 head 上——那是一顆 reviewer 從來沒有讀過的 commit，比綁到舊的那顆更糟。
-if [[ "$submit" -eq 1 && -z "$reviewed_head" ]]; then
+# 改一則已經送出的 review 不適用：那一則綁的 commit 是它送出那一刻就定下來的，PUT 只換
+# 正文、換不掉 commit_id。要求這裡重報一次 head，等於要呼叫端說一件它改不動的事。
+if [[ "$submit" -eq 1 && -z "$reviewed_head" && -z "$update_review_id" ]]; then
   echo "POLARIS_PR_REVIEW_REVIEWED_HEAD_REQUIRED:--submit" >&2
   echo "先跑 --print-head 取得這次 review 依據的 sha，用 --print-diff 對它讀 diff，再原樣傳回來。" >&2
   exit 2
@@ -158,8 +174,14 @@ list_commits_between() {
 # 標記字串問閘，不在這裡重寫一份——閘等一下就要拿它檢查這份 body，兩份字面值對不上的
 # 那一刻沒有任何輸出說得出來。
 POLARIS_ATTRIBUTION_MARK="$(bash "$ROOT/scripts/polaris-external-write-gate.sh" --print-attribution-mark)"
-if [[ "$submit" -eq 1 && -n "$POLARIS_ATTRIBUTION_MARK" ]] \
-   && ! grep -qF "$POLARIS_ATTRIBUTION_MARK" "$body_file"; then
+# 「已經署過名了嗎」問樣式，不問字面值——body 自己寫的版本常常意思相同、字不同。同一份
+# 樣式那道閘等一下也會拿去檢查這份 body，所以兩邊問的是同一個問題。
+POLARIS_ATTRIBUTION_PATTERN="$(bash "$ROOT/scripts/polaris-external-write-gate.sh" --print-attribution-pattern)"
+# **這一步不看 --submit。** 它以前只在真送時跑，於是同一份 body 在預覽被閘以缺署名擋下、
+# 真送卻通過——預覽比真送嚴，而那是會教人不要用預覽的形狀。預覽存在的理由就是「先看看
+# 真送會發生什麼」，兩邊套不同規則的話它答的是另一個問題。
+if [[ -n "$POLARIS_ATTRIBUTION_MARK" ]] \
+   && ! grep -qE "$POLARIS_ATTRIBUTION_PATTERN" "$body_file"; then
   signed_body="$(mktemp -t polaris-pr-review-signed.XXXXXX.md)"
   {
     cat "$body_file"
@@ -172,7 +194,9 @@ head_note=""
 head_advanced=0
 head_unresolved=0
 current_head=""
-if [[ "$submit" -eq 1 ]]; then
+# 改一則已經送出的 review 不問這個。那一則當初綁的 head 是它自己的事實，而 head 之後
+# 有沒有前進跟「這次要改的是正文」無關——問了的話附註會被加進一份不是呼叫端交出來的 body。
+if [[ "$submit" -eq 1 && -z "$update_review_id" ]]; then
   if current_refs="$(resolve_pr_refs)"; then
     current_head="${current_refs%% *}"
     [[ "$current_head" != "$reviewed_head" ]] && head_advanced=1
@@ -204,11 +228,21 @@ fi
 
 tmp="$(mktemp -t polaris-pr-review.XXXXXX.json)"
 trap 'rm -f "$tmp" "${merged_body:-}" "${signed_body:-}"' EXIT
-python3 - "$repository" "$pull_number" "$event" "$body_file" "$comments_file" "$reviewed_head" "$tmp" <<'PY'
+python3 - "$repository" "$pull_number" "$event" "$body_file" "$comments_file" "$reviewed_head" "$tmp" "$update_review_id" <<'PY'
 import json, sys
 from pathlib import Path
-repository, pull_number, event, body_path, comments_path, reviewed_head, output = sys.argv[1:]
+repository, pull_number, event, body_path, comments_path, reviewed_head, output, update_review_id = sys.argv[1:]
 owner, repo = repository.split("/", 1)
+# 改一則已經送出的 review 只換正文，所以 payload 也只帶正文。閘看的就是這一份。
+if update_review_id:
+    Path(output).write_text(json.dumps({
+        "owner": owner,
+        "repo": repo,
+        "pull_number": int(pull_number),
+        "review_id": int(update_review_id),
+        "body": Path(body_path).read_text(encoding="utf-8"),
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    raise SystemExit(0)
 comments = []
 if comments_path:
     try:
@@ -272,4 +306,70 @@ fi
 
 # 恰一次。被拒絕（例如 reviewed head 已經被 force-push 掉）就原樣回報，不改綁當下 head
 # 重送——那會把一則對 X 做的 review 掛到 Y 身上。
-"$GH_BIN" api --method POST "repos/$repository/pulls/$pull_number/reviews" --input "$tmp"
+#
+# **改一則已經送出的走 PUT，而它跟送出走同一條回讀。** 這個口存在的理由是結構性的：
+# 事後修正（改錯字、拿掉重複的署名、補一句）是這條路上最常見的一步，而它以前沒有口
+# ——所以每一次都得離開這支腳本去打 `gh api`。2026-09-17 那一次就是這樣把 4483 bytes
+# 的正文蓋成 11 個字元的：`-f` 傳的是字面值，而 `-f body=@/dev/stdin` 讀檔要 `-F`。
+# **把人推出去的是缺口，不是不小心。**
+if [[ -n "$update_review_id" ]]; then
+  update_payload="$(mktemp -t polaris-pr-review-update.XXXXXX.json)"
+  python3 - "$body_file" "$update_payload" <<'PY'
+import json, sys
+body = open(sys.argv[1]).read()
+json.dump({"body": body}, open(sys.argv[2], "w"), ensure_ascii=False)
+PY
+  response="$("$GH_BIN" api --method PUT \
+    "repos/$repository/pulls/$pull_number/reviews/$update_review_id" --input "$update_payload")"
+  rm -f "$update_payload"
+else
+  response="$("$GH_BIN" api --method POST "repos/$repository/pulls/$pull_number/reviews" --input "$tmp")"
+fi
+printf '%s\n' "$response"
+
+# **送出去了不等於送到了。** 一則 body 空掉的 review 跟一則送達的，在我們這一端長得
+# 一模一樣——POST 回 201、離場碼 0、什麼都沒說。2026-09-17 真的發生過一次：某顆 PR 上
+# 的 review body 是字面值 `@/dev/stdin`，正文從來沒到作者手上，靠對方兩個人各自提到
+# 才發現。
+#
+# **這一段守不到那一次的實例**，要講清楚：那一則是繞過這支腳本、直接打 `gh api -f
+# body=@...` 送的（`-f` 傳字面值，讀檔要 `-F`），所以它從來沒跑到這裡。這一段守的是
+# 另一種——走了這支腳本，而送出去的東西跟手上這一份對不上：GitHub 端截斷、API 半成功、
+# payload 組錯。繞過那一種由輪次收尾那一層量（`measure-review-inbox-session.sh
+# --verify-delivered`），它問的是 GitHub「我這個帳號送出了什麼」，誰送的不影響。
+#
+# **不論比對結果如何都不重送。** 送出是恰一次的，回讀只是把「它現在長什麼樣」講出來。
+# 這支腳本解 JSON 一律用 python3（見上面兩處），不引入第二個依賴。
+review_id="$(printf '%s' "$response" | python3 -c '
+import json, sys
+try:
+    print(json.load(sys.stdin).get("id") or "")
+except Exception:
+    print("")
+' 2>/dev/null || true)"
+if [[ -z "$review_id" ]]; then
+  echo "POLARIS_PR_REVIEW_READBACK_NO_ID: 送出的回應裡沒有 review id，這一趟讀不回來。" >&2
+  echo "  **那不等於沒送到**——送出動作已經發生，只是它長什麼樣這一趟問不到。去 GitHub 上看那一顆。" >&2
+  exit 4
+fi
+
+readback="$("$GH_BIN" api "repos/$repository/pulls/$pull_number/reviews/$review_id" \
+  --jq '.body' 2>/dev/null)" || readback_failed=1
+if [[ -n "${readback_failed:-}" ]]; then
+  echo "POLARIS_PR_REVIEW_READBACK_UNAVAILABLE: review $review_id 讀不回來。" >&2
+  echo "  **問不到不是送達的溫和版本**：送出動作已經發生，而這一趟沒有任何證據說它長什麼樣。" >&2
+  exit 4
+fi
+
+sent_body="$(cat "$body_file")"
+if [[ "$readback" != "$sent_body" ]]; then
+  echo "POLARIS_PR_REVIEW_READBACK_MISMATCH: review $review_id 讀回來的 body 跟送出的不一樣。" >&2
+  echo "  送出的（${#sent_body} 字元）：" >&2
+  printf '%s\n' "$sent_body" | sed 's/^/    /' >&2
+  echo "  讀回來的（${#readback} 字元）：" >&2
+  printf '%s\n' "$readback" | sed 's/^/    /' >&2
+  echo "  **沒有重送。** 送出是恰一次的；要補一則新的由讀的人決定。" >&2
+  exit 5
+fi
+
+echo "POLARIS_PR_REVIEW_READBACK_OK: review $review_id 讀回來的 body 跟送出的一致（${#sent_body} 字元）。" >&2

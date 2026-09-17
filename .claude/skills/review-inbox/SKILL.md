@@ -129,7 +129,8 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    **但交集量得到也還不夠，因為它對串行堆疊恆為真。** 同一個 repo 裡第二顆踩在第一顆改過
    的檔案上往前疊，交集必然量得到——而第 N 顆帶的是它自己那一段沒有人讀過的改動，只是
    順便帶著前面那幾顆的行。所以同一個 repo 的兩顆還要問**這一顆從哪裡長出來的**：base 落在
-   同組另一顆的 head 上就是串行，那幾顆一律走完整 review（`stacked_on_group_member`）。
+   同一個 repo 任何一顆 open PR 的 head 上就是串行，那幾顆一律走完整 review
+   （`stacked_on_candidate` 或 `stacked_on_open_pr`，看 parent 在不在這一輪的候選集裡）。
    問不到其中一顆的 base 時分不出平行與串行，也走完整 review
    （`same_repo_lineage_unmeasurable`）——量不到不得讀成可以半審。
 
@@ -157,11 +158,24 @@ Batch review dispatch 由 main session 讀 `dispatch-context-bundle.md` 一次�
    本身就是一個發現**，不是只是一個要標記的例外。
 10. 收斂結果，依來源模式發 Slack summary 或 thread replies。**跟 review 一樣做完就回**，
     不在這裡再問一次要不要送。
-11. 跑 `measure-review-inbox-session.sh` 產生 telemetry JSON，並用
+11. **對帳這一輪真的送出去了什麼。** 同一支腳本的 `--verify-delivered` 模式回讀這個帳號
+    在輪次起點之後送出的 review，把「看起來沒有把正文送到」的那幾則指名出來；有可疑的就
+    非零離場：
+
+    ```bash
+    bash .claude/skills/review-inbox/scripts/measure-review-inbox-session.sh --verify-delivered \
+      --my-user {my_user} --since {輪次起點 ISO8601} --pr OWNER/REPO#N [--pr ...]
+    ```
+
+    **這一層不在送出者手上**，所以繞過腳本自己 `gh api` 的那幾次它也看得到——它問的是
+    GitHub 上的最終狀態，誰送的、之後怎麼改的都不影響。判準是三條腿：送出時間在標記上線
+    之後、`body` 長度大於 0、而且缺 `polaris-review-target` 標記。空 body 是合法形狀
+    （只帶 inline comment 的那一種），不進可疑。
+12. 跑 `measure-review-inbox-session.sh` 產生 telemetry JSON，並用
     `polaris-learnings.sh add --type telemetry --tag review-inbox` 寫入
     `metadata.review_inbox_run`。若無法取得完整 transcript，仍需用 line-count proxy
     記錄 candidate count、reviewed count 與 artifact volume。
-12. 在對話中回報每個 PR 的 review result、approve status 與 telemetry run_id。
+13. 在對話中回報每個 PR 的 review result、approve status 與 telemetry run_id。
 
 ## Write And Notification Rules
 

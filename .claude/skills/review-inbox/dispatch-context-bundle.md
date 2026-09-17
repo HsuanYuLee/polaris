@@ -138,6 +138,20 @@ Submitting without `--reviewed-head` is refused. `POLARIS_PR_HEAD_ADVANCED` on s
 means the author pushed while you were reviewing: the review was submitted and is
 correctly bound to what you read. It is a message for you, not a failure.
 
+**Every write to a review goes through this script — the first submit and every later
+correction.** To fix a review you already submitted, pass its id back to the same script
+instead of calling `gh api` yourself:
+
+```bash
+bash scripts/submit-pr-review.sh --repository OWNER/REPO --pull-number N \
+  --update-review-id REVIEW_ID --body-file /path/to/corrected-body.md
+```
+
+A hand-rolled `gh api -X PUT` has already destroyed one delivered review: `-f body=@file`
+sends the literal string `@file`, so an 11-character body replaced 4483 bytes of findings
+and nothing on this side reported a failure. The script reads the review back after every
+write and exits non-zero when what GitHub returns does not match what was sent.
+
 ## Completion Envelope
 
 Return exactly:

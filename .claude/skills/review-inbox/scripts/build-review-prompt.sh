@@ -442,7 +442,13 @@ ${EXTRA_REFS_BLOCK}
 6. 送出 GitHub review，綁在同一顆上：
    `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --reviewed-head "$REVIEWED_HEAD" --event EVENT --body-file /tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-body.md --comments-file /tmp/review-inbox-runs/{run_id}/pr-${NUMBER}-comments.json --submit`
    沒有 `--reviewed-head` 會被擋。stderr 出現 `POLARIS_PR_HEAD_ADVANCED` 表示作者在你 review
-   期間又 push 了——review 已經送出且正確綁在你讀過的那一版，要不要再看一次由你判斷
+   期間又 push 了——review 已經送出且正確綁在你讀過的那一版，要不要再看一次由你判斷。
+   **review 的送出與修正一律走這支腳本，不要自己打 `gh api`。** 要改一則已經送出的 review，
+   把它的 id 交回同一支腳本：
+   `bash ${SCRIPT_DIR}/submit-pr-review.sh --repository ${REPO_SLUG} --pull-number ${NUMBER} --update-review-id REVIEW_ID --body-file <改好的 body>`
+   自己發 `gh api -X PUT` 已經毀掉過一則送出的 review：`-f body=@檔名` 傳的是字面值 `@檔名`，
+   11 個字元蓋掉 4483 bytes 的意見，而我們這端沒有任何東西回報失敗。腳本每次寫入之後都會
+   回讀一次，GitHub 回來的跟送出的對不上就非零離場
 7. 查詢 approve 狀態
 
 **參數**：

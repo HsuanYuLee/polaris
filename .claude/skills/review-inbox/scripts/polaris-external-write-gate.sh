@@ -34,6 +34,18 @@ EOF
 # Slack 不在這張表上：那個管道自己就標著「Sent using @Claude」，再署一次是同一個資訊的
 # 第二份，而它佔的是末尾最後被讀到的位置。
 POLARIS_ATTRIBUTION_MARK="由 Claude Code 代發"
+# **認的樣式比要寫的那一句寬。** 要寫什麼由上面那個字串說了算；而「這份 body 已經署過名
+# 了嗎」問的是另一件事——人會寫出意思相同、字不同的版本，最常見的是中間插一個帳號：
+# 「由 Claude Code 代 @someone 發出」。
+#
+# 用單一字面值比對的那一版認不出它，於是**又補了一份**，而那正好是使用者 2026-09-04 指名
+# 拿掉的東西（同一個資訊的第二份，佔末尾最後被讀到的位置）。2026-09-17 那則 review 就是
+# 這樣長出兩份署名的——然後有人回頭去手動修，把整篇正文蓋掉了。
+POLARIS_ATTRIBUTION_PATTERN='由 Claude Code 代[^）)]{0,40}發'
+if [[ "${1:-}" == "--print-attribution-pattern" ]]; then
+  printf '%s\n' "$POLARIS_ATTRIBUTION_PATTERN"
+  exit 0
+fi
 # **這份 body 是為哪一顆 PR 寫的。** 寫下它的是撰寫那份 review 的人，在他還知道自己在看
 # 哪一顆的時候；送出的那一步不補、也補不了——2026-09-07 撞到的那一次，送出端填的
 # --pull-number 是對的（3100），錯的是它讀到的檔（另一個並行 reviewer 剛覆蓋掉的 #10720）。
@@ -186,7 +198,7 @@ attribution_required=0
 for attributed_surface in "${POLARIS_ATTRIBUTED_SURFACES[@]}"; do
   [[ "$attributed_surface" == "$surface" ]] && { attribution_required=1; break; }
 done
-if [[ "$attribution_required" -eq 1 ]] && ! grep -qF "$POLARIS_ATTRIBUTION_MARK" "$body_file"; then
+if [[ "$attribution_required" -eq 1 ]] && ! grep -qE "$POLARIS_ATTRIBUTION_PATTERN" "$body_file"; then
   echo "POLARIS_EXTERNAL_WRITE_ATTRIBUTION_MISSING:surface=$surface" >&2
   echo "這個 surface 掛在一個人的帳號底下送出，所以內容要說出這是誰代誰發的。" >&2
   echo "body 裡要出現「${POLARIS_ATTRIBUTION_MARK}」，例如結尾接一行：" >&2
@@ -217,7 +229,18 @@ REQUIRED_ROOT_KEYS = {"owner", "repo", "pull_number", "event", "body", "comments
 # commit_id 是選擇性的，但它一旦在就必須是一顆完整的 sha：submit 端用它把 review 綁在
 # reviewer 實際讀過的那一版上（DP-459）。預覽 payload 時可以還沒有這一格。
 OPTIONAL_ROOT_KEYS = {"commit_id"}
-if not isinstance(data, dict) or not REQUIRED_ROOT_KEYS <= set(data) <= REQUIRED_ROOT_KEYS | OPTIONAL_ROOT_KEYS:
+# **改一則已經送出的 review 是第二種形狀。** 它換的只有正文——state 與 inline comment 在
+# 那一則送出的那一刻就定下來了，PUT 改不動。所以它沒有 event、沒有 comments、沒有
+# commit_id，而它多一格 review_id 說出改的是哪一則。這一格認得它，是為了讓事後修正走得回
+# 這條路上：以前它在這裡被判 payload 不合法，於是每一次修正都只能繞過整條閘自己打 API。
+UPDATE_ROOT_KEYS = {"owner", "repo", "pull_number", "review_id", "body"}
+is_update = isinstance(data, dict) and "review_id" in data
+if is_update:
+    if set(data) != UPDATE_ROOT_KEYS:
+        fail("update root keys must be owner,repo,pull_number,review_id,body")
+    if not re.fullmatch(r"[1-9][0-9]*", str(data["review_id"])):
+        fail("review_id must be a positive integer")
+elif not isinstance(data, dict) or not REQUIRED_ROOT_KEYS <= set(data) <= REQUIRED_ROOT_KEYS | OPTIONAL_ROOT_KEYS:
     fail("root keys must be owner,repo,pull_number,event,body,comments[,commit_id]")
 if "commit_id" in data and not re.fullmatch(r"[0-9a-f]{40}", str(data["commit_id"])):
     fail("commit_id must be a full 40-character sha")
@@ -225,12 +248,12 @@ if any(not isinstance(data.get(key), str) or not data[key].strip() for key in ("
     fail("owner/repo/body must be non-empty strings")
 if type(data.get("pull_number")) is not int or data["pull_number"] < 1:
     fail("pull_number must be a positive integer")
-if data.get("event") not in {"APPROVE", "COMMENT", "REQUEST_CHANGES"}:
+if not is_update and data.get("event") not in {"APPROVE", "COMMENT", "REQUEST_CHANGES"}:
     fail("event is invalid")
-if not isinstance(data.get("comments"), list):
+if not is_update and not isinstance(data.get("comments"), list):
     fail("comments must be an array")
 allowed = {"path", "body", "line", "side", "start_line", "start_side"}
-for index, comment in enumerate(data["comments"]):
+for index, comment in enumerate(data.get("comments") or []):
     if not isinstance(comment, dict) or not set(comment).issubset(allowed):
         fail(f"comments[{index}] keys invalid")
     if not isinstance(comment.get("path"), str) or not comment["path"] or not isinstance(comment.get("body"), str) or not comment["body"]:
@@ -275,7 +298,7 @@ if (anchor_owner, anchor_repo, int(anchor_number)) != (data["owner"], data["repo
         f"body 的錨說 {anchor_owner}/{anchor_repo}#{anchor_number}，"
         f"payload 要送去 {data['owner']}/{data['repo']}#{data['pull_number']}"
     )
-combined = [body_text] + [comment["body"] for comment in data["comments"]]
+combined = [body_text] + [comment["body"] for comment in (data.get("comments") or [])]
 Path(sys.argv[3]).write_text("\n\n".join(combined), encoding="utf-8")
 PY
   body_file="$payload_text_file"

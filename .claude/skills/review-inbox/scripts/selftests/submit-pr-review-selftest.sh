@@ -27,7 +27,7 @@ SUBJECT="${SUBJECT_OVERRIDE:-$SCRIPTS/submit-pr-review.sh}"
 # 這支腳本在兩支 skill 底下各有一份副本，而副本沒有任何關卡在守（見 DP-459 活區）。
 SIBLING_SKILLS=(review-pr review-inbox)
 
-EXPECTED=16
+EXPECTED=23
 RAN=0
 SKIPPED=0
 FAILED=0
@@ -52,6 +52,30 @@ cat > "$WORK/bin/gh" <<'STUB'
 printf '%s\n' "$*" >> "$STUB_LOG"
 for arg in "$@"; do
   case "$arg" in
+    */pulls/*/reviews/*)
+      # 送出之後的回讀，以及改一則已送出 review 的 PUT。兩者同一個 endpoint，用 method 分。
+      if printf '%s\n' "$@" | grep -qx 'PUT'; then
+        cp "${!#}" "$STUB_PUT_PAYLOAD" 2>/dev/null || true
+        printf 'PUT\n' >> "$STUB_LOG"
+        printf '{"id":1,"state":"COMMENTED"}\n'
+        exit 0
+      fi
+      printf 'READBACK\n' >> "$STUB_LOG"
+      if [[ "${STUB_READBACK_RC:-0}" -ne 0 ]]; then
+        printf 'gh: Not Found (HTTP 404)\n' >&2
+        exit "${STUB_READBACK_RC}"
+      fi
+      # 預設：把剛剛送出的那一份原樣回來，也就是「送達了」。要演送壞的那一種，
+      # 呼叫端設 STUB_READBACK_BODY。
+      if [[ -n "${STUB_READBACK_BODY+x}" ]]; then
+        printf '%s' "$STUB_READBACK_BODY"
+        exit 0
+      fi
+      python3 -c 'import json,sys; sys.stdout.write(json.load(open(sys.argv[1]))["body"])' \
+        "${STUB_PUT_PAYLOAD:-/dev/null}" 2>/dev/null \
+        || python3 -c 'import json,sys; sys.stdout.write(json.load(open(sys.argv[1]))["body"])' "$STUB_POST_PAYLOAD"
+      exit 0
+      ;;
     */pulls/*/reviews)
       cp "${!#}" "$STUB_POST_PAYLOAD" 2>/dev/null || true
       printf 'POST\n' >> "$STUB_LOG"
@@ -87,13 +111,14 @@ printf -- '這是一則沒有錨的審查意見。\n' > "$WORK/body-no-anchor.tx
 export STUB_LOG="$WORK/log.txt"
 export STUB_PR_JSON="$WORK/pr.json"
 export STUB_POST_PAYLOAD="$WORK/posted.json"
+export STUB_PUT_PAYLOAD="$WORK/put.json"
 
 # Description: run the subject with the gh stub, capturing stdout/stderr/rc.
 # Args:        $@ = arguments passed straight to submit-pr-review.sh.
 # Side effects: resets the stub log and posted payload; sets OUT/ERR/RC.
 run_subject() {
   : > "$STUB_LOG"
-  rm -f "$STUB_POST_PAYLOAD"
+  rm -f "$STUB_POST_PAYLOAD" "$STUB_PUT_PAYLOAD"
   OUT="$(POLARIS_GH_BIN="${GH_OVERRIDE:-$WORK/bin/gh}" bash "$SUBJECT" "$@" 2>"$WORK/err.txt")"
   RC=$?
   ERR="$(cat "$WORK/err.txt")"
@@ -277,6 +302,90 @@ if [[ "$RC" -ne 0 && "$(post_count)" -eq 0 && "$ERR" == *"polaris-review-target"
   pass "H-N6 body 沒有錨時，一次 POST 都沒有發出且說出要寫哪一行"
 else
   fail "H-N6 body 沒有錨時，一次 POST 都沒有發出且說出要寫哪一行" "rc=$RC posts=$(post_count) err=$ERR"
+fi
+
+# ── H-P6：送出去了不等於送到了 ───────────────────────────────────────────────
+# 一則 body 被蓋掉的 review 跟一則送達的，在我們這一端長得一模一樣：POST 回 201、
+# 離場碼 0、什麼都沒說。所以要回讀，而且回讀本身要能紅。
+run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
+  --event COMMENT --body-file "$WORK/body.txt" --submit
+if [[ "$RC" -eq 0 && "$ERR" == *POLARIS_PR_REVIEW_READBACK_OK* ]] \
+   && grep -q '^READBACK$' "$STUB_LOG"; then
+  pass "H-P6 送出之後真的回讀了一次，且一致時說出來"
+else
+  fail "H-P6 送出之後真的回讀了一次，且一致時說出來" "rc=$RC err=$ERR log=$(tr '\n' '|' < "$STUB_LOG")"
+fi
+
+STUB_READBACK_BODY='@/dev/stdin' run_subject --repository o/r --pull-number 12 \
+  --reviewed-head "$CURRENT_HEAD" --event COMMENT --body-file "$WORK/body.txt" --submit
+# 只問「有沒有紅」不夠：那一則被蓋掉的 review 就是靠「兩邊都看不到」活下來的，所以兩邊
+# 的正文都要被印出來。
+if [[ "$RC" -eq 5 && "$ERR" == *POLARIS_PR_REVIEW_READBACK_MISMATCH* \
+      && "$ERR" == *'@/dev/stdin'* && "$ERR" == *'這是一則審查意見'* \
+      && "$(post_count)" -eq 1 ]]; then
+  pass "H-P6 讀回來的跟送出的不一樣時非零離場、兩邊都印出來、且沒有重送"
+else
+  fail "H-P6 讀回來的跟送出的不一樣時非零離場、兩邊都印出來、且沒有重送" "rc=$RC posts=$(post_count) err=$ERR"
+fi
+
+STUB_READBACK_RC=1 run_subject --repository o/r --pull-number 12 \
+  --reviewed-head "$CURRENT_HEAD" --event COMMENT --body-file "$WORK/body.txt" --submit
+if [[ "$RC" -eq 4 && "$ERR" == *POLARIS_PR_REVIEW_READBACK_UNAVAILABLE* && "$(post_count)" -eq 1 ]]; then
+  pass "H-P6 回讀問不到時非零離場（問不到不是送達的溫和版本），且沒有重送"
+else
+  fail "H-P6 回讀問不到時非零離場（問不到不是送達的溫和版本），且沒有重送" "rc=$RC posts=$(post_count) err=$ERR"
+fi
+
+# ── H-P7：改一則已經送出的 review 走同一支腳本 ───────────────────────────────
+# 根因那一格。agent 不是不想走腳本，是腳本沒有那個口——於是每一次事後修正在結構上都
+# 只能離開它，而 `gh api -f body=@檔名` 傳的是字面值。
+printf -- '<!-- polaris-review-target: o/r#12 -->\n改好的審查意見。\n\n_（由 Claude Code 代發）_\n' \
+  > "$WORK/body-corrected.txt"
+run_subject --repository o/r --pull-number 12 \
+  --update-review-id 1 --body-file "$WORK/body-corrected.txt"
+if [[ "$RC" -eq 0 && "$(post_count)" -eq 0 ]] && grep -q '^PUT$' "$STUB_LOG"; then
+  pass "H-P7 --update-review-id 走 PUT，而且不用再報一次 head"
+else
+  fail "H-P7 --update-review-id 走 PUT，而且不用再報一次 head" "rc=$RC posts=$(post_count) log=$(tr '\n' '|' < "$STUB_LOG")"
+fi
+if [[ "$ERR" == *POLARIS_PR_REVIEW_READBACK_OK* ]] && grep -q '^READBACK$' "$STUB_LOG"; then
+  pass "H-P7 PUT 之後走的是同一條回讀"
+else
+  fail "H-P7 PUT 之後走的是同一條回讀" "err=$ERR log=$(tr '\n' '|' < "$STUB_LOG")"
+fi
+
+# ── H-P8：署名認得等價的寫法 ─────────────────────────────────────────────────
+# 補出來的第二份署名就是那一次回頭編輯的理由——沒有那一步，蓋掉正文的那一步不會發生。
+printf -- '<!-- polaris-review-target: o/r#12 -->\n這是一則審查意見。\n\n_（由 Claude Code 代 @someone 發出）_\n' \
+  > "$WORK/body-self-signed.txt"
+run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
+  --event COMMENT --body-file "$WORK/body-self-signed.txt" --submit
+signed_count="$(python3 -c '
+import json,sys
+print(json.load(open(sys.argv[1]))["body"].count("由 Claude Code 代"))' "$STUB_POST_PAYLOAD" 2>/dev/null || printf X)"
+if [[ "$RC" -eq 0 && "$signed_count" == "1" ]]; then
+  pass "H-P8 body 自帶等價的署名時，不補第二份"
+else
+  fail "H-P8 body 自帶等價的署名時，不補第二份" "rc=$RC 署名出現 $signed_count 次"
+fi
+
+# ── H-P9：預覽與真送同一套規則 ───────────────────────────────────────────────
+# 兩邊套不同規則的話，預覽答的是另一個問題——而預覽正是這條鏈上唯一一個便宜的檢查點。
+run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
+  --event COMMENT --body-file "$WORK/body.txt"
+preview_rc="$RC"
+preview_signed="$(printf '%s' "$OUT" | python3 -c '
+import json,sys
+print("yes" if "由 Claude Code 代" in json.load(sys.stdin)["body"] else "no")' 2>/dev/null || printf X)"
+run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
+  --event COMMENT --body-file "$WORK/body.txt" --submit
+real_signed="$(python3 -c '
+import json,sys
+print("yes" if "由 Claude Code 代" in json.load(open(sys.argv[1]))["body"] else "no")' "$STUB_POST_PAYLOAD" 2>/dev/null || printf X)"
+if [[ "$preview_rc" -eq 0 && "$preview_signed" == "yes" && "$real_signed" == "yes" ]]; then
+  pass "H-P9 同一份 body，預覽與真送補出來的署名相同"
+else
+  fail "H-P9 同一份 body，預覽與真送補出來的署名相同" "preview_rc=$preview_rc preview=$preview_signed real=$real_signed"
 fi
 
 printf -- '---\n'
