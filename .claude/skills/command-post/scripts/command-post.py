@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""這台機器上有哪些 session、各自閒置多久、各自在做什麼。
+"""這台機器上有哪些 session、各自閒置多久、各自在做什麼；以及指揮官日誌。
 
-**只讀。** 不對任何 session 送訊息、不送訊號、不寫任何不屬於這支 skill 的檔案。
+不對任何 session 送訊息、不送訊號。寫的只有兩樣：每個 session 自己的宣告，以及登錄旁邊
+那份 append-only 的指揮官日誌（宣告、派工、`--log`、`--waiting-on` 各落一筆）。
 
 「在做什麼」讀的是**那個 session 自己寫下的宣告**（`--declare` 寫、這裡讀），不是它
 transcript 裡最後一則說的話。兩個理由，第二個才是真正的那一個：
@@ -17,7 +18,7 @@ transcript 裡最後一則說的話。兩個理由，第二個才是真正的那
 問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。而「從來沒
 寫過宣告」「宣告讀不動」「宣告在而缺欄位」是三件事，長成三句不同的話。
 """
-import argparse, json, os, subprocess, sys, time
+import argparse, json, os, re, subprocess, sys, time
 
 HOME = os.path.expanduser("~")
 REGISTRY = os.path.join(HOME, ".claude", "sessions")
@@ -76,23 +77,133 @@ def read_declaration(session_id):
 
 
 def declaration_line(decl):
-    """把宣告排成一行給人讀。結構的那一份仍然在 `declaration` 鍵裡。"""
+    """把宣告排成一行給人讀。結構的那一份仍然在 `declaration` 鍵裡。
+
+    「哪條線」與「瀏覽器」是後來才加的兩格。舊的宣告沒有它們，**照樣讀得出來**，但那一格
+    說出是缺——不印空白，空白跟「這個 session 沒有線」長得一模一樣。
+    """
     opened = decl.get("tickets_opened")
     if isinstance(opened, list):
         opened = chr(12289).join(str(x) for x in opened) or "無"
-    return "｜".join([f"接：{decl['holding']}",
+    return "｜".join([f"線：{decl.get('line') or '（宣告沒說——舊宣告缺 line）'}",
+                      f"瀏覽器：{decl.get('browser') or '（宣告沒說——舊宣告缺 browser）'}",
+                      f"接：{decl['holding']}",
                       f"卡：{decl['blocked_on']}", f"開單：{opened}"])
 
 
-def write_declaration(session_id, holding, blocked_on, tickets_opened):
+def write_declaration(session_id, holding, blocked_on, tickets_opened,
+                      line=None, browser=None):
     """這個 session 寫下自己的那一行。**只寫自己的那一份，不碰別人的。**"""
     os.makedirs(DECLARATIONS, exist_ok=True)
     path = declaration_path(session_id)
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump({"session_id": session_id, "holding": holding,
+        json.dump({"session_id": session_id, "line": line, "browser": browser,
+                   "holding": holding,
                    "blocked_on": blocked_on, "tickets_opened": tickets_opened,
                    "declared_at": time.time()}, fh, ensure_ascii=False, indent=2)
     return path
+
+
+# ── 指揮官日誌 ────────────────────────────────────────────────────────────────
+#
+# **它是事件流，不是交接文件。** 每一筆由發生那件事的命令在那一刻寫下（宣告、派工、
+# 記一則回報、指揮官換了在等的東西），交棒時沒有人需要坐下來寫一份。〈交棒不新增任何
+# 要人維護的狀態〉禁止的是後者：交棒那一刻才手寫的文件會跟實際狀態漂開。
+#
+# 住在登錄旁邊，不住在任何一個 workspace 裡：它講的是這台機器上的 session，而各條線的
+# cwd 不一定在同一個 workspace。`COMMAND_POST_DIR` 只給量測換一個地方寫。
+JOURNAL_DIR = os.environ.get("COMMAND_POST_DIR") or os.path.join(REGISTRY, "command-post")
+JOURNAL = os.path.join(JOURNAL_DIR, "journal.md")
+# 指揮官自己放的常駐規矩。**skill 不帶任何一家公司的規矩**——那些只在這份檔裡，
+# `--rebuild` 原樣貼上。
+STANDING = os.path.join(JOURNAL_DIR, "standing.md")
+SCRIPT = os.path.abspath(__file__)
+
+JOURNAL_HEADER = """# 指揮官工作日誌（command-post journal）
+
+給**下一個指揮官**讀，也給**指揮官失聯時的實作 session** 讀。append-only：每一筆由發生
+那件事的命令在那一刻寫下——宣告、派工、回報、指揮官在等什麼。不改舊的，只往下加；要補一
+句就用 `--log`。
+
+接手順序：跑 `--board`（它印這份的尾端與上一任在等什麼），再讀 command-post 的 SKILL.md。
+重建各條線的開場 prompt：`--rebuild`。
+
+---
+"""
+
+# 一筆的開頭。`## ` 與 `### ` 都算，手寫的那幾節（`## 日期 ｜ 誰`）也就一起被切成筆。
+ENTRY_HEAD = re.compile(r"^#{2,3} \d{4}-\d{2}-\d{2} \d{2}:\d{2}")
+
+
+def stamp(now=None):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(now or time.time()))
+
+
+def append_journal(kind, who, fields, now=None):
+    """往日誌尾端加一筆。回傳 (path, problem)。
+
+    **寫不進去不得安靜地當作寫了**——呼叫者拿到 problem 就要失敗並說出路徑。
+    """
+    try:
+        os.makedirs(JOURNAL_DIR, exist_ok=True)
+        fresh = not os.path.exists(JOURNAL) or os.path.getsize(JOURNAL) == 0
+        body = ["", f"### {stamp(now)} ｜ {kind} ｜ {who}"]
+        body += [f"- {k}：{v}" for k, v in fields if v]
+        with open(JOURNAL, "a", encoding="utf-8") as fh:
+            if fresh:
+                fh.write(JOURNAL_HEADER)
+            fh.write("\n".join(body) + "\n")
+        return JOURNAL, None
+    except OSError as exc:
+        return JOURNAL, f"日誌寫不進去：{JOURNAL}（{exc}）"
+
+
+def read_journal_entries():
+    """回傳 (entries, problem)。三種讀不到各說各的話：不存在、是空的、讀不動。"""
+    if not os.path.exists(JOURNAL):
+        return [], f"日誌還不存在：{JOURNAL}（第一次宣告、派工或 --log 會建立它）"
+    try:
+        with open(JOURNAL, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        return [], f"日誌讀不動：{JOURNAL}（{exc}）"
+    entries, cur = [], None
+    for ln in text.splitlines():
+        if ENTRY_HEAD.match(ln):
+            if cur:
+                entries.append("\n".join(cur).rstrip())
+            cur = [ln]
+        elif cur is not None:
+            cur.append(ln)
+    if cur:
+        entries.append("\n".join(cur).rstrip())
+    if not entries:
+        return [], f"日誌在，但一筆紀錄都沒有：{JOURNAL}"
+    return entries, None
+
+
+WAITING_KIND = "在等"
+COMMANDER_LINE = "指揮官"
+
+
+def last_waiting(entries):
+    """最後一句「指揮官在等什麼」。回傳 (那一句, 那一筆的標頭) 或 (None, None)。"""
+    for e in reversed(entries):
+        head, _, rest = e.partition("\n")
+        if f"｜ {WAITING_KIND} ｜" in head:
+            for ln in rest.splitlines():
+                if ln.startswith("- 在等："):
+                    return ln[len("- 在等："):], head.lstrip("# ")
+    return None, None
+
+
+def session_name_of(session_id):
+    """拿 sessionId 去登錄查名字。查不到就回 sessionId 本身——日誌裡總要有個誰。"""
+    rows, _ = read_registry()
+    for _, data in rows:
+        if data.get("sessionId") == session_id and data.get("name"):
+            return data["name"]
+    return session_id
 
 
 def idle_seconds_of(path, now):
@@ -321,6 +432,33 @@ def closable_text(m, idle_threshold=3600):
     return "\n".join(lines)
 
 
+def opening_text(commander):
+    """每一則派工、互審、重建 prompt 開頭都一樣的那一段：開場四步與失聯協定。
+
+    **路徑與名字都是實際值**。佔位字留給收件者自己填的話，它會照抄一個佔位字，或挑一個
+    看起來比較順的——兩者都是安靜的。腳本寫成絕對路徑，因為收件者的 cwd 不一定在這個
+    workspace 裡。
+    """
+    return "\n".join([
+        "**建立那一刻做四件事，做完才開工：**",
+        "  1. `ListAgents` 查出自己的名字。",
+        "  2. 宣告自己（之後狀態變了再跑一次）：",
+        "       CP=" + SCRIPT,
+        "       python3 $CP --declare --session-id \"$(python3 $CP --whoami)\" \\",
+        "         --line '<你是哪條線>' --browser '<有／沒有>' \\",
+        "         --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
+        "     板子只讀這份宣告。沒宣告的話你那一列是空的，而它跟「沒人接」長得一模一樣。",
+        "  3. 用 `ToolSearch` 查有沒有瀏覽器工具（例如查 `chrome navigate screenshot`）。",
+        "     沒有就等指揮官轉達授權，**不自己找替代**。",
+        "  4. `SendMessage` 給 " + commander + "：「<線名> 上線，我是 <名字>，瀏覽器：有／沒有」。",
+        "",
+        "**指揮官失聯**（`ListAgents` 找不到 " + commander + "，或送出後 30 分鐘沒回）：讀 "
+        + JOURNAL + " 的最後幾筆，然後對人說一句：",
+        "「指揮官失聯，請重建指揮官：新 session 跑 /command-post，先讀 " + JOURNAL + "」。",
+        "不自己當指揮官、不接別人的單、手上的單照做。",
+    ])
+
+
 def order_text(issue_path, to_name, from_name):
     """一則派工指令的全文。
 
@@ -337,12 +475,7 @@ def order_text(issue_path, to_name, from_name):
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
         "",
-        "**動它之前先宣告你自己**（一行，之後不用再跑）：",
-        "  CP=.claude/skills/command-post/scripts/command-post.py",
-        "  python3 $CP --declare --session-id \"$(python3 $CP --whoami)\" \\",
-        "    --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
-        "板子的「在做什麼」那一欄只讀這份宣告。沒宣告的話那一欄是空的，而它跟",
-        "「這個 session 沒人接」長得一模一樣——下一個指揮官接手時就分不出來了。",
+        opening_text(from_name),
         "",
         "做完，或撞到四種停點的任何一種（assertion_wrong／surfaced_concern／",
         "unconverged_cap／unauthorized_action），SendMessage 回 " + from_name + "。",
@@ -377,12 +510,7 @@ def review_order_text(issue_path, me, others, about, from_name):
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
         "",
-        "**動它之前先宣告你自己**（一行，之後不用再跑）：",
-        "  CP=.claude/skills/command-post/scripts/command-post.py",
-        "  python3 $CP --declare --session-id \"$(python3 $CP --whoami)\" \\",
-        "    --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
-        "板子的「在做什麼」那一欄只讀這份宣告。沒宣告的話那一欄是空的，而它跟",
-        "「這個 session 沒人接」長得一模一樣——下一個指揮官接手時就分不出來了。",
+        opening_text(from_name),
         "",
         "**要互相下判斷的是**：" + about,
         "",
@@ -587,7 +715,8 @@ def holders_of(issues_root, ticket_path):
     return "、".join(said)
 
 
-def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600):
+def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600,
+               journal_tail=8):
     """指揮官每一輪重讀的那一頁。
 
     **產生的部分不手寫**（先例是 `OPEN.md`，它自己的表頭就寫著下一次重算會整份重寫），
@@ -599,11 +728,34 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
     """
     out = ["# 指揮台", ""]
 
+    entries, jprob = read_journal_entries()
     out.append("## 我在等什麼（唯一手寫的一格）")
     out.append("")
-    out.append(waiting_on or "（沒有給 --waiting-on。這一格空著，"
-                             "而它是這份文件裡唯一一樣板子答不出來的東西。）")
+    if waiting_on:
+        out.append(waiting_on)
+    else:
+        # 沒給就讀日誌裡最後一句。**這一格以前是交棒時唯一會遺失的東西**，所以它不能只活在
+        # 一次命令列參數裡——給過一次，下一個指揮官不給也讀得回來。
+        said, head = last_waiting(entries)
+        if said:
+            out.append(said)
+            out.append("")
+            out.append("（這一句是從日誌讀來的，寫在「" + head + "」。這一次沒有給 --waiting-on。）")
+        elif jprob:
+            out.append("（沒有給 --waiting-on，日誌也讀不到——" + jprob + "）")
+        else:
+            out.append("（沒有給 --waiting-on，日誌裡也沒有紀錄。指揮官從來沒說過在等什麼，"
+                       "或者說過而沒有落進日誌。）")
     out.append("")
+
+    out.append("## 日誌尾端（最後 " + str(journal_tail) + " 筆，全文在 " + JOURNAL + "）")
+    out.append("")
+    if jprob:
+        out.append(jprob)
+    else:
+        for e in entries[-journal_tail:]:
+            out.append(e)
+            out.append("")
 
     if not session_id:
         answer = "？次（推不出這一趟是哪一個 session，這一次問不到）"
@@ -705,6 +857,164 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600)
     return "\n".join(out)
 
 
+def lines_to_rebuild(now, since_hours):
+    """哪幾條線要各印一段：有宣告 `line` 的、在 since_hours 之內宣告過的，同一條線取最新的那份。
+
+    **只讀宣告，不從名字或 cwd 推線名。** 沒宣告過線的 session 不會出現在這裡——那一段
+    答不出它是哪條線，印一段猜的比不印糟。它們在板子上照樣看得到。
+    """
+    by_line, skipped = {}, []
+    try:
+        names = sorted(os.listdir(DECLARATIONS))
+    except OSError:
+        names = []
+    reg = {d.get("sessionId"): d for _, d in read_registry()[0]}
+    for fn in names:
+        if not fn.endswith(".json"):
+            continue
+        decl, prob = read_declaration(fn[:-5])
+        if not decl:
+            continue
+        at = decl.get("declared_at") or 0
+        if now - at > since_hours * 3600:
+            continue
+        if decl.get("line") == COMMANDER_LINE:
+            # 指揮官自己的那一段另外印，不當成一條實作線。
+            continue
+        if not decl.get("line"):
+            skipped.append(reg.get(decl.get("session_id"), {}).get("name") or fn[:-5])
+            continue
+        cur = by_line.get(decl["line"])
+        if not cur or at > (cur.get("declared_at") or 0):
+            by_line[decl["line"]] = decl
+    out = []
+    for line, decl in sorted(by_line.items()):
+        data = reg.get(decl.get("session_id")) or {}
+        pid = data.get("pid")
+        running = alive(pid) if isinstance(pid, int) else None
+        out.append((line, decl, data.get("name") or decl.get("session_id"), running))
+    return out, skipped
+
+
+def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
+    """重建時要貼給新 session 的全部 prompt。
+
+    使用者 2026-09-19 的原話：「直接給我 prompt，不要用文件給，用 md 給，我要能直接複製
+    貼上」。所以**全文印在輸出裡**，每一段一個可以整段複製的 markdown 區塊；檔案只是副本。
+
+    它不送給任何人，也不讀任何 transcript——每一段的內容只來自宣告與日誌。
+    """
+    now = now or time.time()
+    entries, jprob = read_journal_entries()
+    lines, skipped = lines_to_rebuild(now, since_hours)
+    try:
+        with open(STANDING, encoding="utf-8") as fh:
+            standing = fh.read().strip()
+    except OSError:
+        standing = None
+    standing_block = standing or ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
+                                  "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
+    fence = "````"
+    out = ["# 重建 prompt（" + stamp(now) + "）", ""]
+    out.append("每一段是一個新 session 的第一則訊息，整段複製貼上。")
+    out.append("")
+
+    said, head = last_waiting(entries)
+    roster = ["| 線 | 上一任 | 還活著 | 接的是什麼 | 卡在哪 |", "|---|---|---|---|---|"]
+    for line, decl, name, running in lines:
+        roster.append("| " + " | ".join([
+            line, name, {True: "是", False: "否", None: "?"}[running],
+            " ".join(str(decl.get("holding")).split()),
+            " ".join(str(decl.get("blocked_on")).split())]) + " |")
+    out.append("## 指揮官")
+    out.append("")
+    out.append(fence + "markdown")
+    out += [
+        "你是**指揮官**。先跑 /command-post，然後照這個順序讀，前三步都不用問人：",
+        "",
+        "1. `python3 " + SCRIPT + " --board --issues " + issues_root + "`"
+        "——它印上一任在等什麼、日誌尾端、在飛的單、這台機器上的 session。",
+        "2. 日誌全文：" + JOURNAL + "（append-only，從尾端往回讀到你懂為止）。",
+        "3. command-post 的 SKILL.md〈交棒〉那一節。",
+        "",
+        "上一任在等的（" + (head or "日誌裡沒有紀錄") + "）：" + (said or "沒有紀錄"),
+        "",
+        "重建時各條線的宣告：",
+        "",
+    ] + roster + [
+        "",
+        "上線之後，用 `ListAgents` 查出自己的名字，`SendMessage` 告訴每一條還活著的線：",
+        "「指揮官換成 <你的名字>，回報改送這裡」。之後照 SKILL.md 做事。",
+        "",
+        "## 常駐規矩",
+        "",
+        standing_block,
+    ]
+    out.append(fence)
+    out.append("")
+
+    for line, decl, name, running in lines:
+        # 線名常常是另一個詞的前綴（`DP` 之於 `DP-732`），所以不做子字串比對：只認宣告那一格、
+        # 「X 線」這種寫法、或上一任的名字。
+        marks = ("線：" + line, line + " 線", line + "線", "線＝" + line) + ((name,) if name else ())
+        related = [e for e in entries if any(k in e for k in marks)][-per_line:]
+        out.append("## " + line + " 線（上一任 " + name + "，"
+                   + {True: "還活著", False: "已經結束", None: "死活不明"}[running] + "）")
+        out.append("")
+        out.append(fence + "markdown")
+        out += [
+            "你是 **" + line + " 線**，實作 session。指揮官是 " + commander + "；"
+            "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
+            "",
+            opening_text(commander),
+            "",
+            "**回報**：每到一站回一則——做完哪張或卡在哪、需不需要指引、缺什麼。"
+            "回報完不停下來等，繼續下一件；只有走不下去才停。",
+            "",
+            "## 常駐規矩",
+            "",
+            standing_block,
+            "",
+            "## 你的工作",
+            "",
+            "上一任最後的宣告（" + stamp(decl.get("declared_at")) + "）：",
+            "- 接：" + " ".join(str(decl.get("holding")).split()),
+            "- 卡：" + " ".join(str(decl.get("blocked_on")).split()),
+            "- 開單：" + str(decl.get("tickets_opened")),
+            "",
+            "日誌裡跟這條線有關的最近幾筆：",
+            "",
+        ]
+        out += ([e + "\n" for e in related] if related
+                else ["（日誌裡沒有提到「" + line + "」或「" + name + "」的紀錄）", ""])
+        out += ["從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
+        out.append(fence)
+        out.append("")
+
+    if not lines:
+        out.append("（" + str(since_hours) + " 小時內沒有任何宣告說出自己是哪條線，"
+                   "所以沒有線的段落可以印。各條線要先用 --declare --line 宣告。）")
+    if skipped:
+        out.append("沒印段落的 session（宣告裡沒說是哪條線）：" + "、".join(skipped))
+    if jprob:
+        out.append("日誌：" + jprob)
+    return "\n".join(out).rstrip() + "\n"
+
+
+def save_rebuild_copy(text, now=None):
+    """副本。**檔案不是給人讀的那一份**——對話裡印出來的才是。回傳 (path, problem)。"""
+    now = now or time.time()
+    d = os.path.join(JOURNAL_DIR, "prompts", time.strftime("%Y-%m-%d", time.localtime(now)))
+    path = os.path.join(d, "rebuild-" + time.strftime("%H%M%S", time.localtime(now)) + ".md")
+    try:
+        os.makedirs(d, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return path, None
+    except OSError as exc:
+        return path, "副本寫不進去：" + path + "（" + str(exc) + "）"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--json", action="store_true", help="輸出機器讀的那一份")
@@ -721,6 +1031,21 @@ def main():
     ap.add_argument("--blocked-on", help="--declare 用：現在卡在哪；沒卡就寫「沒有」")
     ap.add_argument("--tickets-opened", default="無",
                     help="--declare 用：開了哪幾張單給誰")
+    ap.add_argument("--line", help="--declare 用：你是哪條線")
+    ap.add_argument("--browser", help="--declare 用：有沒有瀏覽器工具（有／沒有）")
+    ap.add_argument("--log", action="store_true",
+                    help="往指揮官日誌記一筆（收到回報、做了裁決時）。append-only。")
+    ap.add_argument("--who", help="--log 用：這一筆是誰的事")
+    ap.add_argument("--what", help="--log 用：發生什麼")
+    ap.add_argument("--problem", help="--log 用：碰到的問題（可以沒有）")
+    ap.add_argument("--decision", help="--log 用：決定了什麼（可以沒有）")
+    ap.add_argument("--rebuild", action="store_true",
+                    help="把重建指揮官與每一條線的開場 prompt 印成可整段複製的 markdown，"
+                         "副本存進日誌目錄。不送給任何人。")
+    ap.add_argument("--since-hours", type=float, default=24,
+                    help="--rebuild 用：多久之內宣告過的線才印段落")
+    ap.add_argument("--journal-tail", type=int, default=8,
+                    help="--board 用：印日誌最後幾筆")
     ap.add_argument("--order", action="store_true",
                     help="產一則派工指令的全文。只印出來，不送給任何人。")
     ap.add_argument("--issue", help="--order 用：那張單的路徑")
@@ -735,10 +1060,11 @@ def main():
     ap.add_argument("--from", dest="from_name", default=None,
                     help="--order 用：回報給誰。預設是這個 session 自己的名字（$CLAUDE_SESSION_NAME）")
     ap.add_argument("--board", action="store_true",
-                    help="產指揮台那一頁：在飛的單、這台機器上的 session、以及唯一手寫的那一格")
+                    help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
     ap.add_argument("--waiting-on", default=None,
-                    help="--board 用：唯一手寫的那一格——指揮官自己在等什麼、剛決定了什麼")
+                    help="--board／--log 用：唯一手寫的那一格——指揮官自己在等什麼。"
+                         "給了就落進日誌，之後不給就讀日誌裡最後一句")
     ap.add_argument("--whoami", action="store_true",
                     help="印出跑這一趟的那個 session 的 sessionId。推出來的，不靠任何宣告。")
     args = ap.parse_args()
@@ -757,9 +1083,55 @@ def main():
         sid = os.environ.get("CLAUDE_SESSION_ID")
         if not sid:
             sid, _ = whoami()
+        if args.waiting_on:
+            # 給了就落進日誌，交棒時才讀得回來。跟上一句一字不差就不再寫——板子每一輪都
+            # 重讀，每一輪都寫一次的話，日誌尾端會被同一句洗掉。
+            said, _ = last_waiting(read_journal_entries()[0])
+            if said != args.waiting_on:
+                who = args.from_name or os.environ.get("CLAUDE_SESSION_NAME") \
+                    or (session_name_of(sid) if sid else "指揮官")
+                _, prob = append_journal(WAITING_KIND, who, [("在等", args.waiting_on)],
+                                         now=args.now_epoch)
+                if prob:
+                    print(prob, file=sys.stderr)
+                    return 7
         print(board_text(build(now=args.now_epoch), args.issues, args.waiting_on,
                          session_id=sid,
-                         idle_threshold=args.idle_threshold))
+                         idle_threshold=args.idle_threshold,
+                         journal_tail=args.journal_tail))
+        return 0
+    if args.log:
+        missing = [f for f, v in (("--who", args.who), ("--what", args.what)) if not v]
+        if missing:
+            print("--log 要的東西沒給齊，缺：" + chr(12289).join(missing), file=sys.stderr)
+            return 2
+        path, prob = append_journal("紀錄", args.who, [
+            ("發生什麼", args.what), ("問題", args.problem), ("決定", args.decision)],
+            now=args.now_epoch)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
+        if args.waiting_on:
+            _, prob = append_journal(WAITING_KIND, args.who, [("在等", args.waiting_on)],
+                                     now=args.now_epoch)
+            if prob:
+                print(prob, file=sys.stderr)
+                return 7
+        print("記在 " + path)
+        return 0
+    if args.rebuild:
+        frm = args.from_name or os.environ.get("CLAUDE_SESSION_NAME", "")
+        if not frm:
+            print("指揮官是誰答不出來：--from 沒給，環境裡也沒有 CLAUDE_SESSION_NAME。",
+                  file=sys.stderr)
+            print("每一段 prompt 都要寫出回報給誰，一段沒有收件者的 prompt 等於沒有回報要求。",
+                  file=sys.stderr)
+            return 4
+        text = rebuild_text(frm, args.issues, since_hours=args.since_hours,
+                            now=args.now_epoch)
+        path, prob = save_rebuild_copy(text, now=args.now_epoch)
+        print(text)
+        print(prob or ("副本：" + path + "（對話裡印出來的這一份才是給人貼的）"))
         return 0
     if args.order or args.review:
         which = "--review" if args.review else "--order"
@@ -799,6 +1171,15 @@ def main():
             print("要它們互相審對方的結論就用 --review（它會一人產一則，"
                   "並且說出對方是誰）。", file=sys.stderr)
             return 6
+        # 產出那一刻落一筆。**產出不等於送出**——送出仍然是 SendMessage，所以這一筆寫的是
+        # 「產出了給誰的指令」，不是「送出了」。
+        _, prob = append_journal("互審" if args.review else "派工", frm, [
+            ("單", args.issue), ("給", chr(12289).join(to_names)),
+            ("要互相下判斷的是", args.about if args.review else None),
+            ("註", "這一筆記的是產出指令；送出另由 SendMessage")], now=args.now_epoch)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
         if args.review:
             print(review_orders(args.issue, to_names, args.about, frm))
         else:
@@ -806,13 +1187,24 @@ def main():
         return 0
     if args.declare:
         missing = [f for f, v in (("--session-id", args.session_id),
+                                  ("--line", args.line), ("--browser", args.browser),
                                   ("--holding", args.holding),
                                   ("--blocked-on", args.blocked_on)) if not v]
         if missing:
-            print("宣告要三樣都給，缺：" + chr(12289).join(missing), file=sys.stderr)
+            print("宣告要五樣都給，缺：" + chr(12289).join(missing), file=sys.stderr)
+            if "--line" in missing:
+                print("沒說是哪條線的話，接手的指揮官看得到有這個 session，看不出它是哪一條。",
+                      file=sys.stderr)
             return 2
-        print("宣告寫在 " + write_declaration(
-            args.session_id, args.holding, args.blocked_on, args.tickets_opened))
+        path = write_declaration(args.session_id, args.holding, args.blocked_on,
+                                 args.tickets_opened, line=args.line, browser=args.browser)
+        _, prob = append_journal("宣告", session_name_of(args.session_id), [
+            ("線", args.line), ("瀏覽器", args.browser), ("接", args.holding),
+            ("卡", args.blocked_on), ("開單", args.tickets_opened)], now=args.now_epoch)
+        print("宣告寫在 " + path)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
         return 0
     m = build(now=args.now_epoch)
     if args.closable:

@@ -1,6 +1,6 @@
 ---
 name: command-post
-description: "Commander mode: use when one session commands the other Claude sessions on this machine — to read the map of who holds what, to dispatch work (one-to-one or a mutual review between several sessions), to watch its own stability signals, to hand the commander role to the next session, or to escalate a decision to the human. Reads each session's own declaration plus the local registry; never reads a peer's transcript and never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼', '指揮官交棒', '指派互審'."
+description: "Commander mode: use when one session commands the other Claude sessions on this machine — to read the map of who holds what, to dispatch work (one-to-one or a mutual review between several sessions), to watch its own stability signals, to keep the commander journal that the next commander reads, to print copy-pasteable rebuild prompts when sessions die, to hand the commander role to the next session, or to escalate a decision to the human. Reads each session's own declaration plus the local registry; never reads a peer's transcript and never messages a peer to build the map. Trigger: '現在有哪些 session', '大家在做什麼', '哪些可以關掉', '誰手上有什麼', '指揮官交棒', '指派互審', '重建指揮官', '指揮官日誌'."
 scope: universal
 ---
 
@@ -13,8 +13,8 @@ scope: universal
 **交棒**、**問人的時候問得清楚**。
 
 **指揮官是一個角色，不是一個 session。** 狀態全部住在檔案裡——session 登錄、每個 session
-自己寫的宣告、單樹的輪次狀態、板子上唯一手寫的那一格。任何讀了那幾份檔的 session 都接得
-起來，所以換一個不需要交接會議，只需要照〈五、交棒〉那一節走。
+自己寫的宣告、單樹的輪次狀態、指揮官日誌。任何讀了那幾份檔的 session 都接得起來，所以換
+一個不需要交接會議，只需要照〈四、交棒〉那一節走。
 
 **目錄名與腳本檔名仍然是 `command-post`。** 它是識別字：`POLARIS-ACTOR-IDENTITY` 那一行
 指著那條路徑，改名會讓每一張單的 `holders[]` 從下一次寫入起推不出是誰。名字給人讀，路徑
@@ -40,9 +40,18 @@ peer 一輪 context，而那一輪的答案還不一定比它自己剛寫下的�
 ```bash
 python3 .claude/skills/command-post/scripts/command-post.py --declare \
   --session-id <自己的 sessionId> \
+  --line '哪條線' --browser '有／沒有' \
   --holding '接的是什麼' --blocked-on '現在卡在哪；沒卡就寫「沒有」' \
   --tickets-opened '開了哪幾張單給誰'
 ```
+
+**`--line` 回答「你是哪條線」**：接手的指揮官看得到有十個 session，看不出哪一個是 review、
+哪一個在跑 DP——這一格補的就是那個洞，不另開一份角色表。**`--browser`** 是因為瀏覽器有沒有
+授權決定了一條線做得動哪些事，而它不寫下來就只活在某一則訊息裡。五樣缺一就 exit 2；舊的
+宣告沒有這兩格照樣讀得出來，那一格會說出是缺。
+
+每一次宣告同時在指揮官日誌落一筆（見〈三〉〈指揮官日誌〉）——「某條線上線了」本身就是
+接手的人要知道的事件。
 
 ### 為什麼是宣告，不是最後一則話
 
@@ -240,6 +249,15 @@ python3 .claude/skills/command-post/scripts/command-post.py --order \
 指令裡不重講那份成功定義，只給路徑。**重講一次就有第二份會漂的定義**，而漂掉的那一刻
 沒有人在看。
 
+**指令開頭是開場四步與失聯協定**，一字不差地由腳本產出：查出自己的名字、`--declare`
+（含 `--line` 與 `--browser`）、查有沒有瀏覽器工具、把名字與瀏覽器有無回給指揮官；以及
+指揮官失聯時讀哪一份日誌、對人講哪一句話請人重建指揮官。**日誌路徑與指揮官名字是實際值**，
+腳本路徑是絕對路徑——收件者的 cwd 不一定在這個 workspace 裡。使用者 2026-09-19 的原話：
+每條線「建立那一刻要跟你聯絡並自報 work name」「回報是否被授權開啟瀏覽器」「若你失聯，
+去找指揮官工作日誌，提示人類重建指揮官」。
+
+產出那一刻日誌落一筆「派工」。**產出不等於送出**，那一筆就這樣寫。
+
 **回報要的是狀態，不是逐條判定。** 判準是使用者 2026-08-30 的原話：「只要需要『下一步該
 幹嘛的指引』，就要回報」「碰到問題必須回報主管指引」。所以指令要的只有三樣——做完哪一張
 或卡在哪一張、需不需要指引、需要的話缺什麼。逐條判定留在那張單的 `.spine/` 裡，要細節的
@@ -297,12 +315,40 @@ lost-in-the-middle（Manus 講的 recitation，
 <https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus>）。
 交接是副作用——主 session 壓縮太多就換一個，這一頁不掉。
 
+它還印兩樣來自日誌的東西：**指揮官在等什麼**（這一次沒給 `--waiting-on` 就讀日誌裡最後
+一句，並標明是哪一筆）與**日誌尾端**（`--journal-tail`，預設 8 筆）。
+
 三條限制，前兩條是這個 workspace 既有的規矩：
 
 - **產生的部分不手寫。** 先例是 `{單樹根}/OPEN.md`，它自己的表頭就寫著「下一次重算會整份重寫」。
 - **成功條件只指過去，不抄。** 那一欄是路徑，不是內容。唯一權威是那張單的 fence，
   `verify-ac` 拿它跟 git 歷史比；抄第二份就是兩份會漂，而漂的是最不能漂的那一份。
-- **手寫的只有一格**：`--waiting-on`。板子答不出來的只有它，交接時唯一會遺失的也是它。
+- **手寫的只有一格**：`--waiting-on`。板子答不出來的只有它。**給了就落進日誌**（跟上一句
+  一字不差就不再寫，板子每一輪都重讀），所以它不再是交棒時會遺失的東西。
+
+### 指揮官日誌
+
+`~/.claude/sessions/command-post/journal.md`，跟 session 登錄與宣告同一層。它講的是這台
+機器上的 session，而各條線的 cwd 不一定在同一個 workspace，所以它不住在任何一個 workspace
+裡。**append-only**：不改舊的，只往下加；檔案不存在就建，寫不進去就 exit 7 並說出路徑。
+
+**每一筆由發生那件事的命令在那一刻寫下**，指揮官不另外手寫：
+
+| 事件 | 誰寫 |
+|---|---|
+| 某條線宣告自己（上線、狀態變了） | `--declare` |
+| 產出派工、互審指令 | `--order`／`--review` |
+| 指揮官換了在等的東西 | `--board --waiting-on` |
+| 收到回報、做了裁決 | `--log`，見下 |
+
+```bash
+python3 .claude/skills/command-post/scripts/command-post.py --log \
+  --who <這一筆是誰的事> --what '<發生什麼>' \
+  [--problem '<碰到的問題>'] [--decision '<決定了什麼>'] [--waiting-on '<現在在等什麼>']
+```
+
+`--problem` 與 `--decision` 可以沒有——一則「上線了」沒有問題也沒有裁決。**收到一則回報就
+記一筆**：使用者要的是「追蹤各 session 工作情況、碰到的問題」，而那些只在回報裡出現過一次。
 
 ### 「誰在做」那一欄：脊椎寫下、這裡去問死活
 
@@ -389,7 +435,7 @@ session，就問它那張單還剩什麼。
 **這個做法自己的限制要說出來，它有兩個**：
 
 1. **排程活在那個 session 裡。** 那個 session 結束，班表跟著沒了——所以它守不住「指揮官
-   自己掛掉」這一種。守那一種的是〈五、交棒〉：狀態全住在檔案裡，換一個 session 讀得回來。
+   自己掛掉」這一種。守那一種的是〈四、交棒〉：狀態全住在檔案裡，換一個 session 讀得回來。
 2. **醒來的是指揮官，不是被派工的那一個。** 它讓指揮官定期回頭看，不會讓一個停住的
    session 自己動起來。看到它停住之後要做的仍然是送一則訊息。
 
@@ -480,7 +526,7 @@ here」，而它**從來不說這一次落在哪一邊**。`success: true` 在�
 
 ## 四、交棒：指揮官是角色，不是 session
 
-換一個指揮官不需要交接會議。**要交的東西只有一格，其餘全部讀得回來。**
+換一個指揮官不需要交接會議。**要交的東西全部讀得回來**——包括以前唯一會遺失的那一格。
 
 ### 接手的人照這個順序讀
 
@@ -488,59 +534,65 @@ here」，而它**從來不說這一次落在哪一邊**。`success: true` 在�
 
 | 序 | 讀什麼 | 答的是 |
 |---|---|---|
-| 1 | `--board --issues <單樹根>` | 在飛的單有哪些、誰接著、這台機器上有哪些 session、前一個指揮官在等什麼 |
+| 1 | `--board --issues <單樹根>` | **前一個指揮官在等什麼、日誌尾端**（最近發生了什麼、碰到什麼問題、裁了什麼），在飛的單有哪些、誰接著，這台機器上有哪些 session、各自是哪條線 |
 | 2 | `--whoami` | 我自己是哪一個 session。**它印的是 sessionId，不是名字**——要名字的話拿它去比板子那份 session 清單的宣告路徑 |
 | 3 | 板子上還在飛的那幾張單 | 這一輪真正的優先序。**不是「第一列那張」**——第一列是脊椎建議的下一張，那跟指揮官手上的優先序常常不同 |
 | 4 | 這一份 SKILL.md | 指揮官這個角色能做什麼、不能做什麼 |
-| 5 | 前一個指揮官交過來的那一句 `--waiting-on` | **唯一讀不回來的東西**，見下 |
+| 5 | 日誌尾端不夠的話，往回讀日誌全文 | 某條線為什麼走到現在這樣。從尾端往回讀到懂為止，不從頭讀 |
 
 **順序不能換。** 先讀板子再讀單：反過來的話會從一張單的內容去推整盤狀況，而那張單答不出
 「別人手上有什麼」。
 
-**第一步答不出「誰扮什麼角色」，這是已知的洞。** 板子的「在做什麼」那一欄只讀每個 session
-自己寫的宣告，而 2026-09-06 量到的覆蓋率是 0/10——十個活著的 session 零份宣告。所以接手的
-人看得到有十個 session，看不出哪一個是 review、哪一個在跑 DP 線。**補法不是另開一份角色
-表**（那就是下面〈交棒不新增任何要人維護的狀態〉禁止的東西），是讓宣告真的被寫：`--order`
-與 `--review` 產出的指令第一段就要收件者跑一次 `--declare`。那一格由做事的那個 session
-自己寫，不由指揮官代寫。
+**第一步答不答得出「誰扮什麼角色」，看宣告有沒有被寫。** 2026-09-06 量到的覆蓋率是 0/10。
+補法是 `--order`／`--review` 產出的指令第一段就要收件者跑 `--declare --line`，由做事的那個
+session 自己寫，不由指揮官代寫。
 
-### 唯一手寫的那一格怎麼交
+### 重建：prompt 印在對話裡
 
-`--waiting-on` 是板子上唯一不是產生的東西——**它也是交棒時唯一會遺失的東西**。它裝的是
-「指揮官自己在等什麼」，而那件事沒有任何檔案記得住：等的可能是使用者一句還沒回的話、一個
-還沒到期的外部答覆、或一個剛決定但還沒發出去的順序。
-
-交法只有一步：**前一個指揮官把它現在那一句原樣送給下一個**，下一個第一次跑 `--board` 的
-時候原樣帶進去。
+指揮官或某幾條線整批死掉（編輯器重開、機器重開）時，新開的 session 要一則完整的開場
+prompt。**全文印在輸出裡**，每一段是一個可以整段複製貼上的 markdown 區塊，檔案只是副本：
 
 ```bash
-# 交出去的那一個：把它現在那一句印出來，原樣送過去
-python3 .claude/skills/command-post/scripts/command-post.py --board \
-  --issues <單樹根> --waiting-on '<現在在等什麼>' | head -20
-
-# 接手的那一個：第一次跑板子就把那一句帶進去
-python3 .claude/skills/command-post/scripts/command-post.py --board \
-  --issues <單樹根> --waiting-on '<接過來的那一句>'
+python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
+  --from <指揮官名字> --issues <單樹根> [--since-hours 24]
 ```
 
-**沒有在等任何東西的時候要寫「沒有」，不要留空。** 空的那一格跟「前一個指揮官忘了交」
-長得一模一樣，而它們要人做的事相反。
+使用者 2026-09-19 的原話：「直接給我 prompt，不要用文件給，用 md 給，我要能直接複製貼上，
+未來 /command-post 重建指揮官 session 也要這樣」。所以**把 `--rebuild` 的輸出原樣放進回覆**，
+不要只給副本路徑。
+
+它印兩種段落：
+
+- **指揮官那一段**：讀板子、讀日誌、上一任在等什麼、重建那一刻各條線的宣告，以及上線後
+  把新名字告訴每一條還活著的線。
+- **每一條線一段**：`--since-hours` 之內宣告過 `--line` 的，同一條線取最新那份宣告（`--line
+  指揮官` 不算一條實作線）。內容是開場四步與失聯協定、常駐規矩、上一任最後的宣告，以及
+  日誌裡跟這條線有關的最近幾筆。沒宣告線的 session 不印段落，並被指名——印一段猜的比不印糟。
+
+**常駐規矩這支 skill 不帶。** 各條線要守的規矩常常是某一家公司的（憑證怎麼載、PR 標題怎麼
+寫），而這支 skill 會被帶到別的環境。那些寫在日誌旁邊的 `~/.claude/sessions/command-post/standing.md`，由指揮官自己放、自己
+改；`--rebuild` 原樣貼進每一段，沒有那份檔就說出來。
 
 ### 什麼時候該交
 
 **這裡不給門檻**，理由跟〈板子上的兩個不穩訊號〉是同一個：那兩個訊號偵測不出「開始不穩」
 那一刻，配一個門檻只會讓一個猜測看起來像一個量測。
 
-**決定是人做的**，板子把兩個量印給他看。真的要換的時候照上面兩步走。
+**決定是人做的**，板子把兩個量印給他看。真的要換的時候照上面的順序走。
 
-### 交棒不新增任何要人維護的狀態
+### 日誌是事件流，不是交接文件
 
-接手讀的五樣裡，**四樣是既有的**：session 登錄（機器寫的）、每個 session 自己的宣告
-（它自己寫的）、單樹的輪次狀態與 `holders[]`（脊椎寫的）、這一份 SKILL.md。第五樣就是
-那一格。
+接手讀的東西裡，**沒有一樣要人在交棒那一刻坐下來寫**：session 登錄（機器寫的）、每個
+session 自己的宣告（它自己寫的）、單樹的輪次狀態與 `holders[]`（脊椎寫的）、這一份
+SKILL.md，以及指揮官日誌（每一筆在事件發生那一刻由命令寫的）。
 
-**不要為交棒另開一份「指揮官交接文件」。** 一份手寫的交接文件會跟這四樣漂開，而漂掉的
-那一刻正好是有人要接手、最需要一句真話的時候。板子每一輪都重讀，所以它不會過期。
+**分界在「什麼時候寫、誰寫」，不在「是不是一份檔」。** 不要為交棒另開一份「指揮官交接
+文件」：交棒那一刻才手寫的摘要會跟實際狀態漂開，而漂掉的那一刻正好是有人要接手、最需要
+一句真話的時候。日誌不是那種東西——它的每一筆在事件發生那一刻就寫下，不改舊的，所以它
+不會「過期」，只會變長；接手的人讀的是尾端。
+
+**`--log` 是補一筆事件，不是寫一份摘要。** 拿它寫「目前整體狀況如下……」就又回到交接文件了
+——整體狀況是板子的事，板子每一輪重算。
 
 ## 五、問人的時候
 
