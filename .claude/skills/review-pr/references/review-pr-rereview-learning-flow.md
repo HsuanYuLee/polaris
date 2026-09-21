@@ -33,14 +33,17 @@ diff。
 | Condition | Action |
 |---|---|
 | all prior must-fix resolved or accepted, no new must-fix | `APPROVE` |
-| unresolved prior must-fix or new must-fix | `REQUEST_CHANGES` |
+| unresolved prior must-fix or new must-fix | `COMMENT`；那幾條照樣寫出來，不擋 |
+| 使用者明說要擋這一顆 | `REQUEST_CHANGES`，帶 `--blocking-authorized '<他的原話>'` |
 | prior should-fix / nit resolved | `APPROVE` |
 | **prior should-fix / nit not landed** | **`APPROVE`**；那一則留在原地，不再擋 |
 | **prior should-fix / nit — author says they will not fix** | **`APPROVE`**；不同意就回一則說明，不改 verdict |
 
 **上一輪的 `should-fix` 沒落地，不擋。** 它從來沒有到過擋人的門檻，所以「上一輪提過」也
-不會讓它到。擋人的門檻只有一條——**這份 diff 讓系統變壞**，不是「我發現了一件真的事」。
-它的宣告源是 Severity Boundary 那一段，這裡不重講第二遍。
+不會讓它到。**must-fix 現在也不擋**——它仍然是 must-fix，仍然逐條寫出來，但那一票送的是
+`COMMENT`：判準是使用者 2026-09-21 那句「取消強制性的 CHANGES_REQUESTED⋯⋯讓其他人 PR
+修正後能直接繼續」。嚴重度怎麼分不變，它的宣告源是 Severity Boundary 那一段，這裡不重講
+第二遍。
 
 **舊的擋、新的不擋，那個不對稱本身就是寫錯了的證據**——同一件事第一次提出來的時候只值
 `should-fix`，它不會因為被提過一次就升級。

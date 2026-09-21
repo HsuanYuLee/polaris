@@ -23,10 +23,25 @@ Code symbols、error messages、quoted author text、suggestion blocks 可保留
 | no issues | `APPROVE` |
 | only nits | `APPROVE` with optional comments |
 | should-fix only | `COMMENT` |
-| any must-fix | `REQUEST_CHANGES` |
+| any must-fix | `COMMENT`；must-fix 照樣逐條寫進 body 與 inline comment |
+| any severity，而**使用者明說要擋這一顆** | `REQUEST_CHANGES`，帶 `--blocking-authorized '<他的原話>'` |
 
 這張表決定送哪一個 event。**body 與 comment 寫成什麼形狀，在 `review-comment-form.md`**
 ——那份是唯一一份，這裡不重複。
+
+**分級沒有變，變的是 must-fix 那一列送哪一個 event。** must-fix / should-fix / nit 三級
+照舊判、照舊寫；一則 must-fix 仍然是「這份 diff 讓系統變壞」。差別只有一件事：那一票不再
+自動擋住對方的分支。
+
+使用者 2026-09-21 的原話：「review 別人的 PR，還是分級建議，這部分不要變，但是取消強制性的
+CHANGES_REQUESTED，讓像今天這樣我在假期中，其他人不會被我卡到開發，讓其他人 PR 修正後能
+直接繼續」。**`REQUEST_CHANGES` 擋的不是那一行程式碼，是對方接下來的每一次 push**——而
+決定要不要付那個代價的人不在 review 的這一端。
+
+所以最後一列不是一個判斷，是一句引述：使用者說了要擋這一顆，把他的話原樣帶進
+`--blocking-authorized`。沒有那句話的時候腳本會拒送
+（`POLARIS_SUBMIT_PR_REVIEW_BLOCKING_NOT_AUTHORIZED`），**這一格在腳本裡、不只在這張表裡**
+——2026-09-06 的標本就是下判斷的人自己補了一條表上沒有的規則，而散文攔不住那件事。
 
 ## Inline Comments
 

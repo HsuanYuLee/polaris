@@ -29,6 +29,9 @@ usage:
     --event EVENT --body-file PATH [--comments-file PATH] \
     [--tool-identity github.pull_request_review.submit] [--submit]
 
+  # REQUEST_CHANGES 擋著別人的分支往前走，所以它要一句使用者說過的話才送得出去：
+  submit-pr-review.sh ... --event REQUEST_CHANGES --blocking-authorized '<使用者的原話>' --submit
+
   # 4. 改一則已經送出的 review 的正文。**走這裡，不要自己打 gh api**——
   #    事後修正是這條路上最常見的一步，而它以前沒有口，於是每一次都得離開這支腳本。
   #    不用再報一次 head：那一則綁的 commit 在它送出那一刻就定下來了，PUT 換不掉。
@@ -41,6 +44,11 @@ USAGE
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GH_BIN="${POLARIS_GH_BIN:-gh}"
 repository="" pull_number="" event="" body_file="" comments_file="" submit=0
+# REQUEST_CHANGES 預設送不出去。使用者 2026-09-21 的原話：「review 別人的 PR，還是分級
+# 建議，這部分不要變，但是取消強制性的 CHANGES_REQUESTED，讓像今天這樣我在假期中，其他人
+# 不會被我卡到開發，讓其他人 PR 修正後能直接繼續」。分級照舊、意見照留，差別只在那一票
+# 不再擋住對方的分支——擋人這件事要有人說過一次，而那個人不在 review 的那一端。
+blocking_authorized=""
 reviewed_head="" print_head=0 print_diff=0 update_review_id=""
 # 預設是揭露不攔截，那是這支腳本本來的決定（見下面送出前那一段的註解）。要「head 動了
 # 就不要送」的呼叫端明講一次——把它做成預設會讓一則已經寫完的 review 被作者的 push 取消，
@@ -56,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --print-head) print_head=1; shift ;;
     --print-diff) print_diff=1; shift ;;
     --event) event="${2:-}"; shift 2 ;;
+    --blocking-authorized) blocking_authorized="${2:-}"; shift 2 ;;
     --body-file) body_file="${2:-}"; shift 2 ;;
     --comments-file) comments_file="${2:-}"; shift 2 ;;
     --tool-identity) tool_identity="${2:-}"; shift 2 ;;
@@ -137,6 +146,14 @@ fi
 # 正文。要求這裡重報一次，等於要呼叫端說一件它改不動的事——而它報錯的話，改的就是別的東西。
 if [[ -z "$update_review_id" ]]; then
   [[ "$event" == "APPROVE" || "$event" == "COMMENT" || "$event" == "REQUEST_CHANGES" ]] || { echo "POLARIS_SUBMIT_PR_REVIEW_EVENT_INVALID:$event" >&2; exit 2; }
+  # 擋人要有授權。**這一格在腳本裡，不只在散文裡**：2026-09-06 的標本是下判斷的人自己補了
+  # 一條「沒落地就維持 REQUEST_CHANGES」的規則，而散文攔不住那件事。
+  if [[ "$event" == "REQUEST_CHANGES" && -z "${blocking_authorized//[[:space:]]/}" ]]; then
+    echo "POLARIS_SUBMIT_PR_REVIEW_BLOCKING_NOT_AUTHORIZED" >&2
+    echo "  REQUEST_CHANGES 會擋住對方的分支，預設送不出去。must-fix 照樣提，改送 --event COMMENT。" >&2
+    echo "  使用者明說要擋這一顆的話，把他的原話帶進來：--blocking-authorized '<原話>'。" >&2
+    exit 2
+  fi
 elif [[ -n "$event" ]]; then
   echo "POLARIS_SUBMIT_PR_REVIEW_EVENT_IGNORED_ON_UPDATE:$event" >&2
   echo "  PUT 換不掉一則已送出 review 的 state，這個值不會被送出去。" >&2

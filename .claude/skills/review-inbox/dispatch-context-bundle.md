@@ -131,8 +131,13 @@ repeat existing reviewer comments with the same meaning.
 
 ## Submit Action
 
-Choose `REQUEST_CHANGES` for any must-fix, `COMMENT` for should-fix only, and
-`APPROVE` for no issues or only nits. Keep the review body short and concrete.
+送哪一個 event 照 packet 裡〈Review Action〉那張表——它是 `review-pr` 的
+`references/review-pr-submit-flow.md`，由 `build-review-prompt.sh` 原樣放進來，**這裡不抄
+第二份**。
+
+那張表現在的預設是：`APPROVE`（沒問題或只有 nit）／`COMMENT`（其餘全部，含 must-fix）。
+**`REQUEST_CHANGES` 這一輪送不出去**——它會擋住對方接下來的每一次 push，而派工的人沒有
+那個授權。must-fix 照樣逐條寫出來，只是那一票不擋人。Keep the review body short and concrete.
 Run the language gate before any GitHub review or Slack reply. After submit,
 query valid approvals, stale approvals, current requested changes, and remaining
 approval count.

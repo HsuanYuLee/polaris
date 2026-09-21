@@ -200,9 +200,17 @@ fi
 #
 # 所以這裡把兩段 inline 進 packet，**讀 review-pr 那兩份、不抄它們**：門檻只有一個宣告源，
 # 改一次兩邊就都對。抄一份進來的話，下一次改的人只會改到其中一份。
+#
+# 「送哪一個 event」是第三段，同一個理由：bundle 以前自己抄了一句 mapping，於是那句話與
+# 〈Review Action〉那張表是兩個宣告源。DP-734 把 bundle 那一句改成指過來，表就只有一份。
 SEVERITY_PATH="${REVIEW_PR_REFS:-}/../SKILL.md"
 REREVIEW_PATH="${REVIEW_PR_REFS:-}/review-pr-rereview-learning-flow.md"
+SUBMIT_FLOW_PATH="${REVIEW_PR_REFS:-}/review-pr-submit-flow.md"
 VERDICT_RULES_BLOCK=""
+if [[ -n "$REVIEW_PR_REFS" && -f "$SUBMIT_FLOW_PATH" ]]; then
+  VERDICT_RULES_BLOCK+="$(awk '/^## Review Action/{f=1} f && /^## / && !/^## Review Action/{exit} f' "$SUBMIT_FLOW_PATH")
+"
+fi
 if [[ -n "$REVIEW_PR_REFS" && -f "$SEVERITY_PATH" ]]; then
   VERDICT_RULES_BLOCK+="$(awk '/^## Severity Boundary/{f=1} f && /^## /  && !/^## Severity Boundary/{exit} f' "$SEVERITY_PATH")
 "
@@ -214,7 +222,9 @@ fi
 if [[ -z "${VERDICT_RULES_BLOCK//[[:space:]]/}" ]]; then
   VERDICT_RULES_BLOCK="旁邊沒有 review-pr 這支 skill，拿不到「什麼擋 merge」那份判定規則。
 **這種時候不要自己補一條**——擋人的門檻是「這份 diff 讓系統變壞」，不是「我發現了一件真的
-事」；判不出來的就留 COMMENT，不要升級成 REQUEST_CHANGES。"
+事」。**送出的 event 一律是 \`COMMENT\`**（沒問題或只有 nit 才 \`APPROVE\`）：\`REQUEST_CHANGES\`
+會擋住對方接下來的每一次 push，而那要使用者明說過才送得出去，派工的人沒有那個授權。
+must-fix 照樣逐條寫出來，只是那一票不擋人。"
 fi
 
 MANIFEST="["

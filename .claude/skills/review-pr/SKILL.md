@@ -3,7 +3,8 @@ name: review-pr
 description: |
   Review someone else's PR as a code reviewer: read the PR diff, check against
   .claude/rules, leave inline comments on issues found, and submit a review with
-  APPROVE or REQUEST_CHANGES. Use when the user asks the assistant to review a
+  APPROVE or COMMENT (REQUEST_CHANGES only when the user says so). Use when the
+  user asks the assistant to review a
   PR (subject omitted or = self), e.g.: "review PR", "review 這個 PR",
   "review 此 PR", "review 該 PR", "幫我 review 這個 PR" (without team subject),
   "review for me", "code review", or shares a PR URL with self-directed review
@@ -13,7 +14,8 @@ description: |
   on your own PR — that needs no relay, just fix it.
 
   要以 reviewer 的身分看**別人的** PR：讀 diff、留 inline comment、送出
-  APPROVE 或 REQUEST_CHANGES。例如「review 這個 PR」「code review」，或丟一個 PR URL
+  APPROVE 或 COMMENT（REQUEST_CHANGES 只在使用者明說要擋的時候）。例如「review 這個 PR」
+  「code review」，或丟一個 PR URL
   過來要人看。
 
   不用於：「請〈同仁/大家〉幫我 review」——主語是別人，那是催 review，
@@ -47,7 +49,8 @@ Reviewer stance：prioritize bugs、behavior regressions、security、type safet
 rule violations、missing tests。不要用 personal style preference 擋 merge。
 reviewer-side 屬 read-only lane，但對 `changes_requested`、`active unresolved comments`、
 `awaiting_re_review`、`mergeable_ready` 的語義必須與 author-side mutable lane 一致；不得自行重寫。
-本 skill 可輸出 reviewer 結論（`APPROVE` / `COMMENT` / `REQUEST_CHANGES`），但不得把 reviewer
+本 skill 可輸出 reviewer 結論（預設是 `APPROVE` 或 `COMMENT`；`REQUEST_CHANGES` 只在使用者
+明說要擋那一顆的時候，見 `references/review-pr-submit-flow.md`〈Review Action〉），但不得把 reviewer
 結論寫成 author-side stage authority；「可 merge / 可 release / 已完成」仍必須沿用 shared PR /
 workflow state，而不是 reviewer prose。
 
@@ -91,7 +94,9 @@ Completion Envelope。Sub-agent 只做 analysis，不送出 review、不改檔�
 4. 讀 repo rules、workspace handbook、PR description、changed files、diff、既有 review
    comments，建立去重清單。
 5. Review changed files；large PR 依 reference 分組派 sub-agent fan-out。
-6. 合併 findings，依 severity 決定 `APPROVE`、`COMMENT`、或 `REQUEST_CHANGES`。
+6. 合併 findings，依 severity 決定 `APPROVE` 或 `COMMENT`——分級照舊，而 must-fix 送的是
+   `COMMENT`，不擋對方的分支。要擋要有使用者的原話，見
+   `references/review-pr-submit-flow.md`〈Review Action〉。
 7. Review body、inline comments、Slack notification 送出前跑 language gate。
 8. Submit GitHub review，查詢 approve status，輸出摘要。
 9. 若有 validated repo-specific pattern，依 standard-first rule 更新 handbook。
