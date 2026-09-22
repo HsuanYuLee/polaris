@@ -107,6 +107,8 @@ CI_ROLLUP_RULE="CI／CD 的狀態不在這次 review 的範圍裡：不查 commi
 #
 # 找不到宣告就是「這家公司沒有補充」——那是一個答案，不是缺一個檔案。
 HANDBOOK_JSON="[]"
+# 空字串＝這一格問得到（答案可能是「沒有補充」）；非空＝問不到，而它就是問不到的理由。
+HANDBOOK_UNRESOLVED=""
 if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
   DECLARED="$(grep -rhoE "<!--[[:space:]]*[A-Za-z0-9_-]*REPO-NOTES-${COMPANY}:[[:space:]]*[^>]+-->" \
     "$SCRIPT_DIR/../.." --include='SKILL.md' 2>/dev/null \
@@ -114,21 +116,57 @@ if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
   # 沒有宣告是一個答案（這家公司沒有補充），不是失敗——pipefail 之下 grep 的 1 會讓整支停掉。
   if [[ -n "$DECLARED" ]]; then
     # 宣告裡的路徑是相對 repo 根的（跟其他宣告一樣），所以在那裡跑。
-    HANDBOOK_JSON="$( (cd "$ROOT_DIR" && eval "$DECLARED" "$PROJECT") 2>/dev/null \
-      | python3 -c 'import json,sys
+    #
+    # **resolver 回非 0 是一個答案，不是這一支的死因。** 上面那一句替 grep 的 1 想過同一
+    # 件事，沒替 resolver 想：`VAR="$(resolver | python3)"` 在 pipefail 之下拿的是
+    # resolver 的離場碼，而 `set -e` 底下一個失敗的賦值就把整支帶走。2026-09-22 實測：
+    # 拿一個 resolver 答不出來的 project 跑，EXIT=2、stdout 零位元組、stderr 零位元組、
+    # out-dir 連建都沒建。**呼叫端看到的是「沒有 PR 要 review」**，跟真的沒有 PR 長得一樣。
+    #
+    # 所以分開跑：先讓 resolver 跑完並把它的離場碼與它說的話接住，再決定那一格寫什麼。
+    # stderr 不再往 /dev/null 倒——一個問不到的答案要帶著它問不到的理由。
+    HANDBOOK_RAW=""
+    HANDBOOK_ERR=""
+    HANDBOOK_RC=0
+    HANDBOOK_ERR_FILE="$(mktemp -t polaris-review-handbook.XXXXXX)"
+    HANDBOOK_RAW="$( (cd "$ROOT_DIR" && eval "$DECLARED" "$PROJECT") 2>"$HANDBOOK_ERR_FILE" )" \
+      || HANDBOOK_RC=$?
+    HANDBOOK_ERR="$(cat "$HANDBOOK_ERR_FILE" 2>/dev/null || true)"
+    rm -f "$HANDBOOK_ERR_FILE"
+
+    if [[ "$HANDBOOK_RC" -ne 0 ]]; then
+      # **這裡不得說成「沒有補充」。** resolver 自己的契約把「沒有這個 repo 的補充」與
+      # 「工具不在」併成同一個離場碼，所以這一端分不出是哪一種——分不出的時候說分不出。
+      HANDBOOK_UNRESOLVED="離場碼 ${HANDBOOK_RC}${HANDBOOK_ERR:+；它說：${HANDBOOK_ERR}}"
+    else
+      HANDBOOK_JSON="$(printf '%s' "$HANDBOOK_RAW" | python3 -c 'import json,sys
 try:
     print(json.dumps(json.load(sys.stdin).get("narrative_paths", [])))
 except Exception:
-    print("[]")')"
+    print("")')"
+      if [[ -z "$HANDBOOK_JSON" ]]; then
+        # 回 0 而印出來的不是 JSON。這也不是「沒有補充」——它答了，只是答的東西讀不懂。
+        HANDBOOK_UNRESOLVED="離場碼 0，但印出來的不是這一格讀得懂的 JSON"
+        HANDBOOK_JSON="[]"
+      fi
+    fi
   fi
 fi
 
-HANDBOOK_BLOCK=$(python3 - "$HANDBOOK_JSON" <<'PY'
+HANDBOOK_BLOCK=$(python3 - "$HANDBOOK_JSON" "$HANDBOOK_UNRESOLVED" <<'PY'
 import json
 import sys
 
 paths = json.loads(sys.argv[1])
-if not paths:
+unresolved = sys.argv[2] if len(sys.argv) > 2 else ""
+if unresolved:
+    # **問不到與沒有，給讀的人的指示不一樣。** 沒有補充的話這一格就到此為止；問不到的話
+    # 這一輪手上少了一份本來該有的東西，而 review 照樣要做——所以它要說出自己缺了什麼。
+    print("Project handbook unresolved: the declared resolver did not answer "
+          f"({unresolved}). This is not the same as \"no handbook\": treat this PR's "
+          "repo-specific conventions as unknown, say so in the review, and still do not "
+          "scan repo guideline folders.")
+elif not paths:
     print("No project handbook: verified resolver returned an empty list. Do not scan repo guideline folders.")
 else:
     print("Verified project handbook paths:")
@@ -136,6 +174,10 @@ else:
         print(f"{idx}. {path}")
 PY
 )
+# 問不到要在跑的人眼前也說一次：packet 送進 sub-agent 的手裡，而派工的人看的是這裡。
+if [[ -n "$HANDBOOK_UNRESOLVED" ]]; then
+  echo "⚠️  ${COMPANY}/${PROJECT} 的補充問不到（${HANDBOOK_UNRESOLVED}）——packet 照產，那一格寫的是「問不到」" >&2
+fi
 
 # 送出授權：兩個都在才算授權，而且要帶著來源——一句沒有來源的「使用者已同意」在對外
 # 寫入面前不成立，2026-08-26 有一個 sub-agent 因此拒絕送出，它是對的。
@@ -451,7 +493,7 @@ ${EXTRA_REFS_BLOCK}
 **執行步驟**：
 1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
 2. 取 $REVIEWED_HEAD（見 Reviewed Head 區塊），再用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、changed-file names、reviews；diff 對 $REVIEWED_HEAD 取
-3. 只讀 Project Handbook 區塊列出的 verified paths；若是 no project handbook，略過 handbook 讀取
+3. 只讀 Project Handbook 區塊列出的 verified paths；一條都沒列的時候讀那個區塊自己說的是哪一種——no project handbook 就略過 handbook 讀取，unresolved 要記成 unresolved 並在 review 裡說出這顆 PR 的 repo 慣例這一輪拿不到
 4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
 6. 送出 GitHub review，綁在同一顆上：

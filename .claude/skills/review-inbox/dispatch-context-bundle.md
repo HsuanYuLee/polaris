@@ -5,8 +5,12 @@
 Review the PR from the supplied URL and local repo path. Fetch PR metadata,
 changed files, diff, existing reviews, approval state, and re-review signal with
 the repo script or `gh`. Read only the verified project handbook paths listed in
-the prompt. If no handbook paths are listed, record `project_handbook: none` and
-continue without scanning repo guideline folders.
+the prompt. If no handbook paths are listed, read the Project Handbook block: it
+says which of the two cases you are in. Record `project_handbook: none` when the
+resolver answered and there is no handbook; record `project_handbook: unresolved`
+when the resolver did not answer, and say in the review that this repo's
+conventions were unavailable to you. Either way, continue without scanning repo
+guideline folders.
 
 ## The Shared Checkout Is Not Yours
 
