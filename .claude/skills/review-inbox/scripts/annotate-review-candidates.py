@@ -115,7 +115,8 @@ def fetch_file_metadata(candidate: dict, offline: bool) -> None:
                 "--jq",
                 (
                     "{changed_files: .changed_files, additions: .additions, "
-                    "deletions: .deletions, base_ref: .base.ref, head_ref: .head.ref}"
+                    "deletions: .deletions, base_ref: .base.ref, head_ref: .head.ref, "
+                    "base_repo: .base.repo.full_name, head_repo: .head.repo.full_name}"
                 ),
             ],
             text=True,
@@ -349,6 +350,25 @@ def classify_model_tier(candidate: dict, cluster_role: str) -> tuple[str, str]:
     return "standard_coding", "default review risk"
 
 
+def head_lives_in_base_repo(item: dict):
+    """這一顆的 head branch 住的地方，跟它的 base 是同一個 repo 嗎。三種答案。
+
+    **一顆 PR 的 base 只可能是它自己那個 repo 的 branch**，所以 fork 來的 head 永遠不會是
+    任何人的 base。把它收進 head 表只會讓同名的兩條 branch 互相冒充——b2c-web #3264 就是
+    這樣被記成自己的 parent 的：base 與 head 同名，一個在 upstream、一個在 fork。
+
+    **答不出來要回 None，不得回 True。** 第一版寫的是「兩格都沒有就當同一個 repo」，理由是
+    「一份沒有這兩格的候選集連 base 都問不到」——那句話是錯的，而推翻它的就在這個 repo 裡：
+    `annotate-review-candidates-selftest.sh` 的 fixture 全部帶著 base_ref／head_ref、全部
+    沒有這兩格。**問不到不得被當成問到了**，那一格要往上走成「分不出來」。
+    """
+    head_repo = item.get("head_repo")
+    base_repo = item.get("base_repo")
+    if not head_repo or not base_repo:
+        return None
+    return head_repo == base_repo
+
+
 def link_stacked_edges(
     candidates: list[dict], open_prs: dict | None = None, default_branches: dict | None = None
 ) -> None:
@@ -381,11 +401,19 @@ def link_stacked_edges(
     # 候選集自己的 head 也算數：`--open-prs` 沒給的時候它是唯一的表，給了的時候它是
     # 那份表的子集（候選都是 open PR），兩種情形都不衝突。
     heads: dict[tuple, dict] = {}
+    # 問不到 head 住在哪裡的那幾顆單獨記著。**它們不配對，但也不准安靜地消失**——一條
+    # 沒有被配到的邊與一條分不出來的邊，給 reviewer 的指示不一樣。
+    unknown_heads: dict[tuple, dict] = {}
     for item in candidates:
         repo = str(item.get("repo") or "")
         head = str(item.get("head_ref") or "")
-        if repo and head:
+        if not (repo and head):
+            continue
+        same_repo = head_lives_in_base_repo(item)
+        if same_repo is True:
             heads[(repo, head)] = item
+        elif same_repo is None:
+            unknown_heads[(repo, head)] = item
 
     for item in candidates:
         item.setdefault("stacked_on", None)
@@ -430,6 +458,30 @@ def link_stacked_edges(
 
         repo_heads = repo_info.get("heads") or {}
         outside = repo_heads.get(base) if isinstance(repo_heads, dict) else None
+        # 候選那條路第一句就問「配到的是不是這一顆自己」（`parent is not item`），這一條路
+        # 以前一個字都沒問。一份帶著 fork head 的表會讓一顆 PR 配到自己，而 reviewer 拿到
+        # 的是「去確認你的上游」——那顆上游就是他手上這一顆。
+        if isinstance(outside, dict) and outside.get("number") == item.get("number"):
+            outside = None
+        # **表裡那一條 head 住在哪個 repo，這一側自己問一次。** 產表那一支已經把 fork 濾掉
+        # 了，而「濾掉了」是那支腳本的行為，不是這一支看得到的事實——一份由別處產的表
+        # （手寫、舊版留下的檔）會讓同一個洞整個回來，而這裡不會說出任何一句話。
+        if isinstance(outside, dict):
+            outside_repo = outside.get("head_repo")
+            base_repo = item.get("base_repo")
+            if not outside_repo or not base_repo:
+                item["stacked_reason"] = (
+                    f"unmeasurable:base（{base}）對上表裡 #{outside.get('number')} 的 head，"
+                    "但問不到那條 head 住在哪個 repo——分不出它是同一個 repo 的 stack，"
+                    "還是一條 fork 來的同名 branch"
+                )
+                continue
+            if outside_repo != base_repo:
+                item["stacked_reason"] = (
+                    f"not_stacked:base（{base}）只跟 #{outside.get('number')} 的 head 同名，"
+                    f"那條 branch 住在 {outside_repo}，不是這一顆的 base repo（{base_repo}）"
+                )
+                continue
         if isinstance(outside, dict):
             item["stacked_on"] = {
                 "url": str(outside.get("url") or ""),
@@ -453,6 +505,15 @@ def link_stacked_edges(
             item["stacked_reason"] = (
                 f"unmeasurable:沒有 {repo} 的 open PR 清單（{known}），而 base（{base}）"
                 "不是候選集裡任何一顆的 head——分不出它疊在誰身上"
+            )
+            continue
+
+        unknown = unknown_heads.get((repo, base))
+        if unknown is not None and unknown is not item:
+            item["stacked_reason"] = (
+                f"unmeasurable:base（{base}）對上 #{unknown.get('number')} 的 head，但問不到"
+                "那條 head 住在哪個 repo——分不出它是同一個 repo 的 stack，還是一條 fork 來的"
+                "同名 branch"
             )
             continue
 

@@ -130,6 +130,8 @@ cat > "$candidates" <<'JSON'
     "author": "gale",
     "base_ref": "main",
     "head_ref": "feat/demo-900-guardrail",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 1,
     "additions": 120,
     "deletions": 4,
@@ -143,6 +145,8 @@ cat > "$candidates" <<'JSON'
     "author": "gale",
     "base_ref": "feat/demo-900-guardrail",
     "head_ref": "feat/demo-900-step-2",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 12,
     "additions": 3155,
     "deletions": 60,
@@ -156,6 +160,8 @@ cat > "$candidates" <<'JSON'
     "author": "gale",
     "base_ref": "feat/demo-900-step-2",
     "head_ref": "feat/demo-900-step-3",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 20,
     "additions": 6578,
     "deletions": 120,
@@ -169,6 +175,8 @@ cat > "$candidates" <<'JSON'
     "author": "hana",
     "base_ref": "main",
     "head_ref": "feat/demo-901-a",
+    "base_repo": "acme/acme-api",
+    "head_repo": "acme/acme-api",
     "changed_files": 1,
     "additions": 80,
     "deletions": 10,
@@ -182,6 +190,8 @@ cat > "$candidates" <<'JSON'
     "author": "hana",
     "base_ref": "main",
     "head_ref": "feat/demo-901-b",
+    "base_repo": "acme/acme-api",
+    "head_repo": "acme/acme-api",
     "changed_files": 1,
     "additions": 90,
     "deletions": 12,
@@ -195,6 +205,8 @@ cat > "$candidates" <<'JSON'
     "author": "ivan",
     "base_ref": "develop",
     "head_ref": "task/A/main",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 3,
     "additions": 300,
     "deletions": 10,
@@ -208,6 +220,8 @@ cat > "$candidates" <<'JSON'
     "author": "ivan",
     "base_ref": "task/A/main",
     "head_ref": "task/B",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 2,
     "additions": 120,
     "deletions": 8,
@@ -221,6 +235,8 @@ cat > "$candidates" <<'JSON'
     "author": "ivan",
     "base_ref": "task/A/main",
     "head_ref": "task/C",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 1,
     "additions": 20,
     "deletions": 2,
@@ -234,6 +250,8 @@ cat > "$candidates" <<'JSON'
     "author": "judy",
     "base_ref": "develop",
     "head_ref": "task/D",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 1,
     "additions": 15,
     "deletions": 1,
@@ -247,6 +265,8 @@ cat > "$candidates" <<'JSON'
     "author": "gale",
     "base_ref": "task/E-not-in-this-round",
     "head_ref": "task/E-child",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 44,
     "additions": 900,
     "deletions": 300,
@@ -260,6 +280,8 @@ cat > "$candidates" <<'JSON'
     "author": "gale",
     "base_ref": "task/F-not-in-this-round",
     "head_ref": "task/F-child",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
     "changed_files": 1,
     "additions": 12,
     "deletions": 2,
@@ -276,6 +298,65 @@ cat > "$candidates" <<'JSON'
     "additions": 70,
     "deletions": 8,
     "files": [{"filename": "src/shared.ts", "additions": 70, "deletions": 8, "hunks": [[50, 70]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 710,
+    "title": "DEMO-902 fork 來的，base 與 head 同名",
+    "url": "https://github.com/acme/acme-web/pull/710",
+    "base_ref": "task/SAMENAME",
+    "head_ref": "task/SAMENAME",
+    "base_repo": "acme/acme-web",
+    "head_repo": "contributor/acme-web",
+    "author": "ivan",
+    "changed_files": 1,
+    "additions": 9,
+    "deletions": 1,
+    "files": [{"filename": "src/fork.ts", "additions": 9, "deletions": 1, "hunks": [[1, 9]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 711,
+    "title": "DEMO-903 base 的名字跟那條 fork head 一樣",
+    "url": "https://github.com/acme/acme-web/pull/711",
+    "base_ref": "task/SAMENAME",
+    "head_ref": "task/J",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
+    "author": "judy",
+    "changed_files": 1,
+    "additions": 7,
+    "deletions": 1,
+    "files": [{"filename": "src/j.ts", "additions": 7, "deletions": 1, "hunks": [[1, 7]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 712,
+    "title": "DEMO-904 head 住在哪個 repo 問不到",
+    "url": "https://github.com/acme/acme-web/pull/712",
+    "base_ref": "develop",
+    "head_ref": "task/K",
+    "base_repo": "acme/acme-web",
+    "author": "kent",
+    "changed_files": 1,
+    "additions": 5,
+    "deletions": 1,
+    "files": [{"filename": "src/k.ts", "additions": 5, "deletions": 1, "hunks": [[1, 5]]}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 713,
+    "title": "DEMO-905 base 對上那條問不到的 head",
+    "url": "https://github.com/acme/acme-web/pull/713",
+    "base_ref": "task/K",
+    "head_ref": "task/L",
+    "base_repo": "acme/acme-web",
+    "head_repo": "acme/acme-web",
+    "author": "lily",
+    "changed_files": 1,
+    "additions": 6,
+    "deletions": 1,
+    "files": [{"filename": "src/l.ts", "additions": 6, "deletions": 1, "hunks": [[1, 6]]}]
   }
 ]
 JSON
@@ -287,12 +368,12 @@ cat > "$open_prs" <<'JSON'
   "acme-web": {
     "default_branch": "develop",
     "heads": {
-      "task/A/main": {"number": 700, "url": "https://github.com/acme/acme-web/pull/700"},
-      "task/B": {"number": 701, "url": "https://github.com/acme/acme-web/pull/701"},
-      "task/C": {"number": 702, "url": "https://github.com/acme/acme-web/pull/702"},
-      "task/D": {"number": 703, "url": "https://github.com/acme/acme-web/pull/703"},
-      "task/E-not-in-this-round": {"number": 800, "url": "https://github.com/acme/acme-web/pull/800"},
-      "task/F-not-in-this-round": {"number": 801, "url": "https://github.com/acme/acme-web/pull/801"}
+      "task/A/main": {"number": 700, "url": "https://github.com/acme/acme-web/pull/700", "head_repo": "acme/acme-web"},
+      "task/B": {"number": 701, "url": "https://github.com/acme/acme-web/pull/701", "head_repo": "acme/acme-web"},
+      "task/C": {"number": 702, "url": "https://github.com/acme/acme-web/pull/702", "head_repo": "acme/acme-web"},
+      "task/D": {"number": 703, "url": "https://github.com/acme/acme-web/pull/703", "head_repo": "acme/acme-web"},
+      "task/E-not-in-this-round": {"number": 800, "url": "https://github.com/acme/acme-web/pull/800", "head_repo": "acme/acme-web"},
+      "task/F-not-in-this-round": {"number": 801, "url": "https://github.com/acme/acme-web/pull/801", "head_repo": "acme/acme-web"}
     }
   },
   "acme-api": {"default_branch": "main", "heads": {}},
@@ -367,6 +448,21 @@ assert by_number[702]["model_tier"] == "small_fast", by_number[702]
 # 問不到 base 的那一顆不得被說成「沒有疊在別人身上」。
 assert by_number[202]["stacked_on"] is None, by_number[202]
 assert by_number[202]["stacked_reason"].startswith("unmeasurable:"), by_number[202]
+
+# ── head 住在哪個 repo，這一格參與配對（DP-735）────────────────────────────
+# b2c-web #3264 與 #3189 的形狀：fork 來的 PR 的 base 與 head 同名，一條在 upstream、
+# 一條在 fork。只比名字的話，#710 會被記成它自己的 parent，而 #711 會被配到那條 fork 的
+# branch 上——兩顆都是假的邊。
+assert by_number[710]["stacked_on"] is None, by_number[710]
+assert by_number[711]["stacked_on"] is None, by_number[711]
+assert by_number[711]["stacked_reason"].startswith("not_stacked:"), by_number[711]
+# 710 自己不進 head 表，所以 711 落到最後那一格；它不得被說成問不到——問得到，答案是不算疊。
+assert "unmeasurable" not in by_number[711]["stacked_reason"], by_number[711]
+
+# **問不到那條 head 住在哪裡，跟問到了而且不算疊，是兩件事。** #712 少了 head_repo，
+# 所以 #713 分不出它是同一個 repo 的 stack 還是一條 fork 來的同名 branch。
+assert by_number[713]["stacked_on"] is None, by_number[713]
+assert by_number[713]["stacked_reason"].startswith("unmeasurable:"), by_number[713]
 
 # ── parent 是 open PR，但這一輪不在候選集 ──────────────────────────────────
 # 2026-09-17 真跑撞到的形狀：#3225 疊在 #3224（我投過票）、#3222 疊在 #3133（draft）。

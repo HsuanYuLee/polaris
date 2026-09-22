@@ -140,9 +140,26 @@ for repo in "${REPOS[@]}"; do
   if [[ -n "$OPEN_PRS_OUT" ]]; then
     default_branch="$(gh api "repos/${ORG}/${repo}" --jq '.default_branch' 2>/dev/null)" || default_branch=""
     # 問不到預設分支就留空，讓下游說出它不知道——**不要猜一個 main 或 master**。
+    # **只收 head 跟 base 住在同一個 repo 的那幾顆。** 一顆 PR 的 base 只可能是它自己那個
+    # repo 的 branch，所以 fork 來的 head 永遠不會是任何人的 base——收進來只會讓同名的
+    # 兩條 branch 互相冒充。b2c-web #3264 是實例：base 與 head 同名（一個在 upstream、
+    # 一個在 fork），這張表因此把那顆 PR 記成它自己的 parent。
+    #
+    # `.head.repo` 是 null 的那幾顆一起排除。**推得出來，但沒有實例驗過**：head repo 跟
+    # base repo 同一個的時候那個 repo 一定還在（PR 就住在裡面），所以 null 應該只出現在
+    # fork 被刪掉的時候。2026-09-22 掃過手上三個 repo 的 78 顆 open PR，一顆 null 都沒有
+    # ——沒有實例，也沒有反例。**這一句是推論，不是量到的。**
+    #
+    # 排掉的方向是安全的那一邊：收進來的話，一條分不出住在哪裡的 branch 會被當成同一個
+    # repo 的 head。真的是同 repo 而被排掉的話，配對那一支會說它問不到（那一支自己也問
+    # 一次 head_repo），不會說成「沒有疊」。
     printf '%s' "$raw" | jq -c --arg repo "$repo" --arg db "$default_branch" '
       {($repo): {default_branch: $db,
-                 heads: ([.[][] | {key: .head.ref, value: {number, url: .html_url}}] | from_entries)}}' \
+                 heads: ([.[][]
+                          | select((.head.repo.full_name // "") == .base.repo.full_name)
+                          | {key: .head.ref,
+                             value: {number, url: .html_url,
+                                     head_repo: .head.repo.full_name}}] | from_entries)}}' \
       >>"$openprs_tmp"
   fi
 
