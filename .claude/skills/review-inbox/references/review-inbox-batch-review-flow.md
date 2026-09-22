@@ -191,11 +191,12 @@ Token budget rules：
 - Existing inline comments 只抓 metadata 用於 dedup：`user`, `path`, `line`, `side`,
   `head = body[:80]`。不得把完整 comment body 放進 sub-agent context。
 
-CI rollup rules：
+CI／CD：
 
-- 預設只輸出 `FAILURE` / `ERROR` checks。
-- PASS checks 不進 main context。
-- 只有使用者明確需要診斷完整 CI 狀態時，才使用 `--show-all-checks` override。
+- **不在 review 的範圍裡**（DP-738，使用者 2026-09-21 裁示）。不查 commit status、不比
+  秒數、不判 context 在不在、不讀 workflow 設定、不拿 rollup 當證據，也不為這些開單。
+- 要知道那份 diff 有沒有壞東西，**自己在本機跑一次相關的檢查**；結果只有在根因是 code
+  的時候才寫進 finding，寫的是那段 code，不是那個檢查。
 
 Telemetry rules：
 

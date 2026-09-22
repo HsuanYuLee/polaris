@@ -117,8 +117,7 @@ required = [
     handbook_marker,
     "gh pr diff https://github.com/acme/acme-web/pull/101 --name-only",
     "單 PR 累積上限為 100 行",
-    "FAILURE / ERROR checks",
-    "PASS checks must be omitted",
+    "CI／CD 的狀態不在這次 review 的範圍裡",
     "inspect-pr-section.sh",
     "Existing comments: **主 session 只拿 dedup metadata**",
     "sub-agent envelope 內讀得到完整的 comment body",
@@ -188,18 +187,5 @@ if grep -qF "AUTHORIZATION_MISSING" "$authorized_prompt"; then
   echo "authorized packet 仍帶著未授權指示" >&2
   exit 1
 fi
-
-out_show_all="$tmp/prompts-show-all"
-"$builder" \
-  --my-user reviewer \
-  --base-dir "$base_dir" \
-  --workspace "$workspace" \
-  --company acme \
-  --project acme-web \
-  --show-all-checks \
-  --out-dir "$out_show_all" \
-  < "$candidates" >/tmp/build-review-prompt-selftest-show-all.out
-
-grep -qF -- "--show-all-checks override is enabled" "$out_show_all/review-prompt-acme-web-101.txt"
 
 echo "build-review-prompt selftest: PASS"

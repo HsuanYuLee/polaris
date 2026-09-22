@@ -56,43 +56,20 @@ continue without scanning repo guideline folders.
 
 給修法比描述問題有用：能貼上去就直接貼一段可用的 code，不要只說「這裡有問題」。
 
-**一格綠的檢查，先問它跑過這條 branch 沒有。** CI 狀態在 review 裡被當成一項證據讀，而它
-只有在相關的 job 真的在這顆 PR 的 base 上跑過的時候才是證據。**沒跑過的綠與跑過而通過的綠，
-在 `statusCheckRollup` 裡長得一模一樣**——那張表列的是「有哪幾格」，不是「哪幾格該有」。
+**CI／CD 的狀態不在這次 review 的範圍裡。** 不查 commit status、不比 pending 到 success 的
+秒數、不判某個 context 在不在、不讀 workflow 的觸發條件、不拿 rollup 當證據，也不為這些
+開單。使用者 2026-09-21 的原話：「CI 我們不管了，這你記 local 習慣，我們只看 code，驗證
+功能，驗證是否有 side effect 等與 code 本身相關事情，其他 cicd 不管」。
 
-**問的對象是這顆 sha 上的 commit status，不是那張 rollup 表、也不是那份 workflow 設定檔：**
+**這一段之所以明講，而不是安靜地不提**：你手上有 `gh`，也讀得懂 rollup，而「一格綠不等於
+它真的跑過」是一個你自己想得出來的推論。留白的話你下一次看到一格綠還是會去查，然後補一條
+沒有人審過的規則。**它不在範圍裡，不是它不成立。**
 
-```bash
-gh api repos/{owner}/{repo}/commits/{head_sha}/statuses --paginate \
-  --jq '.[] | "\(.context)\t\(.state)\t\(.created_at)"' | sort
-```
-
-逐個 context 看兩件事，它們是兩種形狀、要人做的事不同：
-
-- **pending 到 success 的秒數差。** 太短就是沒真的跑。**不要用寫死的門檻**——同一顆 sha 上
-  本來就有 7 秒跑完的 job。對照拿同名 context 在別顆真的跑完的 sha 上要多久。
-- **那個 context 在不在。** 整組缺席跟「跑很快」不一樣：缺席的那幾條在 rollup 上根本沒有
-  格子，而剩下真的跑完的那幾格讓整張表看起來全綠。
-
-兩種都不是綠，是**沒有量**。要在意見裡說出來，而且那條相關的檢查要自己跑一次。
-
-**statuses 問不到的時候**（權限、API 失敗）說出這一趟沒問到，並退回舊那招：把這顆 PR 的
-base 拿去對那份 workflow 的觸發條件（`when.branch`／path 過濾）。**問不到不是全綠的溫和
-版本。**
-
-2026-09-16／17 在一個走 woodpecker 的 repo 上量到的：同一個 context 名
-`continuous-integration/drone/pr/woodpecker/lint-frontend`，在一顆真的跑完的 sha 上
-pending→success 是 **689 秒**；在四顆沒跑的上面是 **9／22／11／20 秒**。第五顆更難看——
-整個 woodpecker 家族一條 context 都沒出現，rollup 上只剩兩條真的跑完的 `b2c-ci/*`，
-看起來全綠。
-
-更早那一顆的形狀是同一件事：一顆 sync PR 兩格 check 全綠，而它帶著一份有 3 個重複 mapping
-key 的 lockfile，`pnpm install --frozen-lockfile` 直接紅。那份 lint workflow 的 `when.branch`
-只有兩條主線分支，那顆 PR 的 base 不在裡面，所以它從來沒有跑過 `pnpm install`。
-**誤差方向是「看起來比較安全」，所以沒有人會來報。**
-
-這跟「同名 check 重跑之後舊的失敗還留在表上」是兩個不同的失效模式：那一個是結果過期，
-取最新那筆就解得掉；這一個是那份 job 根本不存在，取最新那筆不會讓它出現。
+**要知道那份 diff 有沒有壞東西，自己跑一次。** 跟這份改動相關的檢查——那個 repo 自己的
+lint、跟改動有關的那幾支測試——在本機跑，不要去看別人的機器上跑出什麼。跑出來的東西
+**只有在根因是 code 的時候才寫進 finding**，而且寫的是那段 code，不是那個檢查：
+一條紅的測試如果是因為這份 diff 改壞了某個函式，寫那個函式；如果是因為那台機器少一個
+環境變數、快取髒了、或那支測試本來就在紅，那不是這次 review 的東西。
 
 ## Severity And Write Rules
 
