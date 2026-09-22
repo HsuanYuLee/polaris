@@ -171,6 +171,39 @@ if [[ "$submit" -eq 1 && -z "$reviewed_head" && -z "$update_review_id" ]]; then
   exit 2
 fi
 
+# 擋人的那一票要帶著授權走出去。**原話進 body，不只進參數**：這道閘 2026-09-06 立起來的
+# 時候只判了這個值非空，之後整支腳本再也沒有讀過它——所以 `--blocking-authorized 'x'` 跟帶
+# 使用者的原話行為完全相同。下一輪讀到這則 REQUEST_CHANGES 的人（包含 re-review 流程自己）
+# 看到的只是一票擋人的 review，分不出它是有授權的、還是 reviewer 自己填了一個字。
+#
+# **這一段跟署名、head 附註一樣排在 external write gate 前面**：接在閘後面的字沒有過語言與
+# payload 檢查，送出去的內容就會有一段沒有人驗過。
+#
+# 原話用波浪號圍籬包起來，不逐行加 `> `：那段字是使用者自己講的，要逐字出現在正文裡而
+# 不是被改寫過的版本——逐行加前綴之後，那段字就不再是正文裡的一個連續子字串了。圍籬用
+# 波浪號而不是 backtick，所以原話裡的 backtick、`|`、`<!--` 都照字面渲染——`<!--` 不圍起來
+# 的話會把它後面的內容變成 HTML 註解，讀 PR 的人就看不到了。
+#
+# 圍籬長度是算出來的，不是寫死的四個：原話自己含一行波浪號時（貼一段別人的 markdown 就會
+# 發生），寫死的圍籬會被那一行提早關掉，後半段原話就掉到圍籬外面去渲染。所以一直加長到
+# 沒有任何一行關得掉它為止。
+if [[ "$event" == "REQUEST_CHANGES" && -n "${blocking_authorized//[[:space:]]/}" ]]; then
+  quote_fence='~~~~'
+  # 錨要吃掉最多三格縮排：CommonMark 的收尾圍籬容許縮排 0-3 格，錨死在第 0 欄的話，
+  # 原話裡一行 `   ~~~~` 照樣關得掉圍籬，而圍籬不會因此加長。
+  while printf '%s\n' "$blocking_authorized" | grep -qE "^[[:blank:]]{0,3}${quote_fence}~*[[:blank:]]*$"; do
+    quote_fence="${quote_fence}~"
+  done
+  authorized_body="$(mktemp -t polaris-pr-review-authorized.XXXXXX.md)"
+  {
+    cat "$body_file"
+    printf '\n\n---\n\n'
+    printf '這一票擋住這條分支，授權的原話：\n\n'
+    printf '%s\n%s\n%s\n' "$quote_fence" "$blocking_authorized" "$quote_fence"
+  } > "$authorized_body"
+  body_file="$authorized_body"
+fi
+
 # Description: 列出 reviewed head 之後才進來的那幾顆 commit，一行一顆。
 # Params: $1 = 從哪一顆算起、$2 = 算到哪一顆。
 # Returns: 0 並印出清單；問不到就回 1，不印。
@@ -244,7 +277,7 @@ if [[ "$head_advanced" -eq 1 ]]; then
 fi
 
 tmp="$(mktemp -t polaris-pr-review.XXXXXX.json)"
-trap 'rm -f "$tmp" "${merged_body:-}" "${signed_body:-}"' EXIT
+trap 'rm -f "$tmp" "${merged_body:-}" "${signed_body:-}" "${authorized_body:-}"' EXIT
 python3 - "$repository" "$pull_number" "$event" "$body_file" "$comments_file" "$reviewed_head" "$tmp" "$update_review_id" <<'PY'
 import json, sys
 from pathlib import Path

@@ -108,7 +108,7 @@ repeat existing reviewer comments with the same meaning.
 
 2026-08-26 與 2026-08-27 對同一顆 sha 各跑一次同一張 PR，量到的：`get(obj, path, null)` 這處
 兩次都被看到，但只有跑過 lodash 的那一次追到「商品價格會塌成 0」而判 must-fix；沒跑的那一次
-把它寫成「註解與程式碼自相矛盾」的 nit。**同一個發現，一個會擋 merge，一個不會。**
+把它寫成「註解與程式碼自相矛盾」的 nit。**同一個發現，一個判 must-fix，一個判 nit。**
 
 所以看到一個改動的對錯取決於某個運算式在執行期回什麼，不要用讀的推——跑它，然後把輸出貼進
 意見裡。
@@ -135,9 +135,11 @@ repeat existing reviewer comments with the same meaning.
 `references/review-pr-submit-flow.md`，由 `build-review-prompt.sh` 原樣放進來，**這裡不抄
 第二份**。
 
-那張表現在的預設是：`APPROVE`（沒問題或只有 nit）／`COMMENT`（其餘全部，含 must-fix）。
-**`REQUEST_CHANGES` 這一輪送不出去**——它會擋住對方接下來的每一次 push，而派工的人沒有
-那個授權。must-fix 照樣逐條寫出來，只是那一票不擋人。Keep the review body short and concrete.
+**哪一個 event 配哪一種發現，只有那張表說了算，這裡不重講一次。** 派工的人本身沒有擋人的
+授權：使用者沒有對這一顆說過話的話，must-fix 照樣逐條寫出來，那一票不擋人。使用者明說要擋
+這一顆的時候，照那張表最後一列帶 `--blocking-authorized '<他的原話>'`——那段原話會出現在送出
+去的 review 正文裡，所以下一個讀到它的人分得出這一票是誰授權的。沒有那段話腳本會拒送
+（`POLARIS_SUBMIT_PR_REVIEW_BLOCKING_NOT_AUTHORIZED`）。Keep the review body short and concrete.
 Run the language gate before any GitHub review or Slack reply. After submit,
 query valid approvals, stale approvals, current requested changes, and remaining
 approval count.
