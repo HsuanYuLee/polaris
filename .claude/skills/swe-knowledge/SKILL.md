@@ -334,8 +334,15 @@ gh api --method POST "repos/<owner>/<name>/pulls/<n>/comments/<comment_id>/repli
 gh pr create --repo <owner/name> --base <base> --head <branch> --title '<一行>' --body '<內容>'
 ```
 
-沒有更多的了。這裡不帶自製的 PR 建立腳本：上一支長到 866 行，帶著 7 支 selftest，最後在
+命令就這一行。這裡不帶自製的 PR 建立腳本：上一支長到 866 行，帶著 7 支 selftest，最後在
 一次搬家裡整支消失而沒有人發現。
+
+**描述只寫這顆 PR 做了什麼**：改了什麼、併掉之後的行為、代價或限制。看 PR 的人要知道併掉
+之後會發生什麼，不需要知道這個決定翻過幾次。
+
+**決策經過不寫進描述**：誰說了什麼、哪顆 PR 撤了、為什麼重開，這些留在單上。寫進描述的話，
+review 的人會回頭去找那段脈絡。引別的 PR 只在併掉之後跟它有關係的時候（stack、依賴），被撤
+掉的那幾顆不引。
 
 ## 之後呢：它什麼時候算出去了
 
