@@ -117,7 +117,7 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh where --sta
 | `verify-ac` 判非 PASS，原因是實作沒到 | 回 `engineering` |
 | `verify-ac` 判非 PASS，原因是**assertion 本身錯了** | 停 `assertion_wrong`，回 `refinement` 重簽 |
 | 交付紀錄寫成了 | 這條流程走完了。之後怎麼出貨是專案自己的事 |
-| 交付紀錄寫成了，而後來有人指出還要改的東西 | 回 `engineering`。改完**重走 `verify-ac`**——那一站要量的是改完之後的東西，不是上一次留下的判定 |
+| 交付紀錄寫成了，而後來有人指出還要改的東西（包括 reviewer 的意見） | 回 `engineering`。改完**重走 `verify-ac`**——那一站要量的是改完之後的東西，不是上一次留下的判定 |
 | 這件事**不做了**（放棄、被別的取代、需求消失） | `close`，見下方 |
 
 **交付之後還要改，不是一個新的開始，也不是一個停點。** 那張單的成功定義沒有變——變的是
@@ -127,6 +127,10 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh where --sta
 **回去之後一定要重走判定。** 上一次的判定是對上一棵樹下的，而它會留在原地看起來仍然有效
 ——一份綁在舊狀態上的 PASS，跟一份剛量出來的 PASS 長得一模一樣。真的是成功的定義本身錯了
 （不是實作沒到），那才是 `assertion_wrong`，走上面那一列。
+
+**回去的那一輪照樣 `record`。** 出站的條件跟第一次一樣：領域知識帶進來的完成條件重新成立（對外
+的那份說明也算），受影響的 assertion 重新判定。沒有記下來的修正發生在單外，而單上讀起來就像
+什麼都沒發生。
 
 **「不做了」是一個終點，不是一個停點。** 四種停點都在等人回話，而這一種已經有答案了——
 它只是不會有實作。以前這種單沒有地方去：要嘛永遠躺在待辦裡被每一次「下一張做哪個」重新
