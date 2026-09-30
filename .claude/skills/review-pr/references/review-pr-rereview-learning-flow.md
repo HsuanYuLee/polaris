@@ -28,6 +28,12 @@ diff。
 
 只有真正新發現的問題才留新的 inline comment。Re-review 不是重新審一遍並大量新增 comments。
 
+**撤回自己上一輪的 must-fix，要跟提出它時一樣的證據門檻。** 作者回了一句解釋，不構成撤回的
+理由；自己這一輪送出 approve，也不能順手把上一輪的 must-fix 一起撤掉。撤回要逐條，每一條帶
+自己的證據（程式碼行號、實跑輸出）。先 grep 那個 repo 自己的註解與文件，看它有沒有寫過那個
+機制——repo 自己寫下的說明常常就是答案。2026-09-18 的標本：一則 approve 把上一輪一條正確的
+發現一起撤掉，那條發現說的機制，repo 的註解裡本來就寫著。
+
 ## Re-approve Decision
 
 | Condition | Action |
