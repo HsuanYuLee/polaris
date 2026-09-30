@@ -333,6 +333,17 @@ gh api --method POST "repos/<owner>/<name>/pulls/<n>/comments/<comment_id>/repli
 
 ## 開 PR
 
+**開之前，先在改動真的落下去的那棵樹上跑一次 `check-your-own-work`。** 指名那棵樹（它的
+蒐集腳本收 `--repo`），並在同一輪把它列出的東西處置完，再開 PR。
+
+要指名，是因為 session 站的地方不一定是那棵樹：改動在另一個工作樹、另一個 repo 的時候，
+那個 repo 自己寫下的規範不保證在手上。而 reviewer 最常引用的，正是 repo 自己的規範檔。
+
+2026-09-29 的標本：一顆 PR 沒帶那個 repo 規定每顆 PR 都要有的一份檔案。那條規則在三個地方
+都寫了：repo 的說明檔、repo 的規則目錄、以及那家公司的知識。施工在另一棵工作樹，session 站
+在別的工作區，流程裡沒有一步去讀它們。必過的檢查紅了，補上之後，已經拿到的核准全部作廢，
+要重新找人看。
+
 ```bash
 gh pr create --repo <owner/name> --base <base> --head <branch> --title '<一行>' --body '<內容>'
 ```
