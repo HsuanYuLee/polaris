@@ -87,6 +87,23 @@
 **精簡不得丟掉可追的東西**：單號、連結、數字、命令字串在任何精簡之後都還在。精簡砍的是
 鋪陳，不是憑據。
 
+**每條子單寫兩行。** 只寫單號不夠：讀的人不知道那張單是什麼，而單號是給人點進去的，不是
+給人讀的。
+
+- **第一行**是「單號: 簡述」。簡述是那張單標題的白話一句，讓沒點進去的人也知道它在做什麼。
+- **第二行**寫現況與下一步。PR 號、票數、班次都放在這一行。
+- 昨日那一塊同形狀，第二行寫做了什麼。
+
+今天要開口請人看或請人幫忙，寫在今日那一塊，句子是「今天請 X …」。它不是卡關。哪些才是卡關，
+判準在〈BOS〉指過去的那一份。
+
+```markdown
+* [TASK-bbb](URL): 結帳頁選完方案後總價正確
+    * PR #NNN 兩票，今天 merge，搭下一班
+* [TASK-eee](URL): 商品頁補上多語系替代連結
+    * PR #NNN 一票，今天請 X review
+```
+
 ## 模板
 
 ```markdown
@@ -97,8 +114,10 @@
     * **Epic 或主題名**
 
         * [EPIC-100 Epic 標題](https://your-domain.atlassian.net/browse/EPIC-100)
-            * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa) Task 標題 — 動作摘要 ✅（N/N 驗證子單通過）`✅ planned`
-            * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) Task 標題 — 動作摘要 `🟢 additional`
+            * [TASK-aaa](https://your-domain.atlassian.net/browse/TASK-aaa): Task 標題的白話一句 `✅ planned`
+                * 做了什麼 ✅（N/N 驗證子單通過）
+            * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb): Task 標題的白話一句 `🟢 additional`
+                * 做了什麼
 
     * **沒有單號的工作** — 一行摘要描述改了什麼 `🟢 additional`
     * **會議** — 會議名稱、會議名稱
@@ -107,13 +126,17 @@
 
     * **Epic 或主題名**
 
-        * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb) — 計畫動作
+        * [TASK-bbb](https://your-domain.atlassian.net/browse/TASK-bbb): Task 標題的白話一句
+            * 計畫動作（PR 號、票數、班次放這一行）
+        * [TASK-ddd](https://your-domain.atlassian.net/browse/TASK-ddd): Task 標題的白話一句
+            * 今天請 X 覆核那兩格
 
     * **會議** — 會議名稱
 
 * **BOS – Blockers or Struggles**
 
-    * [TASK-ccc](https://your-domain.atlassian.net/browse/TASK-ccc) — 等 PM 拍板兩個方案選哪個
+    * [TASK-ccc](https://your-domain.atlassian.net/browse/TASK-ccc): Task 標題的白話一句
+        * 已請 PM 拍板兩個方案選哪個，拍板之前後續做不下去
 
 * **口頭同步**
 
