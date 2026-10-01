@@ -2,18 +2,19 @@
 name: check-your-own-work
 description: |
   Before handing your own change over — opening a PR, asking for review, saying
-  "done" — check it against eight questions that come from what reviewers actually
+  "done" — check it against nine questions that come from what reviewers actually
   caught: claims that do not match the diff, the repo's own rules not applied,
   half-done pattern changes, runtime behaviour asserted from reading source,
   last round's comments still unaddressed, assertions that cannot fail, a
   mechanism you removed whose jobs nobody carried over, and something you added
-  that nothing runs or that this repo has no precedent for.
+  that nothing runs or that this repo has no precedent for, and a failure or
+  branch path nobody walked.
 
   Use when you are about to hand your own work over, or when someone asks you to
   self-check, double-check, or go over your change before submitting.
 
   交出自己的改動之前——開 PR、找人 review、說「做完了」——先對一次自己寫的東西。
-  八問來自 review 真的抓到的東西，不是想像出來的清單。
+  九問來自 review 真的抓到的東西，不是想像出來的清單。
 
   不用於：看別人的 PR（那是 code review，主語是別人的改動）。
   不用於：判定某個交付達不達標——這支不判紅、不擋人，它產出一份要被處置的清單。
@@ -27,7 +28,7 @@ scope: universal
 **這不是一道關卡。** 它不回 PASS／FAIL，也不阻止任何後續動作。它產出一份 finding 清單，
 而那份清單的價值完全來自**它在同一輪裡被處置掉**——一份沒有人動的報告，跟沒有報告一樣。
 
-八問不是想出來的。前六問是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
+九問不是想出來的。前六問是從 829 則真人 review 意見逆推出來的六類反覆缺陷，而其中四類
 **完全不需要任何領域知識就避得掉**：它們是「我沒有把自己剛寫的東西跟自己剛寫的宣稱對一次」，
 不是「我不知道這個框架怎麼寫」。
 
@@ -39,6 +40,9 @@ scope: universal
 一個新加的測試檔沒有任何 CI 會跑、301 行另一種語言的測試設施在一個零先例的 repo 裡、
 以及三支既有測試對唯一的行為改變全綠（第三個由第六問放寬管轄接手）。**兩問共用同一次
 搜尋**，所以它們是一問不是兩問。同樣不要把它讀成一個統計結論。
+
+**第九問來自 2026-09-17～10-01 兩週的 review。** 那段期間被抓到的五類問題裡，四類在第一到第八問裡本來
+就有；第五類「失敗或分岔的那一條沒走過」沒有，而那兩週僅有的兩次要求修改都是這一類。
 
 ## 先把材料撈出來
 
@@ -56,13 +60,14 @@ bash .claude/skills/check-your-own-work/scripts/collect-self-check-inputs.sh --r
 哪一棵。
 
 它逐問印出那一問需要的輸入，**拿不到的那幾問指名說出為什麼拿不到**，最後印
-`ANSWERABLE: n/8`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿八問的
-一模一樣，所以它要說出自己少了哪幾問。
+`ANSWERABLE: n/8`。這一行是整支腳本存在的理由：一份只答了兩問的自檢，讀起來跟答滿的
+一模一樣，所以它要說出自己少了哪幾問。分母是 8 不是 9：第九問讀的是第一問那份 diff，
+不另外撈材料，所以腳本不替它計數——diff 拿得到，第九問就答得出來。
 
 **答不出不是通過。** 沒有 `gh`、沒有 PR、沒有上一輪意見、這個 repo 一份規範都沒有、diff
 是空的——這五種都是常態，不是錯誤，但它們各自代表「這一問沒有答案」，不代表「這一問沒事」。
 
-## 八問
+## 九問
 
 ### 一、我寫下的每一句宣稱，在 diff 裡都找得到對應的改動嗎
 
@@ -179,7 +184,22 @@ repo 會做這件事；這一問問的是那個預設成不成立。`swe-knowled
 repo 有 30 支 PHP 原生的測試、零支用 JS 去讀 `.php` 的測試，而審查的人直接指了那條原生的
 路。同一輪還加了一個測試檔，CI 只跑 JS、而它的 glob 只收 `.js`，所以那個檔從來沒有被執行過。
 
-## 處置：這一步不做，前面八問等於沒做
+### 九、這一輪新增或改到的路徑，失敗或走另一條的時候會怎樣
+
+逐條列出 diff 裡會失敗或會分岔的地方：throw、reject、早退的 return、被 catch 吞掉的錯誤、
+條件分支的另一側、同一個目的地的另一個入口。每一條回答兩件事：**失敗之後，這一輪設下的狀態
+由誰歸位**（loading 旗標、初始化完成的旗標、鎖、半寫的資料），以及**那時候使用者看到什麼**。
+答不出「誰歸位」的那一條，就是一個永遠停在中間的狀態。
+
+只在成功路徑上量過的改動，最容易漏這一問：測試全綠，因為測試只走了那一條。另一個入口也算
+分岔——修好從 A 進來的那條，從 B 進來的同一個目的地可能還是舊的。
+
+標本（2026-09-17～10-01）：一個方案區的骨架改成伺服器端就輸出、等初始化完成才收，而初始化
+裡一個分組步驟拋錯時，loading 旗標沒有人歸位，桌機版的方案區整塊不渲染——同一顆 PR 在手機版
+那一側補了 `finally` 還寫了測試，桌機版沒有。另一顆 PR 新加的查詢函式沒有 try/catch，上游
+失敗時連帶讓整份產出掉進例外。第三顆修好了一個入口的轉址，另一個入口進來的仍然掉參數。
+
+## 處置：這一步不做，前面九問等於沒做
 
 每一條 finding 只有兩種結局：
 
