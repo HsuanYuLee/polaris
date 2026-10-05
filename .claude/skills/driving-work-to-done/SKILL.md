@@ -104,6 +104,9 @@ bash .claude/skills/refinement/scripts/open-seed-issue.sh \
 那個「接下來做哪一張」的答案裡，標成 `seed:`——所以它拿得給另一個 session 開工，而那個
 session 從 `refinement` 開始。
 
+**撞到的是公司的領域常識時**，當天寫回那家公司的常識那一份，由撞到的那條線自己寫，見
+`refinement`〈這一版假設的現況〉。
+
 **已經在進行中的單不要重問。** 同一件事往下做就是了——對已經簽過的東西再問一次是儀式，
 不是把關。換成另一件會改變行為的事，才重新判斷。
 

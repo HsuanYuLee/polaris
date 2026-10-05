@@ -134,6 +134,20 @@ def refuse(marker, *lines):
     sys.exit(2)
 
 
+# 公司的領域常識在哪。宣告的形狀跟環境同一種，前綴由那份知識自己定，路徑相對於宣告它的
+# SKILL.md。只印不擋：寫 assumes_* 的人要先讀它，而讀了沒有是這支量不到的事。走 stderr，
+# 因為 stdout 那一行是放行的正向證據；放在任何退回之前，被退回時這一行也看得到。
+for doc in sorted(glob.glob(os.path.join(skills_dir, "*", "SKILL.md"))):
+    try:
+        text = open(doc, encoding="utf-8").read()
+    except OSError:
+        continue
+    for rel in re.findall(r"<!--\s*[A-Za-z0-9_-]*DOMAIN-GLOSSARY:\s*(\S+)\s*-->", text):
+        target = os.path.normpath(os.path.join(os.path.dirname(doc), rel))
+        missing = "" if os.path.isfile(target) else "（檔案不在）"
+        print(f"DOMAIN-GLOSSARY {target}{missing}——寫 assumes_* 之前先讀；claim 用到表上的識別字時，"
+              f"樣本要有一顆兩者不同的案例", file=sys.stderr)
+
 with open(path, encoding="utf-8") as handle:
     text = handle.read()
 
