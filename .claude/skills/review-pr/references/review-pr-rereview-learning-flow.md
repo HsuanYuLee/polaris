@@ -59,6 +59,10 @@ hunk 都沒動的檔案**上的過期 docblock。當時派工的 prompt 手寫�
 維持 `REQUEST_CHANGES`」——那條規則不在任何檔案裡，是因為這張表當時沒有那一列，於是下判斷
 的人自己填了一個。一顆已經有人 approve、當天要進 milestone 的 PR 差點被一則既有註解擋住。
 
+**疊在一起的 PR（stack）上，自己投過的 `CHANGES_REQUESTED` 要回頭解。** 修正常常落在下游
+那一顆，而上游這一顆的 head 沒有動——「head 沒動就不重送」在 stack 上不成立，那一票會擋住整疊。
+在下游的 head 上驗過修正之後，回上游改投 `APPROVE`，並寫明這一顆不可以先於下游進預設分支。
+
 送出 review 前，先向使用者說明判斷與理由，取得確認後再送出。
 
 Review body 保持簡短，不重複每個 thread 已經回覆的內容。

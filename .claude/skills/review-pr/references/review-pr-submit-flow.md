@@ -110,6 +110,9 @@ Slack user ID，組裝 result、finding counts、最重要 must-fix summary、ap
 
 必須帶 `thread_ts`，不可發成獨立 channel message。
 
+**通知回到原 thread 時直接送，不先給使用者看。** 內容只講判定與做了什麼，送完回報那一則的
+permalink。沒有原 thread 就不送。要跟作者爭論立場的那一則不在這條裡，仍然先給人看。
+
 ## Conversation Summary
 
 最後輸出：
