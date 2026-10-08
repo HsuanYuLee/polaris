@@ -80,9 +80,23 @@ if [[ -z "$ORG" ]]; then
   exit 1
 fi
 
-# 讀取 stdin 的 PR JSON
+# 讀取 stdin 的 PR JSON。合法的零筆是字面上的 `[]`；空輸入或不是陣列的輸入幾乎都是上游
+# 失敗了（例如 fetch-prs-by-url.sh 缺 org 離場、stdout 是空的）。呼叫端沒開 pipefail 時
+# 上游的離場碼會被吃掉，所以這裡要紅，不能回 `[]`——那跟「沒有待 review」分不出來。
 prs=$(cat)
-total=$(echo "$prs" | jq 'length')
+if [[ -z "${prs//[[:space:]]/}" ]]; then
+  echo "ERROR: stdin is empty; expected a JSON array (upstream probably failed — check its stderr)" >&2
+  exit 1
+fi
+if ! input_type=$(printf '%s' "$prs" | jq -r 'type' 2>/dev/null); then
+  echo "ERROR: stdin is not valid JSON; expected a JSON array (upstream probably failed — check its stderr)" >&2
+  exit 1
+fi
+if [[ "$input_type" != "array" ]]; then
+  echo "ERROR: stdin is a JSON $input_type, expected a JSON array (upstream probably failed — check its stderr)" >&2
+  exit 1
+fi
+total=$(printf '%s' "$prs" | jq 'length')
 
 if [ "$total" -eq 0 ]; then
   echo "[]"

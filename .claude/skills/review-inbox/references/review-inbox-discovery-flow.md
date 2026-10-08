@@ -49,6 +49,18 @@ Backward-compatible invocation `ORG=<github_org> check-my-review-status.sh <gith
 Discovery sub-agent 不得把 `--my-user` 當 positional argument，也不得省略 GitHub org；否則所有
 review state 會比對錯誤，已 reviewed at head 的 PR 會被誤列為 `needs_first_review`。
 
+Slack mode 從 URL 取 metadata 時，`fetch-prs-by-url.sh` 的 canonical invocation 是：
+
+```bash
+extract-pr-urls.py … | fetch-prs-by-url.sh --org <github_org> --exclude-author <github_username> \
+  | check-my-review-status.sh --my-user <github_username> --org <github_org>
+```
+
+`--org` 也可用 `ORG` 環境變數給。兩者都沒有時 fetch 非零離場、stdout 是空的；
+`check-my-review-status.sh` 收到空輸入、或不是 JSON 陣列的輸入時也非零離場，不回 `[]`。
+所以這條管線紅了就是上游壞了，不是「沒有待 review」——讀 stderr，不要把它當成零筆。
+合法的零筆是字面上的 `[]`，照舊回 `[]`、exit 0。
+
 ## Source Selection
 
 Thread mode 優先：使用者訊息含 Slack URL 且有 review intent。從 URL 解析 channel ID 與
@@ -162,7 +174,7 @@ deterministic enforcement（`contract-design.md` Heuristic 1 — Deterministic-F
    命令。那不是錯誤處理，是這一步被跳過時的說法——2026-08-09 之前它回的是
    `POLARIS_DISCOVERY_SOURCE_UNAVAILABLE`，於是每一次 Slack mode 都把一份完整的資料讀成
    「上游拿不到」。
-4. 用 `fetch-prs-by-url.sh` 取得 metadata 並排除自己的 PR。
+4. 用 `fetch-prs-by-url.sh --org <github_org> --exclude-author <github_username>` 取得 metadata 並排除自己的 PR（見上方 canonical invocation）。
 5. 用 `check-my-review-status.sh` 判定 review status。
 6. 用 `annotate-review-candidates.py --mapping <mapping.json>` 補 `cluster_role`,
    `cluster_key`, `cluster_lead_url`, `model_tier`。

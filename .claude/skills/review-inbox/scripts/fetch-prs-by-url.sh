@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # fetch-prs-by-url.sh — Fetch PR metadata from a list of PR URLs
 #
-# Usage: echo '<urls>' | ./fetch-prs-by-url.sh [--exclude-author <username>]
+# Usage: echo '<urls>' | ./fetch-prs-by-url.sh --org <github_org> [--exclude-author <username>]
+#        （`--org` 也可用 ORG 環境變數給；兩者都給時以 `--org` 為準。兩者都沒有就非零離場、
+#        stdout 不印任何東西——下游 check-my-review-status.sh 收到空輸入會跟著紅。）
 # Input (stdin): One GitHub PR URL per line (https://github.com/<org>/<repo>/pull/<number>)
 # Output (stdout): JSON array, same format as scan-need-review-prs.sh
 #
@@ -11,23 +13,25 @@
 # Example:
 #   echo "https://github.com/your-org/your-repo/pull/1800
 #   https://github.com/your-org/your-design-system/pull/302" \
-#     | ./fetch-prs-by-url.sh --exclude-author your-github-user
+#     | ./fetch-prs-by-url.sh --org your-org --exclude-author your-github-user
 
 set -euo pipefail
 
 ORG="${ORG:-}"
-if [[ -z "$ORG" ]]; then
-  echo "ERROR: ORG environment variable required (e.g. export ORG=my-github-org)" >&2
-  exit 1
-fi
 EXCLUDE_AUTHOR=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --org) ORG="${2:-}"; shift 2 ;;
     --exclude-author) EXCLUDE_AUTHOR="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
+
+if [[ -z "$ORG" ]]; then
+  echo "ERROR: GitHub org required via --org <github_org> or ORG environment variable" >&2
+  exit 1
+fi
 
 # Read URLs from stdin and deduplicate
 urls=$(sort -u)
