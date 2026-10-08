@@ -27,6 +27,7 @@ DERIVE = re.compile(r"←\s*([SP]\d+(?:\s*[、,]\s*[SP]\d+)*)")
 DISPOSITION_AGAINST = ("RD 不做", "跟需求單位相反", "跟需求方相反")
 FROM_REQUESTER = ("需求單位", "需求方")
 EXCLUDING_HEADINGS = ("不做什麼", "Out of scope", "依賴")
+SEPARATOR = re.compile(r"^\|[\s\-:|]+\|?$")
 
 
 def die(code, msg):
@@ -36,6 +37,10 @@ def die(code, msg):
 
 def html_to_text(src):
     src = re.sub(r"(?is)<(script|style)\b.*?</\1>", "", src)
+    # 表頭列不是項目：<thead> 裡的列、含 <th> 的列，儲存格換成「‖」，轉出來不以「|」開頭
+    src = re.sub(r"(?is)<thead\b.*?</thead>", lambda m: re.sub(r"(?i)<td\b", "<th", m.group(0)), src)
+    src = re.sub(r"(?is)<tr\b(?:(?!</tr>).)*?<th\b.*?</tr>",
+                 lambda m: re.sub(r"(?i)<t[dh]\b[^>]*>", " ‖ ", m.group(0)), src)
     src = re.sub(r"(?i)<h([1-6])\b[^>]*>", lambda m: "\n" + "#" * int(m.group(1)) + " ", src)
     src = re.sub(r"(?i)</(h[1-6]|p|li|tr|div|section|table|ul|ol)>|<br\s*/?>", "\n", src)
     src = re.sub(r"(?i)<li\b[^>]*>", "\n- ", src)
@@ -83,16 +88,16 @@ def where(chain):
     return None
 
 
-def is_item(line, place, in_cooperation):
+def is_item(line, place, in_cooperation, header=False):
     s = line.strip()
-    table_row = s.startswith("|") and not re.match(r"^\|[\s\-:|]+\|?$", s)
+    table_row = s.startswith("|") and not SEPARATOR.match(s) and not header
     list_item = bool(re.match(r"^(-|\*|\d+\.)\s+", s))
     if place == "第 3 章":
         return list_item
     if place == "第 5 章":
         return list_item and in_cooperation
     if place in ("第 8 章", "附錄 B"):
-        return table_row and not re.search(r"\|\s*(前提|子單)\s*\|", s)
+        return table_row
     return False
 
 
@@ -126,7 +131,10 @@ def main():
     text = html_to_text(raw) if plan_path.lower().endswith((".html", ".htm")) else raw
     items, marks, problems = [], {}, []
     in_coop = False
-    for chain, line in sections(text):
+    rows = sections(text)
+    for i, (chain, line) in enumerate(rows):
+        # Markdown 的表頭列是分隔線上面那一列
+        header = i + 1 < len(rows) and bool(SEPARATOR.match(rows[i + 1][1].strip()))
         place = where(chain)
         if place == "第 5 章" and "需要配合的事" in line:
             in_coop = True
@@ -135,7 +143,7 @@ def main():
         found = MARK.findall(line)
         for mid, body in found:
             marks[mid] = (place, body, line.strip())
-        if place and is_item(line, place, in_coop):
+        if place and is_item(line, place, in_coop, header):
             items.append((place, line.strip(), found))
 
     for place, line, found in items:
