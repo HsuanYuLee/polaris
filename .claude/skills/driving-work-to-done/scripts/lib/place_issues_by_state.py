@@ -808,7 +808,12 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
         resolvers = declared_resolvers()
     entries, abstained = [], []
     known: dict[tuple[str, str], int] = {}
+    # 樹上每一個單目錄，包含這一趟問不到的那些。底下「住在母單目錄底下」那一問要的是
+    # 「母單目錄是不是一張單」，不是「這一趟問不問得到它」——`--spine-only` 不問解析器，
+    # 只在解析器那邊的母單在那一趟全部落進 abstained（DP-811 第二輪）。
+    ticket_dirs: set[str] = set()
     for namespace, ticket_dir in tickets(issues_root):
+        ticket_dirs.add(ticket_dir)
         name = os.path.basename(ticket_dir)
         got = _resolve(issues_root, namespace, ticket_dir, name, resolvers)
         if got is None:
@@ -887,7 +892,6 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
     # 對它恆報落差；母單只在解析器那邊、目錄沒有 `.spine/` 的話連搬動都擋不住，子單被搬出
     # 母單——2026-10-12 一個母單底下的三張子單就這樣被搬走（DP-811）。兩種都照同一句話處理：
     # 子單跟著母單走，母單在哪它就在哪。
-    ticket_dirs = {e["from_dir"] for e in entries if e["from_dir"]}
     rows = []
     for entry in entries:
         chain = chain_of(entry["detail"])
