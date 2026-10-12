@@ -432,6 +432,12 @@ def closable_text(m, idle_threshold=3600):
     return "\n".join(lines)
 
 
+# 每一段開場 prompt 的第一行。在 VS Code 的輸入框裡，它讓新 session 一開就連上瀏覽器
+# （使用者 2026-10-12：「重建 session 要加 @browser:new_tab 直接授權瀏覽器」）。終端機 CLI
+# 不認得它，經 SendMessage 送到的也只是一行字——第 3 步把這兩件事說給收件者聽。
+BROWSER_MENTION = "@browser:new_tab"
+
+
 def opening_text(commander):
     """每一則派工、互審、重建 prompt 開頭都一樣的那一段：開場四步與失聯協定。
 
@@ -449,7 +455,10 @@ def opening_text(commander):
         "         --holding '<你接的是什麼>' --blocked-on '<沒卡就寫沒有>'",
         "     板子只讀這份宣告。沒宣告的話你那一列是空的，而它跟「沒人接」長得一模一樣。",
         "  3. 用 `ToolSearch` 查有沒有瀏覽器工具（例如查 `chrome navigate screenshot`）。",
-        "     沒有就等指揮官轉達授權，**不自己找替代**。",
+        "     預期有；沒有就把這件事當成第一個發現回報，**不自己找替代**。",
+        "     預期有，是因為這則 prompt 第一行的 `" + BROWSER_MENTION + "`：它只在 VS Code 輸入框裡、",
+        "     貼成新 session 的第一則時連上瀏覽器。終端機 CLI 不認得它，要用 `claude --chrome` 開；",
+        "     經 SendMessage 收到時它只是一行字。",
         "  4. `SendMessage` 給 " + commander + "：「<線名> 上線，我是 <名字>，瀏覽器：有／沒有」。",
         "",
         "**指揮官失聯**（`ListAgents` 找不到 " + commander + "，或送出後 30 分鐘沒回）：讀 "
@@ -470,6 +479,7 @@ def order_text(issue_path, to_name, from_name):
     driving-work-to-done，只在那裡。這裡只確認路徑在。
     """
     return "\n".join([
+        BROWSER_MENTION,
         "去做 " + issue_path + "。",
         "",
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
@@ -507,6 +517,7 @@ def review_order_text(issue_path, me, others, about, from_name):
     """
     others_text = chr(12289).join(others)
     return "\n".join([
+        BROWSER_MENTION,
         "去看 " + issue_path + "，然後跟 " + others_text + " 互審。",
         "",
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
@@ -932,6 +943,7 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     out.append("")
     out.append(fence + "markdown")
     out += [
+        BROWSER_MENTION,
         "你是**指揮官**。先跑 /command-post，然後照這個順序讀，前三步都不用問人：",
         "",
         "1. `python3 " + SCRIPT + " --board --issues " + issues_root + "`"
@@ -965,6 +977,7 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         out.append("")
         out.append(fence + "markdown")
         out += [
+            BROWSER_MENTION,
             "你是 **" + line + " 線**，實作 session。指揮官是 " + commander + "；"
             "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
             "",

@@ -303,6 +303,12 @@ python3 .claude/skills/command-post/scripts/command-post.py --order \
 每條線「建立那一刻要跟你聯絡並自報 work name」「回報是否被授權開啟瀏覽器」「若你失聯，
 去找指揮官工作日誌，提示人類重建指揮官」。
 
+**`--order`／`--review` 產出的第一行是 `@browser:new_tab`**，理由跟〈重建：prompt 印在對話裡〉
+那一段相同（使用者 2026-10-12）。但這兩種指令多半經 `SendMessage` 送到已經在跑的 session，
+而跨 session 訊息裡的 `@` 不附加任何東西，收件者讀到的只是一行字。它只在人把指令貼成新
+session 的第一則（VS Code 輸入框）時才有作用。所以開場第 3 步寫成「預期有；沒有就當第一個
+發現回報」，並把這兩個限制說給收件者聽。
+
 產出那一刻日誌落一筆「派工」。**產出不等於送出**，那一筆就這樣寫。
 
 **回報要的是狀態，不是逐條判定。** 判準是使用者 2026-08-30 的原話：「只要需要『下一步該
@@ -628,6 +634,13 @@ python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
 - **每一條線一段**：`--since-hours` 之內宣告過 `--line` 的，同一條線取最新那份宣告（`--line
   指揮官` 不算一條實作線）。內容是開場四步與失聯協定、常駐規矩、上一任最後的宣告，以及
   日誌裡跟這條線有關的最近幾筆。沒宣告線的 session 不印段落，並被指名——印一段猜的比不印糟。
+
+**每一段的第一行是 `@browser:new_tab`。** 使用者 2026-10-12 的原話：「重建 session 要加
+@browser:new_tab 直接授權瀏覽器，直接做進框架」。那天機器重開兩次，貼上重建 prompt 的每一條線
+上線查瀏覽器都是「沒有」，各自停下來等指揮官轉達授權。這一行只在 VS Code 輸入框裡、貼成新
+session 的第一則時連上瀏覽器；終端機 CLI 不認得它，要用 `claude --chrome` 開，經 `SendMessage`
+送出時它也只是一行字。官方文件只寫了 VS Code 輸入框的 `@browser`，`:new_tab` 這個寫法沒有
+文件，是實測可用。
 
 **常駐規矩這支 skill 不帶。** 各條線要守的規矩常常是某一家公司的（憑證怎麼載、PR 標題怎麼
 寫），而這支 skill 會被帶到別的環境。那些寫在日誌旁邊的 `~/.claude/sessions/command-post/standing.md`，由指揮官自己放、自己
