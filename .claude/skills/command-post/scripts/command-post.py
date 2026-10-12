@@ -1008,13 +1008,15 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         # 「X 線」這種寫法、或上一任的名字。
         marks = ("線：" + line, line + " 線", line + "線", "線＝" + line) + ((name,) if name else ())
         related = [e for e in entries if any(k in e for k in marks)][-per_line:]
-        out.append("## " + line + " 線（上一任 " + name + "，"
+        # 宣告的線名常常自己就帶「線」（「review 線」「DP 線（…）」），再接一個會印成「X 線 線」。
+        label = line if "線" in line else line + " 線"
+        out.append("## " + label + "（上一任 " + name + "，"
                    + {True: "還活著", False: "已經結束", None: "死活不明"}[running] + "）")
         out.append("")
         out.append(fence + "markdown")
         out += [
             BROWSER_MENTION,
-            "你是 **" + line + " 線**，實作 session。指揮官是 " + commander + "；"
+            "你是 **" + label + "**，實作 session。指揮官是 " + commander + "；"
             "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
             "",
             opening_text(commander),
