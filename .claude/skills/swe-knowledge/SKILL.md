@@ -370,8 +370,9 @@ bash .claude/skills/swe-knowledge/scripts/resolve-external-write-gate.sh
 gh api --method POST "repos/<owner>/<name>/pulls/<n>/comments/<comment_id>/replies" -f body=@<file>
 ```
 
-**這裡不帶包住那個 API 呼叫的腳本**，理由跟〈開 PR〉那一段一模一樣。上面這是這份知識裡
-**唯一**一個往別人看得到的地方送東西的動作——多開第二個，這三步就會有第二條繞得過去的路。
+**這裡不帶包住那個 API 呼叫的腳本**，理由跟〈開 PR〉那一段一模一樣。這份知識裡往別人看得到
+的地方送東西的動作只有兩個：這一個，與〈開 PR〉裡改描述的那一個，兩個都走這三步——多開
+第三個，這三步就會有一條繞得過去的路。
 
 **對一顆正在收票的 PR 推任何 commit 之前，當下重查 head 上的有效核准。** 空 commit、修一個
 nit 都算——任何一推都會讓已經投的票失效。已經達到門檻就不推，nit 的回覆留到下一顆處理。CI
@@ -410,6 +411,19 @@ review 的人會回頭去找那段脈絡。引別的 PR 只在併掉之後跟它
 推上去的那一刻，描述裡寫的行為要還是真的。描述是對外的，而 diff 看不出它過期了——reviewer 讀
 到的是舊的承諾，卻以為那是現在的行為。2026-09-29 的標本：一顆 PR 回 review 時把手寫的字元
 對照表換成套件，併進去之後，描述仍寫著表是手建的、沒有用那個套件。
+
+**改描述跟回 review 走同樣三步**：寫成一個檔案 → 過對外寫入的檢查 → 才送出去。檢查用
+`resolve-external-write-gate.sh` 回的那一行，身分是 `swe-knowledge:pr-body`、surface 是
+`pr-body`：
+
+```bash
+<gate 那一行> --writer-token swe-knowledge:pr-body --surface pr-body --body-file <file>
+gh pr edit <n> --repo <owner/name> --body-file <file>
+```
+
+檢查不過就不送，改好檔案再跑一次。直接 `gh pr edit` 沒有任何東西擋，所以這一步靠的是照著做。
+2026-10-12 的標本：這個身分登錄之前，pr-body 一律被擋，一顆聚合過的 PR 描述裡的 commit 表
+停在舊 SHA，只能補一則留言繞過。
 
 **一顆 PR 要改的東西只改一次。** 已經知道還缺什麼，就補齊再送，不要先併一版佔位、之後再推
 一次。拆成兩趟的話，reviewer 要看兩次，而第一次核准的是一個已知不完整的東西。2026-09-30 的

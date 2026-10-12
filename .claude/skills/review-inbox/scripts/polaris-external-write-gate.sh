@@ -165,6 +165,10 @@ POLARIS_EXTERNAL_WRITERS=(
   # 2026-09-04 那一次繞去 validate-language-policy.sh，那條路不做 surface 與 payload 檢查。
   # **一道擋住日常動作的閘，會把自己教成一道沒有人走的閘。**
   "review-pr:github-comment"
+  # 改一顆已經開出去的 PR 的描述。swe-knowledge〈開 PR〉要求每次推進都讓描述對齊實作，而
+  # 這一筆不在的時候 pr-body 一律 fail-closed——描述送出之後就改不動，只能補留言繞過
+  # （2026-10-12，一顆聚合過的 PR 的 commit 表停在舊 SHA）。跟上一筆是同一件事。
+  "swe-knowledge:pr-body"
 )
 
 if [[ -z "$writer_token" ]]; then
