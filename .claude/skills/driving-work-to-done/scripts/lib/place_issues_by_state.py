@@ -580,7 +580,7 @@ def move_home(issues_root: str, row: dict) -> None:
 
 
 def commit_moves(issues_root: str, pairs: list[tuple[str, str]]) -> list[str]:
-    """把這一次的搬動 commit 進單的目錄樹的歷史，只帶被搬的那幾張單的路徑。
+    """把這一次的搬動 commit 進單的目錄樹的歷史，**只記搬動本身**。
 
     **為什麼由這一支做，不由呼叫端做。** 搬動有三個呼叫端——釋出尾段、記一輪、關一張單
     ——而洞在被呼叫的這一支身上。修其中一個呼叫端的話，另外兩條路上的單照樣躺在一個沒有
@@ -591,52 +591,84 @@ def commit_moves(issues_root: str, pairs: list[tuple[str, str]]) -> list[str]:
     **只有真的搬動了才寫。** 一次沒有搬動任何單的重算不留下任何 commit——而重算被記一輪
     順手觸發是常態，所以這個條件不是省事，是這一段能掛在這裡的前提。
 
-    **窄且逐一指名的路徑，因為這棵樹是共用的。** 索引是這棵樹上唯一的共用可寫狀態：
-    `git add -A` 收整棵樹，不帶 pathspec 的 `git commit` 送出整個索引，兩者都會以這一次
-    搬動的名義帶走別人手上還沒 commit 的東西。而「先看一眼索引再 commit」是 check-then-act
-    ——那個窗由別人什麼時候打 commit 決定，不由跑的人的仔細程度決定。
+    **commit 裡只有改名：搬動前已經 commit 的檔案，用 HEAD 裡的同一份內容換到新路徑。**
+    被搬的那張單常常有一條線正在施工，目錄裡躺著它還沒 commit 的證據與改動。以前這裡拿
+    整個目錄當 pathspec 跑 `git add` 與 `git commit`，那些半成品就以「歸位」的名義進了歷史
+    ——產出記錯了人，施工線自己的 commit 變成空的（DP-812；2026-10-12 兩顆歸位 commit 各
+    收走了一條線的證據）。未追蹤與已修改的檔案跟著目錄搬過去，狀態原樣保留，由擁有那張單
+    的線自己 commit。
 
-    形狀跟 `refinement/scripts/open-seed-issue.sh` 那一份一樣，不發明第二種：旗標寫在 `--`
-    前面（`--` 之後每個 token 都是路徑）。新路徑是未追蹤的，所以要先 `add` 才 commit 得到
-    它——那一小段窗裡別人的裸 commit 會把這次搬動帶走，但帶走的仍然只是這次搬動本身。
+    **做法是在一份暫時的 index 上組 commit，不碰共用的那一份。** 索引是這棵樹上唯一的共用
+    可寫狀態，別的線可能在上面 stage 了東西；在暫時的 index 上從 HEAD 組出改名、寫成
+    commit，再用 `update-ref` 帶著舊值把 HEAD 往前推。推的那一刻 HEAD 被別人動過就重組一次。
+    最後只把這幾條路徑在共用 index 上對齊到新的 HEAD，其餘路徑一個字都不動。
 
     **失敗不讓重算失敗。** 搬動已經發生了，這一步回頭把整支判成失敗只會讓紀錄跟事實更遠。
     但它不安靜：說出失敗的原因，以及一條把這件事補完的命令。
     """
     if not pairs:
         return []
+
+    def git(*args: str, env: dict | None = None, stdin: str | None = None) -> str:
+        return subprocess.run(["git", "-C", issues_root, *args], check=True,
+                              capture_output=True, text=True, env=env,
+                              input=stdin).stdout.strip("\n")
+
     try:
-        subprocess.run(["git", "-C", issues_root, "rev-parse", "--git-dir"],
-                       check=True, capture_output=True)
+        git("rev-parse", "--git-dir")
     except (subprocess.CalledProcessError, FileNotFoundError):
         return ["搬動沒有 commit：單的目錄樹不是一個 git repo，這幾張只留在磁碟上。"]
 
-    paths: list[str] = []
-    for old, new in pairs:
-        for path in (old, new):
-            rel = os.path.relpath(path, issues_root)
-            if rel not in paths:
-                paths.append(rel)
+    rels = [(os.path.relpath(o, issues_root), os.path.relpath(n, issues_root))
+            for o, n in pairs]
+    paths = [p for pair in rels for p in pair]
     subject = f"place: 歸位 {len(pairs)} 張"
-    body = "\n".join(f"{os.path.relpath(o, issues_root)} -> "
-                      f"{os.path.relpath(n, issues_root)}" for o, n in pairs)
+    body = "\n".join(f"{o} -> {n}" for o, n in rels)
+    index = os.path.join(git("rev-parse", "--absolute-git-dir"), "polaris-place-index")
+    env = dict(os.environ, GIT_INDEX_FILE=index)
+    zero = "0" * 40
     try:
-        subprocess.run(["git", "-C", issues_root, "add", "--"] + paths,
-                       check=True, capture_output=True)
-        subprocess.run(["git", "-C", issues_root, "commit", "-q",
-                        "-m", subject, "-m", body, "--"] + paths,
-                       check=True, capture_output=True)
+        for _ in range(3):
+            head = git("rev-parse", "--verify", "HEAD")
+            if os.path.exists(index):
+                os.remove(index)
+            git("read-tree", head, env=env)
+            lines = []
+            for old, new in rels:
+                # `-z`：不加的話非 ASCII 的路徑會被加上引號與跳脫，換到新路徑就是錯的名字
+                for entry in filter(None, git("ls-tree", "-r", "-z", head, "--",
+                                              old + "/").split("\0")):
+                    meta, path = entry.split("\t", 1)
+                    mode, _, blob = meta.split()
+                    lines.append(f"0 {zero}\t{path}")
+                    lines.append(f"{mode} {blob}\t{new}{path[len(old):]}")
+            if not lines:
+                return ["搬動沒有 commit：這幾張單在搬動前沒有任何已 commit 的檔案，"
+                        "沒有改名可記。它們的內容留給擁有那幾張單的線自己 commit。"]
+            git("update-index", "-z", "--index-info", env=env,
+                stdin="\0".join(lines) + "\0")
+            tree = git("write-tree", env=env)
+            commit = git("commit-tree", tree, "-p", head, "-m", subject, "-m", body)
+            try:
+                git("update-ref", "-m", subject, "HEAD", commit, head)
+            except subprocess.CalledProcessError:
+                continue  # HEAD 在組 commit 的時候被別人推過了，從新的 HEAD 重組
+            git("reset", "-q", "--", *paths)
+            return [f"搬動已經 commit 進歷史（{len(pairs)} 張，{len(lines) // 2} 個檔案改名；"
+                    "未 commit 的內容跟著搬過去，沒有收進這顆 commit）"]
+        raise subprocess.CalledProcessError(1, "update-ref", stderr="HEAD 一直在動，重組三次都沒推上去")
     except (subprocess.CalledProcessError, FileNotFoundError) as error:
-        detail = getattr(error, "stderr", b"") or b""
-        first = detail.decode("utf-8", "replace").strip().splitlines()
+        detail = getattr(error, "stderr", "") or ""
+        first = str(detail).strip().splitlines()
         return [
             "搬動沒有 commit——這一步沒有發生（搬動本身已經完成）。"
             f"它說：{first[0] if first else error}",
-            "  補完：git -C " + issues_root + " add -- " + " ".join(paths),
-            "        git -C " + issues_root + " commit -m '" + subject + "' -- "
+            "  補完：把下面這幾條路徑裡搬動前已 commit 的檔案記成改名，未 commit 的不要帶："
             + " ".join(paths),
         ]
-    return [f"搬動已經 commit 進歷史（{len(pairs)} 張，{len(paths)} 條路徑）"]
+    finally:
+        if os.path.exists(index):
+            os.remove(index)
 
 
 OPEN_INDEX = "OPEN.md"
