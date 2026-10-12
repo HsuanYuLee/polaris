@@ -206,6 +206,42 @@ def session_name_of(session_id):
     return session_id
 
 
+def report_to_name(from_name=None):
+    """prompt 裡「回報給誰」的名字。回傳 (name, problem)。
+
+    **它是 SendMessage 要的那個位址**，所以只認 session 登錄裡的 `name` 原字串——ListAgents
+    那一列印的、SendMessage 認得的都是它。短名送不到：2026-10-12 prompt 寫「work-fa」，登錄
+    裡叫「指揮官 work-fa」，收件者照抄就送不出去。
+
+    給了 `--from` 就對登錄驗，對不上不替人換成看起來像的那一個；沒給就問跑這一趟的 session
+    自己在登錄裡叫什麼。問不到說出來——猜出來的名字跟對的名字長得一樣，送出去才知道錯。
+    """
+    rows, prob = read_registry()
+    if from_name:
+        names = sorted({d["name"] for _, d in rows if d.get("name")})
+        if from_name in names:
+            return from_name, None
+        bare = re.sub(r"\s*\[[0-9a-f]+\]$", "", from_name)
+        near = [n for n in names if bare and bare in n]
+        why = "--from「" + from_name + "」不是 session 登錄裡任何一個名字"
+        if prob:
+            why += "（" + prob + "）"
+        if near:
+            why += "。登錄裡含「" + bare + "」的：" + chr(12289).join(near)
+        return None, why + "。--from 要給登錄裡的原字串（ListAgents 那一列的名字，不含 [ref]）。"
+    if prob:
+        return None, "回報給誰問不到：" + prob
+    sid, why = whoami()
+    if not sid:
+        return None, "回報給誰問不到：找不到這個 session 自己的登錄檔（" + why + "）"
+    for path, data in rows:
+        if data.get("sessionId") == sid:
+            if data.get("name"):
+                return data["name"], None
+            return None, "回報給誰問不到：登錄檔裡沒有 name：" + path
+    return None, "回報給誰問不到：登錄裡沒有 sessionId " + sid + " 的檔"
+
+
 def idle_seconds_of(path, now):
     """閒置多久。**stat，不讀內容**——這一支不打開 transcript。
 
@@ -1073,7 +1109,8 @@ def main():
     ap.add_argument("--about", default=None,
                     help="--review 用：要互相下判斷的是什麼")
     ap.add_argument("--from", dest="from_name", default=None,
-                    help="--order 用：回報給誰。預設是這個 session 自己的名字（$CLAUDE_SESSION_NAME）")
+                    help="--order／--review／--rebuild 用：回報給誰，要是 session 登錄裡的原字串。"
+                         "預設是跑這一趟的 session 自己在登錄裡的名字")
     ap.add_argument("--board", action="store_true",
                     help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
@@ -1135,10 +1172,9 @@ def main():
         print("記在 " + path)
         return 0
     if args.rebuild:
-        frm = args.from_name or os.environ.get("CLAUDE_SESSION_NAME", "")
+        frm, why = report_to_name(args.from_name)
         if not frm:
-            print("指揮官是誰答不出來：--from 沒給，環境裡也沒有 CLAUDE_SESSION_NAME。",
-                  file=sys.stderr)
+            print(why, file=sys.stderr)
             print("每一段 prompt 都要寫出回報給誰，一段沒有收件者的 prompt 等於沒有回報要求。",
                   file=sys.stderr)
             return 4
@@ -1167,10 +1203,9 @@ def main():
             print("成功的定義指向一個不存在的位置，跟沒有成功定義一樣——所以這裡不產出指令。",
                   file=sys.stderr)
             return 3
-        frm = args.from_name or os.environ.get("CLAUDE_SESSION_NAME", "")
+        frm, why = report_to_name(args.from_name)
         if not frm:
-            print("回報給誰答不出來：--from 沒給，環境裡也沒有 CLAUDE_SESSION_NAME。",
-                  file=sys.stderr)
+            print(why, file=sys.stderr)
             print("一則沒有收件者的回報要求，等於沒有回報要求。", file=sys.stderr)
             return 4
         # 人數與模式對不上的兩種，各自說各自的話。**不要安靜地產出一則看起來像的東西**：

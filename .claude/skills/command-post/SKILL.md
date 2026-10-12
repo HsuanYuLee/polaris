@@ -293,6 +293,12 @@ python3 .claude/skills/command-post/scripts/command-post.py --order \
 跟一份好的成功定義一模一樣，`--issue` 指不到就 exit 3、不產出指令），以及把「回報給誰」
 寫死在文字裡（答不出來就 exit 4——一則沒有收件者的回報要求等於沒有）。
 
+**「回報給誰」的名字是 session 登錄裡的原字串**（`~/.claude/sessions/{pid}.json` 的 `name`），
+也就是 `ListAgents` 那一列印的、`SendMessage` 認得的那一串。不給 `--from` 就取跑這一趟的
+session 自己的名字；給了就對登錄驗，不是原字串就 exit 4，並列出登錄裡含那個字串的名字，
+不替人換。2026-10-12 的標本：prompt 寫的是短名「work-fa」，登錄裡叫「指揮官 work-fa」，
+收件者照抄，`SendMessage` 回 not reachable。
+
 指令裡不重講那份成功定義，只給路徑。**重講一次就有第二份會漂的定義**，而漂掉的那一刻
 沒有人在看。
 
@@ -620,7 +626,7 @@ prompt。**全文印在輸出裡**，每一段是一個可以整段複製貼上�
 
 ```bash
 python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
-  --from <指揮官名字> --issues <單樹根> [--since-hours 24]
+  [--from <指揮官名字>] --issues <單樹根> [--since-hours 24]
 ```
 
 使用者 2026-09-19 的原話：「直接給我 prompt，不要用文件給，用 md 給，我要能直接複製貼上，
@@ -641,6 +647,8 @@ python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
 session 的第一則時連上瀏覽器；終端機 CLI 不認得它，要用 `claude --chrome` 開，經 `SendMessage`
 送出時它也只是一行字。官方文件只寫了 VS Code 輸入框的 `@browser`，`:new_tab` 這個寫法沒有
 文件，是實測可用。
+
+**名字是產出那一刻登錄裡的。** 指揮官之後改名，已經印出去的 prompt 帶的是舊名，要重印。
 
 **常駐規矩這支 skill 不帶。** 各條線要守的規矩常常是某一家公司的（憑證怎麼載、PR 標題怎麼
 寫），而這支 skill 會被帶到別的環境。那些寫在日誌旁邊的 `~/.claude/sessions/command-post/standing.md`，由指揮官自己放、自己
