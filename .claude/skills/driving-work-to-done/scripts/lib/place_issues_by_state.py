@@ -881,6 +881,13 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
 
     # 格與日期取鏈頂那張的。鏈頂問不到的話（解析器沒回它）就用自己的，不讓一張單因為它的
     # 母單問不到而失去位置。
+    #
+    # **走過主流程的單沒有鏈**——它只讀自己的狀態檔，不問解析器歸屬，所以住在另一張單底下
+    # 的時候，照自己的格會被算到頂層。母單帶 `.spine/` 的話搬動那一關擋得住，但 `--check`
+    # 對它恆報落差；母單只在解析器那邊、目錄沒有 `.spine/` 的話連搬動都擋不住，子單被搬出
+    # 母單——2026-10-12 一個母單底下的三張子單就這樣被搬走（DP-811）。兩種都照同一句話處理：
+    # 子單跟著母單走，母單在哪它就在哪。
+    ticket_dirs = {e["from_dir"] for e in entries if e["from_dir"]}
     rows = []
     for entry in entries:
         chain = chain_of(entry["detail"])
@@ -891,6 +898,9 @@ def survey(issues_root: str, resolvers: dict[str, str] | None = None) -> tuple[l
                 head = entries[at]
         destination = target_dir(issues_root, entry["namespace"],
                                  entry["name"], head["slot"], head["detail"], chain)
+        parent = os.path.dirname(entry["from_dir"]) if entry["from_dir"] else ""
+        if not chain and entry["basis"].startswith("loop-state") and parent in ticket_dirs:
+            destination = entry["from_dir"]
         rows.append({
             "namespace": entry["namespace"],
             "name": entry["name"],
