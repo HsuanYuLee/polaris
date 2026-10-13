@@ -367,7 +367,7 @@ bash .claude/skills/swe-knowledge/scripts/resolve-external-write-gate.sh
 **第三步才是送。** 一行，跟〈開 PR〉同一個待遇：
 
 ```bash
-gh api --method POST "repos/<owner>/<name>/pulls/<n>/comments/<comment_id>/replies" -f body=@<file>
+gh api --method POST "repos/<owner>/<name>/pulls/<n>/comments/<comment_id>/replies" -F body=@<file>
 ```
 
 **這裡不帶包住那個 API 呼叫的腳本**，理由跟〈開 PR〉那一段一模一樣。這份知識裡往別人看得到
