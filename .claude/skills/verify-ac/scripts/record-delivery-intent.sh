@@ -434,9 +434,58 @@ if head_delta:
 # 一份都不用動。
 if heads:
     payload["heads"] = json.loads(heads)
+
+# 開 PR 前的自檢有沒有跑，指過去，不判定（DP-821）。紀錄是 engineering 寫進單上的一段、
+# 以行首「check-your-own-work 九問」開頭；frontmatter、縮排、清單裡的提及不是紀錄。
+# 這一格只讓「沒跑」看得見——它不改變 exit code，也不擋這份紀錄寫出來。
+def read_self_check():
+    pack = None
+    try:
+        with open(os.path.join(source, ".spine", "loop-state.json"), encoding="utf-8") as handle:
+            knowledge_pack = json.load(handle).get("knowledge_pack")
+        if isinstance(knowledge_pack, dict):
+            pack = knowledge_pack.get("pack")
+    except (OSError, ValueError, AttributeError):
+        pass
+    if pack == "none":
+        return {"status": "not_applicable", "pack": "none"}
+    lines = []
+    with open(os.path.join(source, "index.md"), encoding="utf-8") as handle:
+        in_frontmatter = False
+        for number, line in enumerate(handle, 1):
+            if line.rstrip("\n") == "---" and (number == 1 or in_frontmatter):
+                in_frontmatter = number == 1
+                continue
+            if not in_frontmatter and line.startswith("check-your-own-work 九問"):
+                lines.append(number)
+    if lines:
+        return {"status": "recorded", "lines": lines}
+    if pack is None:
+        # 讀不到 pack 就說讀不到，不替它猜成哪一種。
+        return {"status": "not_run", "pack": "unresolved"}
+    return {"status": "not_run"}
+
+# 這一格讀壞了也照樣寫交付紀錄：它是一個指標，讀不到的指標不能變成一道閘。
+try:
+    self_check = read_self_check()
+except Exception as error:  # noqa: BLE001
+    self_check = {"status": "unreadable", "error": f"{type(error).__name__}: {error}"}
+payload["self_check"] = self_check
+
 with open(out, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
+
+if self_check["status"] == "recorded":
+    print("SELF-CHECK: " + ", ".join(f"index.md:{n}" for n in self_check["lines"]))
+elif self_check["status"] == "not_applicable":
+    print("SELF-CHECK: 不適用（pack none）")
+elif self_check["status"] == "unreadable":
+    print("SELF-CHECK: 讀不到（" + self_check["error"] + "）")
+elif self_check.get("pack") == "unresolved":
+    print("SELF-CHECK: 沒跑（單上沒有 check-your-own-work 九問紀錄；pack 讀不到）")
+else:
+    print("SELF-CHECK: 沒跑（單上沒有 check-your-own-work 九問紀錄）")
 PY
 
 echo "RECORDED: $OUT"
