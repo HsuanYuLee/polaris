@@ -5,8 +5,6 @@ description: "learning External mode 的外部研究、baseline comparison、syn
 
 # External Mode Flow
 <!-- PROSE-EXTERNAL-PATHS: CLAUDE.md — 講的是那個產品 repo 自己的 CLAUDE.md，不是這個 repo 的；這個 repo 剛好也有一份，所以不宣告的話會是一個純靠巧合的綠 -->
-<!-- PROSE-EXTERNAL-PATHS: knowledge-compilation-protocol.md — handbook 那個 repo 的協定文件 -->
-<!-- PROSE-EXTERNAL-PATHS: mechanism-registry.md — handbook 那個 repo 的登錄表 -->
 
 這份 reference 是 `learning/SKILL.md` External mode 的延後載入流程。用於研究
 外部 URL、repo、文章、local file 或使用者貼上的研究題材，並把發現轉成
@@ -82,7 +80,6 @@ Framework target 加讀：
 
 | Source | Extract |
 |---|---|
-| `mechanism-registry.md` | `Drift: High` mechanisms |
 | recent feedback memories | last 14 days `type: feedback` pain points |
 
 Project target 加讀：
@@ -156,12 +153,16 @@ Deep path：
 5. Recommendations：每個 recommendation 寫 What / Why / How / Landing /
    Effort / Priority / Validates。
 
-涉及 source-of-truth / compile / naming 時，使用 `knowledge-compilation-protocol.md`
-的 Atom layer、Derived layer、Naming Lock 術語。
+**當證據用的引文要從原文逐字取。** 經摘要轉出的內容（例如 WebFetch 的輸出）不算原文，
+標點與用字會被改掉。要引的那一句去抓原文核對；核對不了就寫成轉述，並標出它是轉述。
 
 ## Step 5. Execute After Confirmation
 
-先呈現三個 route，等使用者確認；可混選：
+**落點已經指定了就照做，不再問。** 派工或使用者已經說出研究結果寫到哪、交給誰，那就是
+使用者對 route 的選擇；照那個落點執行，不再呈現下面三個 route 讓人選。下指令的人常常不在
+這條線上，回頭問等於讓研究停在最後一步。
+
+沒有指定時，先呈現三個 route，等使用者確認；可混選：
 
 | Route | When | Outcome |
 |---|---|---|

@@ -70,7 +70,8 @@ tools:
 GitHub repo 若包含 `.claude/skills/`、`SKILL.md` 或 `skills/`，探索前先跑
 `.claude/skills/learning/scripts/skill-sanitizer.py` pre-scan；HIGH/CRITICAL 風險需讓使用者確認是否繼續。
 
-External mode 的 execute 階段只有在使用者確認後進行，落點三選一或混選：
+External mode 的 execute 階段只有在使用者確認後進行，落點三選一或混選。派工或使用者已經指定
+落點時，那就是確認，照它做，不再問（見 flow〈Step 5〉）：
 
 - Route A：把研究結果交給 `refinement`，由人決定要不要立案。
 - Route B：寫入 backlog。
