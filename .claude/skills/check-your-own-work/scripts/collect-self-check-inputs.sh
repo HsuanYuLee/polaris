@@ -39,7 +39,9 @@ show_capped() {  # $1 = 上限；stdin = 內容。印前 N 行，並說出被截
   body="$(cat)"
   total="$(printf '%s\n' "$body" | grep -c . || true)"
   [ "$total" = "0" ] && { echo "  （沒有）"; return; }
-  printf '%s\n' "$body" | grep . | head -"$cap" | sed 's/^/  /'
+  # 用 sed 截而不是 head：head 印滿就關管，上游的 grep 收到 SIGPIPE，在 pipefail 下整條回 141，
+  # ERR trap 就把整份自檢停在這一問。sed -n 會讀到底，只是不印超過上限的那些行。
+  printf '%s\n' "$body" | grep . | sed -n "1,${cap}s/^/  /p"
   if [ "$total" -gt "$cap" ]; then
     echo "  … 還有 $((total - cap)) 行沒印出來。**這是截斷，不是「就這些」**——要看全部就直接讀 diff。"
   fi
