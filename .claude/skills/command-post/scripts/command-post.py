@@ -197,6 +197,111 @@ def last_waiting(entries):
     return None, None
 
 
+# 「這個單號／PR／人名，日誌裡已經寫過什麼」。指揮官往上問之前、壓縮之後接手之前都要問
+# 這一句，而它以前只靠記得——2026-10-16 一件三筆紀錄都寫著有線在接的事，被當成沒人顧拿去
+# 問了使用者。所以它是一個命令，不是一句叮嚀。
+LOOKUP_FIELDS = ("- 發生什麼：", "- 決定：", "- 在等：", "- 接：", "- 卡：")
+# 一起出現的鍵：單號（`ABC-123`）與 PR 號（`#123`）。紀錄常常只寫 PR 不寫單號，
+# 只查單號就撈不到那幾筆，所以命中的那幾筆裡還出現哪些，要逐個說出來。
+CO_KEY = re.compile(r"(?<![A-Za-z0-9])(?:[A-Z][A-Z0-9]*-\d+|#\d+)(?![0-9])")
+
+
+def key_pattern(key):
+    """key 不跨數字邊界：`AB-98` 不命中 `AB-981`，`#90` 不命中 `#900`。"""
+    pat = re.escape(key)
+    if key[:1].isalnum():
+        pat = r"(?<![A-Za-z0-9])" + pat
+    if key[-1:].isdigit():
+        pat += r"(?![0-9])"
+    return re.compile(pat)
+
+
+def journal_with_lines():
+    """回傳 ([(標頭行號, [行...])...], problem)。切法跟 read_journal_entries 同一條 ENTRY_HEAD。"""
+    entries, problem = read_journal_entries()
+    if problem and not entries:
+        return [], problem
+    with open(JOURNAL, encoding="utf-8") as fh:
+        text = fh.read()
+    out, cur = [], None
+    for no, ln in enumerate(text.splitlines(), 1):
+        if ENTRY_HEAD.match(ln):
+            cur = (no, [ln])
+            out.append(cur)
+        elif cur is not None:
+            cur[1].append(ln)
+    return out, None
+
+
+def lookup_text(keys, since_hours=24, tail=8, now=None):
+    """每個 key 一段：日誌命中、各線宣告命中、最後一句在等有沒有它、一起出現的鍵。
+
+    唯讀。回傳 (text, problem)——日誌讀不到時 problem 不是 None，那一趟什麼都不印，
+    因為「日誌裡沒有」跟「日誌讀不到」要人做的事不一樣。
+    """
+    now = now or time.time()
+    entries, problem = journal_with_lines()
+    if problem:
+        return None, problem
+    said, said_head = last_waiting(["\n".join(ls) for _, ls in entries])
+    reg = {d.get("sessionId"): d for _, d in read_registry()[0]}
+    decls = []
+    try:
+        names = sorted(n for n in os.listdir(DECLARATIONS) if n.endswith(".json"))
+    except OSError:
+        names = []
+    for fn in names:
+        decl, _ = read_declaration(fn[:-5])
+        if decl and now - (decl.get("declared_at") or 0) <= since_hours * 3600:
+            decls.append(decl)
+    out = []
+    for key in keys:
+        pat = key_pattern(key)
+        hits = [(no, ls) for no, ls in entries if any(pat.search(x) for x in ls)]
+        out.append("## " + key)
+        out.append("")
+        if hits:
+            shown = hits[-tail:]
+            out.append("日誌：命中 " + str(len(hits)) + " 筆，印最近 " + str(len(shown)) + " 筆")
+            for no, ls in shown:
+                out.append("- L" + str(no) + " " + ls[0].lstrip("# "))
+                for off, x in enumerate(ls[1:], 1):
+                    if x.startswith(LOOKUP_FIELDS) or pat.search(x):
+                        mark = "（命中）" if pat.search(x) else ""
+                        out.append("  - L" + str(no + off) + mark + " " + x[2:][:300])
+        else:
+            out.append("日誌裡沒有 " + key)
+        dh = []
+        for decl in decls:
+            text = " ".join(str(decl.get(k)) for k in ("holding", "blocked_on", "tickets_opened"))
+            if pat.search(text):
+                who = (reg.get(decl.get("session_id")) or {}).get("name") or decl.get("session_id")
+                dh.append("- " + str(who) + "（" + str(decl.get("line") or "宣告沒說是哪條線")
+                          + "，" + stamp(decl.get("declared_at")) + "）接："
+                          + " ".join(str(decl.get("holding")).split()))
+        out.append("宣告（" + str(since_hours) + " 小時內）："
+                   + ("" if dh else "沒有一條線的宣告提到它"))
+        out += dh
+        if said is None:
+            out.append("最後一句在等：日誌裡沒有在等的紀錄")
+        elif pat.search(said):
+            out.append("最後一句在等（" + said_head + "）提到它：" + said)
+        else:
+            out.append("最後一句在等（" + said_head + "）沒提到它")
+        # 從最新那一筆往回收：最近一起出現的，最可能就是現在接著的那一個。
+        co = []
+        for _, ls in reversed(hits):
+            for tok in CO_KEY.findall("\n".join(ls)):
+                if tok not in keys and tok not in co:
+                    co.append(tok)
+        if co:
+            top = co[:12]
+            out.append("這幾筆裡一起出現、這次沒查的：" + "、".join(top)
+                       + "（紀錄常常只寫其中一個，沒查的再 --lookup 一次）")
+        out.append("")
+    return "\n".join(out).rstrip() + "\n", None
+
+
 def session_name_of(session_id):
     """拿 sessionId 去登錄查名字。查不到就回 sessionId 本身——日誌裡總要有個誰。"""
     rows, _ = read_registry()
@@ -986,6 +1091,8 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         "——它印上一任在等什麼、日誌尾端、在飛的單、這台機器上的 session。",
         "2. 日誌全文：" + JOURNAL + "（append-only，從尾端往回讀到你懂為止）。",
         "3. command-post 的 SKILL.md〈交棒〉那一節。",
+        "4. 板子上在飛的每一張單、上一任在等的那句裡每一個單號與 PR，跑 `python3 " + SCRIPT
+        + " --lookup <key> [<key>...]`。有命中的已經排給某條線，不是待決；壓縮摘要不是狀態，日誌才是。",
         "",
         "上一任在等的（" + (head or "日誌裡沒有紀錄") + "）：" + (said or "沒有紀錄"),
         "",
@@ -1119,6 +1226,9 @@ def main():
     ap.add_argument("--waiting-on", default=None,
                     help="--board／--log 用：唯一手寫的那一格——指揮官自己在等什麼。"
                          "給了就落進日誌，之後不給就讀日誌裡最後一句")
+    ap.add_argument("--lookup", nargs="+", metavar="KEY", default=None,
+                    help="每個單號／PR 號／人名，印日誌裡的命中、各線宣告裡的命中、最後一句在等有沒有它"
+                         "（筆數照 --journal-tail，宣告照 --since-hours）。唯讀。")
     ap.add_argument("--whoami", action="store_true",
                     help="印出跑這一趟的那個 session 的 sessionId。推出來的，不靠任何宣告。")
     args = ap.parse_args()
@@ -1130,6 +1240,14 @@ def main():
             print(why, file=sys.stderr)
             return 2
         print(sid)
+        return 0
+    if args.lookup:
+        text, prob = lookup_text(args.lookup, since_hours=args.since_hours,
+                                 tail=args.journal_tail, now=args.now_epoch)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 8
+        print(text, end="")
         return 0
     if args.board:
         # 環境變數優先，推導是後備。以前只讀環境變數，而它在這裡從來沒有被設過——於是
