@@ -14,17 +14,17 @@ _.python.venv = { path = ".venv", create = true }
 
 [tasks.init]
 description = "拿到這份東西之後跑這一個：把每一支 skill 宣告的工具都裝齊。"
-run = "bash .claude/skills/framework-release/scripts/polaris-init.sh"
+run = "bash scripts/polaris-init.sh"
 
 [tasks.doctor]
 description = "Run Polaris root runtime doctor."
-run = "bash .claude/skills/framework-release/scripts/polaris-doctor.sh"
+run = "bash scripts/polaris-doctor.sh"
 
 [tasks.doctor-mise]
 description = "Check mise-managed tool resolution."
-run = "bash .claude/skills/framework-release/scripts/doctor-mise-check.sh"
+run = "bash scripts/doctor-mise-check.sh"
 
 [tasks.release-version]
 description = "Changeset-driven version bump: changeset version -> VERSION mirror -> CHANGELOG -> consume changesets (no-op safe)."
-run = "bash .claude/skills/framework-release/scripts/release-version.sh --repo ."
+run = "bash scripts/release-version.sh --repo ."
 
