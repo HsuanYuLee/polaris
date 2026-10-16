@@ -1678,7 +1678,7 @@ import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 print((data.get("knowledge_pack") or {}).get("pack") or "")' "$STATE")"
   [[ -n "$pack" && "$pack" != "none" ]] || die "POLARIS_SPINE_RELEASED_NO_PACK" \
-    "這張單沒有領域 pack（$pack），沒有人回答得出「它出去了沒有」。" \
+    "這張單沒有領域 pack（${pack}），沒有人回答得出「它出去了沒有」。" \
     "不改程式碼的工作走完就是走完，那一類的終局不在這裡判。"
 
   local doc; doc="$(pack_doc "$pack")" || die "POLARIS_SPINE_RELEASED_PACK_UNRESOLVED" \

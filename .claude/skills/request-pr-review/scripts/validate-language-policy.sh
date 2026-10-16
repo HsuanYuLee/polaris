@@ -113,7 +113,7 @@ selftest() {
       pass=$((pass + 1))
     else
       fail=$((fail + 1))
-      echo "FAIL [$total]: stderr 裡沒有「$needle」 — $*" >&2
+      echo "FAIL [$total]: stderr 裡沒有「${needle}」 — $*" >&2
       sed 's/^/  stderr: /' /tmp/language-policy-selftest.err >&2 || true
     fi
   }

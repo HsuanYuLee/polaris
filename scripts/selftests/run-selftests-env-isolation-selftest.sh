@@ -73,7 +73,7 @@ before="$(fingerprint "$victim")"
 GIT_DIR="$victim/.git" GIT_WORK_TREE="$victim" bash "$CANARY" >/dev/null 2>&1
 after="$(fingerprint "$victim")"
 if [[ "$before" == "$after" ]]; then
-  unmeasurable "注入沒有生效：直接跑 canary 也沒弄髒 $victim。這一輪什麼都沒量到，" \
+  unmeasurable "注入沒有生效：直接跑 canary 也沒弄髒 ${victim}。這一輪什麼都沒量到，" \
     "不是通過——可能是這個 git 版本不再讓顯式 GIT_DIR 蓋過 -C，那樣的話這支要重寫。"
 fi
 # 指紋變了還不夠：`git init -q "$d"` 在 GIT_DIR 之下自己就會去重初始化借出方，所以光看

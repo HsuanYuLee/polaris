@@ -246,7 +246,7 @@ plan_declared_tools() {
   NEED_UV=false
   VERIFY_SPECS=""
   [[ -f "$reader" && -d "$skills_root" ]] || {
-    log "讀不到工具宣告（$reader / $skills_root），這一步跳過"
+    log "讀不到工具宣告（$reader / ${skills_root}），這一步跳過"
     return 0
   }
   listing="$("${PYTHON_BIN:-python3}" "$reader" list "$skills_root" 2>&1)" || status=$?

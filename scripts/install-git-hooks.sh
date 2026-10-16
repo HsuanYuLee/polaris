@@ -115,7 +115,7 @@ case "$MODE" in
     git -C "$REPO_ROOT" config --unset core.hooksPath 2>/dev/null || true
     for h in "${HOOK_NAMES[@]}"; do
       f="$LEGACY_DIR/$h"
-      if [[ -f "$f" ]] && grep -qF "$MARKER" "$f"; then rm -f "$f"; echo "removed: $h（舊層留在 .git/hooks 的那一份）"; fi
+      if [[ -f "$f" ]] && grep -qF "$MARKER" "$f"; then rm -f "$f"; echo "removed: ${h}（舊層留在 .git/hooks 的那一份）"; fi
     done
     echo "$PREFIX 拆掉了：core.hooksPath 已取消，git 回去用 ${LEGACY_DIR}。"
     exit 0
