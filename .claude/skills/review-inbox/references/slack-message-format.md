@@ -4,7 +4,7 @@ Shared reference for all skills that send Slack messages. Covers common formatti
 
 ## Consumers
 
-All skills that call `slack_send_message` or `mcp__claude_ai_Slack__slack_send_message`.
+All skills that call a `slack_send_message` tool, whatever server prefix the session gives it (find it with `ToolSearch "+slack send message"` rather than hardcoding the name).
 
 ## URL Formatting
 
