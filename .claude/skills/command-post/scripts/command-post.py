@@ -869,6 +869,85 @@ def holders_of(issues_root, ticket_path):
     return "、".join(said)
 
 
+# 派工前對照讀的兩棵 skill 樹：這支腳本自己所在的那一棵，加上使用者家目錄那一棵。
+# **不寫死任何一支 skill 的名字或觸發句**——每一行都在執行當下從那份 SKILL.md 讀。
+SKILL_TREES = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+               os.path.join(os.path.expanduser("~"), ".claude", "skills")]
+TRIGGER_WIDTH = 100
+
+
+def read_skill_front(path):
+    """回 (name, trigger, 讀不到什麼)。trigger 取 description 第二段，沒有第二段取第一段。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError) as e:
+        return None, None, "讀不到這份檔（" + e.__class__.__name__ + "）"
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None, None, "沒有 frontmatter"
+    front = []
+    for ln in lines[1:]:
+        if ln.strip() == "---":
+            break
+        front.append(ln)
+    name, desc = None, None
+    i = 0
+    while i < len(front):
+        ln = front[i]
+        if ln.startswith("name:"):
+            name = ln[5:].strip().strip("\"'") or None
+        elif ln.startswith("description:"):
+            v = ln[12:].strip()
+            if v in ("|", ">", "|-", ">-"):
+                block = []
+                i += 1
+                while i < len(front) and (front[i].startswith((" ", "\t")) or not front[i].strip()):
+                    block.append(front[i].strip())
+                    i += 1
+                desc = "\n".join(block).strip() or None
+                continue
+            desc = v.strip("\"'") or None
+        i += 1
+    if not name or not desc:
+        miss = "、".join(k for k, v in (("name", name), ("description", desc)) if not v)
+        return name, None, "frontmatter 沒有 " + miss
+    paras = [" ".join(p.split()) for p in re.split(r"\n\s*\n", desc) if p.strip()]
+    t = paras[1] if len(paras) > 1 else paras[0]
+    if len(t) > TRIGGER_WIDTH:
+        t = t[:TRIGGER_WIDTH] + "…"
+    return name, t, None
+
+
+def skill_routing_lines(trees=None):
+    """派工前對照：每一份 SKILL.md 一行。讀不到的那一行或那一棵說出讀不到什麼。"""
+    out, seen = [], set()
+    for tree in (trees if trees is not None else SKILL_TREES):
+        real = os.path.realpath(tree)
+        if real in seen:
+            continue
+        seen.add(real)
+        if not os.path.isdir(tree):
+            out.append("- （" + tree + " 這棵 skill 樹不存在，這一次沒有讀到它）")
+            continue
+        found, walk_errs = [], []
+        for root, dirs, files in os.walk(tree, onerror=walk_errs.append):
+            dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d != "node_modules")
+            if "SKILL.md" in files:
+                found.append(os.path.join(root, "SKILL.md"))
+        out.append("- **" + tree + "**：" + str(len(found)) + " 份 SKILL.md")
+        for e in walk_errs:
+            out.append("  - （" + str(getattr(e, "filename", "") or tree) + " 讀不進去，底下的 skill 這一次沒有算到）")
+        for path in found:
+            name, trig, prob = read_skill_front(path)
+            rel = os.path.relpath(os.path.dirname(path), tree)
+            if prob:
+                out.append("  - `" + (name or rel) + "`：（" + prob + "，" + rel + "/SKILL.md）")
+            else:
+                out.append("  - `" + name + "`：" + trig)
+    return out
+
+
 def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600,
                journal_tail=8):
     """指揮官每一輪重讀的那一頁。
@@ -1008,6 +1087,14 @@ def board_text(m, issues_root, waiting_on, session_id=None, idle_threshold=3600,
     out.append("## 這台機器上的 session（產生的，不要手改）")
     out.append("")
     out.append(human(m))
+    out.append("")
+    out.append("## 派工前對照（產生的，不要手改）")
+    out.append("")
+    out.append("派工或自己動手之前，先對這一段：這件事對得上哪一支 skill，派工句就指名它。"
+               "每一行的觸發句是執行這一刻從那份 SKILL.md 的 description 讀的"
+               "（第二段，沒有第二段取第一段），不是抄來的。")
+    out.append("")
+    out.extend(skill_routing_lines())
     return "\n".join(out)
 
 
