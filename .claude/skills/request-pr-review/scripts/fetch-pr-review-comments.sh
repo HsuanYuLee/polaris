@@ -11,7 +11,9 @@
 #   2. 只排除非 code review 的自動化訊息（changeset-bot、codecov-commenter 等）
 #   3. 排除 PR author 自己的 comment
 #   4. Inline comments: 用 thread 判斷 — thread 最後一則非 author → 未回覆
-#   5. Review body comments: 非 author 的 review body（非空）且 author 之後無回覆
+#   5. Review body comments: 非 author 的 review body（非空、非 APPROVED），author 沒有回到它身上
+#      ——回了這則 review 自己帶的逐行留言的 thread，或之後的 issue comment／review 本文 @ 了 reviewer
+#   6. Issue comments: 交過 review 的人留的 issue comment，之後 author 沒有 @ 他回覆
 #
 # 附加欄位：
 #   - unaddressed_comments — 未回覆的 actionable comment 數量
@@ -85,7 +87,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   # 取得所有 inline review comments
   all_comments=$(gh api "repos/${org}/${repo}/pulls/${number}/comments" \
     --paginate \
-    --jq '[.[] | {id: .id, user: .user.login, path: .path, line: (.line // .original_line // 0), body: .body, in_reply_to_id: .in_reply_to_id, created_at: .created_at}]' 2>/dev/null || echo "[]")
+    --jq '[.[] | {id: .id, user: .user.login, path: .path, line: (.line // .original_line // 0), body: .body, in_reply_to_id: .in_reply_to_id, review_id: .pull_request_review_id, created_at: .created_at}]' 2>/dev/null || echo "[]")
 
   # 如果 paginate 返回多頁，jq 會輸出多個 array，需要合併
   all_comments=$(echo "$all_comments" | jq -s 'flatten')
@@ -138,35 +140,54 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   all_reviews=$(echo "$all_reviews" | jq -s 'flatten')
 
-  # 找出非 author、非 skip bot、有 body 的 review（排除 APPROVED 狀態）
-  # APPROVED review body 是 reviewer 給出的 approval 結論，不需要 author 回覆
-  # 然後檢查 author 是否在該 review 之後有任何回覆（review body 或 inline comment）
+  # PR 上的一般留言（issue comment）。它跟 review 本文一樣是頂層的話，作者回覆它也只能用頂層的話。
+  all_issue_comments=$(gh api "repos/${org}/${repo}/issues/${number}/comments" \
+    --paginate \
+    --jq '[.[] | {id: .id, user: .user.login, user_type: .user.type, body: .body, created_at: .created_at}]' 2>/dev/null || echo "[]")
+  all_issue_comments=$(echo "$all_issue_comments" | jq -s 'flatten')
+
+  # 「作者回到了這一則上」只有兩種形狀，**不是「作者之後有任何活動」**：
+  #   (a) 回了這則 review 自己帶的逐行留言的 thread（逐行留言帶著 review_id）
+  #   (b) 之後的頂層發言（issue comment 或本文非空的 review）裡 @ 了那位 reviewer
+  # 2026-10-16 的標本：一則沒有逐行留言的 review 本文，因為作者 80 分鐘後回了另一則 review 的
+  # thread 就被算成回過，從那天起每次都回報 0。
   review_actionable=$(echo "$all_reviews" | jq \
     --arg author "$AUTHOR" \
     --argjson skip_bots "$skip_bots_jq" \
     --argjson all_comments "$all_comments" \
+    --argjson issue_comments "$all_issue_comments" \
     '
     . as $reviews |
-    # Author 的所有活動時間點（review submissions + inline comments）
-    ([$reviews[] | select(.user == $author) | .submitted_at] +
-     [$all_comments[] | select(.user == $author) | .created_at]) as $author_timestamps |
+    ([$reviews[] | select(.user == $author and ((.body // "") != "")) | {at: .submitted_at, body: .body}] +
+     [$issue_comments[] | select(.user == $author) | {at: .created_at, body: (.body // "")}]) as $author_top |
+    def mentioned($who; $after): [$author_top[] | select(.at > $after and (.body | contains("@" + $who)))] | length > 0;
+    ([$reviews[] | select(.user != $author) | .user] | unique) as $reviewers |
     [
       .[] |
       select(
         (.user != $author)
         and ((.user | IN($skip_bots[])) | not)
         and (.state != "APPROVED")
-        and (.body != null)
-        and (.body != "")
-        and ((.body | length) > 0)
+        and ((.body // "") != "")
       ) |
       . as $review |
-      # 檢查 author 是否在此 review 之後有任何活動
-      [$author_timestamps[] | select(. > $review.submitted_at)] |
-      # 沒有後續 author 活動 → 未回覆
-      select(length == 0) |
-      $review |
+      ([$all_comments[] | select(.review_id == $review.id and .in_reply_to_id == null) | .id]) as $own_roots |
+      ([$all_comments[] | select(.user == $author and .created_at > $review.submitted_at
+                                  and ((.in_reply_to_id // -1) | IN($own_roots[])))] | length > 0) as $thread_reply |
+      select(($thread_reply or mentioned($review.user; $review.submitted_at)) | not) |
       {id: .id, user: .user, path: "", line: 0, body: (.body | .[0:200]), type: "review_body"}
+    ] +
+    [
+      $issue_comments[] |
+      select(
+        (.user != $author)
+        and (.user_type != "Bot")
+        and ((.user | IN($skip_bots[])) | not)
+        and (.user | IN($reviewers[]))
+        and ((.body // "") != "")
+      ) |
+      select(mentioned(.user; .created_at) | not) |
+      {id: .id, user: .user, path: "", line: 0, body: (.body | .[0:200]), type: "issue_comment"}
     ]')
 
   # ========== 合併 Part A + Part B ==========

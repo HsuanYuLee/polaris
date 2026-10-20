@@ -134,6 +134,11 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 - approval：`valid_approvals`/`threshold`，有 stale 要標出來
 - 被指名但還沒回應的 reviewer（`requested_reviewers`）
 - 還沒被回覆的意見數（`unaddressed_comments`）
+  - 算三類，各有自己的「回過」：**逐行留言**看 thread 最後一則是不是作者；**review 本文**
+    （COMMENTED／CHANGES_REQUESTED、本文非空）要作者回了這則 review 自己帶的逐行 thread，或之後
+    的 issue comment／review 本文 @ 了那位 reviewer；**issue comment** 只算交過 review 的人留的，
+    回過的條件同 review 本文。作者回了另一則 review 的 thread 不算回到這一則上
+  - 沒有逐行留言的 review 本文，只能用頂層的話回，回的時候 @ 那位 reviewer——不 @ 的話這一則一直算未回覆
 - CI 狀態；`FAIL` 要帶上是哪幾個 check（`ci.failing`）
 - 這個 PR 適不適合現在請人看，不適合的話卡在哪。**`unaddressed_comments` 不是 0 的不請票**：
   reviewer 留的每一串含 nit 都要處置並回在原串（`swe-knowledge` 第 5 條），還沒做到就先做，
