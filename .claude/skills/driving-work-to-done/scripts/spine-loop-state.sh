@@ -1071,6 +1071,53 @@ reproject_position() {
   return 0
 }
 
+# Description: 記 converged 之前，跑這張單所屬命名空間宣告的收斂條件。
+# Args: $1 = 狀態檔
+# Returns: 條件成立或沒有宣告回 0；條件不成立就 die，不寫這一輪。
+#
+#     <!-- {任意前綴}-CONVERGE-CONDITION-{命名空間}: {命令} -->
+#
+# 形狀跟 `ISSUE-STATE-{命名空間}` 同一套：核心不認得任何一家的條件，只知道去找這一行、
+# 跑它、非 0 就不收斂。命令後面接上這張單的目錄，讓它判的是這一張，不是跑命令的人站在哪。
+#
+# 掛在 converged 上，是因為這一格之後的每一步（判定、交付、出貨）都把 converged 當成
+# 「這一輪做完了」。條件只寫在散文裡的時候，一張缺了環境驗收的單照樣收斂、照樣判 PASS，
+# 中間沒有一步會紅。沒有宣告的命名空間行為不變：那是「這裡沒有額外的收斂條件」，是一個答案。
+converge_condition_check() {
+  local state="$1" root issue ns sk declared out rc=0
+  root="$(issues_root_of "$state")"
+  [[ -n "$root" ]] || return 0
+  issue="$(cd "$(dirname "$(dirname "$state")")" && pwd -P)"; root="$(cd "$root" && pwd -P)"
+  ns="${issue#"$root"/}"; ns="${ns%%/*}"
+  # 解不出命名空間就說出來，不安靜放行：放行的那一刻，這一輪就在沒有被問過的情況下收斂了。
+  [[ -n "$ns" && "$ns" != "$issue" ]] || { echo "CONVERGE-CONDITION: 從 $issue 解不出它在 $root 底下的命名空間，這一輪沒有問收斂條件" >&2; return 0; }
+  sk="$(skills_root)" || return 0
+  declared="$(python3 - "$sk" "$ns" <<'PY_CONVERGE_DECL'
+import os, re, sys
+root, ns = sys.argv[1:3]
+pattern = re.compile(r"<!--\s*[A-Za-z0-9_-]*CONVERGE-CONDITION-" + re.escape(ns) + r":\s*(.+?)\s*-->")
+for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+    dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+    if "SKILL.md" not in filenames:
+        continue
+    try:
+        text = open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8").read()
+    except OSError:
+        continue
+    found = pattern.search(text)
+    if found:
+        sys.stdout.write(found.group(1))
+        break
+PY_CONVERGE_DECL
+)"
+  [[ -n "$declared" ]] || return 0
+  out="$(run_declared "$declared \"$issue\"" 2>&1)" || rc=$?
+  [[ -n "$out" ]] && printf '%s\n' "$out" >&2
+  [[ "$rc" -eq 0 ]] || die "POLARIS_SPINE_CONVERGE_CONDITION_FAILED" \
+    "命名空間 $ns 宣告的收斂條件不成立（exit ${rc}），這一輪沒有記成 converged。上面是那條條件自己說的缺什麼；補齊之後再記一次。宣告：$declared"
+  return 0
+}
+
 cmd_record() {
   parse_args "$@"
   [[ -f "$STATE" ]] || die "POLARIS_SPINE_LOOP_STATE_MISSING" "no loop state at $STATE; run init first"
@@ -1078,6 +1125,7 @@ cmd_record() {
     converged|unconverged|zero_delta) ;;
     *) die "POLARIS_SPINE_LOOP_BAD_OUTCOME" "--outcome must be converged|unconverged|zero_delta (got '$OUTCOME')" ;;
   esac
+  [[ "$OUTCOME" == converged ]] && converge_condition_check "$STATE"
 
   require_python3
   # 這一輪寫不寫得下去由這段決定；下面的歸檔不可以影響它的結果，所以先接住 exit code。
