@@ -61,7 +61,10 @@ if ! echo "$reviews" | jq -e 'type == "array"' >/dev/null 2>&1; then
 fi
 
 # Per-reviewer latest-review tally. For each unique reviewer we take their most
-# recent review (by submitted_at); an APPROVED latest review counts toward
+# recent review that is not COMMENTED (or PENDING) — GitHub does not let a
+# COMMENTED review revoke an approval, and a reviewer replying in a thread after
+# approving submits exactly that. Only a reviewer with nothing but COMMENTED
+# reviews falls back to COMMENTED. An APPROVED latest review counts toward
 # total_approvals, and counts toward valid_approvals only when its commit_id
 # matches the current head (via the canonical staleness helper, fail-closed).
 reviewer_users="$(echo "$reviews" | jq -r '[.[].user] | unique | .[]')"
@@ -73,7 +76,8 @@ total_approvals=0
 has_stale=false
 
 for user in $reviewer_users; do
-  latest="$(echo "$reviews" | jq "[.[] | select(.user == \"$user\")] | sort_by(.submitted_at) | last")"
+  latest="$(echo "$reviews" | jq --arg u "$user" '[.[] | select(.user == $u)] | sort_by(.submitted_at) as $mine
+    | ([$mine[] | select(.state != "COMMENTED" and .state != "PENDING")] | last) // ($mine | last)')"
   state="$(echo "$latest" | jq -r '.state')"
   commit_id="$(echo "$latest" | jq -r '.commit_id')"
 
