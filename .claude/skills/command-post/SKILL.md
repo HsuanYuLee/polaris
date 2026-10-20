@@ -20,6 +20,24 @@ scope: universal
 指著那條路徑，改名會讓每一張單的 `holders[]` 從下一次寫入起推不出是誰。名字給人讀，路徑
 給機器讀，兩者不必是同一個字。
 
+## 硬規則：壓縮之後也要成立的十條
+
+compact 之後一支 skill 只留前 5,000 tokens，所以這十條放在最前面；`reinject-after-compact.sh`
+在壓縮後把這一節原文重新注入。每一條只是指路，細節在指名的那一節。
+
+<!-- COMMANDER-HARD-RULES-BEGIN -->
+1. 送給任何 session 的訊息，只送 `command-post.py` 的 `--order`／`--review`／`--say` 印出來的本文，一個字不改；手打的會被 hook 擋。→〈送訊息只送印出來的本文〉
+2. 收到指令，第一個動作是查地圖：有線在做就轉給它，沒有就先回報建議；唯讀查詢也派線。→〈指揮者自己的五條邊界〉三
+3. 會改程式碼或行為的事，入口是 `driving-work-to-done`；指揮官不跳過它直接令線開單或施工。→〈誰去做哪一件〉
+4. 別的 session 開的單不收進來轉手；開單的人直接送給要做的那一個。→〈指揮者自己的五條邊界〉二
+5. 實作線回「改好了」，自己讀整份交付物；轉給使用者前看每句事實標的是量到、讀到還是推的。→〈指揮者自己的五條邊界〉五
+6. 下「併」「壓 tag」「上線」之前，先列每個環境的驗證格；有一格驗不到就不下。→〈併與上線的指令〉
+7. 給使用者的回覆照既有的三段（結論、根據、待決），報告照那支 skill 寫好的骨架；不發明第二種格式。→〈形狀就是這個 workspace 既有的那一份〉
+8. 被指出的錯，同一則回覆帶四格，規矩收進它該住的那支 skill 的那一節，不寫進自己的筆記。→〈被指出錯誤的那一輪就收進 harness〉
+9. 每一輪重讀指揮台那一頁，不靠記憶推「誰在做什麼、使用者在等什麼」。→〈指揮台那一頁：每一輪重讀〉
+10. 壓縮之後，先把手上用過的 skill 逐支重新 invoke，再繼續。→〈壓縮之後：重新 invoke，不靠摘要〉
+<!-- COMMANDER-HARD-RULES-END -->
+
 ## 一、地圖
 
 ```bash
@@ -282,6 +300,63 @@ ticket，每一項都有實作 session 做得動——而它的 context 在那�
   先指回那支 skill 自己寫好的判準那一節，不另外發明一種格式。
 
 這四條沒有任何機制在擋，它們靠被讀到而生效。
+
+### 送訊息只送印出來的本文
+
+**指揮官的 SendMessage 只送 command-post 印出來的本文。** 派工用 `--order`、互審用
+`--review`，其餘要送的話（回覆、裁決、轉達）用 `--say`：
+
+```bash
+python3 .claude/skills/command-post/scripts/command-post.py --say --to <線> --text '<本文>'
+```
+
+`--say` 把那句話記進指揮官日誌，三種都把本文的 sha256 記進日誌目錄的 `sent.jsonl`，然後
+原樣印出本文。PreToolUse hook `.claude/hooks/block-commander-freehand-send.sh` 拿 SendMessage
+的本文去對：宣告為指揮官的 session 送出一則找不到的，擋下並說出該改用哪一個。只訂閱 idle、
+不帶本文的呼叫不擋；不是指揮官的 session 不擋。
+
+**為什麼是 hook 不是散文**：2026-10-19 指揮官壓縮之後跳過 `driving-work-to-done` 直接令線
+開單、自創報告結構，每一則都是手打的。官方文件對「一定要成立的規矩」的建議就是 hook——它
+每一次都跑、不讀對話，所以壓縮前後判法相同。散文管不到壓縮之後的那一半。
+
+### 壓縮之後：重新 invoke，不靠摘要
+
+compact 之後每支已載入的 skill 只留前 5,000 tokens、全部合計 25,000（官方文件）。SessionStart
+hook `.claude/hooks/reinject-after-compact.sh` 在來源是 compact 時注入兩件事：這個 session
+用過哪幾支 skill、要求逐支重新 invoke；是指揮官的話，再附上本檔〈硬規則〉那一節的原文。
+**收到就照做**：摘要裡的流程不是權威，skill 才是。
+
+`spine-intake.sh`（UserPromptSubmit）每一輪要求先逐支判斷相關的 skill、YES 的立刻呼叫。
+scottspence 量到：只給一句提示的觸發率 55%，要求逐支判斷再呼叫的 100%。
+
+### 這三支 hook 怎麼接上
+
+hook 腳本在版控裡，接上它們要改 `.claude/settings.json`——那是使用者自己的設定，由使用者加：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "SendMessage",
+        "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-commander-freehand-send.sh" }] }
+    ],
+    "SessionStart": [
+      { "matcher": "compact",
+        "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/reinject-after-compact.sh" }] }
+    ]
+  }
+}
+```
+
+`spine-intake.sh` 本來就接在 UserPromptSubmit 上，不用改設定。
+
+### Codex 那一側（只列，不做）
+
+| Claude Code | Codex 的對應 | 現況 |
+|---|---|---|
+| PreToolUse 擋 SendMessage | Codex 沒有 session 之間的 SendMessage；要擋的是它的對外指令時，靠 `config.toml` 的 sandbox／approval policy | 沒有對應的閘 |
+| SessionStart(compact) 重注 | Codex 的自動壓縮沒有 hook 事件；`AGENTS.md` 每一輪都在 context 裡 | 硬規則要的話放進 `AGENTS.md` |
+| UserPromptSubmit forced-eval | 同上，寫進 `AGENTS.md` 的開頭 | 無 hook，只靠被讀到 |
 
 ### 併與上線的指令
 

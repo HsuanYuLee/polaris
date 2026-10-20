@@ -9,6 +9,11 @@
 # 模型仍然可以不照做——沒有任何機制能強迫一次 tool call——但「入口有沒有送到眼前」從裁量
 # 變成確定。這是這條路的天花板，明講，不假裝它是強制。
 #
+# 2026-10-20：多了一行 forced-eval
+# --------------------------------
+# 只給入口名字的那一行，量到的觸發率是 55%；要求先逐支判斷 YES／NO、YES 的立刻呼叫，量到
+# 100%（scottspence 的量測）。那一行不抄任何判準，只要求「先判斷、再呼叫」這個動作。
+#
 # 為什麼它只剩一行
 # ----------------
 # 上一版把立案判準整段抄在這裡，於是每一輪都逼出一句形式化的「立案判斷：不用立案」——用散文
@@ -27,7 +32,7 @@
 # POLARIS-SCOPE: universal
 #
 # Input:  stdin JSON，欄位 user_prompt（或 prompt）
-# Stdout: 一行 context
+# Stdout: 兩行 context（入口一行、forced-eval 一行）
 # Exit:   永遠 0——這是提示，不擋使用者的話
 
 set -uo pipefail
@@ -79,4 +84,5 @@ if [[ -n "$active" ]]; then
 else
   echo "[spine intake] 有工作進來的話，入口是 driving-work-to-done。"
 fi
+echo "[skill 評估] 回應之前先做三步：1. 逐支列出跟這句話相關的 skill，每支寫 YES 或 NO 與一句理由。2. YES 的現在就用 Skill 工具 invoke。3. 之後才開始做事。只列不叫等於沒做。"
 exit 0

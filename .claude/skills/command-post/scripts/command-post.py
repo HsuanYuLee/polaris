@@ -114,6 +114,28 @@ def write_declaration(session_id, holding, blocked_on, tickets_opened,
 # cwd 不一定在同一個 workspace。`COMMAND_POST_DIR` 只給量測換一個地方寫。
 JOURNAL_DIR = os.environ.get("COMMAND_POST_DIR") or os.path.join(REGISTRY, "command-post")
 JOURNAL = os.path.join(JOURNAL_DIR, "journal.md")
+# 指揮官送給別的 session 的每一則本文，產出那一刻記一筆 sha256。PreToolUse hook
+# `block-commander-freehand-send.sh` 拿 SendMessage 的本文來對：對不上就是手打的，擋。
+# 只記雜湊不記全文——全文已經在日誌與對話裡，這裡要的只是「這一則是不是印過的」。
+SENT = os.path.join(JOURNAL_DIR, "sent.jsonl")
+
+
+def body_sha(text):
+    """本文的指紋。去掉尾端空白再算：印出來多一個換行、送出時少一個，不該變成兩則。"""
+    import hashlib
+    return hashlib.sha256(text.rstrip().encode("utf-8")).hexdigest()
+
+
+def record_sent(to_name, text, now=None):
+    """記下這一則可以送。回傳 problem 或 None——寫不進去要失敗，不然 hook 會擋下一則合法的。"""
+    try:
+        os.makedirs(JOURNAL_DIR, exist_ok=True)
+        with open(SENT, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"at": stamp(now), "to": to_name,
+                                 "sha256": body_sha(text)}, ensure_ascii=False) + "\n")
+        return None
+    except OSError as exc:
+        return f"送出紀錄寫不進去：{SENT}（{exc}）"
 # 指揮官自己放的常駐規矩。**skill 不帶任何一家公司的規矩**——那些只在這份檔裡，
 # `--rebuild` 原樣貼上。
 STANDING = os.path.join(JOURNAL_DIR, "standing.md")
@@ -1315,6 +1337,10 @@ def main():
     ap.add_argument("--from", dest="from_name", default=None,
                     help="--order／--review／--rebuild 用：回報給誰，要是 session 登錄裡的原字串。"
                          "預設是跑這一趟的 session 自己在登錄裡的名字")
+    ap.add_argument("--say", action="store_true",
+                    help="派工與互審以外要送給某條線的話（回覆、裁決、轉達）：記進日誌與送出紀錄，"
+                         "原樣印出本文。指揮官的 SendMessage 只送這三種印出來的本文。")
+    ap.add_argument("--text", default=None, help="--say 用：要送的本文")
     ap.add_argument("--board", action="store_true",
                     help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
@@ -1446,9 +1472,38 @@ def main():
             print(prob, file=sys.stderr)
             return 7
         if args.review:
-            print(review_orders(args.issue, to_names, args.about, frm))
+            pairs = [(me, review_order_text(args.issue, me,
+                                            [n for j, n in enumerate(to_names) if j != i],
+                                            args.about, frm))
+                     for i, me in enumerate(to_names)]
+            out = review_orders(args.issue, to_names, args.about, frm)
         else:
-            print(order_text(args.issue, to_names[0], frm))
+            pairs = [(to_names[0], order_text(args.issue, to_names[0], frm))]
+            out = pairs[0][1]
+        for to_name, text in pairs:
+            prob = record_sent(to_name, text, now=args.now_epoch)
+            if prob:
+                print(prob, file=sys.stderr)
+                return 7
+        print(out)
+        return 0
+    if args.say:
+        to_names = args.to_names or []
+        if len(to_names) != 1 or not args.text:
+            print("--say 要剛好一個 --to 與 --text，現在 --to 有 " + str(len(to_names))
+                  + " 個、--text " + ("有" if args.text else "沒有") + "。", file=sys.stderr)
+            return 2
+        frm, why = report_to_name(args.from_name)
+        if not frm:
+            print(why, file=sys.stderr)
+            return 4
+        _, prob = append_journal("回覆", frm, [("給", to_names[0]), ("內容", args.text)],
+                                 now=args.now_epoch)
+        prob = prob or record_sent(to_names[0], args.text, now=args.now_epoch)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
+        print(args.text.rstrip())
         return 0
     if args.declare:
         missing = [f for f, v in (("--session-id", args.session_id),
