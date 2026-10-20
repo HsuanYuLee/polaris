@@ -10,7 +10,8 @@
 #   1. 保留所有 code review bot 的建議（Copilot、CodeRabbit 等）— 這些建議具參考價值
 #   2. 只排除非 code review 的自動化訊息（changeset-bot、codecov-commenter 等）
 #   3. 排除 PR author 自己的 comment
-#   4. Inline comments: 用 thread 判斷 — thread 最後一則非 author → 未回覆
+#   4. Inline comments: GitHub 上 resolve 了的 thread 算處理過；沒 resolve 的，作者回過、而開 thread
+#      的 reviewer 在作者最後一則回覆之後交了 APPROVED 也算；其餘用 thread 判斷——最後一則非 author → 未回覆
 #   5. Review body comments: 非 author 的 review body（非空、非 APPROVED），author 沒有回到它身上
 #      ——回了這則 review 自己帶的逐行留言的 thread，或之後的 issue comment／review 本文 @ 了 reviewer
 #   6. Issue comments: 交過 review 的人留的 issue comment，之後 author 沒有 @ 他回覆
@@ -84,6 +85,25 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   # ========== Part A: Inline review comments（thread-based 判斷）==========
 
+  # 取得所有 reviews（含 body）
+  all_reviews=$(gh api "repos/${org}/${repo}/pulls/${number}/reviews" \
+    --paginate \
+    --jq '[.[] | {id: .id, user: .user.login, body: .body, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
+
+  all_reviews=$(echo "$all_reviews" | jq -s 'flatten')
+
+  # 每個 thread 在 GitHub 上 resolve 了沒。REST 沒有這一格，只有 GraphQL 有；鍵是 thread 根留言的 id。
+  # **問不到不得變成 0**：問不到就當全部沒 resolve 照算，並說出是哪一顆。
+  resolved_roots=$(gh api graphql --paginate -F owner="$org" -F name="$repo" -F number="$number" -f query='
+    query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+      repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+        reviewThreads(first: 100, after: $endCursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { isResolved comments(first: 1) { nodes { databaseId } } } } } } }' \
+    --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved) | .comments.nodes[0].databaseId]' 2>/dev/null) \
+    || { echo "  ${repo} #${number}：thread 的 resolve 狀態問不到，這一顆的逐行留言全部當成沒 resolve 照算" >&2; resolved_roots="[]"; }
+  resolved_roots=$(echo "$resolved_roots" | jq -s 'flatten')
+
   # 取得所有 inline review comments
   all_comments=$(gh api "repos/${org}/${repo}/pulls/${number}/comments" \
     --paginate \
@@ -102,6 +122,8 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   inline_actionable=$(echo "$all_comments" | jq \
     --arg author "$AUTHOR" \
     --argjson skip_bots "$skip_bots_jq" \
+    --argjson resolved "$resolved_roots" \
+    --argjson reviews "$all_reviews" \
     '
     # 確認回覆偵測：reviewer 回覆含 "確認" 且含 "✅"，或含 "LGTM"
     def is_confirmation:
@@ -120,6 +142,12 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
         and ((.user | IN($skip_bots[])) | not)
       ) |
       . as $top |
+      select((.id | IN($resolved[])) | not) |
+      ([$all[] | select(.in_reply_to_id == $top.id and .user == $author) | .created_at] | max) as $last_author_reply |
+      # 作者回過，而開 thread 的人在那之後核准了 → 同一個 thread 裡核准前後的話都算在核准底下
+      select(($last_author_reply != null
+              and ([$reviews[] | select(.user == $top.user and .state == "APPROVED"
+                                        and .submitted_at > $last_author_reply)] | length > 0)) | not) |
       # 找出 thread 中所有 replies + top-level 自身，按時間排序取最後一則
       ([$top] + [$all[] | select(.in_reply_to_id == $top.id)]) |
       sort_by(.created_at) |
@@ -133,12 +161,6 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   # ========== Part B: Review body comments ==========
 
-  # 取得所有 reviews（含 body）
-  all_reviews=$(gh api "repos/${org}/${repo}/pulls/${number}/reviews" \
-    --paginate \
-    --jq '[.[] | {id: .id, user: .user.login, body: .body, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
-
-  all_reviews=$(echo "$all_reviews" | jq -s 'flatten')
 
   # PR 上的一般留言（issue comment）。它跟 review 本文一樣是頂層的話，作者回覆它也只能用頂層的話。
   all_issue_comments=$(gh api "repos/${org}/${repo}/issues/${number}/comments" \

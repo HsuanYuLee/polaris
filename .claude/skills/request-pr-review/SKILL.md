@@ -134,11 +134,16 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 - approval：`valid_approvals`/`threshold`，有 stale 要標出來
 - 被指名但還沒回應的 reviewer（`requested_reviewers`）
 - 還沒被回覆的意見數（`unaddressed_comments`）
-  - 算三類，各有自己的「回過」：**逐行留言**看 thread 最後一則是不是作者；**review 本文**
+  - 算三類，各有自己的「回過」：**逐行留言**先看 GitHub 上那個 thread resolve 了沒（resolve 了就算處理過）；
+    沒 resolve、作者在裡面回過、而開 thread 的 reviewer 在作者最後一則回覆之後交了 APPROVED，也算處理過；
+    其餘看 thread 最後一則是不是作者；**review 本文**
     （COMMENTED／CHANGES_REQUESTED、本文非空）要作者回了這則 review 自己帶的逐行 thread，或之後
     的 issue comment／review 本文 @ 了那位 reviewer；**issue comment** 只算交過 review 的人留的，
     回過的條件同 review 本文。作者回了另一則 review 的 thread 不算回到這一則上
   - 沒有逐行留言的 review 本文，只能用頂層的話回，回的時候 @ 那位 reviewer——不 @ 的話這一則一直算未回覆
+  - 限制：reviewer 核准之後在**舊 thread** 補問的新問題，會算在核准底下、被漏掉——結構上它跟核准後的收尾話
+    長得一樣，分得開的只有讀字，而收尾話的說法列不完。核准後**新開的 thread** 照算。resolve 狀態問不到時
+    （GraphQL 失敗），那一顆的 thread 全部當成沒 resolve，並在 stderr 說出是哪一顆
 - CI 狀態；`FAIL` 要帶上是哪幾個 check（`ci.failing`）
 - 這個 PR 適不適合現在請人看，不適合的話卡在哪。**`unaddressed_comments` 不是 0 的不請票**：
   reviewer 留的每一串含 nit 都要處置並回在原串（`swe-knowledge` 第 5 條），還沒做到就先做，
