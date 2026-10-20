@@ -348,6 +348,49 @@ assert_unique_ids() {
   fi
 }
 
+seal_condition_check() {
+  # Description: 封之前跑這張單所屬命名空間宣告的條件。
+  # Args: $1 = 單的 index.md
+  #
+  # 宣告長這樣，掃的是所有 skill 的 SKILL.md，形狀跟收斂條件那一行相同：
+  #     <!-- {任意前綴}-SEAL-CONDITION-{命名空間}: {命令} -->
+  # 命令接上單的目錄、在 repo 根跑；非 0 就不封。這一站的核心不認得任何一個命名空間的條件——
+  # 寫 assertion 那一刻該有什麼，由那個命名空間自己說，而它的紅燈訊息就是那一刻要讀的知識。
+  # 單不在 git 樹裡、解不出命名空間、或沒有人宣告：照常封，跟以前一樣。
+  local file="$1" dir top issue ns sk declared out rc=0
+  dir="$(cd "$(dirname "$file")" 2>/dev/null && pwd -P)" || return 0
+  top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  top="$(cd "$top" && pwd -P)"
+  ns="${dir#"$top"/}"; ns="${ns%%/*}"
+  [[ -n "$ns" && "$ns" != "$dir" ]] || return 0
+  sk="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P)" || return 0
+  require_python3
+  declared="$(python3 - "$sk" "$ns" <<'PY_SEAL_DECL'
+import os, re, sys
+root, ns = sys.argv[1:3]
+pattern = re.compile(r"<!--\s*[A-Za-z0-9_-]*SEAL-CONDITION-" + re.escape(ns) + r":\s*(.+?)\s*-->")
+for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+    dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+    if "SKILL.md" not in filenames:
+        continue
+    try:
+        text = open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8").read()
+    except OSError:
+        continue
+    found = pattern.search(text)
+    if found:
+        sys.stdout.write(found.group(1))
+        break
+PY_SEAL_DECL
+)"
+  [[ -n "$declared" ]] || return 0
+  out="$( cd "$sk/../.." && eval "$declared \"\$dir\"" 2>&1 )" || rc=$?
+  [[ -n "$out" ]] && printf '%s\n' "$out" >&2
+  [[ "$rc" -eq 0 ]] || die "POLARIS_FROZEN_FENCE_SEAL_CONDITION_FAILED" \
+    "命名空間 ${ns} 宣告的封存條件不成立（exit ${rc}），這次沒有封、檔案沒有動。上面是那條條件自己說的缺什麼；補齊之後再封一次。宣告：${declared}"
+  return 0
+}
+
 cmd_seal() {
   local file="" signer="" at="" block=""
   while [[ $# -gt 0 ]]; do
@@ -382,6 +425,7 @@ cmd_seal() {
   done <<< "$keys"
 
   assert_unique_ids seal "$file" "${key_array[@]}"
+  seal_condition_check "$file"
 
   # Pairs travel as argv, not stdin: the python program itself arrives on stdin
   # via heredoc, so a pipe here would be silently swallowed.
