@@ -88,6 +88,17 @@ RESOLVER_DECLARATION = re.compile(
 
 RESOLVER_TIMEOUT_SECONDS = 30
 
+# 收斂了、沒有釋出紀錄的單，在某些命名空間還不算做完：那個命名空間另外要的驗收可能還沒走完。
+# 核心不認得那是什麼，只認得一行宣告：
+#
+#     <!-- {任意前綴}-DONE-CONDITION-{命名空間}: {命令} -->
+#
+# 命令後面接單的目錄，exit 0 才落 done；非 0 就算進進行中那一格，why 帶命令自己說的第一個缺口。
+# 它是本機的判斷，所以 `--spine-only` 也問——記一輪之後的那次重算正是最常把單放進 done 的那一次。
+# 沒有宣告的命名空間不變：那是「這裡沒有額外的完成條件」，是一個答案。
+DONE_CONDITION_DECLARATION = re.compile(
+    r"<!--\s*[A-Za-z0-9_-]*DONE-CONDITION-([A-Za-z0-9_.-]+):\s*(.+?)\s*-->")
+
 # 解析器的離場碼分兩種，報告上也要是兩種：2 ＝ 這次沒問到（下一次可能問得到），
 # 1 ＝ 問到了但對照不到（對照表不夠用）。
 RESOLVER_COULD_NOT_ASK = 2
@@ -105,6 +116,7 @@ DATE_LINE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 # 一次執行 ＝ 一個時間點的快照。見 `slot_from_resolver`。
 _RESOLVER_CACHE: dict[tuple[str, str], tuple[str, str, dict]] = {}
 _TOUCHED_CACHE: dict[str, str | None] = {}
+_DONE_CONDITIONS: dict[str, str] | None = None
 
 
 def _now() -> str:
@@ -419,6 +431,44 @@ def declared_resolvers(root: str | None = None) -> dict[str, str]:
         for namespace, command in RESOLVER_DECLARATION.findall(text):
             found.setdefault(namespace, command)
     return found
+
+
+def declared_done_conditions(root: str | None = None) -> dict[str, str]:
+    """掃所有 SKILL.md，回 {命名空間: 命令}。同一次執行只掃一次。"""
+    global _DONE_CONDITIONS
+    if _DONE_CONDITIONS is not None and root is None:
+        return _DONE_CONDITIONS
+    found: dict[str, str] = {}
+    base = root or skills_root()
+    for dirpath, dirnames, filenames in os.walk(base) if os.path.isdir(base) else ():
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        if "SKILL.md" not in filenames:
+            continue
+        try:
+            with open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8") as handle:
+                text = handle.read()
+        except OSError:
+            continue
+        for namespace, command in DONE_CONDITION_DECLARATION.findall(text):
+            found.setdefault(namespace, command)
+    if root is None:
+        _DONE_CONDITIONS = found
+    return found
+
+
+def unmet_done_condition(command: str, ticket_dir: str) -> str | None:
+    """跑宣告的完成條件。成立回 None；不成立回一句缺什麼——問不到也算不成立，並說出來。"""
+    repo_root = os.path.dirname(os.path.dirname(skills_root()))
+    try:
+        result = subprocess.run(command.split() + [ticket_dir], capture_output=True, text=True,
+                                cwd=repo_root, timeout=RESOLVER_TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"完成條件這次沒問到（{type(error).__name__}）"
+    if result.returncode == 0:
+        return None
+    lines = [l.strip() for l in (result.stderr or result.stdout or "").splitlines() if l.strip()]
+    gap = next((l.lstrip("- ") for l in lines if l.startswith("-")), lines[-1] if lines else "")
+    return gap[:160] or f"完成條件不成立（exit {result.returncode}）"
 
 
 def slot_from_resolver(command: str, ticket_name: str) -> tuple[str, str, dict]:
@@ -815,6 +865,14 @@ def _resolve(issues_root: str, namespace: str, ticket_dir: str, name: str,
         slot, basis, detail = slot_from_resolver(command, name)
     else:
         slot, basis, detail = derived
+        condition = declared_done_conditions().get(namespace) if slot == DONE else None
+        gap = unmet_done_condition(condition, ticket_dir) if condition else None
+        if gap:
+            # 收斂只說「這一輪做完了」。那個命名空間另外要的驗收還沒走完，就還在路上——放進 done
+            # 的話，讀清單的人會以為它做完了，而手動搬回去的會在下一次重算被搬走。
+            slot, basis = IN_PROGRESS, "loop-state+done-condition"
+            detail = {"why": f"收斂了，但命名空間 {namespace} 的完成條件還沒成立：{gap}",
+                      "mine": True}
     if ticket_dir:
         # 解析器問得到上游上次動的時間，那比 git 準——一張掛在 Code Review 兩個月的單，
         # 本機那個目錄可能昨天才被 commit 碰過。問不到的才退回 git。
