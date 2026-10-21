@@ -899,6 +899,89 @@ def holders_of(issues_root, ticket_path):
     return "、".join(said)
 
 
+def epic_dir_of(issue_path):
+    """這張單落在哪一張鏈頂單底下：自己或往上最遠的那一個帶 `.spine/` 的目錄。
+
+    帶著 `.spine/` 的才是單（`driving-work-to-done`〈一張單住在哪〉），所以中間只當路徑用的
+    那幾層不算。往上一張都沒有、自己也沒有 `.spine/` 的話回 None——那不是一張單。
+    """
+    cur = os.path.abspath(issue_path)
+    top = cur if os.path.isdir(os.path.join(cur, ".spine")) else None
+    while True:
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            return top
+        if os.path.isdir(os.path.join(parent, ".spine")):
+            top = parent
+        cur = parent
+
+
+def other_live_lines(epic_dir, exclude):
+    """那張鏈頂單底下，`exclude` 以外還有哪幾個活著的 session 在做。回傳 (逐條, 問題)。
+
+    兩個來源，各自說出自己是哪一個：子樹裡任何一張單的 `holders`（脊椎寫下的），以及
+    活著的 session 自己的宣告裡提到那張鏈頂單的單號（還沒碰過脊椎的線只有這一格）。
+    死活是這一刻量的，跟 `holders_of()` 同一個理由。
+    """
+    rows, problem = read_registry()
+    if problem:
+        return None, problem
+    live = {}
+    for _, row in rows:
+        if not isinstance(row, dict) or not row.get("sessionId") or not row.get("name"):
+            continue
+        pid = row.get("pid")
+        if isinstance(pid, int) and alive(pid) is False:
+            continue
+        if row["name"] in exclude:
+            continue
+        live[row["sessionId"]] = row["name"]
+    found = {}
+    for dirpath, dirnames, filenames in os.walk(epic_dir):
+        if os.path.basename(dirpath) != ".spine" or "loop-state.json" not in filenames:
+            continue
+        try:
+            data = json.load(open(os.path.join(dirpath, "loop-state.json"), encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        holders = data.get("holders") if isinstance(data, dict) else None
+        for entry in holders if isinstance(holders, list) else []:
+            sid = entry.get("identity") if isinstance(entry, dict) else None
+            if sid in live:
+                rel = os.path.relpath(os.path.dirname(dirpath), os.path.dirname(epic_dir))
+                found.setdefault(live[sid], []).append("記在 " + rel + " 的 holders")
+    pat = key_pattern(os.path.basename(epic_dir))
+    for sid, name in live.items():
+        decl, _ = read_declaration(sid)
+        if not decl:
+            continue
+        said = "｜".join(str(decl.get(k) or "") for k in ("line", "holding"))
+        if pat.search(said):
+            found.setdefault(name, []).append("宣告：" + said[:80])
+    return [(n, "；".join(r)) for n, r in sorted(found.items())], None
+
+
+def epic_line_warning(issue_path, to_name, from_name):
+    """一個 epic 一條線：`--issue` 落在的那張鏈頂單已經有別條活線時，回一則警告。
+
+    **警告不進指令本文**：本文是要送出去的那一份（`sent.jsonl` 記的是它的 hash），把警告
+    混進去，收件者讀到的是一句寫給指揮官的話。所以它走 stderr，由 main() 印。
+    """
+    epic = epic_dir_of(issue_path)
+    if not epic:
+        return None
+    lines, problem = other_live_lines(epic, {to_name, from_name})
+    key = os.path.basename(epic)
+    if problem:
+        return "問不到這個 epic（" + key + "）有沒有別的活線：" + problem
+    if not lines:
+        return None
+    return "\n".join(
+        ["⚠ 一個 epic 一條線：" + key + " 已經有別條活線，這則派給的是 " + to_name + "。"]
+        + ["  - " + n + "（" + why + "）" for n, why in lines]
+        + ["  派給那一條；真的要另開一條，先跟使用者說為什麼。指令照樣產出了。"])
+
+
 # 派工前對照讀的兩棵 skill 樹：這支腳本自己所在的那一棵，加上使用者家目錄那一棵。
 # **不寫死任何一支 skill 的名字或觸發句**——每一行都在執行當下從那份 SKILL.md 讀。
 SKILL_TREES = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -1485,6 +1568,10 @@ def main():
             if prob:
                 print(prob, file=sys.stderr)
                 return 7
+        if args.order:
+            warning = epic_line_warning(args.issue, to_names[0], frm)
+            if warning:
+                print(warning, file=sys.stderr)
         print(out)
         return 0
     if args.say:
