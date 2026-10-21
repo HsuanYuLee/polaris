@@ -711,6 +711,52 @@ def opening_text(commander):
     ])
 
 
+# 日誌裡記下使用者自己說的話，寫法是「原話：「…」」或「原話「…」」，後面可以接好幾個「…」。
+USER_WORDS = re.compile(r"原話[：:]?\s*((?:「[^」]+」[、，與和及\s]*)+)")
+
+
+def todays_user_words(now=None, limit=10):
+    """今天日誌裡帶著「原話」的句子，舊到新、同一句只留第一次。回傳 (lines, problem)。
+
+    它在 `--say`／`--order` 產出那一刻印在 stderr，給寫那一則的指揮官看，不進本文。
+    〈派工之前〉要新的一句話對著當天的裁決讀，而那些裁決在派工那一刻不在眼前——
+    2026-10-21 一句「hotfix」在「先一起擋」之後一分鐘被單獨讀成另一個方向。
+    """
+    today = time.strftime("%Y-%m-%d", time.localtime(now or time.time()))
+    if not os.path.exists(JOURNAL):
+        return [], None
+    try:
+        with open(JOURNAL, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError as exc:
+        return [], f"今天使用者說過的話問不到：{JOURNAL} 讀不到（{exc}）"
+    seen, out, when = set(), [], None
+    for line in text.splitlines():
+        if ENTRY_HEAD.match(line):
+            head = line.lstrip("#").strip()
+            when = head[11:16] if head.startswith(today) else None
+            continue
+        if not when:
+            continue
+        for group in USER_WORDS.findall(line):
+            for quote in re.findall(r"「([^」]+)」", group):
+                if quote not in seen:
+                    seen.add(quote)
+                    out.append(f"  {when} {quote}")
+    return out[-limit:], None
+
+
+def user_words_note(now=None):
+    """`todays_user_words` 排成要印給指揮官的那一段。沒有、讀不到、有，三種說的話不一樣。"""
+    lines, prob = todays_user_words(now)
+    if prob:
+        return prob
+    if not lines:
+        return "派工前對一次：今天日誌裡沒有帶「原話」的句子。這不代表使用者今天沒說話，只代表沒記下來。"
+    return "\n".join(["派工前對一次——今天日誌裡使用者的原話（舊到新）：", *lines,
+                      "這一則照上面那幾句讀得通嗎？讀出兩種方向、或多出一條裁決裡沒有的路，先問使用者。"])
+
+
 SOURCE_RULE = (
     "每一句事實標出來源：量到（附命令或截圖）、讀到（附權威檔 path:line）、推的。"
     "推的只能寫成待驗假設，不寫成狀態或規矩。"
@@ -1588,6 +1634,8 @@ def main():
         print(text)
         print(prob or ("副本：" + path + "（對話裡印出來的這一份才是給人貼的）"))
         return 0
+    if args.order or args.say:
+        print(user_words_note(args.now_epoch), file=sys.stderr)
     if args.order or args.review:
         which = "--review" if args.review else "--order"
         to_names = args.to_names or []
