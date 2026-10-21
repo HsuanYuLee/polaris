@@ -324,6 +324,86 @@ def lookup_text(keys, since_hours=24, tail=8, now=None):
     return "\n".join(out).rstrip() + "\n", None
 
 
+USER_WAITING_HEAD = "｜ " + WAITING_KIND + " ｜ 使用者"
+RECALL_CAP = 6000
+
+
+def entry_epoch(head):
+    """一筆日誌標頭的時間。讀不出來回 None。"""
+    m = re.match(r"^#{2,3} (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", head)
+    if not m:
+        return None
+    try:
+        return time.mktime(time.strptime(m.group(1), "%Y-%m-%d %H:%M"))
+    except ValueError:
+        return None
+
+
+def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
+    """壓縮之後要帶回來的那一份：最後一筆使用者在等的原文、從它前 `since_hours` 小時起的
+    每一行決定，以及在等裡提到的每個鍵的 `--lookup`。回傳 (要注入的那一段, 完整版路徑, 問題)。
+
+    **決定是日誌裡寫下來的，不是摘要裡記得的。** 壓縮摘要會把前一天的決定壓成一句或整段
+    丟掉，而日誌一個字都不少。注入有大小上限，所以完整版落檔，注入的那一段說出放不下的有
+    幾行、完整版在哪。
+    """
+    entries, problem = read_journal_entries()
+    if problem:
+        return None, None, problem
+    last = None
+    for e in reversed(entries):
+        if USER_WAITING_HEAD in e.partition("\n")[0]:
+            last = e
+            break
+    if last is None:
+        return None, None, "日誌裡沒有任何一筆使用者在等的紀錄：" + JOURNAL
+    at = entry_epoch(last.partition("\n")[0])
+    decisions = []
+    for e in entries:
+        head, _, rest = e.partition("\n")
+        t = entry_epoch(head)
+        # 在等之後才做的決定一樣要帶回來，所以只有下界。
+        if t is None or at is None or t < at - since_hours * 3600:
+            continue
+        for ln in rest.splitlines():
+            if ln.startswith("- 決定："):
+                decisions.append(head.lstrip("# ") + "｜" + ln[len("- 決定："):])
+    decisions.reverse()
+    keys = []
+    for tok in CO_KEY.findall(last):
+        if tok not in keys:
+            keys.append(tok)
+    lookups = ""
+    if keys:
+        lookups, lprob = lookup_text(keys, now=now)
+        lookups = lookups or ("--lookup 問不到：" + str(lprob))
+    head = ["最後一筆使用者在等（原文）：", last, "",
+            "從它前 " + str(since_hours) + " 小時起的決定（新到舊，共 " + str(len(decisions)) + " 行）："]
+    full = "\n".join(head + ["- " + d for d in decisions]
+                     + ["", "在等裡提到的鍵：" + ("、".join(keys) or "沒有"), "", lookups])
+    path = os.path.join(JOURNAL_DIR, "after-compact", time.strftime(
+        "%Y%m%d-%H%M%S", time.localtime(now or time.time())) + ".md")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(full + "\n")
+    except OSError as exc:
+        return None, None, "完整版寫不進去：" + path + "（" + str(exc) + "）"
+    # 路徑放第一行：注入的那一段若被宿主截斷，掉的是尾巴的決定，不是「去讀完整版」這一句。
+    inline = ["完整版（含下面全部，加上 " + ("、".join(keys) or "沒有鍵")
+              + " 的 --lookup）：" + path + "。現在用 Read 讀完它，再回答使用者或派工。"
+              "這些是已經決定的事：不重問、不漏。", ""] + head
+    shown = 0
+    for d in decisions:
+        if len("\n".join(inline)) + len(d) + 3 > cap:
+            break
+        inline.append("- " + d)
+        shown += 1
+    if shown < len(decisions):
+        inline.append("（還有 " + str(len(decisions) - shown) + " 行放不下，在完整版裡）")
+    return "\n".join(inline), path, None
+
+
 def session_name_of(session_id):
     """拿 sessionId 去登錄查名字。查不到就回 sessionId 本身——日誌裡總要有個誰。"""
     rows, _ = read_registry()

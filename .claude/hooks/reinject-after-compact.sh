@@ -13,6 +13,10 @@
 #   1. 這個 session 的 transcript 裡 invoke 過哪幾支 skill，要求現在逐支重新 invoke。
 #   2. 這個 session 宣告自己是指揮官的話，附上 command-post SKILL.md 硬規則那一節的原文
 #      （兩個 COMMANDER-HARD-RULES 標記之間），不是另一份抄本。
+#   3. 指揮官的話，再附上日誌裡最後一筆使用者在等的原文、從它前 24 小時起的每一行決定，以及
+#      完整版（加上在等裡提到的鍵的 --lookup）的路徑。內容由 command-post.py 的
+#      after_compact_recall() 產生，這裡不另外解析日誌。2026-10-21 指揮官壓縮後把前一天
+#      已決定的三件重問或漏掉；SKILL.md 寫著壓縮後先跑 --lookup，沒有東西逼它跑。
 # 其他來源（startup、resume、clear）什麼都不輸出。
 #
 # 擋不到什麼，明講
@@ -25,10 +29,11 @@ set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 skill_md="${here}/../skills/command-post/SKILL.md"
+command_post="${here}/../skills/command-post/scripts/command-post.py"
 
 printf '%s' "$(cat)" | python3 -c '
-import json, os, sys
-skill_md = sys.argv[1]
+import importlib.util, json, os, sys
+skill_md, command_post = sys.argv[1], sys.argv[2]
 try:
     data = json.load(sys.stdin)
 except ValueError:
@@ -78,7 +83,19 @@ if line == "指揮官":
     except (OSError, ValueError) as exc:
         parts.append("你是指揮官，但 command-post 的硬規則讀不到（" + skill_md + "：" + str(exc)
                      + "）。先 invoke command-post。")
+    try:
+        spec = importlib.util.spec_from_file_location("command_post", command_post)
+        cp = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cp)
+        inline, _, problem = cp.after_compact_recall()
+    except Exception as exc:
+        inline, problem = None, command_post + " 載不起來（" + str(exc) + "）"
+    if problem:
+        parts.append("[compact 之後] 日誌裡的決定帶不回來：" + problem
+                     + "。先跑 command-post.py --board 與手上每張單的 --lookup，再回答使用者。")
+    else:
+        parts.append("[compact 之後] 日誌裡已經決定的事（摘要會漏，這一份不會）：\n" + inline)
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                          "additionalContext": "\n\n".join(parts)}},
                  ensure_ascii=False))
-' "$skill_md"
+' "$skill_md" "$command_post"
