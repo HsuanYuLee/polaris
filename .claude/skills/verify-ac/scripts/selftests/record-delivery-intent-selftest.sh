@@ -101,6 +101,31 @@ assert "source" not in d, "存路徑的欄位不該再有了"
 echo "  ok  sealed source records destination and head"
 echo "  ok  紀錄記的是單的名字，不是它當下的格位"
 
+# DP-865 A-P1：寫成交付紀錄的同一步，站別記成 delivered；有沒解的停點就不寫。
+issue="$(new_sealed_issue station template)"
+repo="$WORK/station"
+measure "$repo" "$issue" A-P1
+station_of() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("station"))' "$1"; }
+printf '%s\n' '{"schema_version":2,"status":"converged","station":"engineering","rounds":[],"stop":{"kind":"surfaced_concern"}}' \
+  > "$issue/.spine/loop-state.json"
+out="$(cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary s 2>&1)" \
+  && fail "單上有沒解的停點，交付紀錄還是寫了"
+grep -q POLARIS_DELIVERY_INTENT_STOPPED <<<"$out" || fail "停點擋下時沒有帶 marker：$out"
+[[ ! -f "$issue/.spine/delivery.json" ]] || fail "被擋下的那一次留下了 delivery.json"
+[[ "$(station_of "$issue/.spine/loop-state.json")" == engineering ]] || fail "被擋下的那一次動了站別"
+printf '%s\n' '{"schema_version":2,"status":"converged","station":"engineering","rounds":[],"stop":null}' \
+  > "$issue/.spine/loop-state.json"
+(cd "$repo" && bash "$RECORD" --issue issues/DP-000-selftest --summary s >/dev/null 2>&1) \
+  || fail "沒有停點的單寫不成交付紀錄"
+# 站別換了，位置重算會把單搬到 done/，所以從樹裡找它現在在哪。
+# 單獨搬走 verify-ac 的時候旁邊沒有 driving-work-to-done，站別沒有東西記，那一條不量。
+if [[ -f "$ROOT_DIR/../driving-work-to-done/scripts/spine-loop-state.sh" ]]; then
+  moved="$(find "$repo/issues" -path '*/DP-000-selftest/.spine/loop-state.json' | head -1)"
+  [[ -n "$moved" && "$(station_of "$moved")" == delivered ]] \
+    || fail "交付紀錄寫成了，站別還是 $( [[ -n "$moved" ]] && station_of "$moved")"
+fi
+echo "  ok  交付紀錄寫成的同一步站別到 delivered；有停點時兩樣都不動"
+
 # 版本是釋出模型，可攜層連這個詞都不該認得（DP-467 H-P3）。這一條咬住的是「這裡沒有
 # 版號詞彙」——紀錄裡不長出那個欄位，而且那個旗標遞進來會被當成不認得的參數擋掉。
 # 上一輪把它做成選填並寫了一段理由，那是半套：一個只有一條釋出尾段看得懂的欄位，

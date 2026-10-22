@@ -218,6 +218,11 @@ grep -q '^next_station=verify-ac$' <<<"$where7" || fail "where does not say wher
 bash "$LOOP" advance --state "$S7" --to verify-ac >/dev/null
 grep -q '^station=verify-ac$' <<<"$(bash "$LOOP" where --state "$S7")" \
   || fail "advancing did not move the station"
+assert_marker "delivered without a delivery record" POLARIS_SPINE_LOOP_DELIVERED_WITHOUT_RECORD \
+  bash "$LOOP" advance --state "$S7" --to delivered
+grep -q '^station=verify-ac$' <<<"$(bash "$LOOP" where --state "$S7")" \
+  || fail "a refused advance to delivered still moved the station"
+echo '{}' > "$WORK/delivery.json"
 bash "$LOOP" advance --state "$S7" --to delivered >/dev/null
 grep -q 'next_station=none' <<<"$(bash "$LOOP" where --state "$S7")" \
   || fail "delivered is not terminal: $(bash "$LOOP" where --state "$S7")"
@@ -303,10 +308,12 @@ git -C "$S10_ROOT" init -q
 git -C "$S10_ROOT" config user.email t@t
 git -C "$S10_ROOT" config user.name t
 bash "$LOOP" init --state "$(T_STATE)" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
-printf '{"status":"converged","rounds":[]}\n' > "$S10_ROOT/ns/done/OTHER/.spine/loop-state.json"
+printf '{"status":"converged","station":"delivered","rounds":[]}\n' > "$S10_ROOT/ns/done/OTHER/.spine/loop-state.json"
+echo '{}' > "$S10_ROOT/ns/done/OTHER/.spine/delivery.json"
 git -C "$S10_ROOT" add -A
 git -C "$S10_ROOT" commit -qm seed
-# T 收斂了：它身上沒有釋出紀錄，所以該推導成 done/，不是 released/。
+# T 收斂了但還沒判定：留在進行中（DP-865 A-P3）。判過、交付紀錄寫了，站別是 delivered，
+# 身上沒有釋出紀錄，才推導成 done/，不是 released/。
 #
 # **問的是推導出來的那一格，不是它躺在哪一條路徑上。** DP-676 之後重算會把搬得動的單搬到
 # 那一格，所以這裡不寫死路徑——每次去找那張單現在在哪，然後讀它自己的 `placement.json`。
@@ -315,13 +322,18 @@ slot_of() { python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("
 bash "$LOOP" record --state "$(T_STATE)" --outcome converged >/dev/null
 [[ -f "$(T_PLACEMENT_NOW)" ]] \
   || fail "重算沒有把推導結果寫回這張單：$(find "$S10_ROOT/ns" -maxdepth 3 -type d | tr '\n' ' ')"
+[[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "in-progress" ]] \
+  || fail "收斂而沒有判定的單被推導成 $(slot_of "$(T_PLACEMENT_NOW)")：$(cat "$(T_PLACEMENT_NOW)")"
+echo '{}' > "$(T_DIR)/.spine/delivery.json"
+bash "$LOOP" advance --state "$(T_STATE)" --to delivered >/dev/null
 [[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "done" ]] \
-  || fail "收斂的單沒有被推導成 done/：$(cat "$(T_PLACEMENT_NOW)")"
+  || fail "判過的單沒有被推導成 done/：$(cat "$(T_PLACEMENT_NOW)")"
 [[ ! -d "$S10_ROOT/ns/backlog/backlog" && ! -d "$S10_ROOT/ns/done/done" ]] \
   || fail "重算把某一個格子當成了整棵樹"
 [[ -d "$S10_ROOT/ns/done/T" ]] \
   || fail "重算沒有把這張單搬到它算出來的那一格（DP-676）：$(T_DIR)"
-# 又沒收斂了：推導要跟著回到還在做的那一格。OTHER 收斂著，它的紀錄不受影響。
+# 回去施工又沒收斂：推導要跟著回到還在做的那一格。OTHER 判過了，它的紀錄不受影響。
+bash "$LOOP" advance --state "$(T_STATE)" --to engineering >/dev/null
 bash "$LOOP" record --state "$(T_STATE)" --outcome unconverged >/dev/null
 [[ "$(slot_of "$(T_PLACEMENT_NOW)")" == "in-progress" ]] \
   || fail "沒收斂的單沒有離開 done/：$(cat "$(T_PLACEMENT_NOW)")"
@@ -396,6 +408,8 @@ echo "  ok  停住的逐張列名，不會被推薦"
 # 收斂完的算成數字，不列成清單——但那個數字必須在。DONE 住在 `done/` 底下，所以這同時
 # 證明跨單掃描看得到格子底下那一層，不是只掃命名空間正下方。
 bash "$LOOP" record --state "$(state_of "$S11" DONE)" --outcome converged >/dev/null
+echo '{}' > "$(dirname "$(state_of "$S11" DONE)")/delivery.json"
+bash "$LOOP" advance --state "$(state_of "$S11" DONE)" --to delivered >/dev/null
 [[ -d "$S11/nsA/done/DONE" ]] || fail "DONE 不在 done/ 底下了——重算搬了目錄？"
 out="$(bash "$LOOP" next --across-issues "$S11")"
 printf '%s' "$out" | grep -qE 'counted: .*settled=[1-9]' \
@@ -580,6 +594,7 @@ echo "  ok  還沒到終局站別的單不參與這道關卡"
 # 走到終局站別之後，同一個地方開不出第二輪。
 bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to verify-ac >/dev/null 2>&1 \
   || fail "推不到 verify-ac"
+echo '{}' > "$TREE/ns/older/.spine/delivery.json"
 bash "$LOOP13" advance --state "$TREE/ns/older/.spine/loop-state.json" --to delivered >/dev/null 2>&1 \
   || fail "推不到終局站別"
 taken="$(bash "$LOOP13" init --state "$TREE/ns/newer/.spine/loop-state.json" --pack setpack --where anywhere 2>&1)" \
@@ -704,5 +719,24 @@ assert entries[-1]["previous"] == ["place three"], entries
 assert entries[-1]["authorization"] == "就改", entries
 ' "$WORK/w16.json" || fail "改記沒有把舊值與原話留在檔案裡"
 echo "  ok  改記要帶人的原話，舊值與原話都留在檔案裡"
+
+# --- Case 17: 施工這一站改了 fence，沒有解停點就記不進去（DP-865 A-P4）----------------
+I17="$WORK/fence-issue"
+mkdir -p "$I17/.spine"
+printf '%s\n' '<!-- POLARIS-FROZEN-A-BEGIN -->' '- **A-P1**：原句。' '<!-- POLARIS-FROZEN-A-END -->' > "$I17/index.md"
+S17="$I17/.spine/loop-state.json"
+bash "$LOOP" init --state "$S17" --pack none --why '量測用的暫存 fixture，不是一件真的工作' >/dev/null
+bash "$LOOP" record --state "$S17" --outcome converged >/dev/null || fail "第一輪沒有上一輪可比，卻記不進去"
+sed -i.bak 's/原句/改過的句子/' "$I17/index.md"
+assert_marker "fence changed in engineering" POLARIS_SPINE_LOOP_FENCE_CHANGED_IN_ENGINEERING \
+  bash "$LOOP" record --state "$S17" --outcome converged
+[[ "$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["rounds"]))' "$S17")" == 1 ]] \
+  || fail "被拒的一輪還是寫進去了"
+bash "$LOOP" stop --state "$S17" --kind assertion_wrong --note 'A-P1 原句錯' >/dev/null
+sleep 1
+bash "$LOOP" advance --state "$S17" --to engineering --by 測試者 --authorization '就改' >/dev/null
+bash "$LOOP" record --state "$S17" --outcome converged >/dev/null \
+  || fail "解過停點之後重簽的 fence，還是記不進去"
+echo "  ok  施工站改 fence 沒有解停點就不記，解過的照記"
 
 echo "PASS: spine-loop-state-selftest.sh"

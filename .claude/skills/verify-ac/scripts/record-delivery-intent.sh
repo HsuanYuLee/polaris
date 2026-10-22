@@ -394,6 +394,24 @@ OUT_DIR="$ISSUE_DIR/.spine"
 mkdir -p "$OUT_DIR"
 OUT="$OUT_DIR/delivery.json"
 
+# 寫成交付紀錄的同一步，站別記成 delivered（DP-865 A-P1）。以前站別只靠有人記得 advance，
+# 而從來沒有人記得：2026-10-22 量到一個母單底下七張判過 PASS、寫了交付紀錄的單，站別全部停在
+# engineering／refinement，位置重算照樣把它們放進 done。站別停著的時候這兩件事分不開。
+#
+# 單上有沒解的停點就不寫：advance 走不過停點，先寫紀錄再換站失敗的話，紀錄與站別會各說各話。
+LOOP_STATE="$ISSUE_DIR/.spine/loop-state.json"
+SPINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/driving-work-to-done/scripts/spine-loop-state.sh"
+if [[ -f "$LOOP_STATE" ]]; then
+  STOP_KIND="$(python3 -c '
+import json, sys
+stop = json.load(open(sys.argv[1], encoding="utf-8")).get("stop") or {}
+print(stop.get("kind") or "")
+' "$LOOP_STATE" 2>/dev/null || true)"
+  [[ -z "$STOP_KIND" ]] || die "POLARIS_DELIVERY_INTENT_STOPPED" \
+    "這張單停在 ${STOP_KIND}，還沒有人解。交付紀錄寫了站別也走不到 delivered，所以這一次不寫。" \
+    "先解停點（spine-loop-state.sh advance --by <人> --authorization '<原話>'），再跑一次。"
+fi
+
 python3 - "$OUT" "$ISSUE_DIR" "$destination" "$HEAD_SHA" \
   "$SUMMARY" "$judged_by" "$judged_at" "$ISSUE_HEAD_SHA" "$HEAD_DELTA" \
   "$EVIDENCE_HEADS" <<'PY'
@@ -490,4 +508,12 @@ PY
 
 echo "RECORDED: $OUT"
 echo "  destination=$destination head=${HEAD_SHA:0:12} source_head=${ISSUE_HEAD_SHA:0:12}"
+
+if [[ ! -f "$LOOP_STATE" ]]; then
+  echo "NOTE: 這張單沒有輪次狀態，站別沒有地方記 delivered。"
+elif [[ ! -f "$SPINE" ]]; then
+  echo "NOTE: 旁邊沒有 driving-work-to-done，站別這一次沒有記成 delivered（$SPINE 不在）。"
+else
+  bash "$SPINE" advance --state "$LOOP_STATE" --to delivered
+fi
 

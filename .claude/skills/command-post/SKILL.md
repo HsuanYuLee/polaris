@@ -60,8 +60,13 @@ python3 .claude/skills/command-post/scripts/command-post.py --declare \
   --session-id <自己的 sessionId> \
   --line '哪條線' --browser '有／沒有' \
   --holding '接的是什麼' --blocked-on '現在卡在哪；沒卡就寫「沒有」' \
-  --tickets-opened '開了哪幾張單給誰'
+  --tickets-opened '開了哪幾張單給誰' \
+  [--station '<站別>'] [--skills '<載著哪幾支 skill>']
 ```
+
+**`--station` 與 `--skills` 讓板子說得出每條線在哪一站、載著什麼**（DP-865）。`--holding` 裡有一個
+問得到的單號時，站別由那張單的輪次狀態說——自己報的跟它不同就 exit 2、不寫宣告，因為板子上
+會有兩個答案。沒給的那一格，板子上寫「沒宣告」。
 
 **`--line` 回答「你是哪條線」**：接手的指揮官看得到有十個 session，看不出哪一個是 review、
 哪一個在跑 DP——這一格補的就是那個洞，不另開一份角色表。**`--browser`** 是因為瀏覽器有沒有
@@ -517,8 +522,13 @@ Chrome 最前面，回報分頁標題。指揮官給使用者的第一則只寫�
 
 ```bash
 python3 .claude/skills/command-post/scripts/command-post.py --order \
-  --issue <那張單的路徑> --to <session 名> [--from <回報給誰>]
+  --issue <那張單的路徑> --to <session 名> [--from <回報給誰>] [--skill <派的是哪一站的 skill>]
 ```
+
+**它會問那張單在哪一站，寫進指令**：「這張單現在在 engineering 站：從 /engineering 開始」。站別問
+`spine-loop-state.sh where`，不在這裡推。問不到就 exit 8、不產出——不知道在哪一站，就不知道該叫
+收件者從哪一支 skill 開始。給了 `--skill` 而它跟站別對到的 skill 不同就 exit 9：要它回某一站，
+先在那張單上換站，不是在派工句裡改口。
 
 它只印出來，不送給任何人——送出去仍然是 `SendMessage`，那是一個不可逆的動作。
 

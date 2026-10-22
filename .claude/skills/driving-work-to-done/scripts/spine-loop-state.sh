@@ -1163,6 +1163,65 @@ if data["status"] == "escalated":
 # What still stops a runaway is the cap below, which is the only thing the cap was ever
 # for: unconverged rounds piling up with no progress.
 
+# 施工這一站不改成功的定義（DP-865 A-P4）。fence 跟上一輪記下時不同，而兩輪之間沒有任何
+# 一筆 assertion_wrong 解停點，就是有人在 engineering 裡改了 AC 而沒有回 refinement——
+# 2026-10-08 一張產品單的第 2 輪差一點就是這個形狀，它沒有被當成這個形狀，是因為那一次真的
+# 停過、解過。這裡分得開那兩種。
+import hashlib
+import os
+import re
+import subprocess
+
+FENCE = re.compile(r"<!-- POLARIS-FROZEN-([A-Za-z0-9_-]+)-BEGIN -->\n(.*?)<!-- POLARIS-FROZEN-\1-END -->",
+                   re.S)
+
+def fence_hashes(text):
+    return {key: "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
+            for key, body in FENCE.findall(text)}
+
+index = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(state))), "index.md")
+current_fences = None
+if os.path.isfile(index):
+    current_fences = fence_hashes(open(index, encoding="utf-8").read())
+
+def fences_at(when):
+    """上一輪沒有記下 fence 時（這一版之前的輪次），問 git 那個時間點的 index.md。"""
+    folder = os.path.dirname(index)
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+    try:
+        rev = subprocess.run(["git", "-C", folder, "rev-list", "-1", f"--before={when}", "HEAD", "--",
+                              os.path.basename(index)], capture_output=True, text=True, env=env,
+                             check=True).stdout.strip()
+        if not rev:
+            return None
+        rel = subprocess.run(["git", "-C", folder, "ls-files", "--full-name", os.path.basename(index)],
+                             capture_output=True, text=True, env=env, check=True).stdout.strip()
+        text = subprocess.run(["git", "-C", folder, "show", f"{rev}:{rel}"], capture_output=True,
+                              text=True, env=env, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return fence_hashes(text)
+
+previous_round = data["rounds"][-1] if data["rounds"] else None
+if data.get("station") == "engineering" and previous_round and current_fences is not None:
+    before = previous_round.get("fence_hashes")
+    if before is None:
+        before = fences_at(previous_round.get("recorded_at") or "")
+    if before is not None and before != current_fences:
+        since = previous_round.get("recorded_at") or ""
+        cleared = any(c.get("kind") == "assertion_wrong" and (c.get("at") or "") > since
+                      for c in data.get("clearances") or [])
+        if not cleared:
+            changed = sorted(k for k in set(before) | set(current_fences)
+                             if before.get(k) != current_fences.get(k))
+            fail("POLARIS_SPINE_LOOP_FENCE_CHANGED_IN_ENGINEERING",
+                 f"fence {', '.join(changed)} 跟上一輪（{since}）記下時不同，而這中間沒有 assertion_wrong 的解停點。",
+                 "施工這一站不改成功的定義，所以這一輪不記。回 refinement 重簽：",
+                 "  1. spine-loop-state.sh stop --kind assertion_wrong --note '<哪一條、為什麼錯>'",
+                 "  2. 在 refinement 重簽、seal、commit",
+                 "  3. spine-loop-state.sh advance --to engineering --by <人> --authorization '<原話>'",
+                 "然後再記這一輪。")
+
 data["rounds"].append({
     "index": len(data["rounds"]) + 1,
     # Which run of the loop this round belongs to. reset opens a new lineage
@@ -1174,6 +1233,8 @@ data["rounds"].append({
     "produced_code_delta": outcome not in ("zero_delta",),
     "note": note or None,
     "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    # 下一輪拿來比的那一份。讀不到 index.md 就記 None，下一輪改問 git。
+    "fence_hashes": current_fences,
 })
 
 if outcome == "converged":
@@ -1475,6 +1536,16 @@ if authorization.strip() and not data.get("stop"):
           "重設輪次上限用 reset --by <你> --authorization '<原話>'，"
           "改落腳處用 land --where <路徑> --authorization '<原話>'。", file=sys.stderr)
     print("這一次只是要換站的話，把 --authorization 拿掉再跑一次。", file=sys.stderr)
+    sys.exit(2)
+
+# delivered 是「判過、交付紀錄寫了」，不是一句宣告。沒有交付紀錄就記不進去——交付紀錄
+# 只有判定那一站寫得出來，而它寫成的那一步自己會走到這裡（DP-865 A-P1）。
+import os
+if to == "delivered" and not os.path.isfile(os.path.join(os.path.dirname(state), "delivery.json")):
+    print("POLARIS_SPINE_LOOP_DELIVERED_WITHOUT_RECORD", file=sys.stderr)
+    print("這張單沒有 .spine/delivery.json，所以站別記不成 delivered。", file=sys.stderr)
+    print("交付紀錄由 verify-ac 的 record-delivery-intent.sh 寫，寫成的那一步會自己把站別記成 delivered。",
+          file=sys.stderr)
     sys.exit(2)
 
 previous = data.get("station", "engineering")

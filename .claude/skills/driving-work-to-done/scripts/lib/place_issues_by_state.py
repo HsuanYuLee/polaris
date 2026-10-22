@@ -373,18 +373,34 @@ def slot_from_spine(ticket_dir: str) -> tuple[str, str, dict] | None:
                                       "closed_on": state.get("closed_on") or UNDATED,
                                       "mine": True}
 
+    station = state.get("station") or "engineering"
     if state.get("status") == "converged":
         release = release_record(ticket_dir)
         if release and release.get("released_on"):
             return RELEASED, "loop-state+release", {"released_on": release["released_on"],
                                                     "version": release.get("version"),
                                                     "mine": True}
-        return DONE, "loop-state", {"why": "收斂了，但單身上沒有釋出紀錄",
-                                    "mine": True}
+    # done 只收判過的（DP-865 A-P3）。收斂只說「施工這一輪做完了」；判定過、交付紀錄寫了，
+    # 站別才是 delivered。以前收斂就落 done，於是 2026-10-22 一個母單底下有五張站別停在
+    # engineering／refinement 的單躺在 done 裡，看起來跟判過的一模一樣。
+    if station == "delivered":
+        detail = {"why": "判過了，但單身上沒有釋出紀錄", "mine": True}
+        if not os.path.isfile(os.path.join(ticket_dir, ".spine", "delivery.json")):
+            detail["why"] = "站別是 delivered，但單身上沒有 delivery.json"
+            detail["delivered_without_record"] = True
+        return DONE, "loop-state", detail
+    converged_unjudged = state.get("status") == "converged"
+    if converged_unjudged and station != "refinement":
+        why = "收斂了，但沒有判定（站別是 " + station + "）"
+        if station == "verify-ac" and pack_of(state) == CODE_PACK:
+            return IN_REVIEW, "loop-state", {"station": station, "mine": True, "why": why}
+        return IN_PROGRESS, "loop-state", {"station": station, "mine": True, "why": why}
 
-    station = state.get("station") or "engineering"
     if station == "refinement":
-        return BACKLOG, "loop-state", {"station": station, "mine": True}
+        detail = {"station": station, "mine": True}
+        if converged_unjudged:
+            detail["why"] = "收斂了，但沒有判定（站別是 refinement）"
+        return BACKLOG, "loop-state", detail
     # 站別已經離開 refinement，而還沒有人記過一輪。以前這一種跟「還在 refinement」共用
     # 一條判斷，於是它被說成「立案了，還沒開工」——而 backlog 那一格的意思就是那句話。
     # 站別離開 refinement 的唯一方式是有人 advance 過，所以它已經開工了；沒記過輪次講的
@@ -1245,7 +1261,16 @@ def main(argv=None) -> int:
             if not os.path.isdir(row["from_dir"]):
                 note_vanished(row)
         moved = [row for row in moved if os.path.isdir(row["from_dir"])]
-        move_pairs = [(row["from_dir"], row["to_dir"]) for row in moved]
+        # 同一趟裡母單先搬走的話，子單跟著它換了位置，算好的舊路徑就不在了——那一次是一個
+        # traceback，整趟停在半路（DP-865 重算幾百張的時候撞到）。所以搬之前沿著這一趟已經
+        # 搬過的祖先改寫它的舊路徑；改寫完還是不在，就說出來、跳過它。
+        done_moves: list[tuple[str, str]] = []
+        def follow(path: str) -> str:
+            for old, new in reversed(done_moves):
+                if path.startswith(old + os.sep):
+                    return new + path[len(old):]
+            return path
+        move_pairs = []
         # **先說出打算搬哪幾張，再搬。** 搬動改寫的是好幾個 session 共用的那棵樹，而且會
         # 落一顆 commit——一個做完才報數的動作，被打斷的時候沒有人知道它動到哪裡為止。
         print(f"要搬 {len(moved)} 張：" if moved else "沒有要搬的單")
@@ -1254,7 +1279,14 @@ def main(argv=None) -> int:
                   f"{os.path.relpath(row['from_dir'], issues_root)}"
                   f" → {os.path.relpath(row['to_dir'], issues_root)}")
         for row in moved:
+            source = follow(row["from_dir"])
+            if not os.path.isdir(source) or os.path.exists(row["to_dir"]):
+                note_vanished(row)
+                continue
+            row["from_dir"] = source
+            move_pairs.append((source, row["to_dir"]))
             move_home(issues_root, row)
+            done_moves.append(move_pairs[-1])
         commit_notes = commit_moves(issues_root, move_pairs)
         # 清單只在問過解析器的那種執行裡重寫。spine-only 看不到靠解析器回答的那些命名空間，
         # 讓它重寫等於每記一輪就把清單上的那些單全部刪掉一次。

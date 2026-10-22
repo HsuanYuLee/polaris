@@ -166,6 +166,15 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh close \
 **換站不需要說服任何腳本。** `advance` 是記下來，不是請求核准。還會擋人的只有兩類：
 不可逆的動作，以及證據不足。
 
+**站別寫在資料裡，而且有兩處是證據自己寫的**（DP-865）。站別只靠有人記得 `advance` 的時候，
+從來沒有人記得：2026-10-22 一個母單底下七張判過、寫了交付紀錄的單，站別全部停在施工或更前面。
+
+- **`delivered` 由交付紀錄寫成的那一步記下。** `verify-ac` 的 `record-delivery-intent.sh` 寫成
+  交付紀錄時順手 `advance --to delivered`；單上沒有交付紀錄，`advance --to delivered` 拒絕。
+- **施工這一站記一輪時，凍結塊跟上一輪記下時不同，而兩輪之間沒有任何一筆 `assertion_wrong`
+  解停點，這一輪不記**，印出回 `refinement` 重簽的三步。凍結塊只有一條路可以改，見〈三〉之後
+  那一節與 `refinement`〈重簽〉。
+
 ## 三、只在四個地方停
 
 流程停下來的時候要說出是哪一種，而且要留下紀錄——**停在紀錄外等於沒停**，回來的人只
@@ -413,7 +422,11 @@ bash .claude/skills/driving-work-to-done/scripts/place-issues-by-state.sh --issu
 躺在待辦裡被每一次〈四〉重新看過一遍，要嘛被人手動刪掉——而刪掉的那一張，下一次有人提出
 同一件事時說不出「這討論過，結論是不做」。走進那一格的方式是上面〈二〉的 `close`。
 
-**收斂了不一定算進 done。** 命名空間可以宣告它自己的完成條件，形狀跟 `ISSUE-STATE-{命名空間}`
+**收斂了不算進 done，判過了才算。** 收斂只說施工那一輪做完了；`done` 只收站別是 `delivered`
+的單。收斂了而站別還在施工的落進行中、還在判定的落 review 那一格，清單上說「收斂了，但沒有
+判定」。站別是 `delivered` 而單上沒有交付紀錄的，逐張指名。
+
+**判過了也不一定算進 done。** 命名空間可以宣告它自己的完成條件，形狀跟 `ISSUE-STATE-{命名空間}`
 同一套：
 
 ```

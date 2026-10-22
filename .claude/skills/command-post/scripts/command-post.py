@@ -30,6 +30,47 @@ SPINE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "driving-work-to-done", "scripts", "spine-loop-state.sh")
 
 
+def spine_station(issue_path):
+    """那張單現在在哪一站，問權威（spine-loop-state.sh where），不在這裡推（DP-865）。
+
+    回傳 (station, problem)。站別的名字就是那一站的 skill 名；`delivered` 沒有下一站的 skill。
+    """
+    state = os.path.join(issue_path, ".spine", "loop-state.json")
+    if not os.path.exists(SPINE):
+        return None, "問不到站別：" + SPINE + " 不在"
+    if not os.path.isfile(state):
+        return None, "問不到站別：這張單沒有輪次狀態（" + state + "）"
+    try:
+        out = subprocess.run(["bash", SPINE, "where", "--state", state],
+                             capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, "問不到站別：" + str(exc)
+    for row in out.stdout.splitlines():
+        if row.startswith("station="):
+            return row.split("=", 1)[1].strip(), None
+    return None, "問不到站別：where 沒有印 station（" + (out.stderr.strip() or "無輸出") + "）"
+
+
+def held_issue(holding):
+    """宣告裡「接的是什麼」指得到哪一張單：第一個問得到的單號，問 spine-loop-state.sh find。"""
+    if not holding or not os.path.exists(SPINE):
+        return None
+    for key in re.findall(r"(?<![A-Za-z0-9])[A-Z][A-Z0-9]*-\d+(?![0-9])", holding):
+        try:
+            out = subprocess.run(["bash", SPINE, "find", key], capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        found = out.stdout.strip().splitlines()
+        if out.returncode == 0 and found and os.path.isdir(found[0]):
+            return found[0]
+    return None
+
+
+def station_skill(station):
+    """站別對到的 skill。delivered 是終點，沒有一支 skill 要從那裡開始。"""
+    return None if station == "delivered" else station
+
+
 def transcript_path(cwd, session_id):
     """cwd 換成 projects 底下的目錄名。
 
@@ -87,17 +128,20 @@ def declaration_line(decl):
         opened = chr(12289).join(str(x) for x in opened) or "無"
     return "｜".join([f"線：{decl.get('line') or '（宣告沒說——舊宣告缺 line）'}",
                       f"瀏覽器：{decl.get('browser') or '（宣告沒說——舊宣告缺 browser）'}",
+                      f"站：{decl.get('station') or '沒宣告'}",
+                      f"skills：{decl.get('skills') or '沒宣告'}",
                       f"接：{decl['holding']}",
                       f"卡：{decl['blocked_on']}", f"開單：{opened}"])
 
 
 def write_declaration(session_id, holding, blocked_on, tickets_opened,
-                      line=None, browser=None):
+                      line=None, browser=None, station=None, skills=None):
     """這個 session 寫下自己的那一行。**只寫自己的那一份，不碰別人的。**"""
     os.makedirs(DECLARATIONS, exist_ok=True)
     path = declaration_path(session_id)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"session_id": session_id, "line": line, "browser": browser,
+                   "station": station, "skills": skills,
                    "holding": holding,
                    "blocked_on": blocked_on, "tickets_opened": tickets_opened,
                    "declared_at": time.time()}, fh, ensure_ascii=False, indent=2)
@@ -887,20 +931,27 @@ SOURCE_RULE = (
 )
 
 
-def order_text(issue_path, to_name, from_name):
+def order_text(issue_path, to_name, from_name, station=None):
     """一則派工指令的全文。
 
     它只做兩件別的地方做不到的事：**確認那條路徑真的存在**，以及把「回報給誰」寫死在
     文字裡。指揮者手打的那一版兩件都會漏——漏掉的樣子是安靜的：一個指向不存在位置的
     成功定義，讀起來跟一份好的成功定義一模一樣。
 
-    它**不讀那張單的內容，也不讀它的輪次狀態**。這一支不判定任何工作在哪一站——那在
-    driving-work-to-done，只在那裡。這裡只確認路徑在。
+    它**不讀那張單的內容**，也不自己判定那張單在哪一站——站別問 driving-work-to-done 的
+    spine-loop-state.sh（`spine_station`），原樣寫進指令，讓收件者從那一站的 skill 開始。
     """
+    if station is None:
+        where = []
+    elif station_skill(station):
+        where = ["這張單現在在 " + station + " 站：從 /" + station_skill(station) + " 開始。", ""]
+    else:
+        where = ["這張單在 delivered 站，已經判過交付。要再改它，回 engineering 並重走 verify-ac。", ""]
     return "\n".join([
         BROWSER_MENTION,
         "去做 " + issue_path + "。",
         "",
+        *where,
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
         "",
@@ -1643,6 +1694,9 @@ def main():
                     help="--declare 用：開了哪幾張單給誰")
     ap.add_argument("--line", help="--declare 用：你是哪條線")
     ap.add_argument("--browser", help="--declare 用：有沒有瀏覽器工具（有／沒有）")
+    ap.add_argument("--station", help="--declare 用：手上那張單在哪一站；接的是一張單時跟它的輪次狀態對")
+    ap.add_argument("--skills", help="--declare 用：現在載著哪幾支 skill")
+    ap.add_argument("--skill", help="--order 用：派的是哪一站的 skill；跟那張單的站別不同就不產出")
     ap.add_argument("--log", action="store_true",
                     help="往指揮官日誌記一筆（收到回報、做了裁決時）。append-only。")
     ap.add_argument("--who", help="--log 用：這一筆是誰的事")
@@ -1846,6 +1900,19 @@ def main():
             print("要它們互相審對方的結論就用 --review（它會一人產一則，"
                   "並且說出對方是誰）。", file=sys.stderr)
             return 6
+        station = None
+        if args.order:
+            station, prob = spine_station(args.issue)
+            if prob:
+                print(prob, file=sys.stderr)
+                print("不知道這張單在哪一站，就不知道該叫收件者從哪一支 skill 開始——所以這裡不產出指令。",
+                      file=sys.stderr)
+                return 8
+            if args.skill and args.skill.lstrip("/") != station_skill(station):
+                print("派的 skill 是 " + args.skill + "，但這張單在 " + station + " 站（該站的 skill 是 "
+                      + (station_skill(station) or "沒有——它已經判過交付了") + "）。", file=sys.stderr)
+                print("兩個對不上就不產出指令。要它回某一站，先在那張單上換站。", file=sys.stderr)
+                return 9
         # 產出那一刻落一筆。**產出不等於送出**——送出仍然是 SendMessage，所以這一筆寫的是
         # 「產出了給誰的指令」，不是「送出了」。
         _, prob = append_journal("互審" if args.review else "派工", frm, [
@@ -1862,7 +1929,7 @@ def main():
                      for i, me in enumerate(to_names)]
             out = review_orders(args.issue, to_names, args.about, frm)
         else:
-            pairs = [(to_names[0], order_text(args.issue, to_names[0], frm))]
+            pairs = [(to_names[0], order_text(args.issue, to_names[0], frm, station))]
             out = pairs[0][1]
         for to_name, text in pairs:
             prob = record_sent(to_name, text, now=args.now_epoch)
@@ -1904,8 +1971,20 @@ def main():
                 print("沒說是哪條線的話，接手的指揮官看得到有這個 session，看不出它是哪一條。",
                       file=sys.stderr)
             return 2
+        # 接的是一張單的時候，站別由那張單的輪次狀態說（DP-865 A-P6）。自己報的跟它不同，
+        # 板子上就會有兩個答案，所以不寫。
+        station = args.station
+        held = held_issue(args.holding)
+        if held:
+            actual, prob = spine_station(held)
+            if actual and station and station != actual:
+                print("宣告的站別是 " + station + "，但 " + held + " 的輪次狀態說是 " + actual
+                      + "。兩個不同就不寫宣告。", file=sys.stderr)
+                return 2
+            station = actual or station
         path = write_declaration(args.session_id, args.holding, args.blocked_on,
-                                 args.tickets_opened, line=args.line, browser=args.browser)
+                                 args.tickets_opened, line=args.line, browser=args.browser,
+                                 station=station, skills=args.skills)
         _, prob = append_journal("宣告", session_name_of(args.session_id), [
             ("線", args.line), ("瀏覽器", args.browser), ("接", args.holding),
             ("卡", args.blocked_on), ("開單", args.tickets_opened)], now=args.now_epoch)
