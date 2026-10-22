@@ -186,6 +186,17 @@ bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh stop \
 這四種以外的字串會被拒絕。**這四種以外的理由不是停下來的理由**——特別不包括「要不要
 繼續？」「要我往下做嗎？」，那不是停點，那是把判斷推回給人。
 
+**停下來那一刻，`stop` 會把同一件事既有的決定印在後面**：這張單正文的〈使用者原話〉與標題含
+「決定」「裁定」的段落、`--note` 與單名裡的單號／PR 號在其他 skill 宣告接進來的來源裡的命中，
+逐條帶 `path:line`。要問人之前先讀它，答案常常已經在那裡。來源由宣告接進來，核心不認得任何一個：
+
+```
+<!-- {任意前綴}-PRIOR-DECISIONS: {命令} -->
+```
+
+`prior-decisions.py` 把鍵接在命令後面、在 repo 根目錄跑，`PRIOR_DECISIONS_BEFORE_EPOCH` 帶著
+「只要這一刻以前的」。它只印不擋，找不到就說找不到。
+
 ### assertion 錯了，不一定要停下來問人
 
 **分界是母單的意圖。** 修正不改變母單意圖的 `assertion_wrong`，由那條線照 `refinement`〈重簽〉

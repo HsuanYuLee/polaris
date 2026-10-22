@@ -298,6 +298,16 @@ ticket，每一項都有實作 session 做得動——而它的 context 在那�
 細節。`--say`／`--order` 產出時會在 stderr 依時間印出今天日誌裡帶「原話」的句子，只給
 寫那一則的人看，不進本文；所以裁決要記成原話，才會在那一刻出現。
 
+`--say` 產出時同一處還印**本文裡單號與 PR 號的既有決定**：日誌與其他 skill 宣告接進來的來源，
+只取這一刻以前的，每條帶 `path:line`。日誌那一份由下面這一行接進去：
+
+<!-- POLARIS-PRIOR-DECISIONS: python3 .claude/skills/command-post/scripts/command-post.py --prior-decisions -->
+
+**記使用者的一句話時，順手標它的答案早就在不在。** `--log --answer-existed <path:line|URL|none|n/a>`
+多記一個欄位；對已經記下的一筆用 `--annotate-answer <行號> --answer-existed …` 另寫一筆標註，
+原筆不改。`--answer-stats --since D --until D` 把帶原話的「紀錄｜使用者」分成早已在／沒有／
+不適用／還沒標四類，印出比例。標的是人讀過之後的判斷，腳本不替人判。
+
 2026-10-21 的標本：使用者裁「先一起擋」兩個分頁，一分鐘後說「hotfix 趕快寫出來」。
 指揮官把 hotfix 單獨讀成修那兩頁的查詢，還多出一條「擋法先上、修好再解擋」的兩線並行，
 派一條線加索引一個多小時；使用者要的是前端直接不顯示那兩頁。使用者原話：「前面明明你

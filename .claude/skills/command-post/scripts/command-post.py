@@ -757,6 +757,130 @@ def user_words_note(now=None):
                       "這一則照上面那幾句讀得通嗎？讀出兩種方向、或多出一條裁決裡沒有的路，先問使用者。"])
 
 
+# 一筆使用者的話記下來時，那句話的答案是不是早就寫在某處。值是 path:line／URL（早已在）、
+# none（沒有）、n/a（不適用）。它是一個欄位，不是判定：誰標、標成什麼都是人讀過之後的事。
+ANSWER_FIELD = "答案早已在"
+ANNOTATE_KIND = "標註"
+ANSWER_NONE, ANSWER_NA = "none", "n/a"
+PRIOR_PER_KEY = 5
+
+
+def journal_entries_with_lines():
+    """回傳 ([(標頭行號, [行...])], problem)。行號從 1 起，跟 `sed -n` 對得上。"""
+    if not os.path.exists(JOURNAL):
+        return [], f"日誌還不存在：{JOURNAL}"
+    try:
+        with open(JOURNAL, encoding="utf-8") as fh:
+            rows = fh.read().splitlines()
+    except OSError as exc:
+        return [], f"日誌讀不動：{JOURNAL}（{exc}）"
+    entries, cur = [], None
+    for no, ln in enumerate(rows, 1):
+        if ENTRY_HEAD.match(ln):
+            cur = (no, [ln])
+            entries.append(cur)
+        elif cur is not None:
+            cur[1].append(ln)
+    return entries, None
+
+
+def is_user_entry(head):
+    return "｜ 紀錄 ｜ 使用者" in head
+
+
+def prior_decisions_text(keys, before=None, per_key=PRIOR_PER_KEY):
+    """日誌裡每個鍵在 `before` 以前最近幾筆使用者條目、決定欄與原話，逐行帶 `journal.md:行號`。
+
+    給 `prior-decisions.py` 當一個宣告來源：沒命中就不印，讀不到就非 0 並說出來。
+    """
+    entries, prob = journal_entries_with_lines()
+    if prob:
+        return [], prob
+    out = []
+    for key in keys:
+        hits = []
+        for no, rows in entries:
+            when = entry_epoch(rows[0])
+            if before and (when is None or when >= before):
+                continue
+            body = "\n".join(rows)
+            if key not in body:
+                continue
+            user = is_user_entry(rows[0])
+            picked = [(no + i, r) for i, r in enumerate(rows) if i and r.strip()
+                      and (user or "原話" in r or r.startswith("- 決定："))]
+            if picked:
+                hits.append((no, rows[0], picked))
+        for no, head, picked in hits[-per_key:]:
+            out.append(f"{JOURNAL}:{no} {head.lstrip('#').strip()}（鍵 {key}）")
+            out += [f"{JOURNAL}:{n}   {r.strip()[:300]}" for n, r in picked]
+    return out, None
+
+
+def answer_marks(entries):
+    """標頭行號 → 最後一次標的值。帶欄位的那一筆自己算一次，之後的標註覆蓋它。"""
+    marks = {}
+    for no, rows in entries:
+        field = next((r.split("：", 1)[1].strip() for r in rows
+                      if r.startswith(f"- {ANSWER_FIELD}：")), None)
+        if field is None:
+            continue
+        if f"｜ {ANNOTATE_KIND} ｜" in rows[0]:
+            target = next((r for r in rows if r.startswith("- 標的：")), "")
+            m = re.match(r"- 標的：第 (\d+) 行", target)
+            if m:
+                marks[int(m.group(1))] = field
+        else:
+            marks[no] = field
+    return marks
+
+
+def answer_stats_text(since, until):
+    """範圍內「紀錄｜使用者」帶原話的每一筆分四類，印筆數、清單與比例。"""
+    entries, prob = journal_entries_with_lines()
+    if prob:
+        return prob, 7
+    marks = answer_marks(entries)
+    groups = {"早已在": [], "沒有": [], "不適用": [], "還沒標": []}
+    for no, rows in entries:
+        day = rows[0].lstrip("#").strip()[:10]
+        if not (since <= day <= until) or not is_user_entry(rows[0]):
+            continue
+        if not any("原話" in r for r in rows[1:]):
+            continue
+        v = marks.get(no)
+        g = ("還沒標" if v is None else "沒有" if v == ANSWER_NONE
+             else "不適用" if v == ANSWER_NA else "早已在")
+        groups[g].append(f"  {JOURNAL}:{no} {rows[0].lstrip('#').strip()}"
+                         + (f" → {v}" if g == "早已在" else ""))
+    total = sum(len(v) for v in groups.values())
+    if not total:
+        return f"{since}～{until} 日誌裡沒有帶原話的「紀錄｜使用者」。", 0
+    out = [f"{since}～{until} 帶原話的「紀錄｜使用者」共 {total} 筆"]
+    for g, rows in groups.items():
+        out.append(f"{g}：{len(rows)} 筆")
+        out += rows
+    known = len(groups["早已在"]) + len(groups["沒有"])
+    out.append("比例（早已在÷（早已在＋沒有））：" + (
+        f"{len(groups['早已在'])}/{known} = {len(groups['早已在']) / known:.0%}" if known
+        else "分母是 0，還沒有任何一筆標成早已在或沒有")
+        + f"；不適用 {len(groups['不適用'])}、還沒標 {len(groups['還沒標'])} 不進分母")
+    return "\n".join(out), 0
+
+
+def prior_decisions_note(text, now=None):
+    """`--say` 那一刻印在 stderr 的既有決定。問不到不擋送出，說出來就好。"""
+    script = os.path.join(os.path.dirname(SPINE), "prior-decisions.py")
+    cmd = [sys.executable, script, "--text", text,
+           "--before-epoch", str(now or time.time())]
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"既有決定問不到：{script}（{type(exc).__name__}）"
+    return (res.stdout.rstrip() or res.stderr.rstrip()
+            or f"既有決定問不到：{script} 沒有輸出（exit {res.returncode}）")
+
+
 SOURCE_RULE = (
     "每一句事實標出來源：量到（附命令或截圖）、讀到（附權威檔 path:line）、推的。"
     "推的只能寫成待驗假設，不寫成狀態或規矩。"
@@ -1559,6 +1683,18 @@ def main():
     ap.add_argument("--lookup", nargs="+", metavar="KEY", default=None,
                     help="每個單號／PR 號／人名，印日誌裡的命中、各線宣告裡的命中、最後一句在等有沒有它"
                          "（筆數照 --journal-tail，宣告照 --since-hours）。唯讀。")
+    ap.add_argument("--answer-existed", default=None, metavar="WHERE",
+                    help="--log／--annotate-answer 用：這句話的答案早已在哪（path:line／URL），"
+                         "none＝沒有、n/a＝不適用。是人讀過之後標的，不是判定")
+    ap.add_argument("--annotate-answer", type=int, default=None, metavar="LINE",
+                    help="替日誌第 LINE 行開頭的那一筆補標「答案早已在」。另寫一筆標註，原筆不改")
+    ap.add_argument("--answer-stats", action="store_true",
+                    help="彙總 --since～--until 帶原話的「紀錄｜使用者」：早已在／沒有／不適用／還沒標")
+    ap.add_argument("--since", default=None, help="--answer-stats 用：起日 YYYY-MM-DD")
+    ap.add_argument("--until", default=None, help="--answer-stats 用：迄日 YYYY-MM-DD（含）")
+    ap.add_argument("--prior-decisions", nargs="+", metavar="KEY", default=None,
+                    help="每個單號／PR 號，印日誌裡最近幾筆使用者條目、決定欄與原話。"
+                         "只取 PRIOR_DECISIONS_BEFORE_EPOCH（或 --now-epoch）以前的。唯讀。")
     ap.add_argument("--whoami", action="store_true",
                     help="印出跑這一趟的那個 session 的 sessionId。推出來的，不靠任何宣告。")
     args = ap.parse_args()
@@ -1570,6 +1706,40 @@ def main():
             print(why, file=sys.stderr)
             return 2
         print(sid)
+        return 0
+    if args.prior_decisions:
+        before = args.now_epoch or float(os.environ.get("PRIOR_DECISIONS_BEFORE_EPOCH") or 0) or None
+        lines, prob = prior_decisions_text(args.prior_decisions, before=before)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
+        if lines:
+            print("\n".join(lines))
+        return 0
+    if args.answer_stats:
+        if not (args.since and args.until):
+            print("--answer-stats 要 --since 與 --until（YYYY-MM-DD）", file=sys.stderr)
+            return 2
+        text, code = answer_stats_text(args.since, args.until)
+        print(text, file=sys.stderr if code else sys.stdout)
+        return code
+    if args.annotate_answer is not None:
+        if not args.answer_existed:
+            print("--annotate-answer 要 --answer-existed", file=sys.stderr)
+            return 2
+        entries, prob = journal_entries_with_lines()
+        head = next((rows[0] for no, rows in entries if no == args.annotate_answer), None)
+        if prob or head is None:
+            print(prob or f"日誌第 {args.annotate_answer} 行不是一筆的開頭：{JOURNAL}",
+                  file=sys.stderr)
+            return 2
+        path, prob = append_journal(ANNOTATE_KIND, args.who or COMMANDER_LINE, [
+            ("標的", f"第 {args.annotate_answer} 行 {head.lstrip('#').strip()}"),
+            (ANSWER_FIELD, args.answer_existed)], now=args.now_epoch)
+        if prob:
+            print(prob, file=sys.stderr)
+            return 7
+        print("記在 " + path)
         return 0
     if args.lookup:
         text, prob = lookup_text(args.lookup, since_hours=args.since_hours,
@@ -1608,7 +1778,8 @@ def main():
             print("--log 要的東西沒給齊，缺：" + chr(12289).join(missing), file=sys.stderr)
             return 2
         path, prob = append_journal("紀錄", args.who, [
-            ("發生什麼", args.what), ("問題", args.problem), ("決定", args.decision)],
+            ("發生什麼", args.what), ("問題", args.problem), ("決定", args.decision),
+            (ANSWER_FIELD, args.answer_existed)],
             now=args.now_epoch)
         if prob:
             print(prob, file=sys.stderr)
@@ -1636,6 +1807,8 @@ def main():
         return 0
     if args.order or args.say:
         print(user_words_note(args.now_epoch), file=sys.stderr)
+    if args.say and args.text:
+        print(prior_decisions_note(args.text, args.now_epoch), file=sys.stderr)
     if args.order or args.review:
         which = "--review" if args.review else "--order"
         to_names = args.to_names or []

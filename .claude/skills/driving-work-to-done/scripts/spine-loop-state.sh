@@ -1541,6 +1541,11 @@ print(f"STOP: {kind} at station {entry['station']}")
 print("你可以做的：說一句同意，就會解掉這個停點並往下走。")
 print("（等價指令：advance --to <station> --by <你> --authorization '<你說的那句話>'）")
 PY
+  local rc=$?
+  # 停點那一刻，同一件事既有的決定印在眼前。只印不擋：它怎麼失敗都不改這個停點的結果。
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd)/prior-decisions.py" \
+    --issue "$(dirname "$(dirname "$STATE")")" --text "${NOTE:-}" || true
+  return "$rc"
 }
 
 cmd_reset() {
