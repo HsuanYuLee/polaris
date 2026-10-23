@@ -1,12 +1,14 @@
 ---
 name: framework-self-dev
 description: |
-  在框架自己身上施工時要知道的事：一張框架單怎麼開。兩種單——舉發實作途中撞到的問題、
-  開發框架新功能——開單那一刻問的格子不一樣，而舉發那一種要先看過還沒出去的單裡有沒有
-  同一件。
+  在框架自己身上施工時要知道的事：一張框架單怎麼開，以及改一支 skill 之後怎麼知道它變好還是
+  變壞。兩種單——舉發實作途中撞到的問題、開發框架新功能——開單那一刻問的格子不一樣，而舉發
+  那一種要先看過還沒出去的單裡有沒有同一件。量 skill 改動是拿那支 skill 的 evals/ 題目，
+  對改前、改後兩個版本各盲跑一次、讀 transcript 判。
 
   要改的東西是這套流程自己（skill、它們的腳本、常駐規則）的時候載入。例如「framework
-  單怎麼開」「開一張框架的單」「這是框架的問題」「舉發框架有問題」，或 driving-work-to-done
+  單怎麼開」「開一張框架的單」「這是框架的問題」「舉發框架有問題」「這次改 skill 有沒有變好」
+  「跑一次 skill 的題目」，或 driving-work-to-done
   判定這件工作落在框架 repo 自己身上。
 
   不用於：某一個產品 repo 的工作（那是那個 repo 自己的知識 skill）、任何一類工作的完成
@@ -18,11 +20,11 @@ scope: universal
 
 # framework-self-dev — 在框架自己身上施工
 
-這一份只講一件事：**一張框架單怎麼開。**
+這一份講兩件事：**一張框架單怎麼開**，以及**改一支 skill 之後怎麼知道它變好還是變壞**。
 
 之後怎麼走不在這裡——`driving-work-to-done` 回答下一站是什麼，`refinement` 簽 assertion，
-`swe-knowledge` 說這一類工作怎麼算 done。這一份補的是它們都沒有的那一格：**開單那一刻要
-回答什麼。**
+`swe-knowledge` 說這一類工作怎麼算 done。這一份補的是它們都沒有的兩格：**開單那一刻要
+回答什麼**，以及**改完一支 skill 之後拿什麼量它。**
 
 ## 為什麼框架單需要自己一份
 
@@ -113,9 +115,45 @@ scope: universal
 **腳本不指名這一份知識。** 那一支住在會被帶走的 skill 裡，而它在沒有這一份的環境裡照樣
 要跑得動。指過來的是 `driving-work-to-done` 的散文。
 
+## 改一支 skill 之後：前後各盲跑一次
+
+改一支 skill 的散文，`verify-ac` 量得到腳本的行為，量不到「agent 照著新的散文做事有沒有比較對」。
+這一節補那一格。**它不擋任何人**：不掛在 hook、commit、push、釋出尾段上，結果是給人讀的。
+
+題目住在被測那支 skill 自己的 `evals/evals.json`，格式沿用官方 skill-creator 的 evals.json，
+多五個欄位：`group`（capability 或 regression）、`source`（這題從哪個真實失敗來）、`setup`
+（在候選的目錄裡造出現場的腳本，例如一段 diff 或一張單），以及 `behaviour` 與 `direction`
+（這題量哪一種行為、是該做 `do`、不該做 `dont`，還是同一題兩向都有 `both`）。
+
+```bash
+python3 .claude/skills/framework-self-dev/scripts/compare-skill-versions.py \
+  --repo . --skill <skill 名> --base <改前的 ref> --head <改後的 ref> --out <放結果的目錄>
+```
+
+- **候選是盲的。** 每題各開一個新目錄，放 `--head` 那一版的 skill 樹，只把被測那支換成這一臂
+  的版本。名字含 eval、test、judge 這類字的檔案與目錄全部拿掉（含每支 skill 的 `evals/` 與
+  `selftests/`），拿掉幾個記在每題的 `changes.txt`。候選看不到另一版、看不到評分標準，也讀不到
+  這台機器的個人設定：預設命令只載入那個目錄的 project 設定，也不帶 MCP。
+- **判官讀 transcript。** 兩份 transcript 只標 A、B，哪一份是哪個版本每題隨機抽，只寫在
+  `key.json`。判官逐條判 PASS、FAIL、UNKNOWN，每條要附 transcript 的引用。一題全部 PASS
+  才算過，有 UNKNOWN 就算 UNKNOWN，不算過也不算失敗。
+- **結果要人讀。** `summary.md` 分兩組列通過數，逐題列兩份 transcript 的位置。照分數直接收
+  不算讀過——抽幾題 transcript 跟判官的判定比一次，對不上就是題目或判官的問題。
+- **capability 與 regression 分開看。** regression 應該接近全過，掉了就是改壞了；capability
+  本來就低，是用來看有沒有往上爬。
+- **換 agent。** `--agent-cmd` 換掉候選的啟動命令，prompt 接在最後一個參數；`--judge-cmd` 同理。
+  預設是 Claude Code。
+
+**題目從真實失敗挑。** 單上的 `SKILL-UTILITY: … | hurt |` 與 review 抓到的缺陷是來源，`source`
+寫出那一行在哪。腳本摩擦（某支腳本壞掉）不當題目，它量的是程式不是 agent。同一種行為要有
+「該做」與「不該做」兩向的題，只有一向的話，「什麼都做」或「什麼都不做」會拿滿分。
+
 ## 這一份不做的事
 
 - **不決定下一站**。那在 `driving-work-to-done`。
 - **不簽 assertion**。那在 `refinement`。
 - **不管「實作途中發現的問題就地修」那條**。撞到一個修得動的東西就修掉，不必開單——這一
   份管的是「決定要記下來」之後那一步。
+
+<!-- PROSE-EXTERNAL-PATHS: evals/evals.json — 被測那支 skill 自己的題目，住在那支 skill 底下，不在這一支 -->
+<!-- PROSE-EXTERNAL-PATHS: summary.md — 跑起來才長出來的東西，落在 --out 指名的目錄 -->

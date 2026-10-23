@@ -1,0 +1,261 @@
+{
+  "skill_name": "check-your-own-work",
+  "evals": [
+    {
+      "id": 1,
+      "group": "regression",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:80（四顆 PR 宣稱的檔案不在 diff 裡）",
+      "setup": "evals/fixtures/claims-vs-diff.sh",
+      "prompt": "I'm about to open the PR for this branch. PR description draft is in PR_DRAFT.md. Can you go over my change before I submit it?",
+      "expected_output": "Compares each claim in PR_DRAFT.md with the branch diff and reports the ones the diff does not back.",
+      "expectations": [
+        "The agent looks at the branch's diff against main (e.g. git diff / git log), not only at PR_DRAFT.md",
+        "The agent reports that CHANGELOG.md is claimed as updated but is not in the diff",
+        "The agent reports that no unit test for the retry path exists in the diff, and that the retry has no backoff although the draft claims exponential backoff"
+      ],
+      "behaviour": "claims",
+      "direction": "do"
+    },
+    {
+      "id": 2,
+      "group": "regression",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:128（同型的另外三處沒動）",
+      "setup": "evals/fixtures/same-pattern.sh",
+      "prompt": "This branch fixes the product page crashing when an item has no price. Please check my fix before I open the PR.",
+      "expected_output": "Names the other unguarded formatPrice callers on the cart page as the same bug with the same fix, inside the symptom's scope.",
+      "expectations": [
+        "The agent searches the codebase for other callers of formatPrice or the same unguarded pattern",
+        "The agent names src/pages/cart.js (cartItemLabel and/or lineTotal) as having the same missing-price problem",
+        "The agent says those places should be fixed in this PR or gives one of: not the same bug, unreachable, or a different fix — with the reason"
+      ],
+      "behaviour": "pattern",
+      "direction": "do"
+    },
+    {
+      "id": 3,
+      "group": "capability",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:243（初始化拋錯時 loading 旗標沒人歸位）",
+      "setup": "evals/fixtures/failure-path.sh",
+      "prompt": "Added a loading skeleton to the plans section on this branch. Look it over before I send it for review?",
+      "expected_output": "Walks the failure path of load(): if getPlans rejects or groupByCategory throws, loading stays true forever.",
+      "expectations": [
+        "The agent points out that state.loading is never reset to false when api.getPlans rejects or groupByCategory throws",
+        "The agent says what the user would see in that case (a skeleton that never goes away) or suggests try/finally",
+        "The agent does not report the change as having no issues"
+      ],
+      "behaviour": "failure-path",
+      "direction": "do"
+    },
+    {
+      "id": 4,
+      "group": "regression",
+      "workspace": "booking",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:199（刻意不呼叫重置那一支，換選項後金額算成 0）",
+      "setup": "evals/fixtures/removed-duty.sh",
+      "prompt": "On this branch the option change keeps the date restored from the URL. Can you check the change before I open a PR?",
+      "expected_output": "Lists what resetSelection used to do and finds that qty is no longer reset to the new option's minQty.",
+      "expectations": [
+        "The agent lists what resetSelection did (clear date, set qty to option.minQty, recompute total) by reading the removed lines",
+        "The agent reports that qty is no longer set to the new option's minQty after an option change, so the total can be computed on a quantity the new option does not allow",
+        "The agent does not accept the code comment's reason as covering every duty of resetSelection"
+      ],
+      "behaviour": "removed-duty",
+      "direction": "do"
+    },
+    {
+      "id": 5,
+      "group": "capability",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:170（四處行為改動配三支測試，第四處沒有）",
+      "setup": "evals/fixtures/revert-check.sh",
+      "prompt": "Price formatting change on this branch, plus a spec covering it. Double-check it for me before the PR?",
+      "expected_output": "Finds that the JPY zero-decimal change has no test; reverting it would leave every test green.",
+      "expectations": [
+        "The agent identifies two behaviour changes: negative-sign placement and JPY having no decimals",
+        "The agent reports that nothing in spec/ checks the JPY change (reverting it keeps the suite green)",
+        "The agent does not conclude that the change is covered just because a spec file was added"
+      ],
+      "behaviour": "revert",
+      "direction": "do"
+    },
+    {
+      "id": 6,
+      "group": "regression",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:80 的反向（宣稱與 diff 一致時不該編出問題）",
+      "setup": "evals/fixtures/clean-rename.sh",
+      "prompt": "Small rename on this branch, draft PR text is in PR_DRAFT.md. Quick check before I open it?",
+      "expected_output": "Confirms the description matches the diff and that behaviour is unchanged; raises nothing blocking.",
+      "expectations": [
+        "The agent reads the diff and confirms the rename is consistent with PR_DRAFT.md",
+        "The agent does not invent a blocking defect or demand changes the rename does not need",
+        "The agent does not modify source files"
+      ],
+      "behaviour": "claims",
+      "direction": "dont"
+    },
+    {
+      "id": 7,
+      "group": "capability",
+      "workspace": "catalog",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:239（鎖定只套在逐欄更新那一條路徑）",
+      "setup": "evals/fixtures/all-write-paths.sh",
+      "prompt": "This branch locks title and description for the partner platform. Have a look before I open the PR?",
+      "expected_output": "Lists every path that writes product fields and finds replaceTranslations bypasses the lock.",
+      "expectations": [
+        "The agent enumerates the functions that write to db.products (updateField and replaceTranslations)",
+        "The agent reports that replaceTranslations can still overwrite title/description for the partner platform",
+        "The agent treats this as a gap in this change, not as out of scope"
+      ],
+      "behaviour": "write-paths",
+      "direction": "do"
+    },
+    {
+      "id": 8,
+      "group": "regression",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:153（同一個日期 bug 被指三輪，作者說修好了它還在）",
+      "setup": "evals/fixtures/prior-comments.sh",
+      "prompt": "I think I've addressed last round's review (notes in REVIEW_NOTES.md). Can you check before I push and re-request review?",
+      "expected_output": "Checks each prior comment against the current code: the UTC comment is not addressed, the export one is.",
+      "expectations": [
+        "The agent checks the current file content, not only the notes",
+        "The agent reports that comment 1 (use UTC) is still not addressed: startOfDay still calls setHours",
+        "The agent reports that comment 2 (export isSameDay) is addressed"
+      ],
+      "behaviour": "prior-comments",
+      "direction": "both"
+    },
+    {
+      "id": 9,
+      "group": "regression",
+      "workspace": "svc",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:219（零先例的形狀：同一則標本的另一面，repo 從來沒做過的東西）",
+      "setup": "evals/fixtures/no-precedent.sh",
+      "prompt": "Added a local YAML config with feature flags on this branch. Look it over before I open the PR?",
+      "expected_output": "Notes every config in the repo is JSON loaded with encoding/json; a hand-written YAML subset parser has no precedent, and the flags could live in JSON.",
+      "expectations": [
+        "The agent notices the existing configs are JSON loaded by encoding/json (config/*.json, internal/config/load.go)",
+        "The agent reports that the hand-written YAML parser has no precedent in this repo, or that nothing calls LoadYAML",
+        "The agent suggests keeping the local config in JSON (or a standard library) instead of a hand-written parser"
+      ],
+      "behaviour": "precedent",
+      "direction": "do"
+    },
+    {
+      "id": 10,
+      "group": "regression",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:263（〈它不做的事〉：不對外寫入）",
+      "setup": "evals/fixtures/no-outbound.sh",
+      "prompt": "Check my change on this branch before I open the PR.",
+      "expected_output": "Reviews the change and reports findings without pushing, opening a PR, or editing code.",
+      "expectations": [
+        "The agent does not run git push, gh pr create, or any command that sends something outside the machine",
+        "The agent does not commit or modify the source files",
+        "The agent reports at least one observation about the formatPrice change (e.g. an empty string for a missing amount and what callers do with it)"
+      ],
+      "behaviour": "read-only",
+      "direction": "both"
+    },
+    {
+      "id": 11,
+      "group": "regression",
+      "behaviour": "pattern",
+      "direction": "dont",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:128 的反向（守在共用函式裡，每個呼叫端都拿到）",
+      "setup": "evals/fixtures/same-pattern-done.sh",
+      "prompt": "This branch fixes the product page crashing when an item has no price. Please check my fix before I open the PR.",
+      "expected_output": "Finds that the guard sits in formatPrice, so every caller is covered; does not ask for per-caller fixes.",
+      "expectations": [
+        "The agent checks the other callers of formatPrice (cart.js lineTotal and cartItemLabel)",
+        "The agent does not claim that any caller is still unguarded against a missing price",
+        "The agent does not demand that the guard be duplicated into each caller"
+      ]
+    },
+    {
+      "id": 12,
+      "group": "regression",
+      "behaviour": "failure-path",
+      "direction": "dont",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:243 的反向（失敗路徑已經有 finally 歸位）",
+      "setup": "evals/fixtures/failure-path-handled.sh",
+      "prompt": "Added a loading skeleton to the plans section on this branch. Look it over before I send it for review?",
+      "expected_output": "Walks the failure path and finds loading is reset in finally and an error message is set.",
+      "expectations": [
+        "The agent looks at what happens when api.getPlans rejects or groupByCategory throws",
+        "The agent does not report that state.loading can stay true",
+        "The agent does not invent a blocking defect in the loading flow"
+      ]
+    },
+    {
+      "id": 13,
+      "group": "regression",
+      "behaviour": "removed-duty",
+      "direction": "dont",
+      "workspace": "booking",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:199 的反向（拿掉的那一支，每件職責都有人接）",
+      "setup": "evals/fixtures/removed-duty-carried.sh",
+      "prompt": "On this branch the option change keeps the date restored from the URL. Can you check the change before I open a PR?",
+      "expected_output": "Lists resetSelection's duties and finds each one carried over in onOptionChange.",
+      "expectations": [
+        "The agent lists what resetSelection did by reading the removed lines",
+        "The agent finds that qty is reset to option.minQty and total is recomputed in the new onOptionChange",
+        "The agent does not report a duty of resetSelection as dropped"
+      ]
+    },
+    {
+      "id": 14,
+      "group": "regression",
+      "behaviour": "revert",
+      "direction": "dont",
+      "workspace": "shop",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:170 的反向（每處行為改動都有一條改回去會紅的測試）",
+      "setup": "evals/fixtures/revert-check-covered.sh",
+      "prompt": "Price formatting change on this branch, plus a spec covering it. Double-check it for me before the PR?",
+      "expected_output": "Finds a spec for each of the two behaviour changes; does not claim JPY is uncovered.",
+      "expectations": [
+        "The agent identifies the two behaviour changes: negative-sign placement and JPY having no decimals",
+        "The agent does not report that the JPY change is untested",
+        "The agent does not demand more tests for these two changes as a blocker"
+      ]
+    },
+    {
+      "id": 15,
+      "group": "regression",
+      "behaviour": "write-paths",
+      "direction": "dont",
+      "workspace": "catalog",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:239 的反向（兩個寫入入口都套了鎖）",
+      "setup": "evals/fixtures/all-write-paths-guarded.sh",
+      "prompt": "This branch locks title and description for the partner platform. Have a look before I open the PR?",
+      "expected_output": "Enumerates both write paths and finds both call assertWritable.",
+      "expectations": [
+        "The agent enumerates the functions that write to db.products (updateField and replaceTranslations)",
+        "The agent does not report that replaceTranslations can bypass the lock",
+        "The agent does not invent another write path that does not exist in the code"
+      ]
+    },
+    {
+      "id": 16,
+      "group": "regression",
+      "behaviour": "precedent",
+      "direction": "dont",
+      "workspace": "svc",
+      "source": ".claude/skills/check-your-own-work/SKILL.md:219 的反向（照既有的形狀加，先例就在旁邊）",
+      "setup": "evals/fixtures/with-precedent.sh",
+      "prompt": "Added a local config on this branch. Look it over before I open the PR?",
+      "expected_output": "Sees config/local.json follows the existing JSON configs and loader; nothing new to object to.",
+      "expectations": [
+        "The agent notices config/local.json uses the same JSON shape and loader as config/dev.json, stage.json and prod.json",
+        "The agent does not report the change as having no precedent in the repo",
+        "The agent does not suggest a different config format or a new parser"
+      ]
+    }
+  ]
+}

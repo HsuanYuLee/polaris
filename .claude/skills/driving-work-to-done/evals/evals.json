@@ -1,0 +1,101 @@
+{
+  "skill_name": "driving-work-to-done",
+  "evals": [
+    {
+      "id": 1,
+      "group": "regression",
+      "workspace": "rotate",
+      "source": ".claude/skills/driving-work-to-done/SKILL.md:50（只讀的問題不走這條）",
+      "setup": "evals/fixtures/rotate-tool.sh",
+      "prompt": "What does scripts/rotate.sh do?",
+      "expected_output": "Answers directly from the script; opens no ticket and changes nothing.",
+      "expectations": [
+        "The agent explains what rotate.sh does (moves app.log to a numbered file and starts a fresh one)",
+        "The agent does not create a ticket, an issues/ entry, or sign assertions",
+        "The agent does not modify any file"
+      ],
+      "behaviour": "open-ticket",
+      "direction": "dont"
+    },
+    {
+      "id": 2,
+      "group": "regression",
+      "workspace": "rotate",
+      "source": ".claude/skills/driving-work-to-done/SKILL.md:50（唯讀的反向：會改行為的請求要立案）",
+      "setup": "evals/fixtures/rotate-tool.sh",
+      "prompt": "The --keep option in scripts/rotate.sh doesn't do anything. Can you fix it?",
+      "expected_output": "Says this changes behaviour so it gets a ticket, writes down how success is judged before editing rotate.sh.",
+      "expectations": [
+        "Before any edit to scripts/rotate.sh, the agent states that this request changes behaviour and needs a ticket or a written success definition",
+        "The agent writes down a success definition (e.g. a ticket file with assertions) before or instead of editing rotate.sh",
+        "The agent does not edit scripts/rotate.sh before that success definition exists"
+      ],
+      "behaviour": "open-ticket",
+      "direction": "do"
+    },
+    {
+      "id": 3,
+      "group": "capability",
+      "workspace": "rotate",
+      "source": ".claude/skills/driving-work-to-done/SKILL.md:50（「改 typo 不立案」那一格拆掉了）",
+      "setup": "evals/fixtures/rotate-tool.sh",
+      "prompt": "There's a typo in README.md, 'recieve'. Fix it please.",
+      "expected_output": "Treats the edit as a change (not read-only), says so in one sentence with its reason, and still makes the fix.",
+      "expectations": [
+        "The agent states in one sentence whether it opens a ticket for this and why, rather than silently skipping the decision",
+        "The agent does not argue the change is too small to count as a change",
+        "README.md ends up spelling 'receive' correctly or the agent explains what blocks it"
+      ],
+      "behaviour": "open-ticket",
+      "direction": "do"
+    },
+    {
+      "id": 4,
+      "group": "regression",
+      "workspace": "rotate",
+      "source": ".claude/skills/driving-work-to-done/SKILL.md:115（不要問人，讀狀態）",
+      "setup": "evals/fixtures/dropped-ticket.sh",
+      "prompt": "Where are we on DP-1? Just tell me where it stands.",
+      "expected_output": "Reads the ticket's own state (spine-loop-state where) and reports the station; changes nothing.",
+      "expectations": [
+        "The agent reads the ticket's state file or runs the state script rather than guessing",
+        "The agent reports that DP-1 is signed and in the engineering station (a round is open, nothing judged yet)",
+        "The agent does not advance, record, or close anything"
+      ],
+      "behaviour": "read-state",
+      "direction": "both"
+    },
+    {
+      "id": 5,
+      "group": "regression",
+      "workspace": "rotate",
+      "source": ".claude/skills/driving-work-to-done/SKILL.md:154（「不做了」是一個終點）",
+      "setup": "evals/fixtures/dropped-ticket.sh",
+      "prompt": "We're dropping DP-1, product decided --keep isn't needed. Wrap it up.",
+      "expected_output": "Closes DP-1 through the state script with the reason; does not delete the ticket directory.",
+      "expectations": [
+        "The agent closes the ticket with a recorded reason (e.g. spine-loop-state.sh close --note)",
+        "The agent does not delete the ticket directory or its files",
+        "The agent does not edit scripts/rotate.sh"
+      ],
+      "behaviour": "terminal-state",
+      "direction": "do"
+    },
+    {
+      "id": 6,
+      "group": "regression",
+      "workspace": "rotate",
+      "source": "issues/framework/released/2026-08-24/DP-566-a-standup-costs-four-rounds-of-correction/index.md:394（round 1 記成 converged，一條斷言都沒判就算做完）",
+      "setup": "evals/fixtures/dropped-ticket.sh",
+      "prompt": "First pass of DP-1 is in. Log the progress and tell me what's next.",
+      "expected_output": "Does not mark DP-1 delivered or done; says the next step is to measure the assertion (verify) after implementing.",
+      "expectations": [
+        "The agent does not record DP-1 as delivered or move it to a done state",
+        "The agent says the assertion A-P1 has not been judged and that judging it is still ahead",
+        "The agent does not claim DP-1 is finished"
+      ],
+      "behaviour": "terminal-state",
+      "direction": "dont"
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "skill_name": "refinement",
+  "evals": [
+    {
+      "id": 1,
+      "group": "capability",
+      "workspace": "standup",
+      "source": "issues/framework/released/2026-08-24/DP-566-a-standup-costs-four-rounds-of-correction/index.md:420（九組斷言都在問行為，「留在 local」那句沒變成斷言）",
+      "setup": "evals/fixtures/standup-ticket.sh",
+      "prompt": "Before anyone builds it, let's pin down what done means for the helper in TICKET.md.",
+      "expected_output": "Writes success criteria that include where the deliverable lives: local to the user, not in a shared or synced location.",
+      "expectations": [
+        "The written success definition contains a criterion about where the helper lives (local only, not in the shared skills repo or any synced place)",
+        "The success definition also covers what the helper produces (draft of the three standup sections from yesterday's git log)",
+        "The agent does not start implementing the helper"
+      ],
+      "behaviour": "ticket-premise",
+      "direction": "do"
+    },
+    {
+      "id": 2,
+      "group": "capability",
+      "workspace": "search",
+      "source": ".claude/skills/refinement/SKILL.md:435（「一致」只在一個合法值上量過，空字串送出去）",
+      "setup": "evals/fixtures/sort-ticket.sh",
+      "prompt": "Write up the success criteria for TICKET.md so we can sign them off.",
+      "expected_output": "The criteria name the kinds of sort input: a normal value, an empty/cleared field, and an invalid or out-of-range value.",
+      "expectations": [
+        "The criteria state what is sent when the sort field is empty or cleared",
+        "The criteria state what is sent when the sort value is not one of the allowed values",
+        "The criteria are written as checkable statements (when X, Y happens), not as 'should' requests"
+      ],
+      "behaviour": "input-variants",
+      "direction": "do"
+    },
+    {
+      "id": 3,
+      "group": "regression",
+      "workspace": "listing",
+      "source": ".claude/skills/refinement/SKILL.md:87（單上「這一層不用改」是待證主張）",
+      "setup": "evals/fixtures/slug-ticket.sh",
+      "prompt": "Turn TICKET.md into success criteria we can sign. Keep the scope the ticket gives.",
+      "expected_output": "Checks the ticket's claim that the API already returns slug, finds api/products.js does not, and raises it instead of signing web-only scope as fact.",
+      "expectations": [
+        "The agent reads api/products.js (or otherwise checks the API) before accepting 'no backend change is needed'",
+        "The agent reports that productCard does not return slug, so the web-only scope does not hold as written",
+        "The agent does not sign criteria that assume the API returns slug without flagging the contradiction"
+      ],
+      "behaviour": "ticket-premise",
+      "direction": "do"
+    },
+    {
+      "id": 4,
+      "group": "regression",
+      "workspace": "listing",
+      "source": ".claude/skills/refinement/SKILL.md:91（〈待確認〉預設是雜訊）",
+      "setup": "evals/fixtures/slug-ticket.sh",
+      "prompt": "Draft the success criteria for TICKET.md. Only ask me what you truly can't work out.",
+      "expected_output": "Does not bounce the ticket's three open questions back; they are already answered in the ticket.",
+      "expectations": [
+        "The agent does not ask the user to answer the ticket's open questions 1-3 (redirects, feature flag, which page), which the ticket already answers",
+        "The agent produces a draft of criteria rather than only a list of questions",
+        "Any question the agent does ask is one the ticket does not answer (e.g. the slug contradiction)"
+      ],
+      "behaviour": "open-questions",
+      "direction": "dont"
+    },
+    {
+      "id": 5,
+      "group": "regression",
+      "workspace": "search",
+      "source": ".claude/skills/refinement/SKILL.md:553（這一站不寫施工計劃、不動程式碼）",
+      "setup": "evals/fixtures/sort-ticket.sh",
+      "prompt": "Can you sign off the definition of done for TICKET.md?",
+      "expected_output": "Produces success criteria only; does not edit web/search.js or write an implementation plan.",
+      "expectations": [
+        "The agent does not modify web/search.js",
+        "The agent's output is success criteria, not step-by-step implementation instructions",
+        "The agent asks for or records who signs, rather than claiming the user already signed"
+      ],
+      "behaviour": "stay-in-station",
+      "direction": "both"
+    },
+    {
+      "id": 6,
+      "group": "regression",
+      "behaviour": "ticket-premise",
+      "direction": "dont",
+      "workspace": "listing",
+      "source": ".claude/skills/refinement/SKILL.md:87 的反向（主張驗過是真的，就照單上的範圍簽）",
+      "setup": "evals/fixtures/slug-ticket-true.sh",
+      "prompt": "Turn TICKET.md into success criteria we can sign. Keep the scope the ticket gives.",
+      "expected_output": "Checks the API, finds slug is returned, and keeps the web-only scope.",
+      "expectations": [
+        "The agent reads api/products.js (or otherwise checks the API) before accepting 'no backend change is needed'",
+        "The agent keeps the web-only scope and does not add backend work to the criteria",
+        "The agent does not report a contradiction between the ticket and the API"
+      ]
+    },
+    {
+      "id": 7,
+      "group": "regression",
+      "behaviour": "open-questions",
+      "direction": "do",
+      "workspace": "search",
+      "source": ".claude/skills/refinement/SKILL.md:91 的反向（真的擋住的那一條要在這一站問）",
+      "setup": "evals/fixtures/blocking-question.sh",
+      "prompt": "Draft the success criteria for TICKET.md. Only ask me what you truly can't work out.",
+      "expected_output": "Drafts the criteria and asks which default order the price sort uses, instead of picking one.",
+      "expectations": [
+        "The agent asks the user (or marks as needing a human decision) whether the default price order is low-to-high or high-to-low",
+        "The agent does not silently pick one order and write it as a settled criterion",
+        "The agent still drafts the rest of the criteria"
+      ]
+    },
+    {
+      "id": 8,
+      "group": "regression",
+      "behaviour": "input-variants",
+      "direction": "dont",
+      "workspace": "search",
+      "source": ".claude/skills/refinement/SKILL.md:435 的反向（單上已經列好每一種輸入送出什麼，照搬，不回頭問）",
+      "setup": "evals/fixtures/sort-ticket-answered.sh",
+      "prompt": "Draft the success criteria for TICKET.md. Only ask me what you truly can't work out.",
+      "expected_output": "Carries the three input cases from the ticket into criteria without asking about them.",
+      "expectations": [
+        "The criteria state that an empty or cleared sort field sends sort=relevance and an out-of-list value sends sort=relevance, as the ticket says",
+        "The agent does not ask the user what to send for an empty or invalid sort value",
+        "The agent does not change the outcomes the ticket gives for these cases"
+      ]
+    }
+  ]
+}
