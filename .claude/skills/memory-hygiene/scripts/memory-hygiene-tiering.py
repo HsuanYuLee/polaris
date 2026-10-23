@@ -535,7 +535,7 @@ def parse_memory_index(index_path: Path) -> tuple[set[str], set[str]]:
     linked: set[str] = set()
     if not index_path.exists():
         return archived, linked
-    text = index_path.read_text(encoding="utf-8")
+    text = index_path.read_text(encoding="utf-8") + "\n" + read_flat_index(index_path.parent)
     for m in STRIKETHROUGH_RE.finditer(text):
         archived.add(m.group(1))
     for m in LINK_RE.finditer(text):
@@ -858,6 +858,11 @@ def parse_memory_index_entries(index_path: Path) -> tuple[dict[str, dict], str]:
             filename = m2.group(1)
             # Only track if it points to a real .md file (not a description note)
             entries[filename] = {"title": filename, "description": m2.group(2).lstrip(" —"), "strikethrough": True}
+    for line in read_flat_index(index_path.parent).splitlines():
+        m1 = INDEX_ENTRY_RE.match(line)
+        if m1 and m1.group(2) not in entries:
+            entries[m1.group(2)] = {"title": m1.group(1), "description": m1.group(3) or "",
+                                    "strikethrough": False}
     return entries, footer
 
 
@@ -966,7 +971,7 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     Actions per tier:
       - Hot: no move; appears in MEMORY.md Hot section.
       - Warm with topic: move to memory/{topic}/filename; record in {topic}/index.md.
-      - Warm without topic: no move; stays flat; listed in MEMORY.md Warm-flat section.
+      - Warm without topic: no move; stays flat; listed in flat/index.md, MEMORY.md points there.
       - Cold: move to memory/archive/filename; removed from MEMORY.md.
 
     Also: rewrites MEMORY.md, creates topic index files, writes .migration-log.md.
@@ -1200,12 +1205,13 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     new_lines.extend(render_topic_section(memory_dir, {
         topic: entries for topic, entries in warm_topics.items()}))
 
-    if warm_flat:
-        new_lines.append(f"## Warm — flat ({len(warm_flat)}) — no topic match yet")
-        new_lines.append("")
-        for c in sorted(warm_flat, key=lambda x: x["file"]):
-            new_lines.append(format_entry(c))
-        new_lines.append("")
+    flat_path = memory_dir / FLAT_INDEX_REL
+    if warm_flat or flat_path.exists():
+        new_lines.extend(flat_pointer_lines(len(warm_flat)))
+        flat_path.parent.mkdir(exist_ok=True)
+        flat_path.write_text(flat_index_text(
+            [format_entry(c) for c in sorted(warm_flat, key=lambda x: x["file"])]), encoding="utf-8")
+        print(f"  wrote index: {FLAT_INDEX_REL} ({len(warm_flat)} entries)")
 
     if cold:
         new_lines.append(f"## Archived ({len(cold)}) — moved to `archive/`")
@@ -1297,7 +1303,35 @@ def emit_index_format_entry(
 
 
 # Reserved subdirectories under memory_dir that are NOT topic folders.
-RESERVED_MEMORY_SUBDIRS = {"archive"}
+RESERVED_MEMORY_SUBDIRS = {"archive", "flat"}
+
+# 沒對到 topic 的 Warm 留在根目錄不搬，但索引不逐行寫進 MEMORY.md：MEMORY.md 有載入上限
+# （2026-10-23 量到 261 支逐行寫進去之後 84.6 KB，尾巴被切掉）。逐行的清單寫在這一份，
+# MEMORY.md 只留一行指過來（DP-868）。
+FLAT_INDEX_REL = "flat/index.md"
+FLAT_POINTER_RE = re.compile(r"^- \[flat/\]\(flat/index\.md\) — [0-9]+ entries$", re.M)
+
+
+def flat_pointer_lines(count: int) -> list[str]:
+    return [f"## Warm — flat ({count}) — no topic match yet", "",
+            "這些檔案留在根目錄，逐支的清單在下面那一份。", "",
+            f"- [flat/]({FLAT_INDEX_REL}) — {count} entries", ""]
+
+
+def flat_index_text(entry_lines: list[str]) -> str:
+    """flat/index.md 的全文。entry_lines 是對根目錄寫的連結，這裡改成從 flat/ 指回去。"""
+    body = [line.replace("](", "](../", 1) for line in entry_lines]
+    return "\n".join([f"# Warm — flat ({len(body)})", "",
+                      "沒對到 topic 的 Warm，檔案留在 memory 根目錄。由 memory-hygiene 產生，不要手改。",
+                      ""] + body) + "\n"
+
+
+def read_flat_index(memory_dir: Path) -> str:
+    """flat/index.md 的內文，連結改回相對於根目錄，讓讀 MEMORY.md 的同一套 regex 讀得懂。"""
+    path = memory_dir / FLAT_INDEX_REL
+    if not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8").replace("](../", "](")
 
 
 def discover_topic_folders(memory_dir: Path) -> list[str]:
@@ -1449,14 +1483,8 @@ def render_emit_index_block(
             lines.append(f"- [{topic}/]({topic}/index.md) — {count} entries")
         lines.append("")
 
-    if warm_flat:
-        lines.append(
-            f"## Warm — flat ({len(warm_flat)}) — no topic match yet"
-        )
-        lines.append("")
-        for c in sorted(warm_flat, key=lambda x: x.path.name):
-            lines.append(emit_index_format_entry(c, existing_entries))
-        lines.append("")
+    if warm_flat or (memory_dir / FLAT_INDEX_REL).exists():
+        lines.extend(flat_pointer_lines(len(warm_flat)))
 
     if cold:
         lines.append(f"## Archived ({len(cold)}) — moved to `archive/`")
@@ -1504,6 +1532,13 @@ def run_emit_index(memory_dir: Path, today: date, dry_run: bool) -> int:
     )
     new_text = assemble_emit_index_content(prefix, generated_block, suffix)
 
+    flat_path = memory_dir / FLAT_INDEX_REL
+    old_flat = flat_path.read_text(encoding="utf-8") if flat_path.exists() else ""
+    warm_flat = sorted((c for c in classifications if c.tier == "warm" and not c.topic),
+                       key=lambda x: x.path.name)
+    new_flat = (flat_index_text([emit_index_format_entry(c, existing_entries) for c in warm_flat])
+                if warm_flat or flat_path.exists() else "")
+
     if dry_run:
         diff = "".join(
             difflib.unified_diff(
@@ -1511,6 +1546,13 @@ def run_emit_index(memory_dir: Path, today: date, dry_run: bool) -> int:
                 new_text.splitlines(keepends=True),
                 fromfile=str(index_path),
                 tofile=str(index_path) + ".emit-index",
+            )
+        ) + "".join(
+            difflib.unified_diff(
+                old_flat.splitlines(keepends=True),
+                new_flat.splitlines(keepends=True),
+                fromfile=str(flat_path),
+                tofile=str(flat_path) + ".emit-index",
             )
         )
         if diff:
@@ -1520,6 +1562,11 @@ def run_emit_index(memory_dir: Path, today: date, dry_run: bool) -> int:
         else:
             print(f"[emit-index] no changes: {index_path}")
         return 0
+
+    if new_flat != old_flat:
+        flat_path.parent.mkdir(exist_ok=True)
+        flat_path.write_text(new_flat, encoding="utf-8")
+        print(f"[emit-index] wrote: {flat_path}")
 
     if new_text == old_text:
         print(f"[emit-index] unchanged: {index_path}")
@@ -1721,6 +1768,16 @@ def refresh_index_counts(memory_dir: Path) -> None:
         body = tail.split("\n## ", 1)[0]
         count = len([l for l in body.split("\n") if l.lstrip().startswith("- [")])
         text = re.sub(r"## Hot \([0-9]+\)", f"## Hot ({count})", text, count=1)
+
+    flat_path = memory_dir / FLAT_INDEX_REL
+    if flat_path.is_file():
+        n = len([l for l in flat_path.read_text(encoding="utf-8").split("\n")
+                 if l.lstrip().startswith("- [")])
+        flat_path.write_text(re.sub(r"^# Warm — flat \([0-9]+\)", f"# Warm — flat ({n})",
+                                    flat_path.read_text(encoding="utf-8"), count=1, flags=re.M),
+                             encoding="utf-8")
+        text = re.sub(r"## Warm — flat \([0-9]+\)", f"## Warm — flat ({n})", text, count=1)
+        text = FLAT_POINTER_RE.sub(f"- [flat/]({FLAT_INDEX_REL}) — {n} entries", text, count=1)
 
     rendered = render_topic_section(memory_dir, {})
     if rendered:
