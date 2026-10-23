@@ -380,24 +380,8 @@ scottspence 量到：只給一句提示的觸發率 55%，要求逐支判斷再�
 
 ### 這三支 hook 怎麼接上
 
-hook 腳本在版控裡，接上它們要改 `.claude/settings.json`——那是使用者自己的設定，由使用者加：
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "SendMessage",
-        "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-commander-freehand-send.sh" }] }
-    ],
-    "SessionStart": [
-      { "matcher": "compact",
-        "hooks": [{ "type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/reinject-after-compact.sh" }] }
-    ]
-  }
-}
-```
-
-`spine-intake.sh` 本來就接在 UserPromptSubmit 上，不用改設定。
+三支都登記在版控的 `.claude/settings.json`（DP-867），clone 下來就接上了，不用改設定。
+要確認或改登記，讀那一份檔案，這裡不抄第二份。
 
 ### Codex 那一側（只列，不做）
 
