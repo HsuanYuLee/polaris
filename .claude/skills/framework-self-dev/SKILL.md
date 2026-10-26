@@ -134,10 +134,13 @@ python3 .claude/skills/framework-self-dev/scripts/compare-skill-versions.py \
   的版本。名字含 eval、test、judge 這類字的檔案與目錄全部拿掉（含每支 skill 的 `evals/` 與
   `selftests/`），拿掉幾個記在每題的 `changes.txt`。候選看不到另一版、看不到評分標準，也讀不到
   這台機器的個人設定：預設命令只載入那個目錄的 project 設定，也不帶 MCP。
-- **判官讀 transcript。** 兩份 transcript 只標 A、B，哪一份是哪個版本每題隨機抽，只寫在
+- **每題每版跑兩趟。** 同一題同一版本跑兩次可以給相反的判定，單趟分數分不出兩版。`--runs`
+  改趟數。同一版幾趟判定不全相同的題標成翻面，不算進兩版的通過數，summary 另外列出是哪幾題。
+  只跑一趟看不出翻面，summary 會這樣寫。
+- **判官讀 transcript。** 兩份 transcript 只標 A、B，哪一份是哪個版本每題每趟隨機抽，只寫在
   `key.json`。判官逐條判 PASS、FAIL、UNKNOWN，每條要附 transcript 的引用。一題全部 PASS
   才算過，有 UNKNOWN 就算 UNKNOWN，不算過也不算失敗。
-- **結果要人讀。** `summary.md` 分兩組列通過數，逐題列兩份 transcript 的位置。照分數直接收
+- **結果要人讀。** `summary.md` 分兩組列通過數，逐題列每一趟兩份 transcript 的位置。照分數直接收
   不算讀過——抽幾題 transcript 跟判官的判定比一次，對不上就是題目或判官的問題。
 - **capability 與 regression 分開看。** regression 應該接近全過，掉了就是改壞了；capability
   本來就低，是用來看有沒有往上爬。

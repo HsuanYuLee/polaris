@@ -6,14 +6,16 @@ Purpose: say whether a change to a skill made the agent do better or worse on th
 Inputs:  --repo (a git repo carrying .claude/skills), --skill (its name), --base / --head (two refs),
          --out (where this run's files go). The questions live in that skill's evals/evals.json.
 Outputs: <out>/summary.md (one row per question, both versions, where each transcript is),
-         <out>/result.json, and per question the two transcripts and the judge's verdicts.
+         <out>/result.json, and per question and run the two transcripts and the judge's verdicts.
+         Each question runs --runs times per version (default 2); a question whose verdicts
+         differ between runs of the same version is marked as flipped and left out of the counts.
          Exit 0 when it ran to the end, whatever the verdicts are; 2 when it could not run.
 
 The candidate runs in a fresh directory that holds the repo's skill tree at --head with only the
 skill under test swapped to the version for that arm, plus whatever files the question names.
 Nothing in that directory, its path, or the prompt says it is being measured. The judge sees two
-transcripts labelled A and B; which ref is behind each label is drawn per question and written
-only to key.json, which the judge never sees.
+transcripts labelled A and B; which ref is behind each label is drawn per question and run, and
+written only to key.json, which the judge never sees.
 """
 
 import argparse
@@ -225,7 +227,12 @@ def main():
     ap.add_argument("--group", choices=["capability", "regression"])
     ap.add_argument("--timeout", type=int, default=900, help="seconds per candidate run")
     ap.add_argument("--keep-workspaces", action="store_true")
+    ap.add_argument("--runs", default="2", help="runs per question and version (default 2)")
     args = ap.parse_args()
+    # 一趟的結果分不出兩版：同一題兩趟可以給相反的答案（DP-872 q6），所以預設跑兩趟。
+    if not re.fullmatch(r"[1-9][0-9]*", args.runs.strip()):
+        die(f"--runs must be a whole number of at least 1, got {args.runs!r}")
+    args.runs = int(args.runs)
 
     repo = Path(args.repo).resolve()
     skill_root = repo / ".claude/skills" / args.skill
@@ -248,60 +255,84 @@ def main():
     key, rows = {}, []
     for case in cases:
         cid = str(case["id"])
-        # 版本照抽籤結果記，不從 ref 推回來：--base 與 --head 可以是同一個 ref
-        versions = ["base", "head"] if random.random() < 0.5 else ["head", "base"]
-        key[cid] = dict(zip("AB", versions))
-        arms = {label: getattr(args, version) for label, version in key[cid].items()}
-        case_dir = out / f"q{cid}"
-        case_dir.mkdir(exist_ok=True)
-        texts = {}
-        for label, ref in arms.items():
-            work, removed = prepare_workspace(repo, args.skill, ref, args.head, case, skill_root)
-            transcript = case_dir / f"{label}.transcript.jsonl"
-            rc, changes = run_candidate(args.agent_cmd, case["prompt"], work, transcript, args.timeout)
-            (case_dir / f"{label}.changes.txt").write_text(
-                f"exit: {rc}\nremoved from the candidate's tree (telltale names): {removed}\n{changes}")
-            texts[label] = render_transcript(transcript) + f"\n[files changed at the end]\n{changes}"
-            (case_dir / f"{label}.transcript.txt").write_text(texts[label])
-            if not args.keep_workspaces:
-                shutil.rmtree(work, ignore_errors=True)
-        grades = judge(args.judge_cmd, case, texts["A"], texts["B"], case_dir / "judge.json") or {}
         n = len(case["expectations"])
-        by_version = {key[cid][label]: case_verdict(grades.get(label), n) for label in ("A", "B")}
-        label_of = {v: k for k, v in key[cid].items()}
+        key[cid] = {}
+        verdicts = {"base": [], "head": []}
+        transcripts = {"base": [], "head": []}
+        judges = []
+        for run in range(1, args.runs + 1):
+            # 版本照抽籤結果記，不從 ref 推回來：--base 與 --head 可以是同一個 ref。每一趟各抽一次。
+            versions = ["base", "head"] if random.random() < 0.5 else ["head", "base"]
+            labels = dict(zip("AB", versions))
+            key[cid][str(run)] = labels
+            arms = {label: getattr(args, version) for label, version in labels.items()}
+            run_dir = out / f"q{cid}" / f"run{run}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            texts = {}
+            for label, ref in arms.items():
+                work, removed = prepare_workspace(repo, args.skill, ref, args.head, case, skill_root)
+                transcript = run_dir / f"{label}.transcript.jsonl"
+                rc, changes = run_candidate(args.agent_cmd, case["prompt"], work, transcript, args.timeout)
+                (run_dir / f"{label}.changes.txt").write_text(
+                    f"exit: {rc}\nremoved from the candidate's tree (telltale names): {removed}\n{changes}")
+                texts[label] = render_transcript(transcript) + f"\n[files changed at the end]\n{changes}"
+                (run_dir / f"{label}.transcript.txt").write_text(texts[label])
+                if not args.keep_workspaces:
+                    shutil.rmtree(work, ignore_errors=True)
+            grades = judge(args.judge_cmd, case, texts["A"], texts["B"], run_dir / "judge.json") or {}
+            for label, version in labels.items():
+                verdicts[version].append(case_verdict(grades.get(label), n))
+                transcripts[version].append(str(run_dir / f"{label}.transcript.txt"))
+            judges.append(str(run_dir / "judge.json"))
+            # 每趟寫一次：跑到一半死掉的話，已經跑完的那幾趟還解得了盲
+            (out / "key.json").write_text(json.dumps(key, indent=1))
+        # 同一版的幾趟判定不全相同就是翻面：單趟的那個結果換一次跑就可能反過來，不拿來比兩版。
+        flipped = any(len(set(verdicts[v])) > 1 for v in ("base", "head"))
         rows.append({"id": cid, "group": case.get("group", "?"), "source": case.get("source", ""),
-                     "base": by_version["base"], "head": by_version["head"],
-                     "base_transcript": str(case_dir / f"{label_of['base']}.transcript.txt"),
-                     "head_transcript": str(case_dir / f"{label_of['head']}.transcript.txt"),
-                     "judge": str(case_dir / "judge.json")})
-        # 每題寫一次：跑到一半死掉的話，已經跑完的那幾題還解得了盲
-        (out / "key.json").write_text(json.dumps(key, indent=1))
-        print(f"q{cid} [{rows[-1]['group']}] base={rows[-1]['base']} head={rows[-1]['head']}", flush=True)
+                     "base": verdicts["base"], "head": verdicts["head"], "flipped": flipped,
+                     "base_transcripts": transcripts["base"], "head_transcripts": transcripts["head"],
+                     "judges": judges})
+        print(f"q{cid} [{rows[-1]['group']}] base={','.join(verdicts['base'])} "
+              f"head={','.join(verdicts['head'])}{' FLIPPED' if flipped else ''}", flush=True)
 
     (out / "result.json").write_text(json.dumps({"skill": args.skill, "base": args.base,
-                                                 "head": args.head, "rows": rows}, indent=1, ensure_ascii=False))
+                                                 "head": args.head, "runs": args.runs, "rows": rows}, indent=1, ensure_ascii=False))
     write_summary(out, args, rows)
     print(f"SUMMARY: {out / 'summary.md'}")
 
 
 def write_summary(out, args, rows):
-    lines = [f"# {args.skill}: {args.base} → {args.head}", ""]
+    lines = [f"# {args.skill}: {args.base} → {args.head}", "", f"每題每版跑 {args.runs} 趟。", ""]
     for group in ("capability", "regression"):
         part = [r for r in rows if r["group"] == group]
         if not part:
             continue
-        count = lambda side, v: sum(1 for r in part if r[side] == v)
-        lines.append(f"- {group}: base PASS {count('base', 'PASS')}/{len(part)}"
-                     f"（UNKNOWN {count('base', 'UNKNOWN')}），head PASS {count('head', 'PASS')}/{len(part)}"
-                     f"（UNKNOWN {count('head', 'UNKNOWN')}）")
-    lines += ["", "| 題 | 組 | base | head | base transcript | head transcript | 判定 |",
-              "|---|---|---|---|---|---|---|"]
+        steady = [r for r in part if not r["flipped"]]
+        flipped = [f"q{r['id']}" for r in part if r["flipped"]]
+        if not steady:
+            lines.append(f"- {group}: 沒有可比的題（{len(part)} 題全部翻面：{', '.join(flipped)}）")
+            continue
+        # 沒翻面的題每一趟判定都一樣，取第一趟就是它的判定。
+        count = lambda side, v: sum(1 for r in steady if r[side][0] == v)
+        line = (f"- {group}: base PASS {count('base', 'PASS')}/{len(steady)}"
+                f"（UNKNOWN {count('base', 'UNKNOWN')}），head PASS {count('head', 'PASS')}/{len(steady)}"
+                f"（UNKNOWN {count('head', 'UNKNOWN')}）")
+        if flipped:
+            line += f"；翻面 {len(flipped)} 題不計入：{', '.join(flipped)}"
+        lines.append(line)
+    lines += ["", "| 題 | 組 | base | head | 翻面 | base transcript | head transcript | 判定 |",
+              "|---|---|---|---|---|---|---|---|"]
     for r in rows:
-        lines.append(f"| q{r['id']} | {r['group']} | {r['base']} | {r['head']} | "
-                     f"{r['base_transcript']} | {r['head_transcript']} | {r['judge']} |")
-    lines += ["", "UNKNOWN 不算通過也不算失敗。判定要人抽讀 transcript 核對，不照分數直接收。"]
+        lines.append(f"| q{r['id']} | {r['group']} | {' / '.join(r['base'])} | {' / '.join(r['head'])} | "
+                     f"{'翻面' if r['flipped'] else ''} | {'<br>'.join(r['base_transcripts'])} | "
+                     f"{'<br>'.join(r['head_transcripts'])} | {'<br>'.join(r['judges'])} |")
+    lines.append("")
+    if args.runs == 1:
+        lines.append("只跑了一趟：看不出哪一題會翻面，通過數是單趟的結果。")
+    else:
+        lines.append("翻面：同一版幾趟的判定不全相同。翻面的題不算進兩版的通過數，要讀 transcript 看它為什麼不穩。")
+    lines.append("UNKNOWN 不算通過也不算失敗。判定要人抽讀 transcript 核對，不照分數直接收。")
     (out / "summary.md").write_text("\n".join(lines) + "\n")
-
 
 if __name__ == "__main__":
     main()
