@@ -345,15 +345,6 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     # mechanism; DP-303 T3 removed the redundant duplicate skip entries.
     if rel in gitignored:
         return True
-    if rel == "scripts/selftests/scan-template-leaks-selftest.sh":
-        return True
-    # DP-230 D21: workspace-owned selftest fixtures legitimately stage live
-    # company-shaped slugs (JIRA prefixes, repo names) to exercise downstream
-    # validators. Carve out the fixture subtree so authored test inputs do not
-    # block sync-to-polaris while still flagging the same prefix anywhere
-    # outside the fixture path.
-    if rel.startswith("scripts/selftests/fixtures/"):
-        return True
     # 一個目錄要能限得住整棵子樹。只比全等的話，`--only-path .claude/skills/swe-knowledge`
     # 一個檔案都比不到而回 0 hits——那個綠只代表沒有任何檔案叫那個名字。
     if only_paths and not any(
