@@ -30,10 +30,10 @@ case "${1:-}" in
   *) echo "usage: $0 [--check|--stage]" >&2; exit 2 ;;
 esac
 
-# 這支住在 .claude/skills/{skill}/scripts/ 底下，所以往上兩層就是它管的
-# skills 目錄。不問 git：在還沒 init 的目錄裡也要能跑。
-SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROOT_DIR="$(cd "$SKILLS_DIR/../.." && pwd)"
+# 這支住在 repo 根的 scripts/ 底下，所以往上一層就是 repo 根。不問 git：在還沒 init 的
+# 目錄裡也要能跑。
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SKILLS_DIR="$ROOT_DIR/.claude/skills"
 [[ -d "$SKILLS_DIR" ]] || exit 0
 
 missing=()
@@ -100,8 +100,15 @@ if [[ "$MODE" == "check" ]]; then
   exit 0
 fi
 
-if [[ "$MODE" == "stage" && ( ${#created[@]} -gt 0 || ${#removed[@]} -gt 0 ) ]]; then
-  git -C "$ROOT_DIR" add -A -- ".claude/skills" >/dev/null 2>&1 || true
+# 只 stage 這一趟自己建或刪的 link。對整個 .claude/skills 跑 add -A 會把別人還沒 stage 的
+# 改動一起帶進這次 commit。
+if [[ "$MODE" == "stage" ]]; then
+  for c in "${created[@]:-}"; do
+    [[ -n "$c" ]] && git -C "$ROOT_DIR" add -- ".claude/skills/$c" >/dev/null 2>&1
+  done
+  for r in "${removed[@]:-}"; do
+    [[ -n "$r" ]] && git -C "$ROOT_DIR" rm --cached --quiet --ignore-unmatch -- ".claude/skills/$r" >/dev/null 2>&1
+  done
 fi
 
 for c in "${created[@]:-}"; do [[ -n "$c" ]] && echo "  + $c"; done
