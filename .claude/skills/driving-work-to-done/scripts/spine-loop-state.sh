@@ -559,6 +559,25 @@ for value in (data.get("workspace_identity") or {}).get("declared_landing") or [
 PY
 }
 
+# Description: 印出這張單記下的領域知識，與接手的人要讀的那一份 SKILL.md。
+# Args: $1 = state 檔路徑
+#
+# 開輪次時 --pack 只被解析、記下、拿去跑開工條件，那份知識的內容從來沒有被放到施工的人
+# 面前（DP-880）。問路是每一條線都會走的那一步，所以要讀哪一份在這裡說。
+report_knowledge_pack() {
+  local pack doc
+  pack="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("knowledge_pack",{}).get("pack",""))' "$1" 2>/dev/null)"
+  if [[ -z "$pack" ]]; then
+    echo "pack=unrecorded  這張單沒有記領域知識（record-knowledge-pack.sh record）"
+  elif [[ "$pack" == "none" ]]; then
+    echo "pack=none  這張單沒有領域知識"
+  elif doc="$(pack_doc "$pack")"; then
+    echo "pack=${pack}  動手之前 invoke /${pack}（${doc}）"
+  else
+    echo "pack=${pack}  解析不到它的 SKILL.md——這一趟沒問到，不是沒有"
+  fi
+}
+
 # Description: 把「當初記下的工作區」與「現在的工作區」比一次，結果印出來。
 # Args: $1 = state 檔路徑
 #
@@ -1495,6 +1514,7 @@ else:
     # 種子還沒開輪次，所以沒有上限可以扣。印一個編出來的數字比說「還沒有」糟。
     print(f"rounds=0 status={data['status']}（種子：還沒開輪次，沒有上限）")
 PY
+  report_knowledge_pack "$STATE"
   # 站別是「走到哪」，這一行是「還在不在原地」。兩件事都屬於 resume view：接手的人要知道
   # 的不只是下一步做什麼，還有他手上這個工作區是不是這張單當初落腳的那一個。
   report_workspace_identity "$STATE"

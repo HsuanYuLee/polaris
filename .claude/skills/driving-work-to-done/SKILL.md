@@ -118,7 +118,8 @@ session 從 `refinement` 開始。
 bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh where --state {issue}/.spine/loop-state.json
 ```
 
-它會說出站別、有沒有停、還剩幾輪。**任何時候不確定現在在哪就跑它**——問人才是不知道
+它會說出站別、有沒有停、還剩幾輪，以及這張單記下的領域知識（`pack=`）與它的 SKILL.md 在哪——施工之前
+invoke 那一支。**任何時候不確定現在在哪就跑它**——問人才是不知道
 自己在哪的那個症狀。
 
 它同時回答另一個「在哪」：**這個工作區還是不是這張單當初落腳的那些。** 開輪次那一刻

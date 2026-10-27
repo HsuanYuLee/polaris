@@ -30,11 +30,8 @@ SPINE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "driving-work-to-done", "scripts", "spine-loop-state.sh")
 
 
-def spine_station(issue_path):
-    """那張單現在在哪一站，問權威（spine-loop-state.sh where），不在這裡推（DP-865）。
-
-    回傳 (station, problem)。站別的名字就是那一站的 skill 名；`delivered` 沒有下一站的 skill。
-    """
+def spine_where(issue_path):
+    """問權威（spine-loop-state.sh where）那張單現在的樣子。回傳 ({鍵: 值}, problem)。"""
     state = os.path.join(issue_path, ".spine", "loop-state.json")
     if not os.path.exists(SPINE):
         return None, "問不到站別：" + SPINE + " 不在"
@@ -45,10 +42,37 @@ def spine_station(issue_path):
                              capture_output=True, text=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, "問不到站別：" + str(exc)
+    rows = {}
     for row in out.stdout.splitlines():
-        if row.startswith("station="):
-            return row.split("=", 1)[1].strip(), None
-    return None, "問不到站別：where 沒有印 station（" + (out.stderr.strip() or "無輸出") + "）"
+        k, sep, v = row.partition("=")
+        if sep and k and " " not in k:
+            rows.setdefault(k, v.strip())
+    if "station" not in rows:
+        return None, "問不到站別：where 沒有印 station（" + (out.stderr.strip() or "無輸出") + "）"
+    return rows, None
+
+
+def spine_station(issue_path):
+    """那張單現在在哪一站，問權威（spine-loop-state.sh where），不在這裡推（DP-865）。
+
+    回傳 (station, problem)。站別的名字就是那一站的 skill 名；`delivered` 沒有下一站的 skill。
+    """
+    rows, problem = spine_where(issue_path)
+    return (rows["station"], None) if rows else (None, problem)
+
+
+def pack_line(issue_path):
+    """派工與重建指令裡講領域知識的那一句。開輪次時 --pack 只被記下，內容從來沒有被放到
+    線面前（DP-880），所以派這張單的那一刻就指名它。問不到就說問不到，不擋派工。"""
+    rows, problem = spine_where(issue_path) if issue_path else (None, "沒有指得到的單")
+    pack = (rows or {}).get("pack", "").split()
+    if not pack:
+        return "這張單的領域知識問不到（" + (problem or "where 沒有印 pack") + "）。"
+    if pack[0] == "none":
+        return "這張單沒有領域知識，不用 invoke 任何一支。"
+    if pack[0] == "unrecorded":
+        return "這張單沒有記領域知識。"
+    return "這張單的領域知識是 /" + pack[0] + "：動手之前 invoke 它，改動照它做。"
 
 
 def held_issue(holding):
@@ -1102,6 +1126,7 @@ def order_text(issue_path, to_name, from_name, station=None):
         *where,
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
+        pack_line(issue_path),
         "",
         opening_text(from_name),
         "",
@@ -1141,6 +1166,7 @@ def review_order_text(issue_path, me, others, about, from_name):
         "",
         "成功的定義在那張單自己身上：讀 " + os.path.join(issue_path, "index.md") + "。",
         "**以那份為準，不要照我這段話做**——我在這裡重講一次，就會有第二份會漂的定義。",
+        pack_line(issue_path),
         "",
         opening_text(from_name),
         "",
@@ -1830,6 +1856,9 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         out += ([e + "\n" for e in related] if related
                 else ["（日誌裡沒有提到「" + line + "」或「" + name + "」的紀錄）", ""])
         out += ["從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
+        held = held_issue(decl.get("holding"))
+        if held:
+            out += ["", pack_line(held)]
         out.append(fence)
         out.append("")
 
