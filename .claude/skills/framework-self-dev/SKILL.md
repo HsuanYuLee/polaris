@@ -55,6 +55,16 @@ scope: universal
 **兩種單的終點是同一個形狀**：都是一張該填的格子都有答案、只等 `refinement` 簽 assertion
 的單。差的只有開單那一刻問哪幾格。
 
+**開單那一刻還要問兩件事。**
+
+- **別的 agent 跑不跑得到這個機制**（使用者 2026-10-08 拍板）。只有 Claude Code 才有的機制（它的
+  hook 設定、它專屬的工具攔截）先不做。可以做的是 skill 散文裡的步驟、任何 agent 都能從命令列跑
+  的腳本、git hook、檔案格式上的約定。Codex 也有 hook（`hooks.json` 或 `config.toml`），要做 hook
+  就兩邊各寫一份，而且仍要先證明它守著一個不可逆的後果。
+- **改到的東西屬於哪一類。** `company` scope 的改動不搭 `destination: template` 的單，另開一張
+  `workspace` 的單，不把公司的改動搭進 template 的版本。changeset 一律寫成匿名：洩漏閘掃整個
+  `.changeset/`，不看 destination。公司名與單號留在 PR 描述與那家公司自己的文件。
+
 ## 舉發那一種：6W
 
 `refinement` 的四格（what／when／why／how）本來就在，舉發多兩格：

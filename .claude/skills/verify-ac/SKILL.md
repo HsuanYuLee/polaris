@@ -78,6 +78,9 @@ bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
 bash "$(bash .claude/skills/driving-work-to-done/scripts/spine-loop-state.sh find <單的目錄名>)/probes/probe.sh"
 ```
 
+**`--evidence-out` 也一樣。** 記一輪或換站之後，單可能已經被搬到另一格；跑 oracle 之前重問一次
+`find`，用舊路徑會在原地造出一個空殼，接著每一條都量不到。
+
 後面不要接 `| tail -1`。`find` 命中不是剛好一個的時候會回非 0（3 ＝ 多於一個，4 ＝ 一個
 都沒有），而那個離場碼會被 `tail` 吃掉，於是兩行路徑被當成一條用。`record-measurement-change.sh`
 在登錄的時候會擋下把單自己的目錄名連著斜線抄進去的命令，三種寫法都算：展開後的絕對路徑、
@@ -240,6 +243,9 @@ bash .claude/skills/verify-ac/scripts/build-independent-oracle-prompt.sh \
 bash .claude/skills/verify-ac/scripts/record-independent-oracle.sh \
   --issue {issue} [--cost-tokens N] [--cost-seconds N]
 ```
+
+**出貨之前兩個階段都要跑完，不只第一階段。** 手寫的測資繞過了取值的程式碼這一類，是第二階段
+拿到你的量測登錄之後才比得出來的。
 
 **順序由檔案系統擋住，不由叮嚀擋住。** 第一階段那份指示裡沒有你的命令，而且產得出第二份
 的前提是第一階段的結果已經落地。「先自己推」因此不是一句請求。
