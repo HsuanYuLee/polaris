@@ -18,7 +18,7 @@ transcript 裡最後一則說的話。兩個理由，第二個才是真正的那
 問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。而「從來沒
 寫過宣告」「宣告讀不動」「宣告在而缺欄位」是三件事，長成三句不同的話。
 """
-import argparse, json, os, re, subprocess, sys, time
+import argparse, calendar, glob, json, os, re, subprocess, sys, time
 
 HOME = os.path.expanduser("~")
 REGISTRY = os.path.join(HOME, ".claude", "sessions")
@@ -445,6 +445,106 @@ def entry_epoch(head):
         return None
 
 
+# 宿主包在標記裡送進來的段落：跨 session 訊息、hook 注入、IDE 選取、斜線指令的回音。使用者自己
+# 打的字不會整段包在一個 `<名字 …>…</名字>` 裡，所以把這些整段拿掉之後剩下的才算。
+WRAPPED = re.compile(r"<([A-Za-z][\w-]*)\b[^>]*>.*?</\1>", re.S)
+
+
+def typed_by_user(row):
+    """transcript 的一列是不是使用者自己打的話。是就回那段文字，不是回 None。
+
+    不算的：不是 `type: user` 的、`isMeta`（宿主自己塞的提示）、`isCompactSummary`（壓縮摘要）、
+    工具結果、整段被標記包住的（見 `WRAPPED`）、以及「[Request interrupted…」這種宿主寫的中斷
+    標記。標記旁邊另外打的字照算。
+    """
+    if row.get("type") != "user" or row.get("isMeta") or row.get("isCompactSummary"):
+        return None
+    content = (row.get("message") or {}).get("content")
+    if isinstance(content, str):
+        parts = [content]
+    elif isinstance(content, list):
+        if any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
+            return None
+        parts = [c.get("text") or "" for c in content if isinstance(c, dict) and c.get("type") == "text"]
+    else:
+        return None
+    text = " ".join(" ".join(WRAPPED.sub("", p).split()) for p in parts).strip()
+    if not text or text.startswith("[Request interrupted"):
+        return None
+    return text
+
+
+def unlogged_user_words(transcript, since, entries):
+    """指揮官 transcript 裡，使用者自己打、日誌裡沒有的話。回傳 (lines, problem)。
+
+    每一行是「MM-DD HH:MM 原文」，舊到新，只取 `since`（epoch）之後的。「日誌裡有」的判法是
+    去掉空白之後的前 20 個字出現在日誌裡：日誌引原話常常斷句或換行，整句比對會把記過的又印一次。
+    代價是很短的一句（「貼了」）幾乎一定被當成記過——短到那樣的話通常不是裁決。
+
+    日誌只收指揮官記得 `--log` 的那幾句（2026-10-27 量到當天 57 句裡 20 句不在日誌），而
+    transcript 一句不漏，所以這一份補的是那個差。讀不到要說出路徑，不當成「沒有」。
+    """
+    if not transcript:
+        return [], "沒有指名指揮官的 transcript，沒進日誌的原話讀不到"
+    try:
+        fh = open(transcript, encoding="utf-8", errors="ignore")
+    except OSError as exc:
+        return [], "指揮官的 transcript 讀不到：" + transcript + "（" + str(exc) + "）"
+    logged = "".join("\n".join(entries).split())
+    out, seen = [], set()
+    with fh:
+        for row in fh:
+            if '"user"' not in row:
+                continue
+            try:
+                d = json.loads(row)
+            except ValueError:
+                continue
+            text = typed_by_user(d)
+            if not text:
+                continue
+            try:
+                t = calendar.timegm(time.strptime((d.get("timestamp") or "")[:19], "%Y-%m-%dT%H:%M:%S"))
+            except ValueError:
+                continue
+            if since is not None and t < since:
+                continue
+            key = "".join(text.split())[:20]
+            if key in logged or key in seen:
+                continue
+            seen.add(key)
+            out.append(time.strftime("%m-%d %H:%M", time.localtime(t)) + " " + text)
+    return out, None
+
+
+def commander_transcript():
+    """最近一次宣告自己是指揮官的那個 session 的 transcript。回傳 (path, problem)。
+
+    `--rebuild` 的時候上一任多半已經結束，登錄檔可能跟著沒了，所以查不到 cwd 就用 sessionId
+    去 projects 底下找。找不到也回一個路徑，讓讀不到的那一句說得出它找的是哪裡。
+    """
+    best = None
+    try:
+        names = os.listdir(DECLARATIONS)
+    except OSError:
+        names = []
+    for fn in names:
+        if not fn.endswith(".json"):
+            continue
+        decl, _ = read_declaration(fn[:-5])
+        if decl and decl.get("line") == COMMANDER_LINE and (
+                best is None or (decl.get("declared_at") or 0) > (best.get("declared_at") or 0)):
+            best = decl
+    if not best or not best.get("session_id"):
+        return None, "沒有任何 session 宣告過自己是指揮官（" + DECLARATIONS + "），它的 transcript 讀不到"
+    sid = best["session_id"]
+    for _, data in read_registry()[0]:
+        if data.get("sessionId") == sid and data.get("cwd"):
+            return transcript_path(data["cwd"], sid), None
+    hits = glob.glob(os.path.join(PROJECTS, "*", sid + ".jsonl"))
+    return (hits[0] if hits else os.path.join(PROJECTS, "*", sid + ".jsonl")), None
+
+
 STANDING_TAG = re.compile(r"\[線：([^\]]+)\]")
 STANDING_ARCHIVED = "封存"
 TICKET_TAG = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
@@ -506,16 +606,16 @@ def standing_sections(text):
     return out
 
 
-def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
+def commander_memory(now=None, since_hours=24, cap=RECALL_CAP, transcript=None):
     """指揮官要帶著的那一份：壓縮之後的注入與 `--rebuild` 的指揮官段都用它，所以新開的指揮官
     讀到什麼，壓縮之後就拿到什麼。使用者 2026-10-27 原話：「不是說過壓縮等價新開，如果壓縮
     會掉，那代表新開也會掉，不能接受吧」。
 
     回傳 (full, inline, problem)。full 是全部：最後一筆使用者在等的原文、常駐規矩全文、在等
-    裡每個鍵在日誌全部時間的使用者原話、從那筆在等前 `since_hours` 小時起的決定。inline 是
-    放得進 `cap` 字的那一份，照這個順序取：在等、常駐規矩每節標題與那節的使用者原話（新到舊，
-    最多佔一半）、每個鍵的使用者原話（新到舊，互相包含的只留一句）、決定。放不下的說出截掉
-    幾句、幾節、幾行。
+    裡每個鍵在日誌全部時間的使用者原話、`transcript` 裡使用者說過卻沒進日誌的話、從那筆在等前
+    `since_hours` 小時起的決定。inline 是放得進 `cap` 字的那一份，照這個順序取：在等、常駐規矩
+    每節標題與那節的使用者原話（新到舊，最多佔一半）、每個鍵的使用者原話（新到舊，互相包含的
+    只留一句）、沒進日誌的原話（新到舊）、決定。放不下的說出截掉幾句、幾節、幾行。
 
     **不限時間的是使用者原話，不是決定。** 決定欄是指揮官自己的解讀，2026-10-21 一句
     「be2 只能新增跟查詢」被讀寬之後，帶回來的一直是那個讀寬的決定。
@@ -542,6 +642,10 @@ def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
             if ln.startswith("- 決定："):
                 decisions.append(head.lstrip("# ") + "｜" + ln[len("- 決定："):])
     decisions.reverse()
+    words, wprob = unlogged_user_words(transcript, None if at is None else at - since_hours * 3600, entries)
+    words_head = ("指揮官 transcript 裡使用者說過、日誌裡沒有的話（從那筆在等前 " + str(since_hours)
+                  + " 小時起）：")
+    words_none = wprob or "（沒有：這段時間使用者說的話都在日誌裡）"
     keys = waiting_keys(last)
     quotes = user_quotes_lines(keys)
     try:
@@ -554,6 +658,7 @@ def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
     head = ["最後一筆使用者在等（原文）：", last]
     tail = ["從它前 " + str(since_hours) + " 小時起的決定（新到舊，共 " + str(len(decisions)) + " 行）："]
     full = "\n".join(head + ["", "在等裡每個鍵的使用者原話（日誌全部時間，舊到新）："] + quotes
+                     + ["", words_head] + (["- " + w for w in words] or [words_none])
                      + ["", "常駐規矩（" + STANDING + " 全文）：", "", standing or no_standing, ""]
                      + tail + ["- " + d for d in decisions])
     if keys:
@@ -603,6 +708,19 @@ def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
         inline.append(quotes[0])
     if cut_q:
         inline.append("（截掉 " + str(cut_q) + " 句較舊的原話，在完整版裡）")
+    # 沒進日誌的話排在決定前面：決定是指揮官的解讀，這一段是它沒記下來的原文。
+    inline += ["", words_head]
+    shown = 0
+    for w in reversed(words):
+        line = "- " + (w if len(w) <= 140 else w[:140] + "…")
+        if not fits(line):
+            break
+        inline.append(line)
+        shown += 1
+    if not words:
+        inline.append(words_none)
+    elif shown < len(words):
+        inline.append("（截掉 " + str(len(words) - shown) + " 句較舊的，在完整版裡）")
     inline += [""] + tail
     shown = 0
     for d in decisions:
@@ -615,14 +733,14 @@ def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
     return full, "\n".join(inline), None
 
 
-def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
+def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP, transcript=None):
     """壓縮之後要帶回來的那一份。內容是 `commander_memory`，跟 `--rebuild` 的指揮官段同一份；
     完整版落檔，注入放得下的那一份。回傳 (要注入的那一段, 完整版路徑, 問題)。"""
     path = os.path.join(JOURNAL_DIR, "after-compact", time.strftime(
         "%Y%m%d-%H%M%S", time.localtime(now or time.time())) + ".md")
     lead = ("完整版（含常駐規矩全文與每個鍵的全部原話）：" + path
             + "。現在用 Read 讀完它，再回答使用者或派工。這些是已經決定的事：不重問、不漏。")
-    full, inline, problem = commander_memory(now, since_hours, cap - len(lead) - 2)
+    full, inline, problem = commander_memory(now, since_hours, cap - len(lead) - 2, transcript)
     if problem:
         return None, None, problem
     try:
@@ -1869,7 +1987,8 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     使用者 2026-09-19 的原話：「直接給我 prompt，不要用文件給，用 md 給，我要能直接複製
     貼上」。所以**全文印在輸出裡**，每一段一個可以整段複製的 markdown 區塊；檔案只是副本。
 
-    它不送給任何人，也不讀任何 transcript——每一段的內容只來自宣告與日誌。
+    它不送給任何人。每一段的內容來自宣告與日誌；唯一的例外是指揮官段那份「沒進日誌的原話」，
+    它讀上一任指揮官的 transcript（`commander_transcript`），只讀不寫。
     """
     now = now or time.time()
     entries, jprob = read_journal_entries()
@@ -1886,7 +2005,7 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     out.append("每一段是一個新 session 的第一則訊息，整段複製貼上。")
     out.append("")
 
-    memory, _, mprob = commander_memory(now, since_hours)
+    memory, _, mprob = commander_memory(now, since_hours, transcript=commander_transcript()[0])
     roster = ["| 線 | 上一任 | 還活著 | 接的是什麼 | 卡在哪 |", "|---|---|---|---|---|"]
     for line, decl, name, running in lines:
         roster.append("| " + " | ".join([
@@ -1906,6 +2025,8 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         "3. command-post 的 SKILL.md〈交棒〉那一節。",
         "4. 板子上在飛的每一張單、上一任在等的那句裡每一個單號與 PR，跑 `python3 " + SCRIPT
         + " --lookup <key> [<key>...]`。有命中的已經排給某條線，不是待決；壓縮摘要不是狀態，日誌才是。",
+        "5. 照 command-post SKILL.md〈心跳：靠排程，不靠某個人想起來〉重排巡邏（`ScheduleWakeup` 或"
+        " `CronCreate`）。上一任的排程活在它的 session 裡，隨那個 session 結束了，不會自己接上。",
         "",
         "重建時各條線的宣告：",
         "",
