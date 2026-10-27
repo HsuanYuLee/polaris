@@ -315,7 +315,7 @@ ticket，每一項都有實作 session 做得動——而它的 context 在那�
 **反方向也要對：新進來的一句話，要對著使用者當天的裁決讀。** 一句短話裡的詞（「hotfix」
 「擋」「修」）單獨讀可以有好幾種意思，而當天的裁決通常只留下一種。讀出兩種方向、或讀出
 一條裁決裡沒有的路，就先用一句話問使用者，問完才派——那是只有人答得出來的事，不是技術
-細節。`--say`／`--order` 產出時會在 stderr 依時間印出今天日誌裡帶「原話」的句子，只給
+細節。`--say`／`--order` 產出時會在 stderr 依時間印出今天日誌裡帶「原話」的**全部**句子，只給
 寫那一則的人看，不進本文；所以裁決要記成原話，才會在那一刻出現。
 
 `--say`／`--order` 產出時同一處還印**本文裡單號與 PR 號的既有決定**：日誌與其他 skill 宣告接進來
@@ -434,6 +434,13 @@ hook `.claude/hooks/reinject-after-compact.sh` 在來源是 compact 時注入兩
 不含跨 session 訊息、hook 注入、IDE 選取這類整段包在 `<名字>…</名字>` 標記裡的，也不含
 meta、壓縮摘要與工具結果。「日誌裡有」用去掉空白後的前 20 字比對。transcript 讀不到時那一段
 說出路徑，其餘照常產出。讀的是 Claude Code 的 transcript 格式；Codex 的 session 檔不在裡面。
+
+**洞補在源頭：`--backfill-user-words` 把那幾句補寫進日誌。** 讀日誌的不只注入一處——派工前
+對一次、`--lookup`、`--prior-decisions` 都只讀日誌，逐個出口補會補不完（指揮官 10/21
+2026-10-28）。所以它把 transcript 裡沒進日誌的話一句一筆寫成「紀錄｜使用者」：標頭是那句話
+在 transcript 裡的時間，內容是「使用者原話「…」」，多一欄「來源：transcript」。只往尾端加，
+不改既有的筆，跑兩次不重複（判法同上，前 20 字）。**`--board` 每輪先跑它再印板子**，第一行
+說出補了幾句；transcript 讀不到時說出路徑，板子照印。
 
 **讀完完整版，再回答使用者或派工。** 裡面寫著的事已經決定了，不重問、不漏。日誌讀不到的時候，
 注入裡會說出讀不到，要你先跑 `--board` 與每張單的 `--lookup`。
@@ -705,6 +712,7 @@ lost-in-the-middle（Manus 講的 recitation，
 | 產出派工、互審指令 | `--order`／`--review` |
 | 指揮官換了在等的東西 | `--board --waiting-on` |
 | 收到回報、做了裁決 | `--log`，見下 |
+| 使用者對指揮官說了話而沒被 `--log` | `--backfill-user-words`（`--board` 每輪先跑），見〈壓縮之後〉 |
 
 ```bash
 python3 .claude/skills/command-post/scripts/command-post.py --log \

@@ -311,6 +311,7 @@ def read_journal_entries():
 
 
 WAITING_KIND = "在等"
+LOG_KIND = "紀錄"
 COMMANDER_LINE = "指揮官"
 
 
@@ -474,10 +475,10 @@ def typed_by_user(row):
     return text
 
 
-def unlogged_user_words(transcript, since, entries):
-    """指揮官 transcript 裡，使用者自己打、日誌裡沒有的話。回傳 (lines, problem)。
+def unlogged_user_rows(transcript, since, entries):
+    """指揮官 transcript 裡，使用者自己打、日誌裡沒有的話。回傳 ([(epoch, 原文)], problem)。
 
-    每一行是「MM-DD HH:MM 原文」，舊到新，只取 `since`（epoch）之後的。「日誌裡有」的判法是
+    舊到新，只取 `since`（epoch）之後的；`since` 是 None 就取整份。「日誌裡有」的判法是
     去掉空白之後的前 20 個字出現在日誌裡：日誌引原話常常斷句或換行，整句比對會把記過的又印一次。
     代價是很短的一句（「貼了」）幾乎一定被當成記過——短到那樣的話通常不是裁決。
 
@@ -513,8 +514,54 @@ def unlogged_user_words(transcript, since, entries):
             if key in logged or key in seen:
                 continue
             seen.add(key)
-            out.append(time.strftime("%m-%d %H:%M", time.localtime(t)) + " " + text)
+            out.append((t, text))
     return out, None
+
+
+def unlogged_user_words(transcript, since, entries):
+    """`unlogged_user_rows` 排成「MM-DD HH:MM 原文」一行一句。回傳 (lines, problem)。"""
+    rows, prob = unlogged_user_rows(transcript, since, entries)
+    return [time.strftime("%m-%d %H:%M", time.localtime(t)) + " " + text for t, text in rows], prob
+
+
+USER_WHO = "使用者"
+
+
+def backfill_user_words(transcript=None):
+    """把指揮官 transcript 裡沒進日誌的使用者原話補寫進日誌。回傳 (筆數, transcript, problem)。
+
+    一句一筆「紀錄｜使用者」，標頭是那句話在 transcript 裡的時間，原話寫成「使用者原話「…」」
+    ——讀日誌的每一支（派工前對一次、`--lookup`、`--prior-decisions`、壓縮後注入）認的就是這個
+    寫法，所以洞補在源頭，不在每個出口各補一次。只往尾端加，不改任何既有的一筆。
+
+    冪等靠的是 `unlogged_user_rows` 本身：寫進去的那一句，下一趟就是「日誌裡有」。
+    transcript 讀不到時一筆都不寫，problem 帶著路徑。
+    """
+    if transcript is None:
+        transcript, prob = commander_transcript()
+        if prob:
+            return 0, transcript, prob
+    entries, _ = read_journal_entries()
+    rows, prob = unlogged_user_rows(transcript, None, entries)
+    if prob:
+        return 0, transcript, prob
+    for i, (t, text) in enumerate(rows):
+        _, wprob = append_journal(LOG_KIND, USER_WHO, [
+            ("發生什麼", "使用者原話「" + text + "」"),
+            ("來源", "transcript " + transcript + " " + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t)))],
+            now=t)
+        if wprob:
+            return i, transcript, wprob
+    return len(rows), transcript, None
+
+
+def backfill_note(n, transcript, prob):
+    """補寫的結果排成一行。讀不到、補了幾句、沒有要補，三種說的話不一樣。"""
+    if prob:
+        return "補寫：沒進日誌的使用者原話這一趟沒補（" + prob + "）"
+    if n:
+        return "補寫：把 transcript 裡沒進日誌的使用者原話補了 " + str(n) + " 句進日誌（" + transcript + "）"
+    return "補寫：transcript 裡使用者的話都已經在日誌裡（" + transcript + "）"
 
 
 def commander_transcript():
@@ -1067,8 +1114,11 @@ def opening_text(commander):
 USER_WORDS = re.compile(r"原話[：:]?\s*((?:「[^」]+」[、，與和及\s]*)+)")
 
 
-def todays_user_words(now=None, limit=10):
-    """今天日誌裡帶著「原話」的句子，舊到新、同一句只留第一次。回傳 (lines, problem)。
+def todays_user_words(now=None):
+    """今天日誌裡帶著「原話」的句子，舊到新、同一句只留第一次，全部。回傳 (lines, problem)。
+
+    以前只留最後 10 句，放不下的安靜地不見——跟日誌漏記原話是同一種丟法（指揮官 10/21
+    2026-10-28：「10 句上限就是同一種安靜的丟法」）。它只印在指揮官自己的 stderr。
 
     它在 `--say`／`--order` 產出那一刻印在 stderr，給寫那一則的指揮官看，不進本文。
     〈派工之前〉要新的一句話對著當天的裁決讀，而那些裁決在派工那一刻不在眼前——
@@ -1095,7 +1145,7 @@ def todays_user_words(now=None, limit=10):
                 if quote not in seen:
                     seen.add(quote)
                     out.append(f"  {when} {quote}")
-    return out[-limit:], None
+    return out, None
 
 
 def user_words_note(now=None):
@@ -2164,6 +2214,9 @@ def main():
     ap.add_argument("--text", default=None, help="--say 用：要送的本文")
     ap.add_argument("--epic", default=None,
                     help="--say 必填：這一則派的是哪個 epic（鏈頂單號），不派 epic 的活寫 none")
+    ap.add_argument("--backfill-user-words", action="store_true",
+                    help="把指揮官 transcript 裡使用者自己打、日誌沒有的話補寫進日誌，一句一筆。"
+                         "跑兩次不重複；--board 每輪會先跑它。")
     ap.add_argument("--board", action="store_true",
                     help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
@@ -2242,7 +2295,16 @@ def main():
             return 8
         print(text, end="")
         return 0
+    if args.backfill_user_words:
+        n, tp, prob = backfill_user_words()
+        print(backfill_note(n, tp, prob), file=sys.stderr if prob else sys.stdout)
+        if prob:
+            return 7 if "日誌寫不進去" in prob else 3
+        return 0
     if args.board:
+        # 先補寫再印：板子與它尾端的原話讀的都是日誌，沒補的那幾句這一輪就看不到。
+        # 補不了不擋板子——說出來，照印。
+        print(backfill_note(*backfill_user_words()))
         # 環境變數優先，推導是後備。以前只讀環境變數，而它在這裡從來沒有被設過——於是
         # 「壓縮過幾次」每一次都印「這一次問不到」，那是同一個缺口的第二個出口。
         sid = os.environ.get("CLAUDE_SESSION_ID")
@@ -2274,7 +2336,7 @@ def main():
         if missing:
             print("--log 要的東西沒給齊，缺：" + chr(12289).join(missing), file=sys.stderr)
             return 2
-        path, prob = append_journal("紀錄", args.who, [
+        path, prob = append_journal(LOG_KIND, args.who, [
             ("發生什麼", args.what), ("問題", args.problem), ("決定", args.decision),
             (ANSWER_FIELD, args.answer_existed), (READ_FIELD, args.was_read)],
             now=args.now_epoch)
