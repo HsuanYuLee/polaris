@@ -164,8 +164,39 @@ def declaration_line(decl):
                       f"卡：{decl['blocked_on']}", f"開單：{opened}"])
 
 
+# 上一份宣告的「接」裡，一個承諾靠這三種東西才找得回來：單號、PR 號、日期（DP-888）。
+HOLDING_KEY = re.compile(r"\b[A-Z][A-Z0-9]*-\d+\b|#\d+\b|\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}/\d{1,2}\b")
+HOLDING_SEGMENT = re.compile(r"[、；;，,\n]")
+
+
+def dropped_from_holding(previous, current):
+    """上一份「接」有、這一份沒有的單號／PR 號／日期，各帶上一份裡含它的那一段原文。
+
+    重宣告時舊的承諾會安靜地從板子上消失，而那一刻沒有人在看（DP-888）。只回字串，
+    不判斷那件事是做完了還是忘了——那只有宣告的人自己知道。沒有掉的回空字串。
+    """
+    kept = set(HOLDING_KEY.findall(current or ""))
+    items, seen = [], set()
+    for seg in HOLDING_SEGMENT.split(previous or ""):
+        for key in HOLDING_KEY.findall(seg):
+            if key not in kept and key not in seen:
+                seen.add(key)
+                items.append(f"{key}（上一份：{seg.strip()}）")
+    return chr(12289).join(items)
+
+
+def previous_holding(session_id):
+    """同一個 session 上一份宣告的「接」。讀不到（沒寫過、讀不動）就回 None，不比。"""
+    try:
+        with open(declaration_path(session_id), encoding="utf-8") as fh:
+            decl = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return decl.get("holding") if isinstance(decl, dict) else None
+
+
 def write_declaration(session_id, holding, blocked_on, tickets_opened,
-                      line=None, browser=None, station=None, skills=None):
+                      line=None, browser=None, station=None, skills=None, dropped=None):
     """這個 session 寫下自己的那一行。**只寫自己的那一份，不碰別人的。**"""
     os.makedirs(DECLARATIONS, exist_ok=True)
     path = declaration_path(session_id)
@@ -174,6 +205,7 @@ def write_declaration(session_id, holding, blocked_on, tickets_opened,
                    "station": station, "skills": skills,
                    "holding": holding,
                    "blocked_on": blocked_on, "tickets_opened": tickets_opened,
+                   "dropped": dropped or None,
                    "declared_at": time.time()}, fh, ensure_ascii=False, indent=2)
     return path
 
@@ -820,6 +852,9 @@ def human(m):
         elif s["doing"]:
             t = " ".join(s["doing"].split())
             lines.append(f"      它自己宣告：{t[:160]}{'…' if len(t) > 160 else ''}")
+            # 掉了的那一行不截：被截掉的正是板子上該被看見的承諾（DP-888）
+            if (s.get("declaration") or {}).get("dropped"):
+                lines.append(f"      掉了：{s['declaration']['dropped']}")
     if m["not_this_machine"]:
         lines.append("")
         lines.append(f"不在這台機器上（{len(m['not_this_machine'])} 個）"
@@ -2275,12 +2310,16 @@ def main():
                       + "。兩個不同就不寫宣告。", file=sys.stderr)
                 return 2
             station = actual or station
+        dropped = dropped_from_holding(previous_holding(args.session_id), args.holding)
+        if dropped:
+            print("這次宣告掉了：" + dropped, file=sys.stderr)
         path = write_declaration(args.session_id, args.holding, args.blocked_on,
                                  args.tickets_opened, line=args.line, browser=args.browser,
-                                 station=station, skills=args.skills)
+                                 station=station, skills=args.skills, dropped=dropped)
         _, prob = append_journal("宣告", session_name_of(args.session_id), [
             ("線", args.line), ("瀏覽器", args.browser), ("接", args.holding),
-            ("卡", args.blocked_on), ("開單", args.tickets_opened)], now=args.now_epoch)
+            ("卡", args.blocked_on), ("開單", args.tickets_opened), ("掉了", dropped)],
+            now=args.now_epoch)
         print("宣告寫在 " + path)
         if prob:
             print(prob, file=sys.stderr)
