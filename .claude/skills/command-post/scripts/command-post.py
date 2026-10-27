@@ -407,6 +407,56 @@ def entry_epoch(head):
         return None
 
 
+STANDING_TAG = re.compile(r"\[線：([^\]]+)\]")
+STANDING_ARCHIVED = "封存"
+TICKET_TAG = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
+# 有固定名字的線；其餘宣告都算 epic 線，`[線：epic]` 對上它們。「框架」是 DP 線宣告時常用的名字。
+FIXED_LINES = {"review", "站會", "dp", "框架", "指揮官"}
+
+
+def standing_chunks(text):
+    """standing.md 切成 [(標記集合, 原文)]：第一節之前的前言一塊，之後每個 `## ` 一塊，原文逐字保留。"""
+    chunks, cur = [], []
+    for ln in text.splitlines(keepends=True):
+        if ln.startswith("## ") and cur:
+            chunks.append(cur)
+            cur = []
+        cur.append(ln)
+    if cur:
+        chunks.append(cur)
+    out = []
+    for c in chunks:
+        m = STANDING_TAG.search(c[0]) if c[0].startswith("## ") else None
+        tags = {t.strip() for t in m.group(1).replace("，", ",").split(",") if t.strip()} if m else set()
+        out.append((tags, "".join(c)))
+    return out
+
+
+def standing_tag_matches(tag, line, holding):
+    """標記對不對得上這條線。單號標記看宣告的 line 或 holding 裡有沒有同一個單號；線名標記去掉
+    「線」字與空白、不分大小寫，整名相等才算（`DP` 不對上 `DP-732`）。`epic` 對上線名不在
+    FIXED_LINES 裡的每一條線。"""
+    if TICKET_TAG.match(tag):
+        pat = r"(?<![A-Za-z0-9])" + re.escape(tag) + r"(?![A-Za-z0-9])"
+        return bool(re.search(pat, (line or "") + " " + str(holding or "")))
+    norm = lambda x: re.sub(r"\s|線", "", x or "").lower()
+    if norm(tag) == "epic":
+        return norm(line) not in FIXED_LINES
+    return norm(tag) == norm(line)
+
+
+def standing_for(text, line=None, holding=None):
+    """一條線要貼的常駐規矩：共用的（沒標記）加標記對上這條線的，封存的一律不帶。
+    `line` 是 None 時是指揮官那份：封存以外全部。沒有任何標記時原文逐字不變。"""
+    keep = []
+    for tags, raw in standing_chunks(text):
+        if STANDING_ARCHIVED in tags:
+            continue
+        if line is None or not tags or any(standing_tag_matches(t, line, holding) for t in tags):
+            keep.append(raw)
+    return "".join(keep).strip()
+
+
 def standing_sections(text):
     """standing.md 切成 [(標題, [那一節帶「原話」的句子])]，照檔案順序。"""
     out = []
@@ -458,7 +508,7 @@ def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
     quotes = user_quotes_lines(keys)
     try:
         with open(STANDING, encoding="utf-8") as fh:
-            standing = fh.read().strip()
+            standing = standing_for(fh.read())
     except OSError:
         standing = None
     sections = standing_sections(standing or "")
@@ -1773,11 +1823,11 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     lines, skipped = lines_to_rebuild(now, since_hours)
     try:
         with open(STANDING, encoding="utf-8") as fh:
-            standing = fh.read().strip()
+            standing = fh.read()
     except OSError:
         standing = None
-    standing_block = standing or ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
-                                  "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
+    no_standing = ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
+                   "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
     fence = "````"
     out = ["# 重建 prompt（" + stamp(now) + "）", ""]
     out.append("每一段是一個新 session 的第一則訊息，整段複製貼上。")
@@ -1841,7 +1891,7 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
             "",
             "## 常駐規矩",
             "",
-            standing_block,
+            standing_for(standing, line, decl.get("holding")) if standing is not None else no_standing,
             "",
             "## 你的工作",
             "",
