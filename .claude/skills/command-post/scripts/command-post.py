@@ -383,13 +383,30 @@ def entry_epoch(head):
         return None
 
 
-def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
-    """壓縮之後要帶回來的那一份：最後一筆使用者在等的原文、從它前 `since_hours` 小時起的
-    每一行決定，以及在等裡提到的每個鍵的 `--lookup`。回傳 (要注入的那一段, 完整版路徑, 問題)。
+def standing_sections(text):
+    """standing.md 切成 [(標題, [那一節帶「原話」的句子])]，照檔案順序。"""
+    out = []
+    for ln in text.splitlines():
+        if ln.startswith("## "):
+            out.append((ln[3:].strip(), []))
+        elif out and "原話" in ln:
+            out[-1][1].extend(q for _, q in quotes_in(ln))
+    return out
 
-    **決定是日誌裡寫下來的，不是摘要裡記得的。** 壓縮摘要會把前一天的決定壓成一句或整段
-    丟掉，而日誌一個字都不少。注入有大小上限，所以完整版落檔，注入的那一段說出放不下的有
-    幾行、完整版在哪。
+
+def commander_memory(now=None, since_hours=24, cap=RECALL_CAP):
+    """指揮官要帶著的那一份：壓縮之後的注入與 `--rebuild` 的指揮官段都用它，所以新開的指揮官
+    讀到什麼，壓縮之後就拿到什麼。使用者 2026-10-27 原話：「不是說過壓縮等價新開，如果壓縮
+    會掉，那代表新開也會掉，不能接受吧」。
+
+    回傳 (full, inline, problem)。full 是全部：最後一筆使用者在等的原文、常駐規矩全文、在等
+    裡每個鍵在日誌全部時間的使用者原話、從那筆在等前 `since_hours` 小時起的決定。inline 是
+    放得進 `cap` 字的那一份，照這個順序取：在等、常駐規矩每節標題與那節的使用者原話（新到舊，
+    最多佔一半）、每個鍵的使用者原話（新到舊，互相包含的只留一句）、決定。放不下的說出截掉
+    幾句、幾節、幾行。
+
+    **不限時間的是使用者原話，不是決定。** 決定欄是指揮官自己的解讀，2026-10-21 一句
+    「be2 只能新增跟查詢」被讀寬之後，帶回來的一直是那個讀寬的決定。
     """
     entries, problem = read_journal_entries()
     if problem:
@@ -413,20 +430,89 @@ def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
             if ln.startswith("- 決定："):
                 decisions.append(head.lstrip("# ") + "｜" + ln[len("- 決定："):])
     decisions.reverse()
-    keys = []
-    for tok in CO_KEY.findall(last):
-        if tok not in keys:
-            keys.append(tok)
-    lookups = ""
+    keys = waiting_keys(last)
+    quotes = user_quotes_lines(keys)
+    try:
+        with open(STANDING, encoding="utf-8") as fh:
+            standing = fh.read().strip()
+    except OSError:
+        standing = None
+    sections = standing_sections(standing or "")
+    no_standing = "（日誌目錄裡沒有常駐規矩檔：" + STANDING + "）"
+    head = ["最後一筆使用者在等（原文）：", last]
+    tail = ["從它前 " + str(since_hours) + " 小時起的決定（新到舊，共 " + str(len(decisions)) + " 行）："]
+    full = "\n".join(head + ["", "在等裡每個鍵的使用者原話（日誌全部時間，舊到新）："] + quotes
+                     + ["", "常駐規矩（" + STANDING + " 全文）：", "", standing or no_standing, ""]
+                     + tail + ["- " + d for d in decisions])
     if keys:
         lookups, lprob = lookup_text(keys, now=now)
-        lookups = lookups or ("--lookup 問不到：" + str(lprob))
-    head = ["最後一筆使用者在等（原文）：", last, "",
-            "從它前 " + str(since_hours) + " 小時起的決定（新到舊，共 " + str(len(decisions)) + " 行）："]
-    full = "\n".join(head + ["- " + d for d in decisions]
-                     + ["", "在等裡提到的鍵：" + ("、".join(keys) or "沒有"), "", lookups])
+        full += "\n\n在等裡的鍵的 --lookup：\n" + (lookups or ("--lookup 問不到：" + str(lprob)))
+
+    inline = list(head)
+    def fits(line, limit=cap):
+        return len("\n".join(inline)) + len(line) + 1 <= limit
+    # 常駐規矩排在原話前面，而且最多佔一半：它是每一件事都適用的規矩，被一個話多的鍵擠掉的話，
+    # 壓縮之後的指揮官就不知道「線自己登入」這種早就定下的事。
+    inline += ["", "常駐規矩每節（新到舊；標題＋那節的使用者原話）：" if sections else no_standing]
+    half = len("\n".join(inline)) + (cap - len("\n".join(inline))) // 2
+    shown = 0
+    for title, qs in reversed(sections):
+        line = "- " + title + "".join("「" + q[:60] + "」" for q in qs[:2])
+        if not fits(line, half):
+            line = "- " + title
+        if not fits(line, half):
+            break
+        inline.append(line)
+        shown += 1
+    if shown < len(sections):
+        inline.append("（截掉 " + str(len(sections) - shown) + " 節較舊的，在完整版裡）")
+    # 每個鍵新到舊：最近的裁決最可能就是現在被問到的那一件。同一句話常常被好幾筆紀錄引用、
+    # 或一筆引了另一筆的前半，所以互相包含的只留第一次出現的那一句，換一個鍵也不再印。
+    inline += ["", "在等裡每個鍵的使用者原話（新到舊）："]
+    cut_q, seen = 0, []
+    for key, hits in user_quotes_by_key(keys)[0] or []:
+        parts = []
+        for h in reversed(hits):
+            q = h[2]
+            if any(q in o or o in q for o in seen):
+                continue
+            seen.append(q)
+            parts.append(h[1][:16] + "「" + q[:100] + "」")
+        if not parts:
+            continue
+        line = "- " + key + "：" + "／".join(parts)
+        while not fits(line) and "／" in line:
+            line, cut_q = line.rsplit("／", 1)[0], cut_q + 1
+        if fits(line):
+            inline.append(line)
+        else:
+            cut_q += len(parts)
+    if not keys:
+        inline.append(quotes[0])
+    if cut_q:
+        inline.append("（截掉 " + str(cut_q) + " 句較舊的原話，在完整版裡）")
+    inline += [""] + tail
+    shown = 0
+    for d in decisions:
+        if not fits("- " + d):
+            break
+        inline.append("- " + d)
+        shown += 1
+    if shown < len(decisions):
+        inline.append("（還有 " + str(len(decisions) - shown) + " 行放不下，在完整版裡）")
+    return full, "\n".join(inline), None
+
+
+def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
+    """壓縮之後要帶回來的那一份。內容是 `commander_memory`，跟 `--rebuild` 的指揮官段同一份；
+    完整版落檔，注入放得下的那一份。回傳 (要注入的那一段, 完整版路徑, 問題)。"""
     path = os.path.join(JOURNAL_DIR, "after-compact", time.strftime(
         "%Y%m%d-%H%M%S", time.localtime(now or time.time())) + ".md")
+    lead = ("完整版（含常駐規矩全文與每個鍵的全部原話）：" + path
+            + "。現在用 Read 讀完它，再回答使用者或派工。這些是已經決定的事：不重問、不漏。")
+    full, inline, problem = commander_memory(now, since_hours, cap - len(lead) - 2)
+    if problem:
+        return None, None, problem
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
@@ -434,18 +520,7 @@ def after_compact_recall(now=None, since_hours=24, cap=RECALL_CAP):
     except OSError as exc:
         return None, None, "完整版寫不進去：" + path + "（" + str(exc) + "）"
     # 路徑放第一行：注入的那一段若被宿主截斷，掉的是尾巴的決定，不是「去讀完整版」這一句。
-    inline = ["完整版（含下面全部，加上 " + ("、".join(keys) or "沒有鍵")
-              + " 的 --lookup）：" + path + "。現在用 Read 讀完它，再回答使用者或派工。"
-              "這些是已經決定的事：不重問、不漏。", ""] + head
-    shown = 0
-    for d in decisions:
-        if len("\n".join(inline)) + len(d) + 3 > cap:
-            break
-        inline.append("- " + d)
-        shown += 1
-    if shown < len(decisions):
-        inline.append("（還有 " + str(len(decisions) - shown) + " 行放不下，在完整版裡）")
-    return "\n".join(inline), path, None
+    return lead + "\n\n" + inline, path, None
 
 
 def session_name_of(session_id):
@@ -806,7 +881,6 @@ def user_words_note(now=None):
 ANSWER_FIELD = "答案早已在"
 ANNOTATE_KIND = "標註"
 ANSWER_NONE, ANSWER_NA = "none", "n/a"
-PRIOR_PER_KEY = 5
 
 
 def journal_entries_with_lines():
@@ -832,32 +906,106 @@ def is_user_entry(head):
     return "｜ 紀錄 ｜ 使用者" in head
 
 
-def prior_decisions_text(keys, before=None, per_key=PRIOR_PER_KEY):
-    """日誌裡每個鍵在 `before` 以前最近幾筆使用者條目、決定欄與原話，逐行帶 `journal.md:行號`。
+# 「原話」後面可以先接一個括號（「使用者原話（10/21 站會後）：「…」」），引文裡可以再套引號。
+QUOTE_LEAD = re.compile(r"原話(?:（[^）]*）)?[：:]?\s*(?=「)")
+# 在等裡的英文人名。分不出人名與產品名，所以多抓到的那幾個只會印成「沒有原話」。
+NAME_KEY = re.compile(r"(?<![A-Za-z0-9])[A-Z][a-z]{2,}(?![A-Za-z0-9])")
 
-    給 `prior-decisions.py` 當一個宣告來源：沒命中就不印，讀不到就非 0 並說出來。
-    """
+
+def quotes_in(row):
+    """一行裡跟在「原話」後面的每一段「…」，回 [(「原話」在行內的位置, 引文)]。引號按層數配對。"""
+    out = []
+    for m in QUOTE_LEAD.finditer(row):
+        i = m.end()
+        while i < len(row) and row[i] == "「":
+            depth, j = 0, i
+            while j < len(row):
+                depth += {"「": 1, "」": -1}.get(row[j], 0)
+                if depth == 0:
+                    break
+                j += 1
+            if depth:
+                break
+            out.append((m.start(), row[i + 1:j]))
+            i = j + 1
+            while i < len(row) and row[i] in "、，與和及 \t":
+                i += 1
+    return out
+
+
+def user_quotes(rows, user_entry):
+    """一筆條目裡使用者自己說的話。使用者的條目全收；別人的條目只收緊接在「使用者」之後的
+    那幾段——「Billy 原話」「指揮官的決定」都不是使用者說的。"""
+    out = []
+    for i, r in enumerate(rows[1:], 1):
+        for at, q in quotes_in(r):
+            if user_entry or "使用者" in r[max(0, at - 16):at]:
+                out.append((i, q))
+    return out
+
+
+def user_quotes_by_key(keys, before=None):
+    """每個鍵在日誌全部時間裡的使用者原話，舊到新、同一句只留第一次。不限時間、不限筆數：
+    被糾正的常常是很多天以前就說過的事。回 ([(鍵, [(行號, 標頭, 引文)])], problem)。"""
     entries, prob = journal_entries_with_lines()
     if prob:
         return [], prob
     out = []
     for key in keys:
-        hits = []
+        pat, seen, hits = key_pattern(key), set(), []
         for no, rows in entries:
             when = entry_epoch(rows[0])
             if before and (when is None or when >= before):
                 continue
-            body = "\n".join(rows)
-            if key not in body:
+            if not any(pat.search(r) for r in rows):
                 continue
-            user = is_user_entry(rows[0])
-            picked = [(no + i, r) for i, r in enumerate(rows) if i and r.strip()
-                      and (user or "原話" in r or r.startswith("- 決定："))]
-            if picked:
-                hits.append((no, rows[0], picked))
-        for no, head, picked in hits[-per_key:]:
-            out.append(f"{JOURNAL}:{no} {head.lstrip('#').strip()}（鍵 {key}）")
-            out += [f"{JOURNAL}:{n}   {r.strip()[:300]}" for n, r in picked]
+            for off, q in user_quotes(rows, is_user_entry(rows[0])):
+                if q not in seen:
+                    seen.add(q)
+                    hits.append((no + off, rows[0].lstrip("#").strip(), q))
+        out.append((key, hits))
+    return out, None
+
+
+def user_quotes_lines(keys, before=None):
+    """`user_quotes_by_key` 排成要印的那幾行。讀不到、沒有鍵、某個鍵沒有原話，各說各的話。"""
+    if not keys:
+        return ["這一段沒有鍵（沒有單號、PR 號或人名），所以沒有列使用者原話。"]
+    groups, prob = user_quotes_by_key(keys, before=before)
+    if prob:
+        return ["使用者原話讀不到：" + prob]
+    out = []
+    for key, hits in groups:
+        if not hits:
+            out.append(f"- {key}：日誌裡沒有提到它的使用者原話")
+            continue
+        out.append(f"- {key}（{len(hits)} 句，舊到新）：")
+        out += [f"  - {head[:16]} {JOURNAL}:{no}「{q}」" for no, head, q in hits]
+    return out
+
+
+def waiting_keys(text):
+    """在等裡的鍵：單號、PR 號、英文人名，照出現順序。"""
+    keys = []
+    for tok in CO_KEY.findall(text) + NAME_KEY.findall(text):
+        if tok not in keys:
+            keys.append(tok)
+    return keys
+
+
+def prior_decisions_text(keys, before=None):
+    """日誌裡每個鍵在 `before` 以前的全部使用者原話，逐句帶 `journal.md:行號`。
+
+    給 `prior-decisions.py` 當一個宣告來源：沒命中就不印，讀不到就非 0 並說出來。**只給
+    使用者原話**：以前也給「決定」欄，而那一欄是指揮官自己的解讀——2026-10-21 一句
+    「be2 只能新增跟查詢」被讀寬，之後每一次派工印出來的是那個讀寬的決定。
+    """
+    groups, prob = user_quotes_by_key(keys, before=before)
+    if prob:
+        return [], prob
+    out = []
+    for key, hits in groups:
+        out += [f"{JOURNAL}:{no} {head[:16]}（鍵 {key}）使用者原話「{q}」" for no, head, q in hits]
     return out, None
 
 
@@ -1262,6 +1410,41 @@ def other_live_lines(epic_dir, exclude):
     return [(n, "；".join(r)) for n, r in sorted(found.items())], None
 
 
+# 派 epic 的活的 --say 固定帶這一句。使用者 2026-10-27 原話：「每張單的前因後果應該都是清楚的，
+# 到底掉在哪」——一條裁決落在日誌，單上依賴它的段落沒有同一輪改，新的線照抄舊段落。
+SWEEP_LINE = ("這一則若帶著裁決：落地那一輪 grep 這個 epic 單上所有引用同一件事的段落，"
+              "改到一致，commit 訊息列出改了哪幾段。")
+
+
+def line_refusal(to_name, epic):
+    """派工之前對一次線：收件者沒宣告自己是哪條線就不派；要派的 epic 不在它宣告的
+    `--line`／`--holding` 裡也不派。回一段拒絕的話，可以派就回 None。
+
+    使用者 2026-10-27 原話：「我是不是重頭到尾都有說，一個 epic 一個 session，所以為什麼
+    又在亂搞」。那天站會線被轉成另一個 epic 的線，一個沒宣告的閒置 session 被派成框架線。
+    `epic` 是 None 表示這一則不派任何 epic 的活（`--say --epic none`），只查有沒有宣告。
+    """
+    rows, prob = read_registry()
+    if prob:
+        return "收件者是哪條線問不到（" + prob + "），所以不派。"
+    sids = [d.get("sessionId") for _, d in rows
+            if isinstance(d, dict) and d.get("name") == to_name and d.get("sessionId")
+            and not (isinstance(d.get("pid"), int) and alive(d.get("pid")) is False)]
+    if not sids:
+        return to_name + " 不是登錄裡任何一個活著的 session，所以不派。"
+    decl = next((d for d in (read_declaration(x)[0] for x in sids) if d and d.get("line")), None)
+    if not decl:
+        return (to_name + " 沒有宣告自己是哪條線，所以不派。要嘛叫它先跑 --declare --line，"
+                "要嘛跑 --rebuild 重建一條。")
+    if epic is None:
+        return None
+    said = "｜".join(str(decl.get(k) or "") for k in ("line", "holding"))
+    if key_pattern(epic).search(said):
+        return None
+    return ("這條線是「" + str(decl.get("line")) + "」線，宣告裡沒有 " + epic + "。" + epic
+            + " 要重建一條，跑 --rebuild；同一個 epic 已經有線的話派給那一條。")
+
+
 def epic_line_warning(issue_path, to_name, from_name):
     """一個 epic 一條線：`--issue` 落在的那張鏈頂單已經有別條活線時，回一則警告。
 
@@ -1574,7 +1757,7 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     out.append("每一段是一個新 session 的第一則訊息，整段複製貼上。")
     out.append("")
 
-    said, head = last_waiting(entries)
+    memory, _, mprob = commander_memory(now, since_hours)
     roster = ["| 線 | 上一任 | 還活著 | 接的是什麼 | 卡在哪 |", "|---|---|---|---|---|"]
     for line, decl, name, running in lines:
         roster.append("| " + " | ".join([
@@ -1595,8 +1778,6 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         "4. 板子上在飛的每一張單、上一任在等的那句裡每一個單號與 PR，跑 `python3 " + SCRIPT
         + " --lookup <key> [<key>...]`。有命中的已經排給某條線，不是待決；壓縮摘要不是狀態，日誌才是。",
         "",
-        "上一任在等的（" + (head or "日誌裡沒有紀錄") + "）：" + (said or "沒有紀錄"),
-        "",
         "重建時各條線的宣告：",
         "",
     ] + roster + [
@@ -1604,9 +1785,9 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         "上線之後，用 `ListAgents` 查出自己的名字，`SendMessage` 告訴每一條還活著的線：",
         "「指揮官換成 <你的名字>，回報改送這裡」。之後照 SKILL.md 做事。",
         "",
-        "## 常駐規矩",
+        "## 已經決定的事（跟壓縮之後注入的是同一份）",
         "",
-        standing_block,
+        memory or ("日誌裡的決定帶不回來：" + str(mprob)),
     ]
     out.append(fence)
     out.append("")
@@ -1728,6 +1909,8 @@ def main():
                     help="派工與互審以外要送給某條線的話（回覆、裁決、轉達）：記進日誌與送出紀錄，"
                          "原樣印出本文。指揮官的 SendMessage 只送這三種印出來的本文。")
     ap.add_argument("--text", default=None, help="--say 用：要送的本文")
+    ap.add_argument("--epic", default=None,
+                    help="--say 必填：這一則派的是哪個 epic（鏈頂單號），不派 epic 的活寫 none")
     ap.add_argument("--board", action="store_true",
                     help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
     ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
@@ -1825,6 +2008,10 @@ def main():
                          session_id=sid,
                          idle_threshold=args.idle_threshold,
                          journal_tail=args.journal_tail))
+        said, _ = last_waiting(read_journal_entries()[0])
+        keys = waiting_keys(said or "")
+        print("\n## 在等裡每個鍵的使用者原話（日誌全部時間，舊到新）\n")
+        print("\n".join(user_quotes_lines(keys)))
         return 0
     if args.log:
         missing = [f for f, v in (("--who", args.who), ("--what", args.what)) if not v]
@@ -1913,6 +2100,15 @@ def main():
                       + (station_skill(station) or "沒有——它已經判過交付了") + "）。", file=sys.stderr)
                 print("兩個對不上就不產出指令。要它回某一站，先在那張單上換站。", file=sys.stderr)
                 return 9
+        if args.order:
+            epic = epic_dir_of(args.issue)
+            # 宣告裡寫的是單號，不是整個目錄名，所以比的是目錄名開頭那個單號。
+            key = re.match(r"[A-Z][A-Z0-9]*-\d+", os.path.basename(epic)) if epic else None
+            refusal = line_refusal(to_names[0], key.group(0) if key else
+                                   (os.path.basename(epic) if epic else None))
+            if refusal:
+                print(refusal, file=sys.stderr)
+                return 10
         # 產出那一刻落一筆。**產出不等於送出**——送出仍然是 SendMessage，所以這一筆寫的是
         # 「產出了給誰的指令」，不是「送出了」。
         _, prob = append_journal("互審" if args.review else "派工", frm, [
@@ -1937,6 +2133,7 @@ def main():
                 print(prob, file=sys.stderr)
                 return 7
         if args.order:
+            print(prior_decisions_note(out, args.now_epoch), file=sys.stderr)
             warning = epic_line_warning(args.issue, to_names[0], frm)
             if warning:
                 print(warning, file=sys.stderr)
@@ -1948,17 +2145,28 @@ def main():
             print("--say 要剛好一個 --to 與 --text，現在 --to 有 " + str(len(to_names))
                   + " 個、--text " + ("有" if args.text else "沒有") + "。", file=sys.stderr)
             return 2
+        if not args.epic:
+            print("--say 要 --epic <鏈頂單號|none>：這一則是派哪個 epic 的活，不派 epic 的活就寫 none。"
+                  "判準由寫的人說出來，不從本文猜——本文裡的單號常常只是標本。", file=sys.stderr)
+            return 2
+        refusal = line_refusal(to_names[0], None if args.epic == "none" else args.epic)
+        if refusal:
+            print(refusal, file=sys.stderr)
+            return 10
         frm, why = report_to_name(args.from_name)
         if not frm:
             print(why, file=sys.stderr)
             return 4
-        _, prob = append_journal("回覆", frm, [("給", to_names[0]), ("內容", args.text)],
+        text = args.text.rstrip()
+        if args.epic != "none" and SWEEP_LINE not in text:
+            text += "\n\n" + SWEEP_LINE
+        _, prob = append_journal("回覆", frm, [("給", to_names[0]), ("內容", text)],
                                  now=args.now_epoch)
-        prob = prob or record_sent(to_names[0], args.text, now=args.now_epoch)
+        prob = prob or record_sent(to_names[0], text, now=args.now_epoch)
         if prob:
             print(prob, file=sys.stderr)
             return 7
-        print(args.text.rstrip())
+        print(text)
         return 0
     if args.declare:
         missing = [f for f, v in (("--session-id", args.session_id),

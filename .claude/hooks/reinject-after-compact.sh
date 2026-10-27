@@ -13,9 +13,9 @@
 #   1. 這個 session 的 transcript 裡 invoke 過哪幾支 skill，要求現在逐支重新 invoke。
 #   2. 這個 session 宣告自己是指揮官的話，附上 command-post SKILL.md 硬規則那一節的原文
 #      （兩個 COMMANDER-HARD-RULES 標記之間），不是另一份抄本。
-#   3. 指揮官的話，再附上日誌裡最後一筆使用者在等的原文、從它前 24 小時起的每一行決定，以及
-#      完整版（加上在等裡提到的鍵的 --lookup）的路徑。內容由 command-post.py 的
-#      after_compact_recall() 產生，這裡不另外解析日誌。2026-10-21 指揮官壓縮後把前一天
+#   3. 指揮官的話，再附上 command-post.py 的 commander_memory()：最後一筆使用者在等的原文、
+#      在等裡每個鍵在日誌全部時間的使用者原話、常駐規矩每節標題與原話、24 小時內的決定，
+#      放不下的落檔並給路徑。它跟 --rebuild 的指揮官段是同一份，這裡不另外解析日誌。2026-10-21 指揮官壓縮後把前一天
 #      已決定的三件重問或漏掉；SKILL.md 寫著壓縮後先跑 --lookup，沒有東西逼它跑。
 # 其他來源（startup、resume、clear）什麼都不輸出。
 #
@@ -87,7 +87,10 @@ if line == "指揮官":
         spec = importlib.util.spec_from_file_location("command_post", command_post)
         cp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cp)
-        inline, _, problem = cp.after_compact_recall()
+        # 宿主對 additionalContext 的上限是 10,000 字元，超過就整段換成檔案路徑加前 2,000 字
+        # 預覽（code.claude.com/docs/en/hooks〈JSON output〉）。所以決定那一段只拿剩下的額度。
+        budget = 9800 - len("\n\n".join(parts)) - len("[compact 之後] 日誌裡已經決定的事（摘要會漏，這一份不會）：\n") - 4
+        inline, _, problem = cp.after_compact_recall(cap=max(budget, 1500))
     except Exception as exc:
         inline, problem = None, command_post + " 載不起來（" + str(exc) + "）"
     if problem:
