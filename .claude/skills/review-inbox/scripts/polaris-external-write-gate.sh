@@ -57,6 +57,9 @@ POLARIS_ATTRIBUTED_SURFACES=(
   # JIRA 留言一樣掛在那個人的帳號底下送出，而 JIRA 沒有原生標示。2026-10-27 七則裡有五則
   # 漏了署名，是因為那時 jira-comment 過不了閘、改走只查語言的路；登記之後擋它的是這一筆。
   "jira-comment"
+  # JIRA 描述欄同理。有些團隊把驗證證據寫進描述欄的驗證段，2026-10-27 那時
+  # jira-description 過不了閘、改走只查語言的路；登記之後擋它的是這一筆。
+  "jira-description"
 )
 if [[ "${1:-}" == "--print-attribution-mark" ]]; then
   printf '%s\n' "$POLARIS_ATTRIBUTION_MARK"
@@ -176,6 +179,9 @@ POLARIS_EXTERNAL_WRITERS=(
   # fail-closed，2026-10-27 一天七則改走 validate-language-policy.sh，surface 與署名都沒有人查。
   # 跟 github-comment 那一筆是同一件事。
   "driving-work-to-done:jira-comment"
+  # 自己手上那張單的 JIRA 描述欄（驗證段、狀態說明）。這一筆不在的時候 jira-description 一律
+  # fail-closed，2026-10-27 一張單改描述改走只查語言的路。跟上一筆是同一件事。
+  "driving-work-to-done:jira-description"
 )
 
 if [[ -z "$writer_token" ]]; then
