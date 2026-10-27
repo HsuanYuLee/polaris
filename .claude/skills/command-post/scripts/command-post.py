@@ -61,18 +61,24 @@ def spine_station(issue_path):
     return (rows["station"], None) if rows else (None, problem)
 
 
+# 改動落在哪個 repo，那個 repo 自己的規矩檔就是權威（DP-885）。領域知識是 none 的單不改程式碼，不帶。
+REPO_OWN_RULES_LINE = ("改動落在的每個 repo，動手之前讀完它根目錄的 CLAUDE.md、AGENTS.md 與 .claude/rules/，"
+                       "跟框架衝突以 repo 為準並回報。")
+
+
 def pack_line(issue_path):
     """派工與重建指令裡講領域知識的那一句。開輪次時 --pack 只被記下，內容從來沒有被放到
     線面前（DP-880），所以派這張單的那一刻就指名它。問不到就說問不到，不擋派工。"""
     rows, problem = spine_where(issue_path) if issue_path else (None, "沒有指得到的單")
     pack = (rows or {}).get("pack", "").split()
     if not pack:
-        return "這張單的領域知識問不到（" + (problem or "where 沒有印 pack") + "）。"
+        return "這張單的領域知識問不到（" + (problem or "where 沒有印 pack") + "）。" + REPO_OWN_RULES_LINE
     if pack[0] == "none":
         return "這張單沒有領域知識，不用 invoke 任何一支。"
     if pack[0] == "unrecorded":
-        return "這張單沒有記領域知識。"
-    return "這張單的領域知識是 /" + pack[0] + "：動手之前 invoke 它，改動照它做。"
+        return "這張單沒有記領域知識。" + REPO_OWN_RULES_LINE
+    return ("這張單的領域知識是 /" + pack[0] + "：動手之前 invoke 它，改動照它做。"
+            + REPO_OWN_RULES_LINE)
 
 
 def held_issue(holding):
