@@ -490,6 +490,26 @@ except Exception as error:  # noqa: BLE001
     self_check = {"status": "unreadable", "error": f"{type(error).__name__}: {error}"}
 payload["self_check"] = self_check
 
+# 盲測那一趟（build-independent-oracle-prompt.sh）跑了沒，跟 self_check 同一個待遇：只讓
+# 「沒跑」看得見，不改 exit code、不擋這份紀錄。independent_only 只有收成了報告才有數字。
+def read_independent():
+    out_dir = os.path.join(source, ".spine", "independent")
+    if not os.path.isfile(os.path.join(out_dir, "phase1.json")):
+        return {"status": "not_run"}
+    record = {"status": "phase1", "independent_only": None}
+    result_path = os.path.join(out_dir, "result.json")
+    if os.path.isfile(result_path):
+        with open(result_path, encoding="utf-8") as handle:
+            summary = json.load(handle).get("summary") or {}
+        record = {"status": "recorded", "independent_only": summary.get("independent_only")}
+    return record
+
+try:
+    independent = read_independent()
+except Exception as error:  # noqa: BLE001
+    independent = {"status": "unreadable", "error": f"{type(error).__name__}: {error}"}
+payload["independent"] = independent
+
 with open(out, "w", encoding="utf-8") as handle:
     json.dump(payload, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
@@ -504,6 +524,15 @@ elif self_check.get("pack") == "unresolved":
     print("SELF-CHECK: 沒跑（單上沒有 check-your-own-work 九問紀錄；pack 讀不到）")
 else:
     print("SELF-CHECK: 沒跑（單上沒有 check-your-own-work 九問紀錄）")
+
+if independent["status"] == "recorded":
+    print(f"INDEPENDENT: 跑了，independent_only {independent['independent_only']} 條")
+elif independent["status"] == "phase1":
+    print("INDEPENDENT: 第一階段跑了，還沒收成報告（independent_only 沒有數字）")
+elif independent["status"] == "unreadable":
+    print("INDEPENDENT: 讀不到（" + independent["error"] + "）")
+else:
+    print("INDEPENDENT: 沒跑（單上沒有 .spine/independent/phase1.json）")
 PY
 
 echo "RECORDED: $OUT"

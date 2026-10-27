@@ -233,7 +233,9 @@ dogfood 觀察的樣本通常很薄，而且觀察者往往同時是被觀察者
 #    名字也不帶單號——放在單底下的話，它離你的量測腳本只有一個 `..`。
 bash .claude/skills/verify-ac/scripts/build-independent-oracle-prompt.sh \
   --issue {issue} --tree <要量的 checkout> --phase 1
-# 把印出來的那份指示原樣交給一個 agent，等它寫出 {issue}/.spine/independent/phase1.json
+# 把印出來的那份指示原樣交給一個 agent，等它寫出 {issue}/.spine/independent/phase1.json。
+# 或加 --agent-cmd '<啟動命令>'，由這支在那棵樹底下派：指示接在最後一個參數，
+# 例如 'claude -p --permission-mode acceptEdits'、Codex 是 'codex exec'。
 
 # 2. phase1.json 在了，第二份指示才產得出來。這時才給它你的量測登錄。
 bash .claude/skills/verify-ac/scripts/build-independent-oracle-prompt.sh \
@@ -252,7 +254,7 @@ bash .claude/skills/verify-ac/scripts/record-independent-oracle.sh \
 
 **那份指示沒有第三個參數，這是刻意的。** 你交得出去的只有「單在哪」「樹在哪」。一個
 「可選的補充說明」看起來無害，而它正好會把這一趟唯一的根據送掉——那個 agent 的價值完全
-來自它沒看過你的說法。
+來自它沒看過你的說法。`--agent-cmd` 不算：它換的是誰去跑，指示一個字都不變。
 
 **它產出的是意見，不是判定。** `record-independent-oracle.sh` 的離場碼說的是「收不收得成」，
 不是「過了沒」；判「這張單能不能出貨」的仍然只有交付紀錄。把一個 LLM 的判斷接到會擋人的
@@ -353,6 +355,11 @@ major 可以宣告。留一個「可以不填」的格子仍然是在教一套�
 這一格列出那幾段的行號，輸出也印 `SELF-CHECK:` 一行；找不到就寫「沒跑」，pack 為 `none`
 的單寫不適用，讀不到 pack 或讀壞了就說出讀不到什麼。**每一種情況交付紀錄都照寫、exit code
 都一樣**——它讓「沒跑」看得見，不擋人。
+
+**同一個待遇的還有一格 `independent`，指向上面那一趟盲測。** 單上有
+`{issue}/.spine/independent/phase1.json` 就記成跑了；`record-independent-oracle.sh` 收成了報告，再記
+`independent_only` 幾條。沒有就寫「沒跑」，輸出印 `INDEPENDENT:` 一行。它跟 `self_check`
+一樣不判定、不改 exit code。
 
 接著它逐條檢查 fence 宣告的每個 assertion ID。證據的可信度分三層，**交付這條路三層全做**：
 

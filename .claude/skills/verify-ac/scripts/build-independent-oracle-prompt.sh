@@ -26,23 +26,28 @@
 # Usage:
 #   build-independent-oracle-prompt.sh --issue <單的目錄> --tree <要量的 checkout> --phase 1|2
 #
-# **沒有第三個參數，這是刻意的。** 施工方交得出去的只有「單在哪」「樹在哪」；它的摘要、
+# **沒有第三個內容參數，這是刻意的。** 施工方交得出去的只有「單在哪」「樹在哪」；它的摘要、
 # 結論、理由、辯護，一個字都進不了這份指示。留一個「可選的補充說明」等於把這一趟的唯一
 # 根據送掉——那個參數看起來無害，而它正好是這支腳本要擋的東西。
 #
-# Exit: 0 產出了 / 2 參數不對、單不在、或 phase 2 的前提還沒成立
+# 給了 --agent-cmd 就不只印出來：那條命令在 --tree 底下跑，指示接在最後一個參數，
+# 例如 --agent-cmd 'claude -p --permission-mode acceptEdits'、--agent-cmd 'codex exec'。
+# 它是啟動命令，不是內容：指示一個字都不變。
+#
+# Exit: 0 產出了（給了 --agent-cmd 時是那條命令的離場碼）/ 2 參數不對、單不在、或 phase 2 的前提還沒成立
 
 set -euo pipefail
 
-ISSUE="" TREE="" PHASE=""
+ISSUE="" TREE="" PHASE="" AGENT_CMD=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --issue) ISSUE="${2:-}"; shift 2 ;;
     --tree)  TREE="${2:-}"; shift 2 ;;
     --phase) PHASE="${2:-}"; shift 2 ;;
+    --agent-cmd) AGENT_CMD="${2:-}"; shift 2 ;;
     -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "POLARIS_INDEPENDENT_ORACLE_UNKNOWN_ARG:$1" >&2
-       echo "  這支只收 --issue／--tree／--phase。施工方的摘要不是參數，見檔頭。" >&2
+       echo "  這支只收 --issue／--tree／--phase／--agent-cmd。施工方的摘要不是參數，見檔頭。" >&2
        exit 2 ;;
   esac
 done
@@ -55,6 +60,13 @@ done
 
 ISSUE=$(cd "$ISSUE" && pwd)
 TREE=$(cd "$TREE" && pwd)
+
+if [ -n "$AGENT_CMD" ]; then
+  prompt=$(bash "$0" --issue "$ISSUE" --tree "$TREE" --phase "$PHASE") || exit $?
+  python3 -c 'import shlex, subprocess, sys; sys.exit(subprocess.call(shlex.split(sys.argv[1]) + [sys.argv[2]], cwd=sys.argv[3]))' \
+    "$AGENT_CMD" "$prompt" "$TREE"
+  exit $?
+fi
 OUT="$ISSUE/.spine/independent"
 # 去掉施工痕跡的那一份**不放在單底下**。放在 $OUT/redacted 的話，它離真的單只有一個
 # `..`——那等於把「物理上看不到」換回「請你不要看」，而這一趟的唯一根據就是前者。
