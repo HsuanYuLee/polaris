@@ -996,6 +996,10 @@ def user_words_note(now=None):
 ANSWER_FIELD = "答案早已在"
 ANNOTATE_KIND = "標註"
 ANSWER_NONE, ANSWER_NA = "none", "n/a"
+# 同一筆的另一格：當時有沒有讀到那條已經寫下的規矩。跟「答案早已在」交叉才分得開
+# 「規矩在、沒人讀」與「讀了、沒照做」（DP-887）。同樣是人標的，不是判定。
+READ_FIELD = "當時讀了沒"
+READ_VALUES = ("讀到", "沒讀到", "分不出")
 
 
 def journal_entries_with_lines():
@@ -1124,12 +1128,12 @@ def prior_decisions_text(keys, before=None):
     return out, None
 
 
-def answer_marks(entries):
-    """標頭行號 → 最後一次標的值。帶欄位的那一筆自己算一次，之後的標註覆蓋它。"""
+def answer_marks(entries, name=ANSWER_FIELD):
+    """標頭行號 → 欄位 `name` 最後一次標的值。帶欄位的那一筆自己算一次，之後的標註覆蓋它。"""
     marks = {}
     for no, rows in entries:
         field = next((r.split("：", 1)[1].strip() for r in rows
-                      if r.startswith(f"- {ANSWER_FIELD}：")), None)
+                      if r.startswith(f"- {name}：")), None)
         if field is None:
             continue
         if f"｜ {ANNOTATE_KIND} ｜" in rows[0]:
@@ -1148,7 +1152,10 @@ def answer_stats_text(since, until):
     if prob:
         return prob, 7
     marks = answer_marks(entries)
+    read = answer_marks(entries, READ_FIELD)
     groups = {"早已在": [], "沒有": [], "不適用": [], "還沒標": []}
+    cols = (*READ_VALUES, "還沒標")
+    cross = {g: dict.fromkeys(cols, 0) for g in groups}
     for no, rows in entries:
         day = rows[0].lstrip("#").strip()[:10]
         if not (since <= day <= until) or not is_user_entry(rows[0]):
@@ -1158,6 +1165,8 @@ def answer_stats_text(since, until):
         v = marks.get(no)
         g = ("還沒標" if v is None else "沒有" if v == ANSWER_NONE
              else "不適用" if v == ANSWER_NA else "早已在")
+        r = read.get(no)
+        cross[g][r if r in READ_VALUES else "還沒標"] += 1
         groups[g].append(f"  {JOURNAL}:{no} {rows[0].lstrip('#').strip()}"
                          + (f" → {v}" if g == "早已在" else ""))
     total = sum(len(v) for v in groups.values())
@@ -1172,6 +1181,9 @@ def answer_stats_text(since, until):
         f"{len(groups['早已在'])}/{known} = {len(groups['早已在']) / known:.0%}" if known
         else "分母是 0，還沒有任何一筆標成早已在或沒有")
         + f"；不適用 {len(groups['不適用'])}、還沒標 {len(groups['還沒標'])} 不進分母")
+    out.append(f"答案早已在 × {READ_FIELD}（列 × 欄，筆數）")
+    out.append("｜".join(["", *cols]))
+    out += ["｜".join([g, *(str(cross[g][c]) for c in cols)]) for g in groups]
     return "\n".join(out), 0
 
 
@@ -2043,8 +2055,10 @@ def main():
     ap.add_argument("--answer-existed", default=None, metavar="WHERE",
                     help="--log／--annotate-answer 用：這句話的答案早已在哪（path:line／URL），"
                          "none＝沒有、n/a＝不適用。是人讀過之後標的，不是判定")
+    ap.add_argument("--was-read", default=None, choices=READ_VALUES,
+                    help="--log／--annotate-answer 用：當時有沒有讀到那條已經寫下的規矩。是人讀過之後標的，不是判定")
     ap.add_argument("--annotate-answer", type=int, default=None, metavar="LINE",
-                    help="替日誌第 LINE 行開頭的那一筆補標「答案早已在」。另寫一筆標註，原筆不改")
+                    help="替日誌第 LINE 行開頭的那一筆補標「答案早已在」或「當時讀了沒」。另寫一筆標註，原筆不改")
     ap.add_argument("--answer-stats", action="store_true",
                     help="彙總 --since～--until 帶原話的「紀錄｜使用者」：早已在／沒有／不適用／還沒標")
     ap.add_argument("--since", default=None, help="--answer-stats 用：起日 YYYY-MM-DD")
@@ -2081,8 +2095,8 @@ def main():
         print(text, file=sys.stderr if code else sys.stdout)
         return code
     if args.annotate_answer is not None:
-        if not args.answer_existed:
-            print("--annotate-answer 要 --answer-existed", file=sys.stderr)
+        if not (args.answer_existed or args.was_read):
+            print("--annotate-answer 要 --answer-existed 或 --was-read", file=sys.stderr)
             return 2
         entries, prob = journal_entries_with_lines()
         head = next((rows[0] for no, rows in entries if no == args.annotate_answer), None)
@@ -2092,7 +2106,8 @@ def main():
             return 2
         path, prob = append_journal(ANNOTATE_KIND, args.who or COMMANDER_LINE, [
             ("標的", f"第 {args.annotate_answer} 行 {head.lstrip('#').strip()}"),
-            (ANSWER_FIELD, args.answer_existed)], now=args.now_epoch)
+            (ANSWER_FIELD, args.answer_existed), (READ_FIELD, args.was_read)],
+            now=args.now_epoch)
         if prob:
             print(prob, file=sys.stderr)
             return 7
@@ -2140,7 +2155,7 @@ def main():
             return 2
         path, prob = append_journal("紀錄", args.who, [
             ("發生什麼", args.what), ("問題", args.problem), ("決定", args.decision),
-            (ANSWER_FIELD, args.answer_existed)],
+            (ANSWER_FIELD, args.answer_existed), (READ_FIELD, args.was_read)],
             now=args.now_epoch)
         if prob:
             print(prob, file=sys.stderr)
