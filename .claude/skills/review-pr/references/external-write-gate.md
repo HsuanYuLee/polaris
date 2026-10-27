@@ -23,7 +23,7 @@
 ## Command
 
 ```bash
-POLARIS_EXTERNAL_WRITE_WRITER=<registered-token> \
+POLARIS_EXTERNAL_WRITE_WRITER=driving-work-to-done:jira-comment \
   bash .claude/skills/review-pr/scripts/polaris-external-write-gate.sh \
   --surface jira-comment \
   --body-file /tmp/polaris-jira-comment.md

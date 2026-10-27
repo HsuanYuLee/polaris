@@ -54,6 +54,9 @@ POLARIS_REVIEW_TARGET_PREFIX="<!-- polaris-review-target:"
 POLARIS_ATTRIBUTED_SURFACES=(
   "github-review"
   "github-comment"
+  # JIRA 留言一樣掛在那個人的帳號底下送出，而 JIRA 沒有原生標示。2026-10-27 七則裡有五則
+  # 漏了署名，是因為那時 jira-comment 過不了閘、改走只查語言的路；登記之後擋它的是這一筆。
+  "jira-comment"
 )
 if [[ "${1:-}" == "--print-attribution-mark" ]]; then
   printf '%s\n' "$POLARIS_ATTRIBUTION_MARK"
@@ -169,6 +172,10 @@ POLARIS_EXTERNAL_WRITERS=(
   # 這一筆不在的時候 pr-body 一律 fail-closed——描述送出之後就改不動，只能補留言繞過
   # （2026-10-12，一顆聚合過的 PR 的 commit 表停在舊 SHA）。跟上一筆是同一件事。
   "swe-knowledge:pr-body"
+  # 在自己手上那張單的 JIRA 留言（進度、證據、狀態說明）。這一筆不在的時候 jira-comment 一律
+  # fail-closed，2026-10-27 一天七則改走 validate-language-policy.sh，surface 與署名都沒有人查。
+  # 跟 github-comment 那一筆是同一件事。
+  "driving-work-to-done:jira-comment"
 )
 
 if [[ -z "$writer_token" ]]; then
