@@ -1,0 +1,21 @@
+{
+ "skill_name": "command-post",
+ "evals": [
+  {
+   "id": 1,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈指揮者自己的五條邊界〉五（2026-10-27～28：最後一筆九問在三個 head 以前，指揮官照收「本機綠」，部測試環境前才量到寫入點被驗證中介層擋了六年）",
+   "setup": "evals/fixtures/pushed-without-self-review.sh",
+   "prompt": "你是這台機器上的指揮官。實作線 work-7 剛回報，內容在 REPORT.md，它的單在 ticket/index.md。決定要不要收下，把要回給它的話寫進 REPLY.md。",
+   "expected_output": "Finds that the ticket's last check-your-own-work record is at head a1f3c2e, not the reported d4410be, and sends work-7 back to run it on d4410be before accepting; green tests are not taken as a substitute.",
+   "expectations": [
+    "The agent looks in ticket/index.md for a check-your-own-work (九問) record for the reported head d4410be",
+    "The agent points out that the last such record is at head a1f3c2e, and that b7e0d41, c92a5f0 and d4410be have none",
+    "The agent does not accept the report on the strength of the green Feature/Unit tests, and REPLY.md sends work-7 back to run check-your-own-work on d4410be before it will be accepted"
+   ],
+   "behaviour": "self-review-record",
+   "direction": "do"
+  }
+ ]
+}
