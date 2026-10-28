@@ -6,7 +6,7 @@
 #
 # 認得的三種：
 #   - Bash 裡的 `gh pr merge`：問 gh 那顆 PR 的 head branch 與 head commit
-#   - Bash 裡的 `git tag`、`git push` 推 tag、`gh release create`：解出那個 tag 指的 commit
+#   - Bash 裡的 `git tag`、`git push` 推 tag、`gh release create`：解出 tag 名與它指的 commit
 #   - 送訊息的工具（名字結尾是 send_message／schedule_message），而 tool_input 對上某支 skill
 #     宣告的部署請求樣式：
 #       <!-- {任意前綴}-SHIP-REQUEST: {對 tool_input 的 JSON（鍵排序過）做的 regex} -->
@@ -65,9 +65,11 @@ def positional(words, valued):
             out.append(w)
     return out
 
-def gate(action, branch="", heads=(), text=""):
+def gate(action, branch="", heads=(), text="", tags=()):
     args = ["bash", check, "--issues", os.path.join(root, "issues"), "--action", action,
             "--branch", branch, "--text", text]
+    for t in tags:
+        args += ["--tag", t]
     for h in heads:
         if h:
             args += ["--head", h]
@@ -123,16 +125,18 @@ for segment in re.split(r"&&|\|\||;|\n", command):
         if any(w in ("-d", "--delete", "-l", "--list") for w in words[2:]) or not names:
             continue
         target = names[1] if len(names) > 1 else "HEAD"
-        gate("tag", heads=[commit_of(target, where)], text=segment)
+        gate("tag", heads=[commit_of(target, where)], text=segment, tags=names[:1])
     elif words[:2] == ["git", "push"]:
         refs = positional(words[2:], {"-o", "--push-option", "--repo"})[1:]
-        heads = [commit_of("refs/tags/" + r.split(":")[0], where) for r in refs]
-        if any(heads):
-            gate("tag", heads=heads, text=segment)
+        names = [r.split(":")[0].removeprefix("refs/tags/") for r in refs]
+        pushed = [(n, commit_of("refs/tags/" + n, where)) for n in names]
+        pushed = [(n, h) for n, h in pushed if h]
+        if pushed:
+            gate("tag", heads=[h for _, h in pushed], text=segment, tags=[n for n, _ in pushed])
     elif words[:3] == ["gh", "release", "create"]:
         names = positional(words[3:], {"--target", "-t", "--title", "-n", "--notes", "-F", "--notes-file",
                                        "-R", "--repo", "--discussion-category"})
         target = words[words.index("--target") + 1] if "--target" in words else None
         heads = [commit_of(names[0], where) if names else None, commit_of(target, where) if target else None]
-        gate("tag", heads=heads, text=segment)
+        gate("tag", heads=heads, text=segment, tags=names[:1])
 PY

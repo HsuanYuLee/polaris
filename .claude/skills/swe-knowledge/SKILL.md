@@ -64,6 +64,13 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
    交付紀錄記的那一個。對不到任何本地單的不擋：別人的 PR、別人的發佈不是這一條管的。開 PR
    不擋，PR 開出來是實作完成，判定在它之後。任何 agent 都能從命令列叫它；Claude Code 的
    `.claude/hooks/gate-ship-point.sh` 只是轉呼叫它。
+
+   **只上 stage 的 tag 不是進預設分支的出貨**（DP-907）。上 prod 之前要先在 stage 驗過，而
+   stage 驗收在判定之前，所以那種 tag 站別到 `engineering` 就放行。認法看名字：有一段是
+   `beta` 或 `rc`（前面是開頭或 `_`、`.`、`-`，後面是結尾、分隔字元或數字），例如
+   `searches_beta_3`、`v3.2.26_rc`、`v1.0.0-rc.1`。`searches_v3.2.26` 這種正式 tag 照舊要
+   `delivered`。一次推好幾個 tag 而有一個是正式的，或叫它的人沒給 tag 名（`--tag`），都照
+   正式的判。
 4. **push 之前，本機跑完跑得動的驗證。** type check、lint、單元測試、受影響路徑的冒煙。
    把 CI 當第一道防線等於把 reviewer 當驗證工具。
 5. **reviewer 提的每一條，處置回到那條意見上。** 不是「有沒有處理」——是**提出者拿不拿
