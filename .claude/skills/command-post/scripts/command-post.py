@@ -1707,6 +1707,64 @@ def other_live_lines(epic_dir, exclude):
     return [(n, "；".join(r)) for n, r in sorted(found.items())], None
 
 
+def ticket_dirs(issues_root, key):
+    """單的根目錄底下，名字是 `key` 或以 `key-` 開頭、帶 `.spine/` 的目錄。"""
+    found = []
+    for dirpath, dirnames, _ in os.walk(issues_root):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        name = os.path.basename(dirpath)
+        if (name == key or name.startswith(key + "-")) and os.path.isdir(os.path.join(dirpath, ".spine")):
+            found.append(dirpath)
+    return found
+
+
+def who_holds(issues_root, spec):
+    """站會今日格的一條，現在由哪一條活著的線在做。回 (一句話, 問題)。
+
+    `spec` 是單號，或「單號@卡號」：那一條掛在哪張卡底下，卡號一起問——子單常常沒有自己
+    的目錄、也不在任何宣告裡，接著它的是那張卡的線。每個號在單樹裡的話問它的鏈頂單
+    （子樹的 `holders` 加活著的宣告提到鏈頂單號，跟板子「別的線」同一個判法），再補上
+    宣告直接提到這個號的線。都沒有就是「沒人接」。
+    使用者 2026-10-28 原話：「為什麼現在會 寫完站會後，工作就停了，到底哪段斷掉了」。
+    """
+    if not os.path.isdir(issues_root):
+        # 單樹不在的話只剩宣告那一半，答出來的「沒人接」可能是假的。
+        return None, "單的根目錄不存在：" + issues_root
+    rows, problem = read_registry()
+    if problem:
+        return None, problem
+    found = {}
+
+    def add(name, why):
+        if why not in found.setdefault(name, []):
+            found[name].append(why)
+
+    for key in [k for k in spec.split("@") if k]:
+        for d in ticket_dirs(issues_root, key):
+            lines, prob = other_live_lines(epic_dir_of(d) or d, set())
+            if prob:
+                return None, prob
+            for name, why in lines:
+                add(name, why)
+        pat = key_pattern(key)
+        for _, row in rows:
+            if not isinstance(row, dict) or not row.get("sessionId") or not row.get("name"):
+                continue
+            pid = row.get("pid")
+            if isinstance(pid, int) and alive(pid) is False:
+                continue
+            decl, _ = read_declaration(row["sessionId"])
+            if not decl:
+                continue
+            said = "｜".join(str(decl.get(k) or "") for k in ("line", "holding"))
+            # 宣告一條線只算一次：鏈頂單那一趟可能已經帶過同一份宣告。
+            if pat.search(said) and not any("宣告：" in w for w in found.get(row["name"], [])):
+                add(row["name"], "宣告：" + said[:80])
+    if not found:
+        return "沒人接", None
+    return "、".join(n + "（" + "；".join(w) + "）" for n, w in sorted(found.items())), None
+
+
 # 派 epic 的活的 --say 固定帶這一句。使用者 2026-10-27 原話：「每張單的前因後果應該都是清楚的，
 # 到底掉在哪」——一條裁決落在日誌，單上依賴它的段落沒有同一輪改，新的線照抄舊段落。
 SWEEP_LINE = ("這一則若帶著裁決：落地那一輪 grep 這個 epic 單上所有引用同一件事的段落，"
@@ -2240,6 +2298,9 @@ def main():
     ap.add_argument("--prior-decisions", nargs="+", metavar="KEY", default=None,
                     help="每個單號／PR 號，印日誌裡最近幾筆使用者條目、決定欄與原話。"
                          "只取 PRIOR_DECISIONS_BEFORE_EPOCH（或 --now-epoch）以前的。唯讀。")
+    ap.add_argument("--who-holds", nargs="+", metavar="KEY[@CARD]", default=None,
+                    help="站會今日格用：每個單號（或「單號@卡號」）現在由哪一條活著的線在做，"
+                         "沒有就印「沒人接」；登錄讀不到 exit 3。唯讀。")
     ap.add_argument("--whoami", action="store_true",
                     help="印出跑這一趟的那個 session 的 sessionId。推出來的，不靠任何宣告。")
     args = ap.parse_args()
@@ -2251,6 +2312,15 @@ def main():
             print(why, file=sys.stderr)
             return 2
         print(sid)
+        return 0
+    if args.who_holds:
+        # 問不到不是「沒人接」：登錄讀不到時說出來、exit 3，那一條由呼叫者寫成問不到。
+        for key in args.who_holds:
+            said, prob = who_holds(args.issues, key)
+            if prob:
+                print("問不到誰在做（" + prob + "）", file=sys.stderr)
+                return 3
+            print(key + "：" + said)
         return 0
     if args.prior_decisions:
         before = args.now_epoch or float(os.environ.get("PRIOR_DECISIONS_BEFORE_EPOCH") or 0) or None
