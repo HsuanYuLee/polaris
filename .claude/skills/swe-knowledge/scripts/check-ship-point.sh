@@ -5,7 +5,8 @@
 #          [--branch <要併的那條 branch 名>] [--base <併進去的 branch>] [--repo <owner/name>]
 #          [--head <要出去的 commit>]... [--tag <tag 名>]...
 #          [--text <命令或訊息本文>] [--text-file <檔>]
-# Outputs: 擋下時 stderr 說出是哪一張單、站別是什麼、要怎麼走；放行時什麼都不印。
+# Outputs: 擋下時 stderr 說出是哪一張單、站別是什麼、要怎麼走；tag 動作另說讀到的 tag 名，名字
+#          含 $ 時說要用字面名字。放行時什麼都不印。
 # Exit:    0 放行（對不到任何本地單、或對到的都判過）/ 1 擋下 / 2 用法錯
 #
 # 這是〈五條〉第 3 條「判定過才進預設分支」第一次有東西守。它守的三種動作都收不回來、都會
@@ -179,5 +180,11 @@ if blocked:
     print(f"已擋下：這是一次出貨動作（{action}），而它對到的單還不能出去：", file=sys.stderr)
     for line in blocked:
         print("  - " + line, file=sys.stderr)
+    if action == "tag":
+        # 撞到的人要知道這一道看到的是哪個名字（DP-910）：命令寫成 git tag $T 時，它讀到的就是字面的 $T。
+        judged = "" if stage_only else "，名字裡沒有 beta 或 rc 段，照正式 tag 判"
+        print(f"讀到的 tag 名：{'、'.join(tags)}{judged}。" if tags else "沒讀到 tag 名，照正式 tag 判。", file=sys.stderr)
+        if any("$" in t for t in tags):
+            print("tag 名要用字面名字，不要用變數：這一道讀的是命令字面，看不到 shell 展開後的值。", file=sys.stderr)
     sys.exit(1)
 PY
