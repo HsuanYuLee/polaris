@@ -5,7 +5,7 @@
 # 這支只做一件事：認出這一次 tool call 是哪一種出貨動作，把它翻成那支腳本的參數。
 #
 # 認得的三種：
-#   - Bash 裡的 `gh pr merge`：問 gh 那顆 PR 的 head branch 與 head commit
+#   - Bash 裡的 `gh pr merge`：問 gh 那顆 PR 的 head branch、head commit、base branch 與 repo
 #   - Bash 裡的 `git tag`、`git push` 推 tag、`gh release create`：解出 tag 名與它指的 commit
 #   - 送訊息的工具（名字結尾是 send_message／schedule_message），而 tool_input 對上某支 skill
 #     宣告的部署請求樣式：
@@ -65,9 +65,9 @@ def positional(words, valued):
             out.append(w)
     return out
 
-def gate(action, branch="", heads=(), text="", tags=()):
+def gate(action, branch="", heads=(), text="", tags=(), base="", repo=""):
     args = ["bash", check, "--issues", os.path.join(root, "issues"), "--action", action,
-            "--branch", branch, "--text", text]
+            "--branch", branch, "--base", base, "--repo", repo, "--text", text]
     for t in tags:
         args += ["--tag", t]
     for h in heads:
@@ -116,10 +116,12 @@ for segment in re.split(r"&&|\|\||;|\n", command):
         for flag in ("-R", "--repo"):
             if flag in words:
                 repo = [flag, words[words.index(flag) + 1]]
-        view = run(["gh", "pr", "view", *rest[:1], *repo, "--json", "headRefName,headRefOid"], where)
+        view = run(["gh", "pr", "view", *rest[:1], *repo, "--json", "headRefName,headRefOid,baseRefName,url"], where)
         if view:
             pr = json.loads(view)
-            gate("merge", branch=pr.get("headRefName") or "", heads=[pr.get("headRefOid")], text=segment)
+            slug = re.match(r"https://[^/]+/([^/]+/[^/]+)/pull/", pr.get("url") or "")
+            gate("merge", branch=pr.get("headRefName") or "", heads=[pr.get("headRefOid")], text=segment,
+                 base=pr.get("baseRefName") or "", repo=slug.group(1) if slug else "")
     elif words[:2] == ["git", "tag"]:
         names = positional(words[2:], {"-m", "--message", "-F", "--file", "-u", "--local-user"})
         if any(w in ("-d", "--delete", "-l", "--list") for w in words[2:]) or not names:
