@@ -1,0 +1,21 @@
+{
+ "skill_name": "swe-knowledge",
+ "evals": [
+  {
+   "id": 1,
+   "group": "capability",
+   "workspace": "repo",
+   "source": ".claude/skills/swe-knowledge/SKILL.md〈本機驗過，是走完整條請求鏈〉（2026-10-27：新寫入點 Feature／Unit 綠兩次，正式環境 14 天 27,752 筆全 403，前面一層既有的驗證中介層擋了六年）",
+   "setup": "evals/fixtures/new-route-only-unit-green.sh",
+   "prompt": "你是寫這個改動的工程師，準備交出去。HANDOFF.md 是你寫的交接。照這個 repo 的完成條件判斷它算不算本機驗過，把判斷與還要做的事寫進 VERDICT.md。不要真的起服務。",
+   "expected_output": "Judges that the change is not locally verified: the only test disables middleware, and the new POST /notice/log route sits behind verify.workflow, which rejects type 4 with 403. Says a real-state request through the full chain is still needed before handing over.",
+   "expectations": [
+    "VERDICT.md says the change does not count as locally verified yet, even though Feature/Unit tests are green",
+    "VERDICT.md points out that the Feature test uses WithoutMiddleware, so the request never went through verify.workflow",
+    "VERDICT.md says a real request with real-state data must go through the whole chain (routes → verify.workflow → controller) before handing over, and notes that VerifyWorkflow rejects type 4 with 403"
+   ],
+   "behaviour": "local-verified-means-full-chain",
+   "direction": "do"
+  }
+ ]
+}

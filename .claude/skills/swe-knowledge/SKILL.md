@@ -378,6 +378,47 @@ bash .claude/skills/swe-knowledge/scripts/check-swe-done.sh --repo <path>       
 去讀一份純文字輸出，那個解析例外不是空集合。2026-09-17 的標本：一個解析例外被讀成「0 筆」，
 接著開了一張不存在的單，還替它編了一個模式。
 
+## 本機驗過，是走完整條請求鏈
+
+第 4 條「本機跑完跑得動的驗證」對三種改動有一個下限：**新 route、新寫入點、新中介層行為**。
+這三種改動，交付前至少一次用真實狀態的資料走完整條請求鏈。跨 repo 就本機起兩邊。
+**只有 Feature／Unit 測試綠不算本機驗過。**
+
+真實狀態指那份資料在線上會長的樣子：有登入、有權限、被既有中介層看過。手寫的測資與 mock
+掉的那一層不算，理由跟〈注一刀〉最後一段相同：測資自帶答案的時候，取值那條路一行都沒有被走到。
+
+2026-10-27 的標本：一個新寫入點的 Feature 與 Unit 測試本機綠了兩次。正式環境 14 天 27,752 筆
+請求全部回 403——那條 route 前面有一層既有的驗證中介層，六年來一直擋著這一類請求，而測試沒有
+經過它。部測試環境之前查 log 才發現。使用者原話：「我以為開發 local 要成功是基本的，不成功怎麼上 sit？」
+
+## 推到開著的 PR：派一個看不到施工對話的驗證者
+
+「本機驗過」由施工的那一條線自己說，就跟它自己挑的量測命令一樣，沒有第二雙眼睛。所以每次推到
+一顆開著的 PR，由 git 的 pre-push hook 在背景派一個驗證者：
+
+```bash
+bash .claude/skills/swe-knowledge/scripts/push-verifier.sh install --repo <checkout> --issues <單的根目錄> [--agent-cmd '<命令>']
+bash .claude/skills/swe-knowledge/scripts/push-verifier.sh status  --repo <checkout>
+bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <checkout>
+```
+
+- **觸發點是 git hook，不是哪一個 agent 的 hook**，所以誰推都會觸發。啟動命令預設 Claude Code，
+  `--agent-cmd 'codex exec'` 這一類換掉它，prompt 接在最後一個參數。
+- **不取代既有的 hook。** 接上之後每一支 hook 先照樣跑原本那一支，輸出與 exit code 原樣透傳，
+  只有 pre-push 成功時才派。不改 repo 裡被追蹤的檔，`remove` 還原原本的 `core.hooksPath`。
+- **它不擋 push，也不等。** 刪分支、推 tag、推沒有 open PR 的分支不派；問不到有沒有 PR 時說一行，
+  照樣不派。
+- **驗證者看到的**只有凍結塊、那個 head 相對 base 的 diff、repo 的規矩檔、本機環境的宣告，在自己
+  的 worktree 裡。它跑 `check-your-own-work` 九問，並照上一節走請求鏈。
+- **判定寫回那張單**：一段行首 `check-your-own-work 九問，head <head>（驗證者）` 的紀錄，加
+  `.spine/independent/<head>.json`。紅了那張單回 `engineering`；起不起來、拿不到資料、鏈走不完的
+  寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。
+
+**擋不到的，明講。** `git push --no-verify` 跳過所有 hook。husky 在 `npm install` 時把
+`core.hooksPath` 寫回去，那之後要重跑 `install`，`status` 會說出來。驗證者碰得到什麼只寫在
+指示裡：預設命令不載 MCP、不讀個人設定，但叫得到 Bash——那是一份會被自願遵守的界線，不是一道閘。
+每推一次多一個 agent 的 token 與時間。
+
 ## 注一刀進去驗那條斷言真的會紅
 
 **要證明一條斷言真的在守，就要讓它紅一次。** 而最直覺的注入方式——真的 commit 一顆帶著
