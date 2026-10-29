@@ -41,7 +41,7 @@ tools:
 此 skill 只處理多 PR discovery + batch review orchestration。單一 PR URL 轉 `review-pr`；
 「我的 PR」approval 狀態轉 `request-pr-review`。
 
-支援三個來源：
+支援四個來源。GitHub 條件掃描不用選，一律跟 Slack 一起跑；其餘依使用者給的東西選一個：
 
 | Source | Use when |
 |---|---|
