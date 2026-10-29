@@ -30,8 +30,14 @@ scope: universal
 
 ```bash
 bash .claude/skills/refinement/scripts/open-seed-issue.sh \
-  --issues issues --namespace <命名空間> --slug <名字> --note '<前因後果>'
+  --issues issues --namespace <命名空間> --slug <名字> --kind feature \
+  --what <做什麼> --when <什麼時候要> --why <想解決什麼> --how <拿什麼測> \
+  --note '<前因後果>'
 ```
+
+種類有兩種，要自己宣告：`feature` 是開發新功能，上面那樣就夠；`report` 是舉發實作途中
+撞到的問題，多要 `--who` 與 `--where`，並對查重撞到的每一張寫 `--vs <單號>=<判斷>`。
+兩種各要哪幾格，跑 `--help` 看。
 
 它建目錄、寫下前因後果、記一個「還沒簽 assertion」的狀態、commit，然後就結束——**不簽 assertion、
 不決定領域、不開 worktree**。那些是接手的人在這一站要做的事，而那時候才有人真的想過怎麼
