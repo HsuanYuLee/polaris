@@ -57,8 +57,12 @@ topic: cwv-epics      # Warm 資料夾的 slug，用來整批降級
   「Polaris framework iteration」→ `polaris-framework`）。推不出來就不要填——一個猜出來的
   topic 會把這份 memory 搬進一個沒有人會去翻的資料夾。
 
-這兩個欄位由 `scripts/memory-hygiene-tiering.py` 消費。寫了而沒有跑過分層是無害的：它們
+`pinned` 與 `topic` 由 `scripts/memory-hygiene-tiering.py` 消費。寫了而沒有跑過分層是無害的：它們
 只是還沒被讀到，不會讓任何判定改變。
+
+**`trigger_count` 與 `last_triggered` 由量測產生，不手寫。** 分層要的是這則 memory 多常被讀進
+context，那個數字從 session transcript 量（Read 工具讀到它、或 harness 把它注入 context，各算
+一次）。手寫的值沒有人在更新，分層也不讀它。
 
 ## 四、寫完之後索引要對得上磁碟
 

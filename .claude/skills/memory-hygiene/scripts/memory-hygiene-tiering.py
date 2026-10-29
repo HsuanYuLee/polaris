@@ -17,14 +17,15 @@ Four modes:
 
 Classification rules (D7.1 / B7):
   pinned == true                                 → Hot
-  last_triggered >= today - 30 days              → Hot
-  trigger_count >= 5                             → Hot
-  last_triggered >= today - 90 days              → Warm (grouped by `topic` if set)
+  last read >= today - 30 days                   → Hot
+  reads >= 5                                     → Hot
+  last read >= today - 90 days                   → Warm (grouped by `topic` if set)
   else                                           → Cold  (archive/)
 
 Default inference:
-  last_triggered missing → file mtime
-  trigger_count missing  → 0
+  reads and last read come from transcripts (DP-916); frontmatter
+  trigger_count / last_triggered are ignored
+  never read in the window → file mtime (fresh-write grace / Warm / Cold)
   topic missing          → heuristic slug from name/description; Warm fallback = flat
 
 MEMORY.md hygiene:
@@ -52,6 +53,7 @@ HOT_DAYS = 30
 WARM_DAYS = 90
 HOT_TRIGGER_THRESHOLD = 5
 FRESH_WRITE_GRACE_DAYS = 7  # files with no last_triggered but recently written count as Hot
+TRANSCRIPTS_DIR: Optional[Path] = None  # --transcripts-dir；None 時用記憶目錄的上一層
 MEMORY_HOT_CAPACITY = int(os.environ.get("MEMORY_HOT_CAPACITY", "15"))
 OVERFLOW_REASON_PREFIX = "overflowed-hot-capacity"
 # Durable per-file frontmatter signal (DP-282 D1/D2): apply demotion stamps this
@@ -390,7 +392,8 @@ def infer_topic(fm: Frontmatter, filename: str) -> Optional[str]:
 
 # --- Classification -------------------------------------------------------
 
-def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Classification:
+def classify(path: Path, text: str, today: date, archived_set: set[str],
+             reads: dict[str, ReadStats]) -> Classification:
     """Classify a memory file.
 
     Hot requires an explicit signal of active use:
@@ -404,6 +407,7 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
     default to Warm (never-used → not actively needed).
     """
     fm = parse_frontmatter(text)
+    apply_reads(fm, path.name, reads)
     mtime = date.fromtimestamp(path.stat().st_mtime)
     archived = path.name in archived_set
     baseline, baseline_source, created_backfill = grace_baseline(fm, mtime)
@@ -468,7 +472,7 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
     if fm.trigger_count >= HOT_TRIGGER_THRESHOLD:
         return Classification(
             path=path, tier="hot", topic=None,
-            reason=f"trigger_count={fm.trigger_count}",
+            reason=f"reads={fm.trigger_count}",
             frontmatter=fm, mtime=mtime, flags=flags,
             created_backfill=created_backfill,
         )
@@ -477,7 +481,7 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
         if age <= HOT_DAYS:
             return Classification(
                 path=path, tier="hot", topic=None,
-                reason=f"last_triggered {age}d ago",
+                reason=f"last read {age}d ago",
                 frontmatter=fm, mtime=mtime, flags=flags,
                 created_backfill=created_backfill,
             )
@@ -485,14 +489,14 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
             topic = infer_topic(fm, path.name)
             return Classification(
                 path=path, tier="warm", topic=topic,
-                reason=f"warm ({age}d since last_triggered)"
+                reason=f"warm ({age}d since last read)"
                        + (f", topic={topic}" if topic else ", no topic"),
                 frontmatter=fm, mtime=mtime, flags=flags,
                 created_backfill=created_backfill,
             )
         return Classification(
             path=path, tier="cold", topic=None,
-            reason=f"stale ({age}d since last_triggered)",
+            reason=f"stale ({age}d since last read)",
             frontmatter=fm, mtime=mtime, flags=flags,
             created_backfill=created_backfill,
         )
@@ -502,7 +506,7 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
         flags["fresh_write_hot"] = True
         return Classification(
             path=path, tier="hot", topic=None,
-            reason=f"fresh-write ({age}d, no trigger data yet, baseline={baseline_source})",
+            reason=f"fresh-write ({age}d, not read yet, baseline={baseline_source})",
             frontmatter=fm, mtime=mtime, flags=flags,
             created_backfill=created_backfill,
         )
@@ -510,14 +514,14 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
     if age <= WARM_DAYS:
         return Classification(
             path=path, tier="warm", topic=topic,
-            reason=f"never-triggered, mtime {age}d"
+            reason=f"never read, mtime {age}d"
                    + (f", topic={topic}" if topic else ", no topic"),
             frontmatter=fm, mtime=mtime, flags=flags,
             created_backfill=created_backfill,
         )
     return Classification(
         path=path, tier="cold", topic=None,
-        reason=f"never-triggered, stale ({age}d)",
+        reason=f"never read, stale ({age}d)",
         frontmatter=fm, mtime=mtime, flags=flags,
         created_backfill=created_backfill,
     )
@@ -579,16 +583,16 @@ def render_report(classifications: list[Classification], today: date,
         lines.append(f"- Missing files (linked in MEMORY.md but missing on disk): {len(missing_files)}")
     lines.append("")
     lines.append("## Classification rules")
-    lines.append(f"- Hot: pinned OR last_triggered within {HOT_DAYS}d OR trigger_count ≥ {HOT_TRIGGER_THRESHOLD} OR fresh-write grace ≤ {FRESH_WRITE_GRACE_DAYS}d")
-    lines.append(f"- Warm: last_triggered/created/mtime within {WARM_DAYS}d (grouped by topic)")
+    lines.append(f"- Hot: pinned OR last read within {HOT_DAYS}d OR reads ≥ {HOT_TRIGGER_THRESHOLD} OR fresh-write grace ≤ {FRESH_WRITE_GRACE_DAYS}d（次數與日期從 transcript 量，見〈讀取量測〉）")
+    lines.append(f"- Warm: last read/created/mtime within {WARM_DAYS}d (grouped by topic)")
     lines.append("- Cold: older OR strikethrough in MEMORY.md → archive/")
     lines.append("")
 
     lines.append(f"## Hot ({len(hot)}) — stays in MEMORY.md")
     lines.append("")
     for c in sorted(hot, key=hot_sort_key_classification, reverse=True):
-        lt = c.frontmatter.last_triggered or c.mtime
-        lines.append(f"- `{c.path.name}` — {c.reason}  (lt={lt}, tc={c.frontmatter.trigger_count})")
+        lt = c.frontmatter.last_triggered or "never"
+        lines.append(f"- `{c.path.name}` — {c.reason}  (last_read={lt}, reads={c.frontmatter.trigger_count})")
     lines.append("")
 
     lines.append(f"## Warm ({len(warm)}) — move to `memory/{{topic}}/`")
@@ -597,22 +601,22 @@ def render_report(classifications: list[Classification], today: date,
         group = topics[topic]
         lines.append(f"### `{topic}/` ({len(group)})")
         for c in sorted(group, key=lambda x: x.path.name):
-            lt = c.frontmatter.last_triggered or c.mtime
-            lines.append(f"- `{c.path.name}` — lt={lt}, tc={c.frontmatter.trigger_count}")
+            lt = c.frontmatter.last_triggered or "never"
+            lines.append(f"- `{c.path.name}` — last_read={lt}, reads={c.frontmatter.trigger_count}")
         lines.append("")
     if warm_flat:
         lines.append(f"### Flat ({len(warm_flat)}) — no topic matched, stays flat until decay")
         for c in sorted(warm_flat, key=lambda x: x.path.name):
-            lt = c.frontmatter.last_triggered or c.mtime
-            lines.append(f"- `{c.path.name}` — lt={lt}, tc={c.frontmatter.trigger_count}")
+            lt = c.frontmatter.last_triggered or "never"
+            lines.append(f"- `{c.path.name}` — last_read={lt}, reads={c.frontmatter.trigger_count}")
         lines.append("")
 
     lines.append(f"## Cold ({len(cold)}) — move to `memory/archive/`")
     lines.append("")
     for c in sorted(cold, key=lambda x: (x.frontmatter.last_triggered or x.mtime or today)):
-        lt = c.frontmatter.last_triggered or c.mtime
+        lt = c.frontmatter.last_triggered or "never"
         tag = " [archived-in-index]" if c.archived_in_index else ""
-        lines.append(f"- `{c.path.name}` — {c.reason}{tag}  (lt={lt})")
+        lines.append(f"- `{c.path.name}` — {c.reason}{tag}  (last_read={lt})")
     lines.append("")
 
     if orphan_files:
@@ -631,7 +635,7 @@ def render_report(classifications: list[Classification], today: date,
     lines.append("## Next steps")
     lines.append("")
     lines.append("1. Review this report. Correct any misclassifications by adjusting frontmatter:")
-    lines.append("   - Want Hot? add `pinned: true` or bump `last_triggered` to today.")
+    lines.append("   - Want Hot? add `pinned: true`（trigger_count／last_triggered 由量測產生，手寫不改變分層）.")
     lines.append("   - Want a specific Warm topic? set `topic: <slug>`.")
     lines.append("2. When satisfied, pipe this report's JSON plan to `--apply`:")
     lines.append("   `memory-hygiene-tiering.py dry-run --json > plan.json && memory-hygiene-tiering.py apply < plan.json`")
@@ -756,8 +760,143 @@ def apply_hot_capacity_ceiling(
     return updated
 
 
-def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[Path], list[str]]:
+# --- 讀取量測（DP-916） ----------------------------------------------------
+#
+# 分層要的是「這則 memory 多常被讀進 context」。以前那個數字是 frontmatter 手寫的
+# trigger_count／last_triggered，而沒有任何東西在更新它，所以這裡改從 harness 存下的
+# transcript 量。一次讀取是兩種紀錄之一：Read 工具讀到該檔，或 harness 以檔案附件把它
+# 注入 context。transcript 只保留一段時間，量不到的那一段是「沒讀過」還是「太久以前讀的」
+# 分不出來，所以量測窗的起點跟著結果一起印。
+
+
+@dataclass
+class ReadStats:
+    count: int = 0
+    last: Optional[date] = None
+
+
+def default_transcripts_dir(memory_dir: Path) -> Path:
+    """harness 把 transcript 存在記憶目錄的上一層（同一個 project 目錄）。"""
+    return memory_dir.parent
+
+
+def _record_date(record: dict) -> Optional[date]:
+    ts = record.get("timestamp")
+    if not isinstance(ts, str):
+        return None
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().date()
+    except ValueError:
+        return None
+
+
+def measure_reads(memory_dir: Path, transcripts_dir: Path) -> tuple[dict[str, ReadStats], Optional[date], int]:
+    """數每則 memory 被讀進 context 的次數與最後日期。
+
+    回傳 (以檔名為鍵的量測, 量測窗起點, 掃過的 transcript 份數)。以檔名為鍵是因為分層會
+    把檔案在扁平層與 topic 資料夾之間搬，而舊的讀取紀錄記的是舊路徑。同一筆紀錄被複製
+    進好幾份 transcript（續接的 session 會這樣）只算一次。
+    """
+    # 記憶目錄可能經過 symlink（macOS 的 /var 是 /private/var），transcript 記的是哪一種寫法
+    # 都要認得。
+    prefixes = {str(memory_dir.absolute()) + os.sep, str(memory_dir.resolve()) + os.sep}
+    files = sorted(transcripts_dir.glob("*.jsonl")) + sorted(transcripts_dir.glob("*/subagents/*.jsonl"))
+    stats: dict[str, ReadStats] = {}
+    seen: set[str] = set()
+    window_start: Optional[date] = None
+
+    def hit(path: str, key: str, when: Optional[date]) -> None:
+        if not any(path.startswith(p) for p in prefixes) or not path.endswith(".md") or key in seen:
+            return
+        seen.add(key)
+        st = stats.setdefault(Path(path).name, ReadStats())
+        st.count += 1
+        if when and (st.last is None or when > st.last):
+            st.last = when
+
+    for f in files:
+        first = True
+        with f.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if first and '"timestamp"' in line:
+                    try:
+                        when = _record_date(json.loads(line))
+                    except json.JSONDecodeError:
+                        when = None
+                    if when:
+                        first = False
+                        if window_start is None or when < window_start:
+                            window_start = when
+                if not any(p in line for p in prefixes):
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                when = _record_date(rec)
+                if rec.get("type") == "attachment":
+                    att = rec.get("attachment") or {}
+                    if att.get("type") == "file" and isinstance(att.get("filename"), str):
+                        hit(att["filename"], f"att:{rec.get('uuid')}", when)
+                elif rec.get("type") == "assistant":
+                    content = (rec.get("message") or {}).get("content")
+                    for block in content if isinstance(content, list) else []:
+                        if block.get("type") == "tool_use" and block.get("name") == "Read":
+                            fp = (block.get("input") or {}).get("file_path")
+                            if isinstance(fp, str):
+                                hit(fp, f"read:{block.get('id')}", when)
+    if not files:
+        # 一份 transcript 都沒有時，每一則都會量成 0 次，分層就會把整批照 mtime 降級。
+        # 那不是「都沒被讀過」，是這一趟沒量到，所以停下來說出去哪裡找。
+        print(f"POLARIS_MEMORY_READS_UNMEASURABLE {transcripts_dir} 底下沒有任何 *.jsonl，"
+              "讀取次數量不到，這一趟不分層。transcript 放在別處時給 --transcripts-dir。",
+              file=sys.stderr)
+        raise SystemExit(2)
+    return stats, window_start, len(files)
+
+
+def apply_reads(fm: "Frontmatter", name: str, reads: dict[str, ReadStats]) -> None:
+    """把量到的數字放進分層讀的那兩格，蓋掉手寫的值。"""
+    st = reads.get(name, ReadStats())
+    fm.trigger_count = st.count
+    fm.last_triggered = st.last
+
+
+def render_read_section(memory_dir: Path, reads: dict[str, ReadStats], window_start: Optional[date],
+                        n_transcripts: int, today: date) -> list[str]:
+    """整棵樹每一則的讀取次數、最後日期、幾天沒被讀過，以及 30 天未讀的數字與清單。"""
+    since = window_start.isoformat() if window_start else "量不到"
+    rows, unread = [], []
+    # 整棵樹，含 archive/：一則 Cold 的 memory 被讀了，正是要看得到的事。
+    every = sorted(p for p in memory_dir.rglob("*.md")
+                   if p.name not in ("MEMORY.md", "index.md") and not p.name.startswith("."))
+    for p in every:
+        st = reads.get(p.name, ReadStats())
+        rel = p.relative_to(memory_dir).as_posix()
+        if st.last:
+            idle = (today - st.last).days
+            last, idle_s = st.last.isoformat(), f"{idle}"
+        else:
+            idle = None
+            last, idle_s = f"量測窗起點 {since} 以來沒讀過", f"> {(today - window_start).days}" if window_start else "?"
+        if idle is None or idle >= HOT_DAYS:
+            unread.append(rel)
+        rows.append(f"| `{rel}` | {st.count} | {last} | {idle_s} |")
+    lines = [f"## 讀取量測（{len(rows)} 則）", "",
+             f"- 來源：{n_transcripts} 份 transcript，量測窗起點 {since}。一次讀取＝Read 工具讀到該檔，或 harness 以檔案附件注入。",
+             f"- {HOT_DAYS} 天未讀：{len(unread)} 則（清單在表後）", "",
+             "| 檔案 | 讀取次數 | 最後一次讀取 | N 天沒被讀過 |", "|---|---|---|---|", *rows, "",
+             f"### {HOT_DAYS} 天未讀（{len(unread)}）", ""]
+    lines += [f"- `{rel}`" for rel in unread]
+    lines.append("")
+    return lines
+
+
+def collect(memory_dir: Path, today: date, reads: Optional[dict[str, ReadStats]] = None
+            ) -> tuple[list[Classification], list[Path], list[str]]:
     """Scan memory_dir, return (classifications, orphan_paths, missing_filenames)."""
+    if reads is None:
+        reads, _, _ = measure_reads(memory_dir, TRANSCRIPTS_DIR or default_transcripts_dir(memory_dir))
     index_path = memory_dir / "MEMORY.md"
     archived, linked = parse_memory_index(index_path)
 
@@ -778,7 +917,7 @@ def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[P
         except Exception as e:
             print(f"Warning: could not read {p.name}: {e}", file=sys.stderr)
             continue
-        classifications.append(classify(p, text, today, archived))
+        classifications.append(classify(p, text, today, archived, reads))
 
     classifications = apply_hot_capacity_ceiling(classifications, today)
 
@@ -790,11 +929,13 @@ def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[P
 
 
 def run_dry_run(memory_dir: Path, today: date, emit_json: bool) -> int:
-    classifications, orphans, missing = collect(memory_dir, today)
+    reads, window_start, n = measure_reads(memory_dir, TRANSCRIPTS_DIR or default_transcripts_dir(memory_dir))
+    classifications, orphans, missing = collect(memory_dir, today, reads)
     if emit_json:
         sys.stdout.write(render_json(classifications, today))
     else:
         sys.stdout.write(render_report(classifications, today, orphans, missing))
+        sys.stdout.write("\n" + "\n".join(render_read_section(memory_dir, reads, window_start, n, today)))
     sys.stdout.write("\n")
     return 0
 
@@ -1800,6 +1941,8 @@ def main(argv: list[str]) -> int:
                              "(round 3 generated artifact producer)")
     parser.add_argument("--memory-dir", type=Path, default=DEFAULT_MEMORY_DIR,
                         help=f"Memory directory (default: {DEFAULT_MEMORY_DIR})")
+    parser.add_argument("--transcripts-dir", type=Path, default=None,
+                        help="讀取量測要掃的 transcript 目錄（預設：記憶目錄的上一層）")
     parser.add_argument("--json", action="store_true",
                         help="(dry-run) emit machine-readable JSON instead of markdown report")
     parser.add_argument("--dry-run", action="store_true",
@@ -1814,6 +1957,8 @@ def main(argv: list[str]) -> int:
         print(f"Error: memory dir {args.memory_dir} does not exist", file=sys.stderr)
         return 2
 
+    global TRANSCRIPTS_DIR
+    TRANSCRIPTS_DIR = args.transcripts_dir
     today = (datetime.strptime(args.today, "%Y-%m-%d").date()
              if args.today else date.today())
 

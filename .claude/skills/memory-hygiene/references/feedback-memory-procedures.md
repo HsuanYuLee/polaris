@@ -28,7 +28,6 @@ Before creating a new feedback memory, scan existing feedback memories for seman
 2. **Compare** the new feedback's core rule against existing entries — same topic, same file/mechanism, or same behavioral correction = overlap
 3. **If overlap found** → merge into the existing entry:
    - Update the content to incorporate the new evidence/context
-   - Increment `trigger_count` by 1, update `last_triggered` to today
    - Do NOT create a new file
 4. **If no overlap** → create a new file as normal
 5. **Post-merge rule write check** — if the merged entry clearly represents a confirmed pattern, consider promoting it directly to a rule (see § Feedback → Direct Rule Write)
@@ -94,7 +93,9 @@ This catches memories created before the classification mechanism existed, or wh
 
 ## Feedback Memory Frontmatter Spec
 
-All feedback memories must include trigger tracking fields:
+`trigger_count` 與 `last_triggered` 由量測產生，不手寫：`memory-hygiene-tiering.py` 從 session
+transcript 數每則 memory 被讀進 context 的次數與最後日期，分層只讀量到的數字，frontmatter 裡
+手寫的值不改變任何判定（DP-916）。
 
 ```yaml
 ---
@@ -102,8 +103,6 @@ name: Human-readable title for the rule
 description: One-line description (used to determine relevance)
 type: feedback
 company: acme              # Company scope (omit for workspace-wide memories)
-trigger_count: 1          # Number of times referenced/applied (= 1 when first created)
-last_triggered: 2026-03-29  # Date last referenced
 expires_at: 2026-06-30      # Optional; workaround/review-by date
 absorbed_into: <rule file>  # Optional; set when promoted to rule/reference
 ---
@@ -185,7 +184,7 @@ Upon confirmation I will:
 
 When the user says "organize feedback" / "clean up feedback" → scan all feedback memories:
 - Confirmed patterns → propose direct rule write
-- `trigger_count == 0` and `last_triggered` is more than 30 days ago → suggest deletion (may be outdated)
+- dry-run 報告〈讀取量測〉列為 30 天未讀、而且內容已過時 → suggest deletion
 - Otherwise → leave unchanged
 
 ## Memory Integrity — Scan Procedure
@@ -241,7 +240,7 @@ The `[company]` prefix in the index enables quick visual scanning without openin
 2. **Outdated** — description says "superseded" or "outdated" → delete immediately
 3. **Contains TODOs** — includes "pending fix" / "TODO" → check whether it has been completed
 4. **Overlapping** — two memory entries are highly similar in content → merge into one
-5. **Frontmatter quality** — missing `trigger_count` / `last_triggered` → fill in (`trigger_count: 1`, `last_triggered` from file modification date)
+5. **Frontmatter quality** — `trigger_count` / `last_triggered` 由量測產生，不手寫也不補填
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
 7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers
 8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding issue under `issues/` → propose one
