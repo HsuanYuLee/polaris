@@ -434,7 +434,7 @@ bash .claude/skills/verify-ac/scripts/run-hardened-oracle.sh --command '<cmd>' \
 
 ```bash
 --cwd <那棵樹> \
---command 'bash "$(... spine-loop-state.sh find <單名> | tail -1)/verify/verify.sh" A-P1'
+--command 'bash "$(... spine-loop-state.sh find <單名>)/verify/verify.sh" A-P1'
 ```
 
 三種都不適用時才用 `--exempt-path` 與 `--exempt-why` 具名寫進登錄。
