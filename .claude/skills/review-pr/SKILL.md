@@ -79,8 +79,8 @@ frontmatter 的 `description` 之前先讀那 13 句，問「改完之後這 13 
 | Submit and notify | `review-pr-submit-flow.md`, `scripts/validate-language-policy.sh`, `external-write-gate.md`, `github-slack-user-mapping.md` |
 | Re-review | `review-pr-rereview-learning-flow.md`, `review-lesson-extraction.md` |
 
-Large PR 分批 review 可派 sub-agent。
-Completion Envelope。Sub-agent 只做 analysis，不送出 review、不改檔。
+Large PR 分批 review 可派 sub-agent。派工的 prompt 要帶哪些東西（含它回傳什麼的 Completion Envelope），
+在 `review-pr-analysis-flow.md`〈Batch Review〉。Sub-agent 只做 analysis，不送出 review、不改檔。
 
 ## Flow
 
