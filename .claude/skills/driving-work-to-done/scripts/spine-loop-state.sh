@@ -88,7 +88,7 @@ Usage:
   spine-loop-state.sh record  --state <path> --outcome converged|unconverged|zero_delta [--note <text>]
   spine-loop-state.sh next    --state <path>
   spine-loop-state.sh seed    --state <path> --note <前因後果>
-  spine-loop-state.sh close   --state <path> --note <為什麼不做了> [--by <human>]
+  spine-loop-state.sh close   --state <path> --note <為什麼不做了> [--by <human>] [--authorization <人的原話>：已收斂的單要兩格都給]
   spine-loop-state.sh next    --across-issues <issues root>
   spine-loop-state.sh where   --state <path>
   spine-loop-state.sh advance --state <path> --to refinement|engineering|verify-ac|delivered [--by <human>] [--authorization <人的原話>：只有單上真的有停點要解的時候收得下]
@@ -826,18 +826,30 @@ cmd_close() {
   [[ -n "$NOTE" ]] || die "POLARIS_SPINE_CLOSE_NO_REASON" \
     "close 要 --note '<為什麼不做了>'。一個沒有理由的關閉，跟把單刪掉的差別只有磁碟空間。"
   require_python3
-  python3 - "$STATE" "$NOTE" "$BY" <<'PY'
+  python3 - "$STATE" "$NOTE" "$BY" "$AUTHORIZATION" <<'PY' || return $?
 import json
 import sys
 from datetime import datetime, timezone
 
-state, reason, by = sys.argv[1], sys.argv[2], sys.argv[3]
+state, reason, by, authorization = sys.argv[1:5]
 data = json.load(open(state, encoding="utf-8"))
 if data.get("status") == "converged":
-    print("POLARIS_SPINE_CLOSE_ALREADY_CONVERGED", file=sys.stderr)
-    print("這張單已經收斂了——它是做完的，不是不做的。要改判就先說清楚哪一次收斂不算數。",
-          file=sys.stderr)
-    raise SystemExit(2)
+    # 收斂之後才被裁不做的單（例如原則改了、PR 不併）是真的有的。它要關得掉，但要說出誰裁的：
+    # 作廢一次收斂是人的決定，兩格缺一格就跟沒說一樣。
+    missing = [flag for flag, value in (("--by", by), ("--authorization", authorization)) if not value]
+    if missing:
+        print("POLARIS_SPINE_CLOSE_ALREADY_CONVERGED", file=sys.stderr)
+        print("這張單已經收斂了——它是做完的，不是不做的。收斂之後被裁不做的話，"
+              f"帶 --by <誰裁的> --authorization '<那個人的原話>' 再跑一次；現在缺 {'、'.join(missing)}。",
+              file=sys.stderr)
+        raise SystemExit(2)
+    last = [(i, r) for i, r in enumerate(data.get("rounds") or [], 1) if r.get("outcome") == "converged"][-1:]
+    data["voided_convergence"] = {
+        "round": last[0][0] if last else None,
+        "at": (last[0][1].get("recorded_at") or last[0][1].get("at")) if last else None,
+        "by": by,
+        "authorization": authorization,
+    }
 data["status"] = "closed"
 data["closed_reason"] = reason
 data["closed_by"] = by or None
