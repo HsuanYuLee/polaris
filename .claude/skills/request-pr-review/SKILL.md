@@ -154,7 +154,7 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 
 最後給出總數與 repo 分布。
 
-**然後停下來等使用者選。** 沒有得到選擇之前不通知、不加標記、不動任何一個 repo。
+**然後停下來等使用者選。** 請求裡已經指名了哪幾顆 PR，那就是選擇，不再問一次。沒指名的時候，沒有得到選擇之前不通知、不加標記、不動任何一個 repo。
 
 **不自動挑一批送出去。** 判斷可以給，決定不代做。
 
@@ -166,8 +166,8 @@ Script 是 deterministic source；不要在入口重寫它們的 API、stale 或
 printf '%s' "$SELECTED" | "$SKILL_DIR/scripts/plan-pr-notify.sh"
 ```
 
-它逐個 repo（不是逐個 PR）算出要送去哪，輸出 `repo⇥狀態⇥數量⇥目的地`。**把這份建議連同
-目的地一起給使用者看過再送**——目的地是通知的一半，一個沒被看過的目的地跟沒被選過一樣。
+它逐個 repo（不是逐個 PR）算出要送去哪，輸出 `repo⇥狀態⇥數量⇥目的地`。**目的地是私訊的，把這份建議連同
+目的地一起給使用者看過再送**——目的地是通知的一半，一個沒被看過的目的地跟沒被選過一樣。頻道的例外在下一段。
 
 **例外看目的地**（使用者 2026-10-14；判準由指揮官 2026-10-27 裁）：目的地是那個 repo 的 review
 通知頻道，就直接發，不先給使用者看；目的地是私訊，一律先給使用者看。哪個 repo 有頻道，由宣告
@@ -208,7 +208,7 @@ bash "$SKILL_DIR/scripts/validate-language-policy.sh" --blocking --mode artifact
 - **不動任何一個 repo 的 git 狀態**：不 rebase、不 push、不切分支、不 stash。base 過期是
   報告上的一行，要不要處理是使用者的決定。
 - 不自動修正 CI failure 或 review comments。
-- 不代替使用者決定要通知誰、通知哪幾個。
+- 不代替使用者決定要通知哪幾顆 PR。送到哪由宣告那一層說，私訊先給使用者看（見〈3. 通知對的人〉）。
 - 不使用 `gh pr view --json reviews` 取代 bundled approval script。
 - 不使用 `gh pr checks --json` 取代 bundled CI script。
 - 不把問不到的狀態讀成通過——`UNREACHABLE` 不是 `PASS`。
