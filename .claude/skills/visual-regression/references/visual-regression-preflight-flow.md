@@ -14,10 +14,28 @@ description: "visual-regression 執行前的 domain resolution、config inherita
 1. Git branch 或 project context 對應到 company config 的 project，再找
    `visual_regression.domains[]`。
 2. 使用者明確提到的 domain。
-3. JIRA ticket 或 DP task context，特別是 engineering 觸發時。
+3. 那張單的 context，特別是 `verify-ac` 把一條量測登錄成 `visual-regression` 的 VR assertion 當 oracle 跑時。
 
 若無法判斷，詢問使用者要對哪個 domain 跑 VR。讀 config 時遵守
 `workspace-config.yaml`。
+
+## 頁面從哪裡來
+
+兩種情況，來源不同：
+
+| 情況 | 頁面與 viewport | 其餘設定 |
+|---|---|---|
+| 為一張單跑（`verify-ac` 執行那張單的 VR assertion） | 那條 assertion 寫出的頁面與 viewport。只跑這些，不跑全域清單 | company config 的 domain：server、masks、locales、fixtures |
+| 沒有單，使用者直接叫 | company config 的 `pages[]` | 同上 |
+
+assertion 指名的頁面不在 `pages[]` 裡，照樣跑；`name` 用路徑推一個，`wait_for` 與
+`scroll_before_capture` 沿用 domain 的設定，沒有就照 Hard Rules 等 deterministic selector。
+assertion 寫了「哪一塊會變」時，那一塊加進這一次的 masks，其餘必須前後相同；另外不加
+mask 再比一次，確認那一塊真的變了。mask 會畫進截圖，所以 before 也要遮與不遮各拍一份。
+不加 mask 的那一次沒有差，先確認 after 真的是新版本，再看 `threshold`：預設的 per-pixel
+容忍度分不出兩個相近的深色。
+
+結果寫回那張單：頁面、viewport、比對結果、HTML report 路徑。位置見 `vr-artifact-location.md`。
 
 ## Config Availability
 

@@ -41,8 +41,9 @@ screenshots，使用 Playwright diff，分析後刪除 temporary snapshots 與 t
 
 ## Contract
 
-VR 的測試單位是 domain，不是 repo。頁面由 configured URL paths 定義；不可因「頁面不在
-目前 repo」而 skip。合法 skip 僅限 config 缺漏、dependency declined、clean local tree、
+VR 的測試單位是 domain，不是 repo。為一張單跑的時候，頁面與 viewport 取自那張單的 VR assertion；
+沒有單的時候，取自 configured URL paths（見 `visual-regression-preflight-flow.md`〈頁面從哪裡來〉）。
+不可因「頁面不在目前 repo」而 skip。合法 skip 僅限 config 缺漏、dependency declined、clean local tree、
 smart-skip 判斷無 visual impact、fixture 未建立、已知 SSR hang、環境依賴缺失。
 
 VR 在 quality chain 中回答：「既有頁面是否仍 visually intact？」它不取代 Local CI Mirror，

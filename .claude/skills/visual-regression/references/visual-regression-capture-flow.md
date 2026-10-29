@@ -47,7 +47,7 @@ Playwright outputs：
 
 Generated Playwright specs 應遵守：
 
-- 每個 page 使用 configured path、locale、viewports。
+- 每個 page 使用這一次的頁面來源給的 path、locale、viewports（見 `visual-regression-preflight-flow.md`〈頁面從哪裡來〉）。
 - `global_masks` 套用到每張 screenshot。
 - CSR-heavy pages 使用 deterministic wait selector。
 - Mobile project 若 app 使用 UA-based SSR，必須設定 mobile user agent。
