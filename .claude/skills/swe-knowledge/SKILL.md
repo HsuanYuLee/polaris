@@ -406,6 +406,8 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
   `--agent-cmd 'codex exec'` 這一類換掉它，prompt 接在最後一個參數。
 - **不取代既有的 hook。** 接上之後每一支 hook 先照樣跑原本那一支，輸出與 exit code 原樣透傳，
   只有 pre-push 成功時才派。不改 repo 裡被追蹤的檔，`remove` 還原原本的 `core.hooksPath`。
+  指向轉呼叫的那一行經 `.git/config` 尾端的 `[include]` 帶進來，所以 husky 在 `npm install` 時
+  把 `core.hooksPath` 寫回 `[core]`，轉呼叫照樣在，原本的 hook 跟著那一格轉。
 - **它不擋 push，也不等。** 刪分支、推 tag、推沒有 open PR 的分支不派；問不到有沒有 PR 時說一行，
   照樣不派。
 - **驗證者看到的**只有凍結塊、那個 head 相對 base 的 diff、repo 的規矩檔、本機環境的宣告，在自己
@@ -414,8 +416,8 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
   `.spine/independent/<head>.json`。紅了那張單回 `engineering`；起不起來、拿不到資料、鏈走不完的
   寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。
 
-**擋不到的，明講。** `git push --no-verify` 跳過所有 hook。husky 在 `npm install` 時把
-`core.hooksPath` 寫回去，那之後要重跑 `install`，`status` 會說出來。驗證者碰得到什麼只寫在
+**擋不到的，明講。** `git push --no-verify` 跳過所有 hook。有人把那一行 `[include]` 拿掉，或在它
+後面再設一次 `core.hooksPath`，轉呼叫就不在了，`status` 會說出來。驗證者碰得到什麼只寫在
 指示裡：預設命令不載 MCP、不讀個人設定，但叫得到 Bash——那是一份會被自願遵守的界線，不是一道閘。
 每推一次多一個 agent 的 token 與時間。
 
