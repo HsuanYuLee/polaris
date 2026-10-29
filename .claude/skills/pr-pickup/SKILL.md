@@ -222,7 +222,3 @@ slack_send_message({
 
 ---
 
-## Post-Task Reflection (required)
-
-> **Non-optional.** Execute before reporting task completion.
-

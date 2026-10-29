@@ -40,8 +40,6 @@ tools:
 - 任何 specs Markdown 產出或匯入，遵守 `starlight-authoring-contract.md`。
 - Learning 可以 seed / import research evidence，但不得自動 invoke `refinement`，
   也不得替任何已凍結的 assertion 改寫成功的定義。
-- 寫入 handbook、backlog、learnings、README acknowledgement、RemoteTrigger 或
-  specs artifact 後，最後必跑 Post-Task Reflection。
 
 ## Mode Detection
 
@@ -116,10 +114,5 @@ dedup，以及 Slack 發送前的 language gate。Setup 過程不得 commit 或 
 讀 `learning-pr-batch-flow.md`。Batch mode 掃 merged PR history，先用 handbook
 既有 `Source:` 做 Layer 1 dedup，再對剩餘 PR 篩選 qualifying review comments。
 每 repo 預設 3 個月、最多 30 個 PR；sub-agent 平行上限 5。
-
-## Post-Task Reflection (required)
-
-> Non-optional. Execute before reporting task completion after any write.
-
 
 <!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->

@@ -90,8 +90,4 @@ JIRA report、Slack summary，或任何 external write body 送出前，必須�
 Standalone run 回報 domain、comparison path、pages count、diff summary、HTML report path、
 cleanup status。
 
-## Post-Task Reflection (required)
-
-若本次修改 config、fixtures、JIRA report、或 framework references，final response 前執行
-
 <!-- PROSE-EXTERNAL-PATHS: docs-manager/ — 動手對象：那是 specs 站台自己的 repo，這支 skill 往它寫東西、讀它的結構，不是我們抄一份放著的知識 -->
