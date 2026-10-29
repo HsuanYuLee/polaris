@@ -18,7 +18,6 @@ Usage: polaris-timeline.sh <command> [options]
 Commands:
   append        Append an event
   query         Emit events, optionally filtered by --since / --event / --last
-  checkpoints   Shortcut for 'query --event checkpoint --last N'
   help          Show this help
 
 Env:
@@ -187,26 +186,11 @@ cmd_query() {
   fi
 }
 
-cmd_checkpoints() {
-  local last=5
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --last) last="$2"; shift 2 ;;
-      --help) echo "checkpoints [--last N]  (default 5)"; return 0 ;;
-      *) die "unknown flag: $1" ;;
-    esac
-  done
-  [[ "$last" =~ ^[0-9]+$ ]] || die "--last must be integer"
-  [[ ! -s "$TIMELINE_FILE" ]] && return 0
-  jq -c 'select(.event == "checkpoint")' "$TIMELINE_FILE" | tail -n "$last"
-}
-
 cmd="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
   append)       cmd_append "$@" ;;
   query)        cmd_query "$@" ;;
-  checkpoints)  cmd_checkpoints "$@" ;;
   help|--help|-h) usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 2 ;;
 esac

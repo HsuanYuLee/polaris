@@ -44,7 +44,7 @@ driving-work-to-done  ← 唯一決定「現在在哪、下一步是什麼」的
 
 ## 有哪些 skill
 
-這裡有 15 支 skill。**這張表只給名字與一句話**——要知道某一支怎麼運作，去讀它自己的
+這裡有 16 支 skill。**這張表只給名字與一句話**——要知道某一支怎麼運作，去讀它自己的
 `SKILL.md`。
 
 | skill | 一句話 |
@@ -60,7 +60,6 @@ driving-work-to-done  ← 唯一決定「現在在哪、下一步是什麼」的
 | `request-pr-review` | 自己名下的 PR 現在卡在誰身上 |
 | `pr-pickup` | Slack 那一半：從訊息裡撈出 PR，修完回覆原串 |
 | `standup` | 每日站會報告與下班摘要 |
-| `checkpoint` | 長 session 的存檔與接續 |
 | `learning` | 從外部資源與已合併的 PR 萃取樣式 |
 | `memory-hygiene` | 記憶分層與搬遷 |
 | `visual-regression` | 前後截圖比對的視覺回歸守衛 |

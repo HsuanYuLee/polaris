@@ -1,10 +1,10 @@
 # Session Timeline
 
-A JSONL event log that records significant actions within a conversation. Timeline data feeds into standup reports, retrospectives, and the `/checkpoint` skill for session recovery.
+A JSONL event log that records significant actions within a conversation. Timeline data feeds into standup reports and retrospectives.
 
 ## Why This Exists
 
-After a long session or across multiple sessions in a day, it's hard to reconstruct what happened, in what order, and how long things took. The timeline provides a structured log that the standup skill can read for accurate daily reports, and that `/checkpoint` can use for session state recovery.
+After a long session or across multiple sessions in a day, it's hard to reconstruct what happened, in what order, and how long things took. The timeline provides a structured log that the standup skill can read for accurate daily reports.
 
 ## Entry Schema
 
@@ -37,7 +37,6 @@ After a long session or across multiple sessions in a day, it's hard to reconstr
 | `pr_opened` | PR created | pr_url, branch, ticket |
 | `pr_merged` | PR merged | pr_url |
 | `error` | Significant error encountered | note (error description) |
-| `checkpoint` | `/checkpoint save` invoked | note (checkpoint description) |
 | `learning_recorded` | Learning written to learnings.jsonl | note (learning key) |
 
 ## When to Log Events
@@ -72,9 +71,6 @@ polaris-timeline.sh append --event skill_invoked --skill engineering \
 polaris-timeline.sh query --since today
 polaris-timeline.sh query --since "2h"
 polaris-timeline.sh query --since 2026-04-01
-
-# List checkpoints
-polaris-timeline.sh checkpoints --last 5
 ```
 
 Environment variables:
@@ -90,7 +86,3 @@ polaris-timeline.sh query --since "$YESTERDAY"
 ```
 
 This supplements git log and JIRA data with skill-level activity that doesn't appear in commits (e.g., time spent on estimation, review, debugging).
-
-## Integration with /checkpoint
-
-The `/checkpoint` skill writes `checkpoint` events to the timeline and reads them back for resume. See `.claude/skills/checkpoint/SKILL.md`.

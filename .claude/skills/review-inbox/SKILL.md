@@ -1,10 +1,11 @@
 ---
 name: review-inbox
 description: |
-  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
+  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'), and keeping watch all day ('巡檢 PR', '每 20 分鐘掃一次 PR', '掃到下班為止'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
 
   要掃出團隊裡等著自己看的 PR。例如「掃 PR」「review 大家的 PR」
   「有哪些 PR 要我看」，或給一個 Slack thread URL 要人看那一串。
+  也用於整天巡檢：固定間隔掃頻道，掃到指定時間為止（「巡檢 PR」「掃到下班為止」）。
 
   分辨：「我的 PR」→ request-pr-review；「大家的 PR」或 Slack URL → 這裡；
   單一個 PR URL → review-pr。
@@ -64,6 +65,7 @@ Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awa
 |---|---|
 | Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `stale-approval-detection.md`, `workspace-config.yaml` |
 | Batch review execution | `review-inbox-batch-review-flow.md`, `.claude/skills/review-inbox/dispatch-context-bundle.md` |
+| 整天巡檢（固定間隔掃到停止時間） | `review-inbox-sweep-flow.md` |
 | Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `../review-pr/references/github-slack-user-mapping.md`, `scripts/validate-language-policy.sh` |
 
 **每張 PR 交給一個 sub-agent 執行。** 用哪一種 agent、幾個並行、先跑哪一張，由執行的人

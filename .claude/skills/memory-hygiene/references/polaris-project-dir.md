@@ -1,6 +1,6 @@
 # Polaris Project Directory
 
-Cross-session data lives in `~/.polaris/projects/$SLUG/`. This directory holds files that persist across conversations: learnings, timeline events, and checkpoints.
+Cross-session data lives in `~/.polaris/projects/$SLUG/`. This directory holds files that persist across conversations: learnings and timeline events.
 
 ## Slug Resolution
 
