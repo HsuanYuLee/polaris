@@ -97,11 +97,12 @@ Plan artifact authority lives in `bash .claude/skills/memory-hygiene/scripts/val
 - Routine migrations 不建立 feedback memory。
 - If apply finds anomalies, record at most one framework-experience memory.
 - Canonical apply chain is `dry-run --json | validate-memory-hygiene-plan.sh | apply`；不要手動改 plan JSON 後直接餵 apply。
-- DP-213 起 apply 一定把 Hot 收斂到 ≤ 15（`MEMORY_HOT_CAPACITY` env 可覆寫）：超量者依
-  確定性 ranking 自動降 Warm，pinned + graduated_to 永遠不被擠出，migration log 列出
-  `overflowed-hot-capacity` 降級檔名。chain 在含 nested_frontmatter 的 plan 也能跑通；
-  validator 把 nested_frontmatter 移到 warnings，apply 內部 normalize 是唯一 enforcement
-  path，不需要 `POLARIS_MEMORY_HYGIENE_APPLY=1` bypass。
+- apply 一定把 Hot 收斂到 ≤ 15，`MEMORY_HOT_CAPACITY` env 可覆寫這個數字；超量的依確定性
+  ranking 自動降 Warm。
+- pinned 與帶 graduated_to 的 memory 永遠不被擠出 Hot。
+- 被擠出的檔名列在 migration log，標 `overflowed-hot-capacity`。
+- plan 含 nested_frontmatter 時 chain 照樣跑得通：validator 只把它列進 warnings，由 apply 內部
+  normalize，不需要 `POLARIS_MEMORY_HYGIENE_APPLY=1` bypass。
 
 ## Completion
 
