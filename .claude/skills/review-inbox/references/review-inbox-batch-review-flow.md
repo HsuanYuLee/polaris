@@ -55,6 +55,34 @@ Candidates 依 PR created time 升序排序，最早發出的 PR 優先。顯示
 `context-budget-contract.md` 本來就直接規定，任何 sub-agent 都滿足它。代理消失，被代理的
 不消失。
 
+## cluster 怎麼判
+
+`annotate-review-candidates.py` 照下面的判準決定一顆 PR 進不進 cluster，每顆帶一句 `cluster_reason`。
+
+**鍵相同不等於同一批改動。** 同一個 repo 的兩顆 PR 要進同一個 cluster，還要量得到改動
+交集——共用一個檔案，而且該檔在 base 那一側的 hunk 區塊重疊。量不到就兩顆都走完整
+review：sibling 走的是 lead summary 的六條判準，判錯的代價是一顆 PR 只被半審過，而判成
+standalone 的代價只是多花一次 review。**跨 repo 的兩顆不套這條**，因為那裡量不到交集，
+而「同一件事在三個 repo 各開一顆」正是 sister PR 要服務的形狀。每一顆都帶著一句
+`cluster_reason` 說出憑什麼——它分得出這一顆的交集是量到的（`same_repo_overlap`）還是
+量不到而放行的（`cross_repo_key_only`）。
+
+這條規則來自一次真跑的收件匣：同一則 thread 裡有兩張不同單的 PR，同一個 repo、
+同一個 controller 檔案，而區塊零重疊。舊的判準讓後面那顆走 sibling，於是它只被
+lead 的六條判準看過，漏掉一條 must-fix。
+
+**但交集量得到也還不夠，因為它對串行堆疊恆為真。** 同一個 repo 裡第二顆踩在第一顆改過
+的檔案上往前疊，交集必然量得到——而第 N 顆帶的是它自己那一段沒有人讀過的改動，只是
+順便帶著前面那幾顆的行。所以同一個 repo 的兩顆還要問**這一顆從哪裡長出來的**：base 落在
+同一個 repo 任何一顆 open PR 的 head 上就是串行，那幾顆一律走完整 review
+（`stacked_on_candidate` 或 `stacked_on_open_pr`，看 parent 在不在這一輪的候選集裡）。
+問不到其中一顆的 base 時分不出平行與串行，也走完整 review
+（`same_repo_lineage_unmeasurable`）——量不到不得讀成可以半審。
+
+2026-09-16 的實例，一批八顆：`b2c-web` 的 PR-1 建護欄、後七顆逐顆疊在上面，八顆同一張
+單、同一則 thread。舊的判準把它們判成一個 cluster，其中 +3155／+6578／+11222 行的三顆
+走了 sibling 的半審，由人手動覆寫回來。
+
 ## Per-PR Review Dispatch
 
 每個 PR 使用獨立 review packet。Dispatch 前 candidates 必須已由
