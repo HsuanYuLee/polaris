@@ -49,8 +49,8 @@ Reviewer stance：prioritize bugs、behavior regressions、security、type safet
 rule violations、missing tests。不要用 personal style preference 擋 merge。
 reviewer-side 屬 read-only lane，但對 `changes_requested`、`active unresolved comments`、
 `awaiting_re_review`、`mergeable_ready` 的語義必須與 author-side mutable lane 一致；不得自行重寫。
-本 skill 可輸出 reviewer 結論（預設是 `APPROVE` 或 `COMMENT`；`REQUEST_CHANGES` 只在使用者
-明說要擋那一顆的時候，見 `references/review-pr-submit-flow.md`〈Review Action〉），但不得把 reviewer
+本 skill 可輸出 reviewer 結論（送哪一種見〈Flow〉第 6 步），
+但不得把 reviewer
 結論寫成 author-side stage authority；「可 merge / 可 release / 已完成」仍必須沿用 shared PR /
 workflow state，而不是 reviewer prose。
 
