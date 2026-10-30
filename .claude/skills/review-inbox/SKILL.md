@@ -1,7 +1,7 @@
 ---
 name: review-inbox
 description: |
-  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'), and keeping watch all day ('巡檢 PR', '每 20 分鐘掃一次 PR', '掃到下班為止'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL to review → here; Slack URL asking someone to take over and fix the PR → pr-pickup; single PR URL → review-pr."
+  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Sources: Slack (default; channel-wide scan, always unioned with a GitHub scan for open PRs you voted on whose head has moved), Thread (specific Slack thread URL), Label (need-review label). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'), and keeping watch all day ('巡檢 PR', '每 20 分鐘掃一次 PR', '掃到下班為止'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL to review → here; Slack URL asking someone to take over and fix the PR → pr-pickup; single PR URL → review-pr."
 
   要掃出團隊裡等著自己看的 PR。例如「掃 PR」「review 大家的 PR」
   「有哪些 PR 要我看」，或給一個 Slack thread URL 要人看那一串。
