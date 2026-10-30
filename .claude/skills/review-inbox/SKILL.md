@@ -1,14 +1,14 @@
 ---
 name: review-inbox
 description: |
-  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'), and keeping watch all day ('巡檢 PR', '每 20 分鐘掃一次 PR', '掃到下班為止'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL → here; single PR URL → review-pr."
+  "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a single specific PR (use review-pr). Supports three discovery modes: Label (GitHub label scan), Slack (channel-wide scan), Thread (specific Slack thread URL). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看', Slack thread URL + review intent ('review <slack_url>', '幫我看這串'), and keeping watch all day ('巡檢 PR', '每 20 分鐘掃一次 PR', '掃到下班為止'). Key: '我的 PR' → request-pr-review; '大家的 PR' / Slack URL to review → here; Slack URL asking someone to take over and fix the PR → pr-pickup; single PR URL → review-pr."
 
   要掃出團隊裡等著自己看的 PR。例如「掃 PR」「review 大家的 PR」
   「有哪些 PR 要我看」，或給一個 Slack thread URL 要人看那一串。
   也用於整天巡檢：固定間隔掃頻道，掃到指定時間為止（「巡檢 PR」「掃到下班為止」）。
 
-  分辨：「我的 PR」→ request-pr-review；「大家的 PR」或 Slack URL → 這裡；
-  單一個 PR URL → review-pr。
+  分辨：「我的 PR」→ request-pr-review；「大家的 PR」或要人 review 的 Slack URL → 這裡；
+  Slack URL 是要人接手修那顆 PR → pr-pickup；單一個 PR URL → review-pr。
 metadata:
   author: Polaris
   version: 3.0.0
