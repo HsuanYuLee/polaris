@@ -1,25 +1,17 @@
 ---
 name: review-pr
 description: |
-  Review someone else's PR as a code reviewer: read the PR diff, check against
-  .claude/rules, leave inline comments on issues found, and submit a review with
-  APPROVE or COMMENT (REQUEST_CHANGES only when the user says so). Use when the
-  user asks the assistant to review a
-  PR (subject omitted or = self), e.g.: "review PR", "review 這個 PR",
-  "review 此 PR", "review 該 PR", "幫我 review 這個 PR" (without team subject),
-  "review for me", "code review", or shares a PR URL with self-directed review
-  intent. NOT for "請<同仁/大家/人名>幫我 review" (subject = others) — that is
-  催 review, route to request-pr-review. NOT for "review 大家的 PR" / "掃 PR"
-  (object = others' PRs) — route to review-inbox. NOT for fixing review comments
-  on your own PR — that needs no relay, just fix it.
+  Review someone else's PR as a code reviewer: read the diff and the repo's own
+  rules, leave inline comments, and submit APPROVE or COMMENT.
 
-  要以 reviewer 的身分看**別人的** PR：讀 diff、留 inline comment、送出
-  APPROVE 或 COMMENT（REQUEST_CHANGES 只在使用者明說要擋的時候）。例如「review 這個 PR」
-  「code review」，或丟一個 PR URL
-  過來要人看。
+  要以 reviewer 的身分看**別人的** PR：讀 diff 與那個 repo 自己的規矩、留 inline comment、
+  送出 APPROVE 或 COMMENT（REQUEST_CHANGES 只在使用者明說要擋的時候）。例如「review PR」
+  「review 這個 PR」「幫我 review 這個 PR」「review for me」「code review」，或丟一個
+  PR URL 過來要人看。
 
-  不用於：「請〈同仁/大家〉幫我 review」——主語是別人，那是催 review，
-  走 request-pr-review。
+  不用於：「請〈同仁/大家/人名〉幫我 review」——主語是別人，那是催 review，走 request-pr-review。
+  不用於：「review 大家的 PR」「掃 PR」——對象是一批別人的 PR，走 review-inbox。
+  不用於：修自己 PR 上的 review 意見——不需要轉手，直接修。
 metadata:
   author: Polaris
   version: 2.1.0
