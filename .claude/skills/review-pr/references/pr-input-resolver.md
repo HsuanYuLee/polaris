@@ -58,8 +58,10 @@ gh api repos/{owner}/{repo}/contents/{path} --jq '.[].name'
 # 讀取檔案內容
 gh api repos/{owner}/{repo}/contents/{path}?ref={headRefName} --jq '.content' | base64 -d
 
-# 專案規範
-gh api repos/{owner}/{repo}/contents/.claude/rules --jq '.[].name'
+# 專案規範：CLAUDE.md、AGENTS.md、.claude/rules 三份都讀 base branch 上的版本，404 就是那一份不存在
+gh api repos/{owner}/{repo}/contents/CLAUDE.md?ref={baseRefName} --jq '.content' | base64 -d
+gh api repos/{owner}/{repo}/contents/AGENTS.md?ref={baseRefName} --jq '.content' | base64 -d
+gh api "repos/{owner}/{repo}/contents/.claude/rules?ref={baseRefName}" --jq '.[].name'
 ```
 
 ## 輸出

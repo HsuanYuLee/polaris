@@ -9,8 +9,10 @@ description: "review-pr 的 rules/handbook 讀取、既有 comments 去重、lar
 
 ## Standards Loading
 
-讀取 repo `.claude/rules/`。Local mode 從本地 repo 讀；remote mode 從 PR branch 透過
-GitHub API 讀。Rules 不存在時，仍可用通用 review dimensions，但不得假裝有 project rule。
+讀取 repo 根目錄的 `CLAUDE.md`、`AGENTS.md` 與 `.claude/rules/`，讀 PR base branch 上的版本。Local mode
+從本地 repo 讀；remote mode 透過 GitHub API 帶 `ref={baseRefName}` 讀。三份都不存在時，仍可用通用 review
+dimensions，但不得假裝有 project rule，並在 review 摘要說出這個 repo 沒有自己的規矩檔。以其中一條規矩為
+依據的 finding，附上那條規矩的檔名與行號。
 
 Repo handbook 是 primary standard。若 company handbook 存在，讀那本 handbook 的 `{handbook}/index.md` 與相關子檔。
 符合 handbook 的 pattern 不應被 flag；違反 handbook 的 pattern 應指出。

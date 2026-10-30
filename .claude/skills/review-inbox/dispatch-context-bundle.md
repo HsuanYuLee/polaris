@@ -9,8 +9,10 @@ the prompt. If no handbook paths are listed, read the Project Handbook block: it
 says which of the two cases you are in. Record `project_handbook: none` when the
 resolver answered and there is no handbook; record `project_handbook: unresolved`
 when the resolver did not answer, and say in the review that this repo's
-conventions were unavailable to you. Either way, continue without scanning repo
-guideline folders.
+conventions were unavailable to you. Either way, still read the repo's own
+`CLAUDE.md`, `AGENTS.md` and `.claude/rules/` from the PR base branch, and say so
+when none of them exist. A finding that rests on one of those rules cites the
+rule's file and line.
 
 ## The Shared Checkout Is Not Yours
 

@@ -91,8 +91,9 @@ Large PR 分批 review 可派 sub-agent。派工的 prompt 要帶哪些東西（
    files、review strategy、existing reviews、approval state、re-review signal。它只放行
    open 且非 draft 的 PR——已合併、已關閉、還在 draft 的一律拒絕並說出是哪一種狀態。
    打 `--help` 問得到用法。
-4. 讀 repo rules、workspace handbook、PR description、changed files、diff、既有 review
-   comments，建立去重清單。
+4. 先讀那個 repo 自己的 `CLAUDE.md`、`AGENTS.md` 與 `.claude/rules/`，讀 PR base branch 上的版本：有就讀，
+   三份都沒有就在 review 摘要裡說出沒有；以其中一條規矩為依據的 finding 附上它的檔名與行號（使用者 2026-10-30：「各 repo 可能有自己的 claude.md 規則，施作或 review 前務必去讀過」）。
+   再讀 workspace handbook、PR description、changed files、diff、既有 review comments，建立去重清單。
 5. Review changed files；large PR 依 reference 分組派 sub-agent fan-out。
 6. 合併 findings，依 severity 決定 `APPROVE` 或 `COMMENT`——分級照舊，而 must-fix 送的是
    `COMMENT`，不擋對方的分支。要擋要有使用者的原話，見

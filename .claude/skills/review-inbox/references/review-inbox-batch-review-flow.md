@@ -94,7 +94,8 @@ lead 的六條判準看過，漏掉一條 must-fix。
 - Workspace config base directory。
 - `review-inbox/dispatch-context-bundle.md` 的 inline 內容。
 - deterministic handbook resolver 輸出的 verified project handbook paths；空清單時明確寫
-  no project handbook，且不可掃 repo guideline folders。
+  no project handbook。repo 自己的 `CLAUDE.md`、`AGENTS.md` 與 `.claude/rules/`
+  照常從 PR base branch 讀。
 - `model_tier` semantic class hint。
 - `cluster_role`, `cluster_key`, `root_ticket_key`, `root_topic_key`, `cluster_lead_url`，
   以及 sibling PR 可用的 lead summary。

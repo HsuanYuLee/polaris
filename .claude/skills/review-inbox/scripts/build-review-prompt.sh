@@ -164,10 +164,9 @@ if unresolved:
     # 這一輪手上少了一份本來該有的東西，而 review 照樣要做——所以它要說出自己缺了什麼。
     print("Project handbook unresolved: the declared resolver did not answer "
           f"({unresolved}). This is not the same as \"no handbook\": treat this PR's "
-          "repo-specific conventions as unknown, say so in the review, and still do not "
-          "scan repo guideline folders.")
+          "repo-specific conventions as unknown and say so in the review.")
 elif not paths:
-    print("No project handbook: verified resolver returned an empty list. Do not scan repo guideline folders.")
+    print("No project handbook: verified resolver returned an empty list.")
 else:
     print("Verified project handbook paths:")
     for idx, path in enumerate(paths, start=1):
@@ -399,7 +398,7 @@ Root topic key: ${ROOT_TOPIC_KEY_TEXT}
 Slack thread_ts: ${SLACK_THREAD_TS_TEXT}
 
 你正在執行 Code Reviewer review packet。請直接依照以下 inline dispatch context 執行 review。
-這份 packet 自足——不需要讀任何 skill 就做得完；不要掃 repo guideline folders。
+這份 packet 自足——不需要讀任何 skill 就做得完；那個 repo 自己的規矩檔照執行步驟第 3 步讀。
 
 **Inline Dispatch Context**：
 ${BUNDLE_TEXT}
@@ -493,7 +492,7 @@ ${EXTRA_REFS_BLOCK}
 **執行步驟**：
 1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
 2. 取 $REVIEWED_HEAD（見 Reviewed Head 區塊），再用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、changed-file names、reviews；diff 對 $REVIEWED_HEAD 取
-3. 只讀 Project Handbook 區塊列出的 verified paths；一條都沒列的時候讀那個區塊自己說的是哪一種——no project handbook 就略過 handbook 讀取，unresolved 要記成 unresolved 並在 review 裡說出這顆 PR 的 repo 慣例這一輪拿不到
+3. 先讀那個 repo 根目錄的 CLAUDE.md、AGENTS.md 與 .claude/rules/，讀 PR base branch 上的版本（gh api 帶 ref=baseRefName；三份都沒有就在 review 裡說出沒有）。以其中一條規矩為依據的 finding，附上那條規矩的檔名與行號。再只讀 Project Handbook 區塊列出的 verified paths；一條都沒列的時候讀那個區塊自己說的是哪一種——no project handbook 就略過 handbook 讀取，unresolved 要記成 unresolved 並在 review 裡說出這顆 PR 的 repo 慣例這一輪拿不到
 4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
 6. 送出 GitHub review，綁在同一顆上：
