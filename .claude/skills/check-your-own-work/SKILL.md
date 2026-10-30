@@ -3,12 +3,7 @@ name: check-your-own-work
 description: |
   Before handing your own change over — opening a PR, asking for review, saying
   "done" — check it against nine questions that come from what reviewers actually
-  caught: claims that do not match the diff, the repo's own rules not applied,
-  half-done pattern changes, runtime behaviour asserted from reading source,
-  last round's comments still unaddressed, assertions that cannot fail, a
-  mechanism you removed whose jobs nobody carried over, and something you added
-  that nothing runs or that this repo has no precedent for, and a failure or
-  branch path nobody walked.
+  caught.
 
   Use when you are about to hand your own work over, or when someone asks you to
   self-check, double-check, or go over your change before submitting.
