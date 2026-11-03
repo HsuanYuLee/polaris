@@ -1662,6 +1662,82 @@ def epic_dir_of(issue_path):
         cur = parent
 
 
+# 一顆 PR 只有完整網址才對得到是哪個 repo；只寫 `#n` 的說出來，不猜（DP-958）。
+PR_URL = re.compile(r"https?://github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)")
+BARE_PR = re.compile(r"(?<![A-Za-z0-9/&])#(\d+)(?![0-9])")
+PUSH_VERIFIER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                             "swe-knowledge", "scripts", "push-verifier.py")
+
+
+def find_ticket(issues_root, branch):
+    """PR 的 head branch 對到哪一張單：借 push-verifier 的 find_ticket，不另做一套。回傳 (單的目錄, problem)。"""
+    import importlib.util
+    try:
+        spec = importlib.util.spec_from_file_location("push_verifier", PUSH_VERIFIER)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # 載入失敗只說出來，不讓 --say／--order 跟著倒（A-N1）
+        return None, "對單的 find_ticket 載不到：" + PUSH_VERIFIER + "（" + type(exc).__name__ + "）"
+    return mod.find_ticket(issues_root, branch)
+
+
+def open_tickets_under(epic):
+    """鏈頂單底下（含它自己）還沒 delivered、也沒 close 的單，逐張 (名字, 站別或問不到的原因)。"""
+    out = []
+    for dirpath, dirnames, _ in os.walk(epic):
+        dirnames[:] = sorted(d for d in dirnames if d != ".spine")
+        if not os.path.isdir(os.path.join(dirpath, ".spine")):
+            continue
+        rows, prob = spine_where(dirpath)
+        if prob:
+            out.append((os.path.basename(dirpath), prob))
+            continue
+        if rows["station"] == "delivered" or "status=closed" in rows.get("rounds", ""):
+            continue
+        out.append((os.path.basename(dirpath), "站別 " + rows["station"]))
+    return out
+
+
+def pr_epic_note(text, issues_root):
+    """本文帶的每一顆 PR：它所屬 epic 底下 open 的子單與站別，對不到就說卡在哪一步。
+
+    印在 stderr，給寫那一則的指揮官看；本文沒有 PR 就回 None。請人 review 之前要先知道同一個
+    epic 還有哪幾張擋著（〈併與上線的指令〉）。使用者 2026-11-03 原話：「為什麼一直要我提供
+    半成品出去，當初明明是有理由導致不能上的」。
+    """
+    urls = list(dict.fromkeys(PR_URL.findall(text)))
+    with_url = {n for _, n in urls}
+    lines = ["#" + n + " 只寫了號碼，對不到是哪個 repo；要看它所屬 epic 的 open 子單，本文寫完整網址。"
+             for n in dict.fromkeys(BARE_PR.findall(text)) if n not in with_url]
+    for slug, n in urls:
+        pr = slug + "#" + n
+        try:
+            res = subprocess.run(["gh", "pr", "view", n, "--repo", slug, "--json", "headRefName"],
+                                 capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            lines.append(pr + "：gh 問不到 head branch（" + type(exc).__name__ + "）。")
+            continue
+        if res.returncode != 0:
+            lines.append(pr + "：gh 問不到 head branch（exit " + str(res.returncode) + "："
+                         + res.stderr.strip()[:200] + "）。")
+            continue
+        try:
+            branch = json.loads(res.stdout).get("headRefName", "")
+        except (ValueError, AttributeError):
+            lines.append(pr + "：gh 回的不是 JSON（" + res.stdout.strip()[:120] + "）。")
+            continue
+        ticket, why = find_ticket(issues_root, branch)
+        if not ticket:
+            lines.append(pr + "：對不到單，" + why + "。")
+            continue
+        epic = epic_dir_of(ticket)
+        rows = open_tickets_under(epic)
+        lines.append(pr + "（" + branch + "）屬於 " + os.path.basename(epic) + "，底下還 open 的單 "
+                     + str(len(rows)) + " 張：")
+        lines += ["  - " + name + "：" + where for name, where in rows]
+    return "\n".join(lines) or None
+
+
 def other_live_lines(epic_dir, exclude):
     """那張鏈頂單底下，`exclude` 以外還有哪幾個活著的 session 在做。回傳 (逐條, 問題)。
 
@@ -2277,7 +2353,7 @@ def main():
                          "跑兩次不重複；--board 每輪會先跑它。")
     ap.add_argument("--board", action="store_true",
                     help="產指揮台那一頁：指揮官在等什麼、日誌尾端、在飛的單、這台機器上的 session")
-    ap.add_argument("--issues", default="issues", help="--board 用：單的根目錄")
+    ap.add_argument("--issues", default="issues", help="--board／--say／--order 用：單的根目錄")
     ap.add_argument("--waiting-on", default=None,
                     help="--board／--log 用：唯一手寫的那一格——指揮官自己在等什麼。"
                          "給了就落進日誌，之後不給就讀日誌裡最後一句")
@@ -2438,6 +2514,9 @@ def main():
         print(user_words_note(args.now_epoch), file=sys.stderr)
     if args.say and args.text:
         print(prior_decisions_note(args.text, args.now_epoch), file=sys.stderr)
+        note = pr_epic_note(args.text, args.issues)
+        if note:
+            print(note, file=sys.stderr)
     if args.order or args.review:
         which = "--review" if args.review else "--order"
         to_names = args.to_names or []
@@ -2522,6 +2601,9 @@ def main():
                 return 7
         if args.order:
             print(prior_decisions_note(out, args.now_epoch), file=sys.stderr)
+            note = pr_epic_note(out, args.issues)
+            if note:
+                print(note, file=sys.stderr)
             warning = epic_line_warning(args.issue, to_names[0], frm)
             if warning:
                 print(warning, file=sys.stderr)
