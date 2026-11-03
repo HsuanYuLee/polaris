@@ -97,15 +97,42 @@ if re.search(r"(send_message|schedule_message)$", tool):
 if tool != "Bash":
     sys.exit(0)
 
+# 這幾個旗標讓 git tag 進列出、刪除或驗證模式，不建 tag（git 2.50 實測，見 DP-960）。
+TAG_READ_ONLY = {"-l", "--list", "-d", "--delete", "-v", "--verify", "-n", "--contains", "--no-contains",
+                 "--points-at", "--merged", "--no-merged"}
+
+def segments(command):
+    """把命令切成逐段的字，分隔是 `;`、`&`、`|`（含 `&&`、`||`）、括號與換行；引號裡的不切。"""
+    command = re.sub(r"\\\n", "", command)  # 反斜線續行：bash 會把兩行接成一個命令
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|\n()")
+    lex.whitespace = " \t\r"
+    lex.whitespace_split = True
+    lex.commenters = ""
+    out, words = [], []
+    try:
+        for token in lex:
+            if token and set(token) <= set(";&|\n()"):
+                out.append(words)
+                words = []
+            else:
+                words.append(token)
+    except ValueError:
+        # 引號不成對時退回逐段切：壞的那一段跳過，其餘照判
+        out = []
+        for part in re.split(r"&&|\|\||[;&|\n]", command):
+            try:
+                out.append(shlex.split(part))
+            except ValueError:
+                pass
+        return out
+    return out + [words]
+
 command = inp.get("command") or ""
 where = cwd
-for segment in re.split(r"&&|\|\||;|\n", command):
-    try:
-        words = shlex.split(segment)
-    except ValueError:
-        continue
+for words in segments(command):
     if not words:
         continue
+    segment = shlex.join(words)
     if words[0] == "cd" and len(words) > 1:
         where = os.path.join(where, os.path.expanduser(words[1]))
         continue
@@ -123,8 +150,11 @@ for segment in re.split(r"&&|\|\||;|\n", command):
             gate("merge", branch=pr.get("headRefName") or "", heads=[pr.get("headRefOid")], text=segment,
                  base=pr.get("baseRefName") or "", repo=slug.group(1) if slug else "")
     elif words[:2] == ["git", "tag"]:
-        names = positional(words[2:], {"-m", "--message", "-F", "--file", "-u", "--local-user"})
-        if any(w in ("-d", "--delete", "-l", "--list") for w in words[2:]) or not names:
+        if any(w.split("=")[0] in TAG_READ_ONLY or re.fullmatch(r"-n\d+", w) for w in words[2:]):
+            continue
+        names = positional(words[2:], {"-m", "--message", "-F", "--file", "-u", "--local-user",
+                                       "--sort", "--format", "--cleanup"})
+        if not names:
             continue
         target = names[1] if len(names) > 1 else "HEAD"
         gate("tag", heads=[commit_of(target, where)], text=segment, tags=names[:1])
