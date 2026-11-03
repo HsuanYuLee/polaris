@@ -72,10 +72,15 @@ def dispatch(remote, url):
     for parts in lines:
         if len(parts) != 4:
             continue
-        local_ref, local_sha, _remote_ref, _ = parts
-        if local_sha == ZERO or not local_ref.startswith("refs/heads/"):
-            continue  # 刪分支、推 tag 不派
-        branch = local_ref[len("refs/heads/"):]
+        # 第一欄是 push 命令寫下的 src 原字（HEAD、HEAD~1 都會出現），分支名只能從遠端那一欄讀
+        _local_ref, local_sha, remote_ref, _ = parts
+        if local_sha == ZERO:
+            say(f"這次是刪分支 {remote_ref}，不派。")
+            continue
+        if not remote_ref.startswith("refs/heads/"):
+            say(f"推的是 {remote_ref}，不是分支，不派。")
+            continue
+        branch = remote_ref[len("refs/heads/"):]
         # 推的網址可能被 pushInsteadOf 改寫過；認不出來就問 remote 原本設的那一個
         slug = slug_of(url) or slug_of(git(top, "remote", "get-url", remote, check=False) if remote else "")
         if not slug:
