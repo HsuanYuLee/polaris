@@ -138,8 +138,47 @@ def sandbox(agent_cmd):
     return sb, env, argv
 
 
+def read_fence(argv, work, sb):
+    """讀的那一半（DP-983）：候選只讀得到它這一跑的工作目錄與沙箱。用作業系統的行程沙箱擋，
+    不靠 agent 的工具旗標，所以換成別的 agent 一樣被擋。家目錄、暫存目錄、/tmp 整棵擋讀，
+    再把 agent 自己要用的開回來：它的執行檔、它在家目錄的設定（Claude Code 只開登入要的那幾格，
+    不開 sessions、projects 與 skills；別的 agent 開整個 ~/.<名字>），以及 Keychains。
+    只擋內容不擋 metadata，stat 父目錄照常成立。回傳包好的啟動命令；這台沒有行程沙箱就說出來，
+    原樣回傳。"""
+    seatbelt, exe = shutil.which("sandbox-exec"), shutil.which(argv[0])
+    if not exe:
+        return argv  # 找不到 agent 的那一條訊息由 run_candidate 說
+    if not seatbelt:
+        print("compare-skill-versions: 這台沒有 sandbox-exec，候選的讀取沒有隔開——它讀得到這台機器上的檔案",
+              file=sys.stderr)
+        return argv
+    home = Path.home().resolve()
+    work, sb = Path(work).resolve(), Path(sb).resolve()
+    trace = re.sub(r"[^A-Za-z0-9]", "-", str(work))
+    allow = [f'(subpath "{work}")', f'(subpath "{sb}")', f'(literal "{home}")',
+             f'(subpath "{home}/Library/Keychains")']
+    allow += [f'(literal "{Path(exe).absolute()}")', f'(subpath "{Path(exe).resolve().parent}")']
+    # --agent-cmd 指名的腳本（bash agent.sh 的 agent.sh）不在上面任何一格，照它指名的那一個檔開
+    allow += [f'(literal "{Path(a).resolve()}")' for a in argv[1:] if Path(a).is_file()]
+    name = Path(argv[0]).name
+    if name == "claude":
+        allow += [f'(literal "{home}/.claude.json")', f'(literal "{home}/.claude")',
+                  f'(literal "{home}/.claude/settings.json")', f'(subpath "{home}/.claude/projects/{trace}")',
+                  f'(literal "/private/tmp/claude-{os.getuid()}")',
+                  f'(subpath "/private/tmp/claude-{os.getuid()}/{trace}")']
+    else:
+        allow += [f'(subpath "{home}/.{name}")']
+    tmp = Path(tempfile.gettempdir()).resolve()
+    profile = ("(version 1)\n(allow default)\n"
+               f'(deny file-read-data (subpath "{home}") (subpath "{tmp}") (subpath "/private/tmp"))\n'
+               f"(allow file-read-data {' '.join(allow)})\n")
+    (sb / "read.sb").write_text(profile)
+    return [seatbelt, "-f", str(sb / "read.sb"), *argv]
+
+
 def run_candidate(agent_cmd, prompt, work, transcript_path, timeout):
     sb, env, argv = sandbox(agent_cmd)
+    argv = read_fence(argv, work, sb)
     with open(transcript_path, "w") as out:
         try:
             proc = subprocess.run([*argv, prompt], cwd=work, env=env, stdout=out,
