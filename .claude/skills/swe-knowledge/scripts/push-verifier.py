@@ -27,6 +27,8 @@ ZERO = "0" * 40
 KEY = re.compile(r"[A-Z][A-Z0-9]+-\d+")
 RULE_FILES = ("CLAUDE.md", "AGENTS.md")
 AGENT_TIMEOUT = 3600
+# 單一條會卡的命令（tinker、REPL、等外部服務）的上限：正常 2 秒內、等服務最長 50 秒，實測卡住的最短 100 秒（DP-977）
+COMMAND_TIMEOUT = 60
 
 
 def say(msg):
@@ -179,6 +181,11 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
 
 1. append 一行到 {log}，形狀是「第 N 問<tab>抓到什麼」或「鏈 <鏈名><tab>結果」。用 append（`>>`），不要覆寫。
 2. 把到目前為止的結果寫進 {out_file}，形狀跟下面〈判定〉那份一樣，verdict 先寫 PARTIAL。全部做完再改成最後的判定。
+
+## 會卡住的命令帶硬逾時
+
+- `php artisan tinker` 與其他互動式 REPL、等外部服務好的迴圈，這兩類命令一律帶 {COMMAND_TIMEOUT} 秒硬逾時：`timeout {COMMAND_TIMEOUT} <命令>`，沒有 `timeout` 就用 `perl -e 'alarm {COMMAND_TIMEOUT}; exec @ARGV' <命令>`。不用 sleep 加 kill 自己等。
+- 逾時那一刻 append 一行「卡住<tab><命令>、等了幾秒」到 {log}，然後換路：換一種做法，或把那條鏈寫進 missing。同一條命令不再等第二次。
 
 ## 判定
 
