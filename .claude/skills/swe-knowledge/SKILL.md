@@ -415,6 +415,9 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
 - **判定寫回那張單**：一段行首 `check-your-own-work 九問，head <head>（驗證者）` 的紀錄，加
   `.spine/independent/<head>.json`。紅了那張單回 `engineering`；起不起來、拿不到資料、鏈走不完的
   寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。
+- **進度看 log**：驗證者每做完一問或一條鏈就 append 一行到 `.spine/independent/<head 前 12 碼>.log`，
+  跑的期間 `tail -f` 那個檔就看得到走到哪。一趟有 3600 秒的時限；逾時被切掉時，逾時前做完的鏈與
+  finding 照樣寫回，判定記成 `PARTIAL`（單上寫「沒跑完」），逾時前一個字都沒寫出來才是「跑不到」。
 
 **擋不到的，明講。** `git push --no-verify` 跳過所有 hook。有人把那一行 `[include]` 拿掉，或在它
 後面再設一次 `core.hooksPath`，轉呼叫就不在了，`status` 會說出來。驗證者碰得到什麼只寫在

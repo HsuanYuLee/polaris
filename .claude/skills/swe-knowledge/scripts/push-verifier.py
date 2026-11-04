@@ -107,7 +107,9 @@ def dispatch(remote, url):
         log = os.path.join(logdir, f"{local_sha[:12]}.log")
         cmd = [sys.executable, os.path.abspath(__file__), "run", "--issue", ticket, "--repo", top,
                "--head", local_sha, "--base", prs[0]["baseRefName"], "--pr", str(prs[0]["number"])]
-        with open(log, "w") as fh:
+        open(log, "w").close()
+        # 驗證者自己會往這個檔 append 進度；用 append 開，run 結束時印的東西才不會從頭蓋掉那些行
+        with open(log, "a") as fh:
             subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=fh, stderr=subprocess.STDOUT,
                              start_new_session=True, env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")})
         say(f"已派驗證者：{os.path.basename(ticket)} head {local_sha[:12]}（PR #{prs[0]['number']}），紀錄 {log}")
@@ -128,11 +130,16 @@ def environment_declarations(repo_root):
     return sorted(set(out))
 
 
+def progress_log(ticket, head):
+    return os.path.join(ticket, ".spine", "independent", f"{head[:12]}.log")
+
+
 def build_prompt(ticket, wt, diff_file, out_file, head, base):
     text = open(os.path.join(ticket, "index.md"), encoding="utf-8").read()
     rules = [os.path.join(wt, f) for f in RULE_FILES if os.path.isfile(os.path.join(wt, f))]
     rules += sorted(glob.glob(os.path.join(wt, ".claude", "rules", "*.md")))
     envs = environment_declarations(wt)
+    log = progress_log(ticket, head)
     return f"""你是一個獨立的驗證者。有人剛把 head {head} 推到一顆開著的 PR（base {base}）。你看不到寫它的人說過什麼，這是刻意的：只照下面的材料自己判。
 
 工作目錄：{wt}（一個只給你用的 worktree，detached 在 {head}）。
@@ -161,6 +168,13 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
    - 本機起不來的，打那個服務的測試環境 endpoint。位置去這個 workspace 的 skill 用 DOMAIN-GLOSSARY 宣告的領域常識找。
    - 兩條都走不通的那幾條鏈，寫進 missing、判 UNMEASURABLE，不寫成對。
 
+## 邊做邊留下進度
+
+這一趟有 {AGENT_TIMEOUT} 秒的時限，到了會被直接切掉。所以每做完九問的一問或一條請求鏈，馬上做兩件事：
+
+1. append 一行到 {log}，形狀是「第 N 問<tab>抓到什麼」或「鏈 <鏈名><tab>結果」。用 append（`>>`），不要覆寫。
+2. 把到目前為止的結果寫進 {out_file}，形狀跟下面〈判定〉那份一樣，verdict 先寫 PARTIAL。全部做完再改成最後的判定。
+
 ## 判定
 
 - 九問有一條沒處置、或有一條鏈的回應不對：FAIL。
@@ -173,7 +187,7 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
 
 ## 你碰得到的東西的上界
 
-- 不改 {wt} 以外的任何檔案，只寫 {out_file}；本機起環境需要的暫存檔放在 {os.path.dirname(out_file)} 底下。
+- 不改 {wt} 以外的任何檔案，只寫 {out_file} 與 append {log}；本機起環境需要的暫存檔放在 {os.path.dirname(out_file)} 底下。
 - 不 commit、不推任何 ref、不開或關 PR。
 - 不送 Slack、不寫 JIRA、不留 PR review 或留言。
 - 不碰其他 checkout、branch 與它們的 .env。
@@ -185,7 +199,7 @@ def write_back(ticket, head, result):
     os.makedirs(os.path.join(ticket, ".spine", "independent"), exist_ok=True)
     with open(os.path.join(ticket, ".spine", "independent", f"{head}.json"), "w", encoding="utf-8") as fh:
         json.dump(result, fh, ensure_ascii=False, indent=2)
-    label = {"PASS": "綠", "FAIL": "紅", "UNMEASURABLE": "跑不到"}[result["verdict"]]
+    label = {"PASS": "綠", "FAIL": "紅", "UNMEASURABLE": "跑不到", "PARTIAL": "沒跑完"}[result["verdict"]]
     lines = [f"\ncheck-your-own-work 九問，head {short}（驗證者）：{label}"]
     for q in result.get("nine_questions") or []:
         lines.append(f"{q.get('q')}. {q.get('finding')}")
@@ -222,6 +236,18 @@ def commit_ticket(ticket, head):
     return "已 commit" if r.returncode == 0 else f"commit 失敗：{r.stderr.strip()[:200]}"
 
 
+def read_partial(out_file):
+    """逾時被切掉時，把驗證者逾時前寫下的那半份收成 PARTIAL；一個字都沒寫出來才是 UNMEASURABLE。"""
+    timed_out = f"驗證者 {AGENT_TIMEOUT} 秒逾時被切掉"
+    try:
+        result = json.load(open(out_file, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"verdict": "UNMEASURABLE", "missing": [f"{timed_out}，逾時前沒有寫出任何結果"]}
+    result["verdict"] = "PARTIAL"
+    result["missing"] = [f"{timed_out}，以下只有逾時前做完的部分"] + list(result.get("missing") or [])
+    return result
+
+
 def run(a):
     agent = config(a.repo, "polaris.pushVerifier.agentCmd") or DEFAULT_AGENT
     work = tempfile.mkdtemp(prefix="push-verifier-")
@@ -242,12 +268,14 @@ def run(a):
             p = subprocess.run(shlex.split(agent) + [prompt], cwd=wt, capture_output=True, text=True, timeout=AGENT_TIMEOUT,
                                env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")})
             print(p.stdout[-4000:]); print(p.stderr[-2000:], file=sys.stderr)
-        except (OSError, subprocess.TimeoutExpired) as e:
+        except subprocess.TimeoutExpired:
+            result = read_partial(out_file)
+        except OSError as e:
             result = {"verdict": "UNMEASURABLE", "missing": [f"驗證者沒有跑完：{e}"]}
         if result is None:
             try:
                 result = json.load(open(out_file, encoding="utf-8"))
-                if result.get("verdict") not in ("PASS", "FAIL", "UNMEASURABLE"):
+                if result.get("verdict") not in ("PASS", "FAIL", "UNMEASURABLE", "PARTIAL"):
                     raise ValueError(f"verdict 是 {result.get('verdict')!r}")
             except (OSError, ValueError) as e:
                 result = {"verdict": "UNMEASURABLE", "missing": [f"驗證者沒有寫出可讀的判定（{e}）"]}
