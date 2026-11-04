@@ -21,6 +21,9 @@
 # - merge 帶 --no-verify；`git -c alias.X=…` 的值裡藏著繞法；rebase -x／--exec 跑的命令
 # - 單獨一行把 HOME／XDG_CONFIG_HOME／GIT_CONFIG_* 賦值之後再 commit 或 push（HOME 本來就是
 #   export 的，單獨賦值就會傳給 git）
+# - GIT_CONFIG_* 不論接什麼命令都擋（前綴、env、export、單獨賦值）。它能把 core.hooksPath 換掉，
+#   而接的命令可以是一支裡面才 push 的腳本：2026-11-04 一次釋出就是 `export GIT_CONFIG_*…`
+#   之後跑釋出腳本，這裡只看得到腳本名，看不到 push（DP-975）
 #
 # 包一層也看得到：timeout／nice／env／time -p 這類前綴、( … )、{ …; }、function、if … then、
 # bash -c／-lc '…'、bash <<< '…'、eval、反斜線續行、`$(which git)`／反引號／變數當命令名、
@@ -48,8 +51,9 @@ payload=$(cat)
 if ! command -v python3 >/dev/null 2>&1; then
   # 沒有 python3 就退回字面比對：寧可多擋，不可安靜放行。
   if printf '%s' "$payload" | grep -qE '"tool_name" *: *"Bash"' &&
-     printf '%s' "$payload" | grep -qE 'git' &&
-     printf '%s' "$payload" | grep -qE -- '--no-verify|core\.hooksPath|GIT_CONFIG_|HOME='; then
+     { printf '%s' "$payload" | grep -qE 'GIT_CONFIG_[A-Za-z0-9_]*=' ||
+       { printf '%s' "$payload" | grep -qE 'git' &&
+         printf '%s' "$payload" | grep -qE -- '--no-verify|core\.hooksPath|GIT_CONFIG_|HOME='; }; }; then
     echo "已擋下：這個命令看起來在繞過 git hook（這台機器沒有 python3，只能做字面比對）。" >&2
     echo "不准繞過 git hook 提交或推送；hook 紅了就修好再提交，要驗量測就量工作區的改動，不要為此提 commit。來源：memory feedback-never-bypass-a-gate-in-a-company-repo。" >&2
     exit 2
@@ -72,6 +76,7 @@ HOOKED = {"commit", "push", "merge", "rebase", "am", "cherry-pick", "revert"}
 # 帶 --no-verify 就繞過 hook 的子命令（push 的 -n 是 dry-run，merge 沒有 -n 這個縮寫）
 NO_VERIFY_SUBS = {"push", "merge"}
 ENV_BYPASS = re.compile(r"^(GIT_CONFIG\w*|HOME|XDG_CONFIG_HOME)$")
+GIT_CONFIG_ENV = re.compile(r"^GIT_CONFIG\w*$")
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=")
 GIT_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
 # commit 的短旗標裡，這幾個會把同一串後面的字元吃成值（-m 訊息、-u 模式……）
@@ -270,6 +275,12 @@ def git_after(seg, start):
     return None
 
 
+def git_config_hit(names):
+    """設了 GIT_CONFIG_* 就擋，不看後面接的是什麼命令：push 可能在那支命令裡面。"""
+    hits = sorted(n for n in names if GIT_CONFIG_ENV.match(n))
+    return ("以 " + "、".join(hits) + " 換掉 git 設定再跑命令") if hits else None
+
+
 def judge_segment(seg, exported, prev_sep="", prev_seg=()):
     env_names, k = set(), 0
     if seg and seg[0] in ("export", "declare", "typeset", "readonly", "local"):
@@ -277,7 +288,7 @@ def judge_segment(seg, exported, prev_sep="", prev_seg=()):
             m = ASSIGN.match(a)
             if m and ENV_BYPASS.match(m.group(1)):
                 exported.add(m.group(1))
-        return None
+        return git_config_hit(exported)
     if seg and all(ASSIGN.match(a) for a in seg):
         # 單獨一行的賦值：HOME 本來就 export，改了就傳給之後每一個命令；GIT_CONFIG_* 在
         # set -a 之下也一樣。寧可當成已 export。
@@ -285,7 +296,7 @@ def judge_segment(seg, exported, prev_sep="", prev_seg=()):
             m = ASSIGN.match(a)
             if ENV_BYPASS.match(m.group(1)):
                 exported.add(m.group(1))
-        return None
+        return git_config_hit(exported)
     while k < len(seg):
         if seg[k] in SHELL_WORDS:
             k += 1
@@ -305,6 +316,9 @@ def judge_segment(seg, exported, prev_sep="", prev_seg=()):
             break
     if k >= len(seg):
         return None
+    hit = git_config_hit(env_names)
+    if hit:
+        return hit
     head = seg[k].rsplit("/", 1)[-1]
     if head == "eval":
         return judge(" ".join(seg[k + 1:]))
@@ -330,6 +344,9 @@ def judge_segment(seg, exported, prev_sep="", prev_seg=()):
             m = ASSIGN.match(seg[n])
             if m and ENV_BYPASS.match(m.group(1)):
                 env_names.add(m.group(1))
+                hit = git_config_hit(env_names)
+                if hit:
+                    return hit
             if seg[n].rsplit("/", 1)[-1] == "git":
                 return judge_git(seg[n + 1:], env_names | exported)
         return None
@@ -363,8 +380,8 @@ try:
 except ValueError:
     # 解析不了（引號不成對之類）：退回字面比對，看得到繞法就擋。寧可多擋，不可安靜放行。
     hit = None
-    if re.search(r"\bgit\b", cmd) and re.search(r"\b(commit|push|config|merge|rebase|am|cherry-pick|revert)\b", cmd) \
-            and FALLBACK.search(cmd):
+    if re.search(r"(^|\s)GIT_CONFIG_\w*=", cmd) or re.search(r"\bgit\b", cmd) \
+            and re.search(r"\b(commit|push|config|merge|rebase|am|cherry-pick|revert)\b", cmd) and FALLBACK.search(cmd):
         hit = "命令解析不了，但字面上看得到繞過 hook 的寫法"
 
 if not hit:
