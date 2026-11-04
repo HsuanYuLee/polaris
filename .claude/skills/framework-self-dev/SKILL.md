@@ -178,8 +178,8 @@ python3 .claude/skills/framework-self-dev/scripts/compare-skill-versions.py \
   `peers.jsonl`。Claude Code 自己的設定目錄不換，換了就登不進去。換成別的 agent 時只換得到
   環境變數，拿掉工具那一半要換的人自己做。標本：2026-11-04 21:33～22:21 一次盲跑的八個候選
   以指揮官身分往真的日誌寫了 13 筆給 work-25 的派工與回覆，指揮官把它們當成真的待決在讀。
-- **每題每版預設跑兩趟。** 同一題同一版本跑兩次可以給相反的判定，單趟分數分不出兩版。`--runs`
-  改趟數，DP 的 AC 用 4。同一版幾趟判定不全相同的題標成翻面，不算進兩版的通過數，summary 另外列出是哪幾題。
+- **每題每版預設跑 4 趟，跟 DP 的 AC 同一個數。** 同一題同一版本跑兩次可以給相反的判定，單趟分數
+  分不出兩版。`--runs` 改趟數。同一版幾趟判定不全相同的題標成翻面，不算進兩版的通過數，summary 另外列出是哪幾題。
   只跑一趟看不出翻面，summary 會這樣寫。
 - **判官讀 transcript。** 兩份 transcript 只標 A、B，哪一份是哪個版本每題每趟隨機抽，只寫在
   `key.json`。判官逐條判 PASS、FAIL、UNKNOWN，每條要附 transcript 的引用。一題全部 PASS

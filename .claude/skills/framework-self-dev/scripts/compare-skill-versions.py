@@ -7,7 +7,7 @@ Inputs:  --repo (a git repo carrying .claude/skills), --skill (its name), --base
          --out (where this run's files go). The questions live in that skill's evals/evals.json.
 Outputs: <out>/summary.md (one row per question, both versions, where each transcript is),
          <out>/result.json, and per question and run the two transcripts and the judge's verdicts.
-         Each question runs --runs times per version (default 2); a question whose verdicts
+         Each question runs --runs times per version (default 4); a question whose verdicts
          differ between runs of the same version is marked as flipped and left out of the counts.
          Exit 0 when it ran to the end, whatever the verdicts are; 2 when it could not run.
 
@@ -303,9 +303,9 @@ def main():
     ap.add_argument("--group", choices=["capability", "regression"])
     ap.add_argument("--timeout", type=int, default=900, help="seconds per candidate run")
     ap.add_argument("--keep-workspaces", action="store_true")
-    ap.add_argument("--runs", default="2", help="runs per question and version (default 2)")
+    ap.add_argument("--runs", default="4", help="runs per question and version (default 4)")
     args = ap.parse_args()
-    # 一趟的結果分不出兩版：同一題兩趟可以給相反的答案（DP-872 q6），所以預設跑兩趟。
+    # 一趟的結果分不出兩版：同一題兩趟可以給相反的答案（DP-872 q6），所以預設跑 4 趟，跟 DP 的 AC 同一個數（DP-985）。
     if not re.fullmatch(r"[1-9][0-9]*", args.runs.strip()):
         die(f"--runs must be a whole number of at least 1, got {args.runs!r}")
     args.runs = int(args.runs)
