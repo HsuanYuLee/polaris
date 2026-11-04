@@ -108,17 +108,54 @@ def strip_telltales(root):
     return removed
 
 
+def sandbox(agent_cmd):
+    """這一跑自己的沙箱：候選的 Bash 看到的 $HOME、command-post 的日誌與登錄、自己的 socket 目錄
+    都在裡面，對別的 session 送訊息落在沙箱裡的假收件者（DP-980）。
+
+    Claude Code 自己的設定目錄不換，換了就登不進去。所以日誌與登錄靠 CLAUDE_ENV_FILE 改掉 Bash
+    的 HOME 隔開；SendMessage、ListAgents 拿掉，換成 sandbox-peers.py。後兩項只有 Claude Code
+    認得，--agent-cmd 換成別的 agent 時不接。回傳沙箱目錄、環境變數、啟動命令。"""
+    sb = Path(tempfile.mkdtemp(prefix="home-"))
+    home, run = sb / "home", sb / "run"
+    post = home / ".claude" / "sessions" / "command-post"
+    post.mkdir(parents=True)
+    run.mkdir()
+    # 沙箱的 HOME 沒有 git 身分，候選要 commit 時用跟 setup 一樣的那一組
+    exports = {"HOME": home, "COMMAND_POST_DIR": post, "GIT_AUTHOR_NAME": "dev",
+               "GIT_AUTHOR_EMAIL": "dev@example.com", "GIT_COMMITTER_NAME": "dev",
+               "GIT_COMMITTER_EMAIL": "dev@example.com"}
+    (sb / "env.sh").write_text("".join(f"export {k}={shlex.quote(str(v))}\n" for k, v in exports.items()))
+    env = {**os.environ, "XDG_RUNTIME_DIR": str(run), "CLAUDE_ENV_FILE": str(sb / "env.sh"),
+           "COMMAND_POST_DIR": str(post)}
+    argv = shlex.split(agent_cmd)
+    if Path(argv[0]).name == "claude":
+        peers = {"mcpServers": {"peers": {"command": sys.executable,
+                                          "args": [str(Path(__file__).with_name("sandbox-peers.py")),
+                                                   str(sb / "sent.jsonl")]}}}
+        (sb / "mcp.json").write_text(json.dumps(peers))
+        # 兩個旗標都吃不定個數的值，所以用 -- 收尾，prompt 才不會被吃進去
+        argv += ["--mcp-config", str(sb / "mcp.json"), "--disallowedTools", "SendMessage", "ListAgents", "--"]
+    return sb, env, argv
+
+
 def run_candidate(agent_cmd, prompt, work, transcript_path, timeout):
+    sb, env, argv = sandbox(agent_cmd)
     with open(transcript_path, "w") as out:
         try:
-            proc = subprocess.run([*shlex.split(agent_cmd), prompt], cwd=work, stdout=out,
+            proc = subprocess.run([*argv, prompt], cwd=work, env=env, stdout=out,
                                   stderr=subprocess.STDOUT, timeout=timeout)
             rc = proc.returncode
         except subprocess.TimeoutExpired:
             rc = "timeout"
         except FileNotFoundError:
             shutil.rmtree(work, ignore_errors=True)
-            die(f"agent command not found: {shlex.split(agent_cmd)[0]}")
+            shutil.rmtree(sb, ignore_errors=True)
+            die(f"agent command not found: {argv[0]}")
+    # 候選送出的訊息留在 transcript 旁邊，讀 transcript 的人看得到它想送給誰
+    sent = sb / "sent.jsonl"
+    peers_log = Path(transcript_path).with_name(Path(transcript_path).name.replace("transcript.jsonl", "peers.jsonl"))
+    peers_log.write_text(sent.read_text() if sent.exists() else "")
+    shutil.rmtree(sb, ignore_errors=True)
     changes = subprocess.run(["git", "-C", str(work), "status", "--short"],
                              capture_output=True, text=True).stdout
     forget_agent_trace(work)

@@ -144,6 +144,13 @@ python3 .claude/skills/framework-self-dev/scripts/compare-skill-versions.py \
   的版本。名字含 eval、test、judge 這類字的檔案與目錄全部拿掉（含每支 skill 的 `evals/` 與
   `selftests/`），拿掉幾個記在每題的 `changes.txt`。候選看不到另一版、看不到評分標準，也讀不到
   這台機器的個人設定：預設命令只載入那個目錄的 project 設定，也不帶 MCP。
+- **每一跑隔開真線。** 只換工作目錄不夠：候選的 Bash 照樣讀寫 `$HOME` 底下的 command-post
+  日誌與 `~/.claude/sessions` 登錄，也找得到 `/tmp/cc-socks` 裡真的 session。所以每一跑開一個
+  沙箱：Bash 的 `$HOME` 與日誌目錄指進去，socket 目錄（`XDG_RUNTIME_DIR`）指進去，SendMessage
+  與 ListAgents 拿掉，換成只寫進沙箱的假收件者。候選想送的訊息存在 transcript 旁邊的
+  `peers.jsonl`。Claude Code 自己的設定目錄不換，換了就登不進去。換成別的 agent 時只換得到
+  環境變數，拿掉工具那一半要換的人自己做。標本：2026-11-04 21:33～22:21 一次盲跑的八個候選
+  以指揮官身分往真的日誌寫了 13 筆給 work-25 的派工與回覆，指揮官把它們當成真的待決在讀。
 - **每題每版跑兩趟。** 同一題同一版本跑兩次可以給相反的判定，單趟分數分不出兩版。`--runs`
   改趟數。同一版幾趟判定不全相同的題標成翻面，不算進兩版的通過數，summary 另外列出是哪幾題。
   只跑一趟看不出翻面，summary 會這樣寫。
