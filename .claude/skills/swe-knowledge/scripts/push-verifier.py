@@ -142,6 +142,7 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
     rules += sorted(glob.glob(os.path.join(wt, ".claude", "rules", "*.md")))
     envs = environment_declarations(wt)
     log = progress_log(ticket, head)
+    started = datetime.now(timezone.utc)
     return f"""你是一個獨立的驗證者。有人剛把 head {head} 推到一顆開著的 PR（base {base}）。你看不到寫它的人說過什麼，這是刻意的：只照下面的材料自己判。
 
 工作目錄：{wt}（一個只給你用的 worktree，detached 在 {head}）。
@@ -177,7 +178,7 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
 
 ## 邊做邊留下進度
 
-這一趟有 {AGENT_TIMEOUT} 秒的時限，到了會被直接切掉。所以每做完九問的一問或一條請求鏈，馬上做兩件事：
+這一趟開始於 {started:%Y-%m-%dT%H:%M:%SZ}（epoch {int(started.timestamp())}），有 {AGENT_TIMEOUT} 秒的時限，到了會被直接切掉。剩幾分用 `date +%s` 減開始的 epoch 算。所以每做完九問的一問或一條請求鏈，馬上做兩件事：
 
 1. append 一行到 {log}，形狀是「第 N 問<tab>抓到什麼」或「鏈 <鏈名><tab>結果」。用 append（`>>`），不要覆寫。
 2. 把到目前為止的結果寫進 {out_file}，形狀跟下面〈判定〉那份一樣，verdict 先寫 PARTIAL。全部做完再改成最後的判定。
@@ -193,6 +194,11 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
 - 本機起不起來、真實狀態的資料拿不到、鏈走不完：UNMEASURABLE，並在 missing 寫出缺什麼。不判 PASS。
 - PASS 的前提是沒有任何一條鏈靠 stub。
 - 兩件都走完而且都對：PASS。
+
+missing 只寫事實：
+
+- missing 每一條以「沒跑：」或「沒跑完：」開頭。沒啟動的寫「沒跑：原因」，啟動了沒跑完的寫「沒跑完：跑到哪」。
+- 因為自估會超時而不跑，原因寫「自估 N 分、剩 M 分」。剩餘時間大於自估時不准跳過，要跑。
 
 把結果寫成 JSON 到 {out_file}，形狀：
 {{"verdict": "PASS|FAIL|UNMEASURABLE", "nine_questions": [{{"q": 1, "finding": "..."}}], "request_chains": [{{"what": "...", "result": "...", "evidence": "..."}}], "missing": ["..."], "findings": ["紅的那幾條，一條一句"]}}
