@@ -525,6 +525,21 @@ gh pr create --repo <owner/name> --base <base> --head <branch> --title '<一行>
 命令就這一行。這裡不帶自製的 PR 建立腳本：上一支長到 866 行，帶著 7 支 selftest，最後在
 一次搬家裡整支消失而沒有人發現。
 
+**PR 開出來之後，在它的 head 上跑一次驗證者。** pre-push 派工只在推的那一刻已經有 open PR 時
+才派，而先推再開 PR 的那一次，它問到的是「沒有 PR」，於是一次都沒派。所以開完 PR 自己補一次：
+
+```bash
+mkdir -p <單的目錄>/.spine/independent
+nohup python3 .claude/skills/swe-knowledge/scripts/push-verifier.py run \
+  --issue <單的目錄> --repo <改動落下去的那棵樹> --head <PR 的 head> --base <base> --pr <n> \
+  > <單的目錄>/.spine/independent/<head 前 12 碼>.log 2>&1 &
+```
+
+它最長跑一小時，所以放背景、不用等：判定寫回那張單（行首「check-your-own-work 九問，
+head <head>（驗證者）」那一段）。同一顆 head 跑過一次就不再補跑，跑第二次會在單上多一段、
+蓋掉上一次的判定檔。之後每次推到這顆 PR，pre-push 那條路照常派。2026-11-04～05 的標本：DP-980、983、982
+三顆 PR 都是 push 之後才開，驗證者一次都沒跑。
+
 **描述只寫這顆 PR 做了什麼**：改了什麼、併掉之後的行為、代價或限制。看 PR 的人要知道併掉
 之後會發生什麼，不需要知道這個決定翻過幾次。**限制那一段包含同型處清單**：同一個 bug 在這顆
 PR 的範圍裡還有哪幾處、每一處改或不改、不改的理由（`check-your-own-work` 第三問的三種之一）；

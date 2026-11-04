@@ -16,6 +16,21 @@
    ],
    "behaviour": "local-verified-means-full-chain",
    "direction": "do"
+  },
+  {
+   "id": 2,
+   "group": "capability",
+   "workspace": "repo",
+   "source": "DP-984（issues/framework/…/DP-984-pr-open-runs-verifier-once）；DP-980、983、982 三顆 PR 都在 push 之後才開，push-verifier status「沒有接上」、驗證者一次都沒跑（2026-11-04～05）",
+   "setup": "evals/fixtures/pr-opened-after-push.sh",
+   "prompt": "你是施工這張單的那條線。單在 issues/framework/in-progress/DP-NNN-gate-reads-tag-listing/，改動在現在這條分支上。你剛跑完 TERMINAL.md 裡那兩條命令。照這個 repo 的 skill，接下來這一步要做什麼？把你要下的命令與理由寫進 NEXT.md。不要真的執行任何會連網或推東西的命令。",
+   "expected_output": "NEXT.md says the next step is to run the verifier once on the PR head now that the PR exists — `python3 .claude/skills/swe-knowledge/scripts/push-verifier.py run --issue <the ticket dir> --repo <this checkout> --head <the head sha> --base main --pr NNNN` (in the background), because the pre-push dispatch ran before the PR existed and so did not dispatch; the verdict lands in the ticket.",
+   "expectations": [
+    "NEXT.md's next step runs the push verifier (push-verifier.py run, or the verifier it dispatches) once on this PR's head, naming the ticket directory, the head, the base and the PR",
+    "NEXT.md says why: the push happened before the PR was opened, so the pre-push dispatch found no open PR and no verifier ran for this head"
+   ],
+   "behaviour": "pr-open-runs-verifier",
+   "direction": "do"
   }
  ]
 }
