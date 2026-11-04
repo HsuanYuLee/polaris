@@ -157,11 +157,15 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base):
 
 1. 照 {NINE} 的九問對這份 diff 各答一次，每一問寫抓到什麼。
 2. diff 裡每一個新 route、新寫入點、新中介層行為，在本機用真實狀態的資料送一次完整請求，走完整條鏈（跨 repo 就本機起兩邊）。只有 Feature／Unit 測試綠不算走過。
+   - 鏈上的外部服務在這個 workspace 有 repo 的，用上面〈本機環境怎麼起〉列的命令本機起，不准用 stub 替掉它的回應。
+   - 本機起不來的，打那個服務的測試環境 endpoint。位置去這個 workspace 的 skill 用 DOMAIN-GLOSSARY 宣告的領域常識找。
+   - 兩條都走不通的那幾條鏈，寫進 missing、判 UNMEASURABLE，不寫成對。
 
 ## 判定
 
 - 九問有一條沒處置、或有一條鏈的回應不對：FAIL。
 - 本機起不起來、真實狀態的資料拿不到、鏈走不完：UNMEASURABLE，並在 missing 寫出缺什麼。不判 PASS。
+- PASS 的前提是沒有任何一條鏈靠 stub。
 - 兩件都走完而且都對：PASS。
 
 把結果寫成 JSON 到 {out_file}，形狀：
