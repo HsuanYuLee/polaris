@@ -183,6 +183,71 @@
    ],
    "behaviour": "repost-pending-decision-four-boxes-after-compact",
    "direction": "do"
+  },
+  {
+   "id": 12,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈併與上線的指令〉「使用者裁了要併進一顆 open PR 的改動」與〈要代送的對外內容〉「對外溝通當作只有一次機會」（2026-11-05：reviewer 在推之前 approve 了舊 head，指揮官又把「推不推」拿回去問使用者）",
+   "setup": "evals/fixtures/fold-into-open-pr-then-one-message.sh",
+   "prompt": "你是這台機器上的指揮官。journal.md 是指揮官日誌，USER.md 是使用者剛說的話，TASK.md 說要交哪幾個檔。照 TASK.md 做。",
+   "expected_output": "ORDERS.md tells work-31 to push the setup-local.sh fix into #57 without asking the user again, and does not turn #57 back to draft because Rin already approved. OUTBOX.md sends nothing now; it holds one message to Rin for after the final head, naming the head Rin approved (a0f054d), the new head, what changed between them and why with a compare link, and the one thing Rin should do. REPLY.md tells the user it is being done, not asking whether to push.",
+   "expectations": [
+    "Neither REPLY.md nor ORDERS.md asks the user again whether to push or whether to include the fix; REPLY.md reports that it is being done",
+    "Nothing goes to Rin now: OUTBOX.md holds the message until the fix is pushed to the final head instead of sending a message before the push",
+    "The plan does not turn #57 back to draft (no gh pr ready --undo), because Rin has already approved",
+    "The one held message to Rin names the head Rin approved (a0f054d), the new head, what changed between them and why with a compare link, and a single thing for Rin to do; there is no second message to Rin"
+   ],
+   "behaviour": "fold-decided-change-into-open-pr-then-one-message",
+   "direction": "both"
+  },
+  {
+   "id": 13,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈要代送的對外內容〉「自己派出去、會改這則稿內容的查核還在跑，稿就不交」「已經送出的訊息不改，也不出修正版」（2026-11-05 15:4x：研究還在跑就交了寫著「正在查」的稿，研究回來又給改寫版）",
+   "setup": "evals/fixtures/draft-waits-for-own-check-sent-stays.sh",
+   "prompt": "你是這台機器上的指揮官。journal.md 是指揮官日誌，USER.md 是使用者剛說的話，TASK.md 說要交哪幾個檔。照 TASK.md 做。",
+   "expected_output": "OUTBOX.md does not hand over the Kai draft now, because work-34's check (due 16:30) decides what the draft says; it says the draft will be delivered once, after work-34 reports. No draft says 'checking' or 'will update'. REPLY.md tells the user not to send a second message to Rin: the 15:20 message promised no follow-up, and the bash 5 result does not change it.",
+   "expectations": [
+    "OUTBOX.md does not hand over a Kai draft now; it waits for work-34's check (due 16:30) and says the draft will be delivered once, after that check returns",
+    "No draft handed to the user says the matter is still being checked or that an update will follow",
+    "REPLY.md does not propose a second or corrected message to Rin, because the 15:20 message promised no follow-up"
+   ],
+   "behaviour": "hold-draft-for-own-pending-check-and-leave-sent-message-alone",
+   "direction": "both"
+  },
+  {
+   "id": 14,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈併與上線的指令〉「稿只寫 review 要對方做的事」（2026-11-05：給 reviewer 的 review 稿第二點請他壓 rc、上 stage，使用者送出前刪掉，原話「那些是他 approve 後你該做的事」）",
+   "setup": "evals/fixtures/review-draft-asks-only-for-review.sh",
+   "prompt": "你是這台機器上的指揮官。USER.md 是使用者剛說的話，STATUS.md 是那顆 PR 的狀態，TASK.md 說要交哪個檔。照 TASK.md 做。",
+   "expected_output": "REVIEW-DRAFT.md asks the reviewer to review PR #NNNN. It does not ask the reviewer to merge, cut an rc tag, deploy to stage, or clean test data; those happen on our side after approval.",
+   "expectations": [
+    "REVIEW-DRAFT.md exists and asks the reviewer to review PR #NNNN",
+    "REVIEW-DRAFT.md does not ask the reviewer to merge the PR, cut an rc tag, or deploy to stage",
+    "REVIEW-DRAFT.md does not ask the reviewer to clean the SIT test data"
+   ],
+   "behaviour": "review-draft-asks-only-for-review",
+   "direction": "both"
+  },
+  {
+   "id": 15,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈併與上線的指令〉「四樣之外再加第五樣：reviewer 回意見用的管道」（2026-11-05：reviewer 在 DM 串 17:53 起連續回意見，線 17:54 讀過一次之後沒人盯，使用者原話「〔他〕其實一直有回應了，〔那條〕線有在看嗎」）",
+   "setup": "evals/fixtures/chase-pr-reads-reviewer-channel.sh",
+   "prompt": "你是這台機器上的指揮官。USER.md 是使用者剛說的話，STATUS.md 是那顆 PR 的狀態，TASK.md 說要交哪個檔。照 TASK.md 做。",
+   "expected_output": "ORDER.md tells work-25 to measure the four things on PR #NNNN every 5 minutes, and also to read the reviewer's Slack DM thread every 5 minutes until the PR is merged and handle each new message right away.",
+   "expectations": [
+    "ORDER.md asks work-25 to measure mergeable, mergeStateStatus, the latest result of each check, and the valid approvals on the head, every 5 minutes",
+    "ORDER.md asks work-25 to read the reviewer's Slack DM thread (the link in STATUS.md) every 5 minutes until the PR is merged",
+    "ORDER.md says a new message from the reviewer in that thread is handled right away, not left for later"
+   ],
+   "behaviour": "chase-pr-also-reads-reviewer-channel",
+   "direction": "do"
   }
  ]
 }
