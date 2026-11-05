@@ -14,7 +14,7 @@ Exit: dispatch 永遠 0（它不擋 push）；run 0 判定寫成、1 寫不成�
 它碰得到的東西只有指示裡寫的上界，不是一道閘：預設命令不載 MCP、不讀這台機器的個人設定，
 但 Bash 叫得到。真正擋推 ref 與改動的，是那個 worktree 是 detached、而且用完就拆。
 """
-import argparse, glob, json, os, re, shlex, shutil, subprocess, sys, tempfile
+import argparse, glob, json, os, re, shlex, shutil, subprocess, sys, tempfile, time
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +65,27 @@ def find_ticket(issues, branch):
     if len(hits) != 1:
         return None, f"單號 {'、'.join(sorted(keys))} 在 {issues} 對到 {len(hits)} 張單"
     return hits[0], None
+
+
+def post_status(repo, sha, state, ticket, what, wait=0, remote="origin"):
+    """把這個 head 的 polaris/verify-ac 狀態貼上 GitHub（DP-993 A-P5）；貼不成只說一行，不擋 push。"""
+    key = KEY.match(os.path.basename(ticket))
+    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "post-verify-status.sh")
+    # pending 在 pre-push 那一刻貼不上：sha 還沒到 GitHub，statuses API 回 422。wait 秒內每 10 秒再試一次
+    deadline = time.time() + wait
+    while True:
+        try:
+            r = subprocess.run(["bash", script, "--repo", repo, "--sha", sha, "--state", state,
+                                "--description", f"{key.group(0) if key else os.path.basename(ticket)} {what}",
+                                "--remote", remote],
+                               capture_output=True, text=True, timeout=30)
+            said = r.stdout.strip() or r.stderr.strip()
+        except (OSError, subprocess.TimeoutExpired) as e:
+            said = f"NOT POSTED: {sha[:12]} {state}（{e}）"
+        if not said.startswith("NOT POSTED") or "422" not in said or time.time() >= deadline:
+            say(said)
+            return
+        time.sleep(10)
 
 
 def dispatch(remote, url):
@@ -320,6 +341,7 @@ def run(a):
     wt = os.path.join(work, "wt")
     out_file = os.path.join(work, "verdict.json")
     result = None
+    post_status(a.repo, a.head, "pending", a.issue, "驗證者已派出，等 verify-ac 判定", wait=120, remote=a.remote)
     try:
         git(a.repo, "worktree", "add", "--detach", wt, a.head)
         base_ref, why = fetch_base(a.repo, a.base, a.remote)
@@ -356,6 +378,11 @@ def run(a):
                    "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
     label = write_back(a.issue, a.head, result)
     note = back_to_engineering(a.issue, a.head) if result["verdict"] == "FAIL" else "站別不動"
+    # pending 是這一趟開頭貼的，所以每一種結局都要把它歸位；沒判綠就不是 success
+    if result["verdict"] == "FAIL":
+        post_status(a.repo, a.head, "failure", a.issue, "驗證者判紅，回施工", remote=a.remote)
+    elif result["verdict"] in ("UNMEASURABLE", "PARTIAL"):
+        post_status(a.repo, a.head, "failure", a.issue, f"驗證者 {result['verdict']}，這個 head 沒驗完", remote=a.remote)
     print(f"判定：{label}；{note}；{commit_ticket(a.issue, a.head)}")
     return 0
 

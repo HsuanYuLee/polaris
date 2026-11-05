@@ -44,8 +44,11 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
    沒有「換個方法推上去」這一題。2026-09-10 的實例：一顆 PR 的 base 是同事還沒併的
    branch，遠端規則讓兩條都推不動，討論裡出現了「那條也一樣推不動」——那條本來就不是我們
    會去推的東西。
-2. **有一個 PR。** **PR 開出來就是實作完成**：它是那份改動變成可被別人看見、可被判定的
-   東西的那一刻。沒有 PR 的改動不管本機多綠都還沒 done。
+2. **有一個 PR，先開 draft。** **PR 開出來就是實作完成**：它是那份改動變成可被別人看見、可被判定的
+   東西的那一刻。沒有 PR 的改動不管本機多綠都還沒 done。開出來的是 draft：push-verifier 與
+   verify-ac 要量的就是這顆 PR 的 head，而 draft 在那之前不請任何人看。**verify-ac 判定寫進單之後
+   才 `gh pr ready`**，順序固定是本機驗證 → push → push-verifier → 九問 → verify-ac 判定 → 描述
+   同步 → `gh pr ready`（DP-993）。
 
    **開之前，在改動落下去的那棵樹上跑過 `check-your-own-work`，它列出的每一項都處置完。**
    這是這一條的一部分，不是開完之後的選配：review 抓到的問題，多半是作者自己對一次就看得到
@@ -61,9 +64,24 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
 
    **這一條有東西在守**（DP-865）：`scripts/check-ship-point.sh` 在併 PR、建或推 release tag、送
    部署請求之前，問那個動作對到的本地單判過了沒——站別要是 `delivered`，併的時候 head 還要是
-   交付紀錄記的那一個。對不到任何本地單的不擋：別人的 PR、別人的發佈不是這一條管的。開 PR
-   不擋，PR 開出來是實作完成，判定在它之後。任何 agent 都能從命令列叫它；Claude Code 的
-   `.claude/hooks/gate-ship-point.sh` 只是轉呼叫它。
+   交付紀錄記的那一個。對不到任何本地單的不擋：別人的 PR、別人的發佈不是這一條管的。任何
+   agent 都能從命令列叫它；Claude Code 的 `.claude/hooks/gate-ship-point.sh` 只是轉呼叫它。
+
+   **開一顆不是 draft 的 PR、把 draft 轉成 ready，照併的判法**（DP-993）：`gh pr create` 不帶
+   `--draft`、`gh pr ready` 不帶 `--undo`，都要那張單在這個 head 上判過。`--draft` 與 `--undo`
+   不擋。擋的時候說出單在哪、這次的 head、最後一筆判定的 head，以及修法。
+
+   **這兩種的「判過」不是 delivered。** 帶著 stage、prod 才量得到的 assertion 的單，交付紀錄在那之前
+   寫不成，PR 卻要先 ready、先併才走得到 stage。所以這兩種讀的是 verify-ac 對這個 head 寫的那一行
+   （verify-ac 的 `record-verdict.sh`）：每一條不是過，就是寫明要到哪一站才量得到。
+   base 不是預設分支的 `gh pr merge`（例如併進一條 feature branch）也讀那一行；base 是預設分支的
+   照舊要 delivered。
+
+   **換一個 agent，那支 hook 就不在了，所以判定也貼在 GitHub 上。** 那顆 commit 的 status
+   `polaris/verify-ac`：push-verifier 派出驗證者時是 `pending`，驗證者判紅是 `failure`，verify-ac
+   對這個 head 寫成判定那一行或交付紀錄是 `success`。誰打開那顆 PR 都看得到這一格。它只貼狀態，不改 branch protection
+   或 ruleset，也不設成 required check：框架對 repo 的支援一律外掛。貼的是
+   `scripts/post-verify-status.sh`，貼不成只說一行，不擋交付或 push。
 
    **只上 stage 的 tag 不是進預設分支的出貨**（DP-907）。上 prod 之前要先在 stage 驗過，而
    stage 驗收在判定之前，所以那種 tag 站別到 `engineering` 就放行。認法看名字：有一段是
@@ -110,6 +128,11 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
 發現的（「我好像沒有在 PR 上看到你怎麼處理的」）。偵測有主人（誰欠我回覆、誰欠我審查，
 都有東西在算），**動作沒有主人**。而「還沒被 approve」這個狀態，跟「我還沒動手」長得
 一模一樣。
+
+判定那一行或交付紀錄寫成時，verify-ac 叫下面兩行宣告去貼 `success`：
+
+<!-- SWE-DELIVERY-RECORDED: bash .claude/skills/swe-knowledge/scripts/post-verify-status.sh delivered -->
+<!-- SWE-VERDICT-RECORDED: bash .claude/skills/swe-knowledge/scripts/post-verify-status.sh verdict -->
 
 ## 在程式碼裡，「你寫下的話」長成什麼樣子
 

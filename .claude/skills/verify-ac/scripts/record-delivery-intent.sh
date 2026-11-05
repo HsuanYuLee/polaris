@@ -546,3 +546,19 @@ else
   bash "$SPINE" advance --state "$LOOP_STATE" --to delivered
 fi
 
+# 交付紀錄寫成之後，把這件事交給宣告了要知道的那支 skill（DP-993）。核心不認得任何一個外部系統：
+#   <!-- {任意前綴}-DELIVERY-RECORDED: {命令} -->
+# 命令在 repo 根跑，後面接單的目錄（換站之後單可能已經搬了，所以重問一次在哪）。它印什麼原樣
+# 印出；它的離場碼不改變這一步的結果——紀錄已經寫成了。
+SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+NOW_AT="$ISSUE_DIR"
+if [[ ! -d "$NOW_AT/.spine" && -f "$SPINE" ]]; then
+  NOW_AT="$(bash "$SPINE" find "$(basename "$ISSUE_DIR")" 2>/dev/null || true)"
+fi
+[[ -d "$NOW_AT" ]] && NOW_AT="$(cd "$NOW_AT" && pwd)"
+while IFS= read -r declared; do
+  [[ -n "$declared" ]] || continue
+  (cd "$SKILLS_DIR/../.." && bash -c "$declared \"\$1\"" _ "$NOW_AT") \
+    || echo "NOTE: 交付之後的宣告（${declared}）沒跑完，紀錄照樣寫成了。"
+done < <(grep -rhoE '<!-- *[A-Za-z0-9_-]*DELIVERY-RECORDED: *.+ *-->' "$SKILLS_DIR" --include=SKILL.md 2>/dev/null \
+  | sed -E 's/^<!-- *[A-Za-z0-9_-]*DELIVERY-RECORDED: *//; s/ *-->$//' | sort -u)

@@ -4,8 +4,11 @@
 # 判定不在這裡，在 swe-knowledge/scripts/check-ship-point.sh——任何 agent 都能從命令列叫它。
 # 這支只做一件事：認出這一次 tool call 是哪一種出貨動作，把它翻成那支腳本的參數。
 #
-# 認得的三種：
-#   - Bash 裡的 `gh pr merge`：問 gh 那顆 PR 的 head branch、head commit、base branch 與 repo
+# 認得的四組：
+#   - Bash 裡的 `gh pr merge`、`gh pr ready`（不帶 --undo）：問 gh 那顆 PR 的 head branch、head commit、
+#     base branch 與 repo；merge 另問那個 repo 的預設分支（gh repo view），base 不是它的照 ready 判
+#   - Bash 裡的 `gh pr create`（不帶 --draft）：head branch 取 --head，沒給就取當下的 branch；head commit
+#     取那條 branch 在本機的那一顆（DP-993）
 #   - Bash 裡的 `git tag`、`git push` 推 tag、`gh release create`：解出 tag 名與它指的 commit
 #   - 送訊息的工具（名字結尾是 send_message／schedule_message），而 tool_input 對上某支 skill
 #     宣告的部署請求樣式：
@@ -65,9 +68,10 @@ def positional(words, valued):
             out.append(w)
     return out
 
-def gate(action, branch="", heads=(), text="", tags=(), base="", repo=""):
+def gate(action, branch="", heads=(), text="", tags=(), base="", repo="", default_branch=""):
     args = ["bash", check, "--issues", os.path.join(root, "issues"), "--action", action,
-            "--branch", branch, "--base", base, "--repo", repo, "--text", text]
+            "--branch", branch, "--base", base, "--repo", repo, "--text", text,
+            "--default-branch", default_branch]
     for t in tags:
         args += ["--tag", t]
     for h in heads:
@@ -136,7 +140,27 @@ for words in segments(command):
     if words[0] == "cd" and len(words) > 1:
         where = os.path.join(where, os.path.expanduser(words[1]))
         continue
-    if words[:3] == ["gh", "pr", "merge"]:
+    if words[:3] == ["gh", "pr", "create"]:
+        if any(w in ("-d", "--draft") or w.startswith("--draft=") and w != "--draft=false" for w in words[3:]):
+            continue
+        def flag(*names):
+            for i, w in enumerate(words):
+                for n in names:
+                    if w == n and i + 1 < len(words):
+                        return words[i + 1]
+                    if w.startswith(n + "=") and n.startswith("--"):
+                        return w[len(n) + 1:]
+            return ""
+        branch = flag("-H", "--head").split(":")[-1] or (run(["git", "branch", "--show-current"], where) or "")
+        head = commit_of(branch, where) if branch else commit_of("HEAD", where)
+        # 沒帶 -R 時 gh 開在當下目錄的 repo，梯子要那個名字才判得了，所以照 gh 自己的預設問一次
+        repo = flag("-R", "--repo") or (run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], where) or "")
+        gate("open", branch=branch, heads=[head], text=segment, base=flag("-B", "--base"), repo=repo)
+        continue
+    if words[:3] == ["gh", "pr", "ready"] and "--undo" in words[3:]:
+        continue
+    if words[:3] in (["gh", "pr", "merge"], ["gh", "pr", "ready"]):
+        action = words[2]
         rest = positional(words[3:], {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
                                       "-A", "--author-email", "--match-head-commit"})
         repo = []
@@ -147,8 +171,11 @@ for words in segments(command):
         if view:
             pr = json.loads(view)
             slug = re.match(r"https://[^/]+/([^/]+/[^/]+)/pull/", pr.get("url") or "")
-            gate("merge", branch=pr.get("headRefName") or "", heads=[pr.get("headRefOid")], text=segment,
-                 base=pr.get("baseRefName") or "", repo=slug.group(1) if slug else "")
+            # base 不是預設分支的 merge 照 ready 判（DP-993）；問不到預設分支就留空，照預設分支判
+            default = run(["gh", "repo", "view", slug.group(1), "--json", "defaultBranchRef",
+                           "-q", ".defaultBranchRef.name"], where) if slug and action == "merge" else ""
+            gate(action, branch=pr.get("headRefName") or "", heads=[pr.get("headRefOid")], text=segment,
+                 base=pr.get("baseRefName") or "", repo=slug.group(1) if slug else "", default_branch=default or "")
     elif words[:2] == ["git", "tag"]:
         if any(w.split("=")[0] in TAG_READ_ONLY or re.fullmatch(r"-n\d+", w) for w in words[2:]):
             continue
