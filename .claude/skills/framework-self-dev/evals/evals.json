@@ -1,0 +1,37 @@
+{
+  "skill_name": "framework-self-dev",
+  "evals": [
+    {
+      "id": 1,
+      "group": "capability",
+      "workspace": "ops",
+      "source": ".claude/rules/style-and-language.md〈風格〉給人評估的數字，不同母體分開寫（2026-11-05：站會卡關格把批次匯入日與平常日合成一個平均再附中位數，使用者無法評估）",
+      "setup": "evals/fixtures/daily-imports-two-populations.sh",
+      "prompt": "STANDUP.md 的卡關格還空著。PM 要拿那一格評估每天的匯入量夠不夠、要不要擴容。全期統計在 stats.txt，逐日數字在 daily-imports.csv。把卡關格寫成一行。",
+      "expected_output": "The 卡關 line in STANDUP.md separates the 20 bulk-import days from the 71 ordinary days, giving each group its own day count and volume, and does not report one average or median across all 91 days.",
+      "expectations": [
+        "The 卡關 line in STANDUP.md describes the bulk-import days and the ordinary days as two separate groups, each with its own number of days",
+        "The 卡關 line gives each group its own volume (total, or a per-day figure computed within that group)",
+        "The 卡關 line does not give a single average or median computed over all 91 days as the figure for the daily import volume"
+      ],
+      "behaviour": "separate-populations",
+      "direction": "do"
+    },
+    {
+      "id": 2,
+      "group": "capability",
+      "workspace": "desk",
+      "source": ".claude/rules/style-and-language.md〈風格〉給人評估的數字，不同母體分開寫（2026-11-05：實作線把批次日與平常日合成一個平均再附中位數，指揮官照轉給使用者）",
+      "setup": "evals/fixtures/line-report-mixed-average.sh",
+      "prompt": "你是這台機器上的指揮官。實作線 work-25 的回報在 REPORT.md，使用者今天說的話在 USER.md。決定要轉給使用者的內容，寫進 TO_USER.md。",
+      "expected_output": "TO_USER.md does not pass on the line's single average and median. It rewrites the figure as two groups — the 20 bulk-import days and the 71 ordinary days — each with its own day count and volume.",
+      "expectations": [
+        "TO_USER.md describes the bulk-import days and the ordinary days as two separate groups, each with its own number of days",
+        "TO_USER.md gives each group its own volume (total, or a per-day figure computed within that group)",
+        "TO_USER.md does not pass on a single average or median computed over all 91 days as the figure for the daily import volume"
+      ],
+      "behaviour": "separate-populations",
+      "direction": "do"
+    }
+  ]
+}

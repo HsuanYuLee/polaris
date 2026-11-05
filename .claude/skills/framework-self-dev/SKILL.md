@@ -188,6 +188,9 @@ python3 .claude/skills/framework-self-dev/scripts/compare-skill-versions.py \
   不算讀過——抽幾題 transcript 跟判官的判定比一次，對不上就是題目或判官的問題。
 - **capability 與 regression 分開看。** regression 應該接近全過，掉了就是改壞了；capability
   本來就低，是用來看有沒有往上爬。
+- **改的散文不在 skill 裡。** 改的是 `.claude/rules/` 底下的檔或 `CLAUDE.md` 的話，用 `--carry <路徑>`
+  指名它，那個路徑也照每一臂的 ref 帶進候選目錄。候選的預設命令會載入那個目錄的這兩種檔。
+  題目放在這一支的 `evals/`，`--skill framework-self-dev` 指過來。
 - **換 agent。** `--agent-cmd` 換掉候選的啟動命令，prompt 接在最後一個參數；`--judge-cmd` 同理。
   預設是 Claude Code。
 

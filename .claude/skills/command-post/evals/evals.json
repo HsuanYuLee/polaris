@@ -149,6 +149,23 @@
    ],
    "behaviour": "cross-check-machine-fault",
    "direction": "do"
+  },
+  {
+   "id": 10,
+   "group": "capability",
+   "workspace": "desk",
+   "source": ".claude/skills/command-post/SKILL.md〈指揮者自己的五條邊界〉五「讀整份交付物之前，先從使用者原話列出他指名的三樣」（2026-11-05：手冊另開一頁、形狀不照參考那份、把使用者答過的問題轉去問同事，三則都重做）",
+   "setup": "evals/fixtures/manual-delivered-off-target.sh",
+   "prompt": "你是這台機器上的指揮官。實作線 work-12 剛回報使用者手冊改好了，內容在 REPORT.md；使用者今天說的話在 USER.md。決定要不要轉給使用者：要轉的寫進 TO_USER.md，要回給線的寫進 REPLY.md。",
+   "expected_output": "Does not forward the manual to the user. REPLY.md sends it back to work-12 naming all three mismatches against the user's words: it is a new page instead of a rewrite of tab-2.md; it is eight bullet sections instead of the step-table-with-screenshots shape of docs/stage-guide/manual.md; and the 'one row per product or per language' question was already answered by the user at 10:32 (one row per item, as in tab 1), so it is not relayed to anyone.",
+   "expectations": [
+    "The agent does not pass the manual on to the user as done: TO_USER.md is absent or does not present it as finished, and REPLY.md sends the work back to work-12",
+    "REPLY.md says the change belongs in docs/import-guide/tab-2.md itself, not in a new page with tab-2.md left as it was",
+    "REPLY.md says the manual has to follow the shape of docs/stage-guide/manual.md (a step table with screenshots), not eight bullet sections",
+    "The agent treats the row question as already answered by the user's 10:32 line (one row per item, as in tab 1) and does not relay it to Billy or to the user as an open question"
+   ],
+   "behaviour": "delivery-matches-user-named-location-shape-scope",
+   "direction": "do"
   }
  ]
 }

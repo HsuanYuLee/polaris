@@ -13,6 +13,7 @@ Outputs: <out>/summary.md (one row per question, both versions, where each trans
 
 The candidate runs in a fresh directory that holds the repo's skill tree at --head with only the
 skill under test swapped to the version for that arm, plus whatever files the question names.
+Paths given with --carry (rules files, CLAUDE.md) are exported at each arm's ref too.
 Nothing in that directory, its path, or the prompt says it is being measured. The judge sees two
 transcripts labelled A and B; which ref is behind each label is drawn per question and run, and
 written only to key.json, which the judge never sees.
@@ -63,8 +64,8 @@ def blind_name(case):
     return name
 
 
-def prepare_workspace(repo, skill, ref_for_skill, head, case, skill_root):
-    """A fresh directory the candidate works in. Only the skill under test differs between arms."""
+def prepare_workspace(repo, skill, ref_for_skill, head, case, skill_root, carry=()):
+    """A fresh directory the candidate works in. Only the skill under test and the --carry paths differ between arms."""
     work = Path(tempfile.mkdtemp(prefix=f"{blind_name(case)}-"))
     export_tree(repo, head, ".claude/skills", work)
     target = work / ".claude/skills" / skill
@@ -73,6 +74,10 @@ def prepare_workspace(repo, skill, ref_for_skill, head, case, skill_root):
     export_tree(repo, ref_for_skill, f".claude/skills/{skill}", staging)
     shutil.move(str(staging / ".claude/skills" / skill), str(target))
     shutil.rmtree(staging)
+    # 散文規則有一半不在 skill 裡（.claude/rules、CLAUDE.md）；指名的路徑照這一臂的 ref 帶進去（DP-988）
+    for path in carry:
+        if git(repo, "ls-tree", "--name-only", ref_for_skill, "--", path).strip():
+            export_tree(repo, ref_for_skill, path, work)
     # 名字會洩題的東西不跟著候選走：evals/ 裡有預期行為與出處，selftests/ 與這支 runner 的
     # 名字本身就說出「這裡在量東西」。代價是候選那棵樹少了這些檔，拿掉幾個記在 removed 裡。
     removed = strip_telltales(work / ".claude")
@@ -304,6 +309,9 @@ def main():
     ap.add_argument("--timeout", type=int, default=900, help="seconds per candidate run")
     ap.add_argument("--keep-workspaces", action="store_true")
     ap.add_argument("--runs", default="4", help="runs per question and version (default 4)")
+    ap.add_argument("--carry", action="append", default=[],
+                    help="a repo-relative path outside the skill (e.g. .claude/rules/x.md) exported at each arm's ref; repeatable."
+                         " Stops if a name under .claude/ carries a telltale word, since the candidate would never see it")
     args = ap.parse_args()
     # 一趟的結果分不出兩版：同一題兩趟可以給相反的答案（DP-872 q6），所以預設跑 4 趟，跟 DP 的 AC 同一個數（DP-985）。
     if not re.fullmatch(r"[1-9][0-9]*", args.runs.strip()):
@@ -326,6 +334,30 @@ def main():
         except subprocess.CalledProcessError:
             die(f"ref {ref} does not exist in {repo}")
 
+    # --carry 指名的路徑兩臂都取不到，兩臂的候選目錄就一樣，分數量不到任何東西；只有一臂取不到時照跑，但要說出來。
+    # strip_telltales 只清 .claude/ 底下，所以那裡名字帶洩題字的路徑（含目錄底下的後代）帶進去也會被拿掉，等於沒帶，也停。
+    args.carry_notes = []
+    # 絕對路徑或 ./ 開頭的拼法先換成 repo 相對路徑，不然下面看 .claude/ 開頭的判斷會被跳過
+    for i, path in enumerate(args.carry):
+        rel = os.path.relpath(Path(path).resolve() if Path(path).is_absolute() else repo / path, repo)
+        if rel.startswith(".."):
+            die(f"--carry {path} is outside {repo}")
+        args.carry[i] = rel
+    for path in args.carry:
+        present = [ref for ref in (args.base, args.head) if git(repo, "ls-tree", "--name-only", ref, "--", path).strip()]
+        if Path(path).parts[:1] == (".claude",):
+            for ref in present:
+                for name in git(repo, "ls-tree", "-r", "--name-only", ref, "--", path, text=True).splitlines():
+                    if name and any(word in part.lower() for part in Path(name).parts[1:] for word in TELLTALE):
+                        die(f"--carry {path}: {name} at {ref} names a telltale word ({', '.join(TELLTALE)});"
+                            " strip_telltales removes it from .claude/, so the candidate would never see it")
+        if not present:
+            die(f"--carry {path} exists at neither {args.base} nor {args.head}")
+        if len(present) == 1:
+            note = f"--carry {path} exists only at {present[0]}; the other arm runs without it"
+            args.carry_notes.append(note)
+            print(f"note: {note}", file=sys.stderr)
+
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     key, rows = {}, []
@@ -346,7 +378,7 @@ def main():
             run_dir.mkdir(parents=True, exist_ok=True)
             texts = {}
             for label, ref in arms.items():
-                work, removed = prepare_workspace(repo, args.skill, ref, args.head, case, skill_root)
+                work, removed = prepare_workspace(repo, args.skill, ref, args.head, case, skill_root, args.carry)
                 transcript = run_dir / f"{label}.transcript.jsonl"
                 rc, changes = run_candidate(args.agent_cmd, case["prompt"], work, transcript, args.timeout)
                 (run_dir / f"{label}.changes.txt").write_text(
@@ -372,13 +404,15 @@ def main():
               f"head={','.join(verdicts['head'])}{' FLIPPED' if flipped else ''}", flush=True)
 
     (out / "result.json").write_text(json.dumps({"skill": args.skill, "base": args.base,
-                                                 "head": args.head, "runs": args.runs, "rows": rows}, indent=1, ensure_ascii=False))
+                                                 "head": args.head, "runs": args.runs, "carry_notes": args.carry_notes, "rows": rows}, indent=1, ensure_ascii=False))
     write_summary(out, args, rows)
     print(f"SUMMARY: {out / 'summary.md'}")
 
 
 def write_summary(out, args, rows):
     lines = [f"# {args.skill}: {args.base} → {args.head}", "", f"每題每版跑 {args.runs} 趟。", ""]
+    if args.carry_notes:
+        lines += [f"- note: {n}" for n in args.carry_notes] + [""]
     for group in ("capability", "regression"):
         part = [r for r in rows if r["group"] == group]
         if not part:
