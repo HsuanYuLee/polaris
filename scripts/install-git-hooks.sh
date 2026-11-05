@@ -94,6 +94,16 @@ case "$MODE" in
       echo "hooksPath  沒接上：core.hooksPath 沒設，git 在用 ${LEGACY_DIR}——那裡沒有這套關卡"
     elif [[ "$current" == "$HOOKS_REL" ]]; then
       echo "hooksPath  已接上：${HOOKS_REL}"
+    elif chain="$(cd "$REPO_ROOT" && cd "$(git rev-parse --git-common-dir)" && pwd -P)/polaris-push-verifier/hooks" \
+        && [[ "$current" == "$chain" ]]; then
+      # push-verifier 的轉呼叫先照樣跑 .git/config 自己 [core] 那一格（DP-998）
+      own="$(git config --file "$(dirname "$(dirname "$chain")")/config" --get core.hooksPath 2>/dev/null || true)"
+      miss=""; for h in "${HOOK_NAMES[@]}"; do [[ -x "$chain/$h" ]] || miss+=" $h"; done
+      if [[ ( "$own" == "$HOOKS_REL" || "$own" == "$HOOKS_ABS" ) && -z "$miss" ]]; then
+        echo "hooksPath  已接上：${HOOKS_REL}（經 push-verifier 的轉呼叫 ${chain}）"
+      else
+        echo "hooksPath  指向 push-verifier 的轉呼叫，但它接著的 [core] 是「${own}」${miss:+，少了轉呼叫：${miss# }}（要的是 ${HOOKS_REL}）"
+      fi
     else
       echo "hooksPath  指向別的地方：${current}（不是 ${HOOKS_REL}）"
     fi

@@ -182,6 +182,31 @@ check_hooks() {
     echo "  hook：已接上 ${dir}。"
     return 0
   fi
+  # push-verifier 接上之後，git 讀到的是它的轉呼叫那一組，而那一組先照樣跑 .git/config 自己
+  # [core] 那一格指的目錄（DP-998）。所以那一格是宣告的目錄、每一支 hook 都有轉呼叫，才算接上。
+  local common chain own n missing=""
+  common="$(cd "$top" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
+  chain="$common/polaris-push-verifier/hooks"
+  if [[ "$actual" == "$chain" ]]; then
+    own="$(git config --file "$common/config" --get core.hooksPath 2>/dev/null || true)"
+    if [[ "$own" == "$dir" || "$own" == "$top/$dir" ]]; then
+      for f in "$top/$dir"/*; do
+        [[ -f "$f" && -x "$f" ]] || continue
+        n="$(basename "$f")"
+        [[ -x "$chain/$n" ]] || missing+=" $n"
+      done
+      if [[ -z "$missing" ]]; then
+        echo "  hook：已接上 ${dir}（經 push-verifier 的轉呼叫 ${chain}，它先照樣跑 ${dir} 裡的每一支）。"
+        return 0
+      fi
+      echo "$PREFIX 開工條件不成立：${dir} 裡的${missing} 在 push-verifier 的轉呼叫 ${chain} 底下沒有轉呼叫，git 不會跑它們。" >&2
+      echo "$PREFIX 修法：bash ${top}/.claude/skills/swe-knowledge/scripts/push-verifier.sh install --repo ${top} --issues <單的根目錄>   然後重跑一次。" >&2
+      return 2
+    fi
+    echo "$PREFIX 開工條件不成立：git 讀到的是 push-verifier 的轉呼叫，但它接著的 .git/config [core] 那一格是「${own}」，不是宣告的 ${dir}。" >&2
+    echo "$PREFIX 修法：${fix}   然後重跑一次。" >&2
+    return 2
+  fi
   echo "$PREFIX 開工條件不成立：${top} 宣告了版控 hook 目錄 ${dir}，但 git 沒有在用它。" >&2
   if [[ -z "$actual" ]]; then
     echo "$PREFIX 現在 core.hooksPath 沒設，git 在用 .git/hooks——那裡沒有這套關卡。" >&2
