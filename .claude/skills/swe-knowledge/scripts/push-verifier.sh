@@ -164,11 +164,10 @@ case "$cmd" in
     # 優先的設定層（例如 .git/config.worktree）也設了 core.hooksPath 的話，順序救不了，下面那一句會說出來。
     if [[ "$(g config --get core.hooksPath || true)" != "$CHAIN" ]]; then
       own --fixed-value --unset-all include.path "$INC" 2>/dev/null || true
-      [[ -z "$(tail -c1 "$common/config")" ]] || echo >> "$common/config"
       esc="${INC//\\/\\\\}"; esc="${esc//\"/\\\"}"
       # 寫不進檔尾（例如 .git/config 唯讀而 .git 可寫）就退回 git config：它用 rename 寫得過，而那一段
-      # 被整段拿掉時它會把 include 開在檔尾。接不接得上交給下面那一句讀回來判。
-      { printf '[include]\n\tpath = "%s"\n' "$esc" >> "$common/config"; } 2>/dev/null || {
+      # 被整段拿掉時它會把 include 開在檔尾。補換行也在同一次寫入裡，接不接得上交給下面那一句讀回來判。
+      { [[ -z "$(tail -c1 "$common/config")" ]] || echo; printf '[include]\n\tpath = "%s"\n' "$esc"; } 2>/dev/null >> "$common/config" || {
         tail_failed=1; own --add include.path "$INC" || true; }
     fi
     if [[ "$(g config --get core.hooksPath || true)" != "$CHAIN" ]]; then
