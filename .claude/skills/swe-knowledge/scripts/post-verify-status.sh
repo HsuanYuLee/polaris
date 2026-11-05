@@ -30,6 +30,11 @@ post() {
   slug="$(printf '%s' "$url" | sed -nE 's#.*github\.com[:/]([^/]+/[^/]+)$#\1#p' | sed 's/\.git$//')"
   [[ -n "$slug" ]] || { say "NOT POSTED: $repo 的 ${remote}（${url:-沒有}）不是 GitHub 的網址"; return 0; }
   command -v gh >/dev/null || { say "NOT POSTED: 沒有 gh，問不到 GitHub"; return 0; }
+  # GitHub 的 status 只收完整 sha，而手給的與判定行裡的 head 常是短的（DP-996）
+  local full
+  # 本機沒有的那顆，已經是完整 sha 就照原樣貼
+  if full="$(git -C "$repo" rev-parse --verify --quiet "${sha}^{commit}" 2>/dev/null)"; then sha="$full"
+  elif [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then say "NOT POSTED: ${sha} 在 $repo 解不出一顆 commit，也不是完整 sha"; return 0; fi
   local out
   if out="$(gh api -X POST "repos/$slug/statuses/$sha" -f state="$state" -f context="$CONTEXT" \
       -f description="${desc:0:140}" 2>&1)"; then

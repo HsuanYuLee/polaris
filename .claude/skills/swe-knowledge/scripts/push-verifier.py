@@ -336,6 +336,12 @@ def read_partial(out_file):
 
 
 def run(a):
+    # 手派的時候常給短 sha，而 GitHub 的 status 只收完整的（DP-996）
+    full = git(a.repo, "rev-parse", "--verify", "--quiet", f"{a.head}^{{commit}}", check=False)
+    if not full:
+        say(f"--head {a.head} 在 {a.repo} 解不出一顆 commit，這次不貼 status、不派。")
+        return 2
+    a.head = full
     agent = config(a.repo, "polaris.pushVerifier.agentCmd") or DEFAULT_AGENT
     work = tempfile.mkdtemp(prefix="push-verifier-")
     wt = os.path.join(work, "wt")

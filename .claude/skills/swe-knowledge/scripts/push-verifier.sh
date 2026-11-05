@@ -2,6 +2,7 @@
 # Purpose: 每次推到一顆開著的 PR，由施工那條線以外派一個看不到施工對話的驗證者（DP-911）。
 #          這一支負責接上 git hook：install／remove／status。派工與驗證本身在 push-verifier.py。
 # Inputs:  install --repo <checkout> --issues <單的根目錄> [--agent-cmd '<啟動驗證者的命令>']
+#          （已接上而會寫的每一格都相同就說出來並跳過，不寫任何東西；有一格不同就重接並說出是哪一格）
 #          remove  --repo <checkout>
 #          status  --repo <checkout>
 # Outputs: 接上、拆掉、或現在的狀態，一行一件事。
@@ -21,13 +22,14 @@
 # 原本的 hook 目錄因此就是 .git/config 自己那一格的值：husky 怎麼改它，轉呼叫就跟著轉到哪裡。
 #
 # 轉呼叫只為原本那個目錄裡已經有的 hook 名字與 pre-push 建：其餘名字的 hook 光是存在就會改變 git
-# 的行為（例如 push-to-checkout）。原本那個目錄之後多了新的 hook，重跑一次 install。
+# 的行為（例如 push-to-checkout）。原本那個目錄之後多了新的 hook，重跑一次 install：轉呼叫的名單也算
+# 一格，少了一支就不會跳過。
 #
 # 擋不到的，明講：有人手動把那一行 [include] 拿掉，或在它後面再設一次 core.hooksPath，轉呼叫就不在了，
 # status 會說出來；`git push --no-verify` 跳過所有 hook，驗證者也不會被派。
 set -euo pipefail
 
-usage() { sed -n '2,8p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 MARK="[polaris-push-verifier]"
@@ -62,8 +64,19 @@ original_dir() {
   else printf '%s\n' "$REPO/$orig"; fi
 }
 
-write_stub() {
-  cat > "$CHAIN/$1" <<'STUB'
+# 轉呼叫要建哪幾支：pre-push，加上原本那個目錄裡每一支可執行的 hook
+hook_names() {
+  local orig f n; orig="$(original_dir)"; echo pre-push
+  [[ -d "$orig" ]] || return 0
+  while IFS= read -r f; do
+    n="$(basename "$f")"; [[ "$n" == *.sample || "$n" == pre-push ]] && continue
+    [[ -x "$f" && -f "$f" ]] && echo "$n"
+  done < <(find "$orig" -maxdepth 1 -type f)
+  return 0
+}
+
+stub_body() {
+  cat <<'STUB'
 #!/usr/bin/env bash
 # [polaris-push-verifier] 先照樣跑原本那一支 hook，再（只在 pre-push、而且它成功時）派驗證者。
 name="$(basename "$0")"
@@ -86,12 +99,47 @@ else
 fi
 exit $rc
 STUB
-  chmod +x "$CHAIN/$1"
+}
+
+write_stub() { stub_body > "$CHAIN/$1"; chmod +x "$CHAIN/$1"; }
+
+# 轉呼叫那一組跟現在該有的樣子差在哪：多的、少的、內容舊的、不能執行的。一樣就不印。
+stub_drift() {
+  local want have n out="" body; body="$(stub_body)"
+  want="$(hook_names | sort)"
+  have="$(find "$CHAIN" -maxdepth 1 -type f -exec grep -lF "$MARK" {} + 2>/dev/null | xargs -n1 basename 2>/dev/null | sort || true)"
+  n="$(comm -13 <(echo "$have") <(echo "$want") | grep . | tr '\n' ' ' || true)"; [[ -z "$n" ]] || out+="；轉呼叫少了：${n% }"
+  n="$(comm -23 <(echo "$have") <(echo "$want") | grep . | tr '\n' ' ' || true)"; [[ -z "$n" ]] || out+="；轉呼叫多了：${n% }"
+  while IFS= read -r n; do
+    [[ -n "$n" && -f "$CHAIN/$n" ]] || continue
+    [[ "$(cat "$CHAIN/$n")" == "$body" && -x "$CHAIN/$n" ]] || out+="；轉呼叫 ${n} 的內容或執行位元不是這一版的"
+  done < <(comm -12 <(echo "$have") <(echo "$want"))
+  printf '%s' "$out"
 }
 
 case "$cmd" in
   install)
     [[ -n "$ISSUES" && -d "$ISSUES" ]] || { echo "install 要 --issues <單的根目錄>（驗證者把判定寫進那裡的單）" >&2; exit 2; }
+    # 已接上而設定相同就跳過，一個字都不寫：這一支會對整批 checkout 重跑（DP-996）
+    issues_abs="$(cd "$ISSUES" && pwd -P)"
+    if installed && [[ "$(g config --get core.hooksPath || true)" == "$CHAIN" ]]; then
+      changed=""
+      [[ "$(own --get core.hooksPath || true)" != "$CHAIN" ]] || changed+="；接法是 DP-913 之前寫在 [core] 的那一種，要遷進 include"
+      changed+="$(stub_drift)"
+      was="$(g config --get polaris.pushVerifier.issues || true)"
+      [[ "$was" == "$issues_abs" ]] || changed+="；issues：${was:-（沒有）} → ${issues_abs}"
+      was="$(g config --get polaris.pushVerifier.script || true)"
+      [[ "$was" == "$HERE/push-verifier.py" ]] || changed+="；script：${was:-（沒有）} → ${HERE}/push-verifier.py"
+      if [[ -n "$AGENT" ]]; then
+        was="$(g config --get polaris.pushVerifier.agentCmd || true)"
+        [[ "$was" == "$AGENT" ]] || changed+="；agentCmd：${was:-（預設）} → ${AGENT}"
+      fi
+      if [[ -z "$changed" ]]; then
+        echo "已接上，設定相同，跳過：core.hooksPath → ${CHAIN}"
+        exit 0
+      fi
+      echo "已接上，設定不同，重接：${changed#；}"
+    fi
     # DP-913 之前的接法把轉呼叫直接寫進 [core]，原本的值記在 chainedHooksPath。先還原成原本的樣子。
     if [[ "$(own --get core.hooksPath || true)" == "$CHAIN" ]]; then
       prev="$(g config --get polaris.pushVerifier.chainedHooksPath || true)"
@@ -99,19 +147,13 @@ case "$cmd" in
     fi
     g config --unset polaris.pushVerifier.chainedHooksPath || true
     g config polaris.pushVerifier.installed true
-    g config polaris.pushVerifier.issues "$(cd "$ISSUES" && pwd -P)"
+    g config polaris.pushVerifier.issues "$issues_abs"
     g config polaris.pushVerifier.script "$HERE/push-verifier.py"
     [[ -n "$AGENT" ]] && g config polaris.pushVerifier.agentCmd "$AGENT"
     mkdir -p "$CHAIN"
     find "$CHAIN" -type f -exec grep -lF "$MARK" {} + 2>/dev/null | while read -r f; do rm -f "$f"; done
-    orig="$(original_dir)"
-    names=(pre-push)
-    if [[ -d "$orig" ]]; then
-      while IFS= read -r f; do
-        n="$(basename "$f")"; [[ "$n" == *.sample || "$n" == pre-push ]] && continue
-        [[ -x "$f" && -f "$f" ]] && names+=("$n")
-      done < <(find "$orig" -maxdepth 1 -type f)
-    fi
+    names=()
+    while IFS= read -r n; do names+=("$n"); done < <(hook_names)
     for n in "${names[@]}"; do write_stub "$n"; done
     git config --file "$INC" core.hooksPath "$CHAIN"
     own --get-all include.path 2>/dev/null | grep -qxF "$INC" || own --add include.path "$INC"
