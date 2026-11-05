@@ -26,7 +26,8 @@
 # 一格，少了一支就不會跳過。
 #
 # 擋不到的，明講：有人手動把那一行 [include] 拿掉，或在它後面再設一次 core.hooksPath，轉呼叫就不在了，
-# status 會說出來；`git push --no-verify` 跳過所有 hook，驗證者也不會被派。
+# status 會說出來，重跑 install 會在檔尾重寫一段 [include]（DP-997）。
+# `git push --no-verify` 跳過所有 hook，驗證者也不會被派。
 set -euo pipefail
 
 usage() { sed -n '2,9p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2; exit 2; }
@@ -71,7 +72,8 @@ hook_names() {
   while IFS= read -r f; do
     n="$(basename "$f")"; [[ "$n" == *.sample || "$n" == pre-push ]] && continue
     [[ -x "$f" && -f "$f" ]] && echo "$n"
-  done < <(find "$orig" -maxdepth 1 -type f)
+  # 結尾的 /：原本目錄本身是指向目錄的 symlink 時，find 才會走進去。symlink 的 hook 也算，-f 跟著它判（DP-997）
+  done < <(find "$orig/" -maxdepth 1 \( -type f -o -type l \))
   return 0
 }
 
@@ -157,8 +159,26 @@ case "$cmd" in
     for n in "${names[@]}"; do write_stub "$n"; done
     git config --file "$INC" core.hooksPath "$CHAIN"
     own --get-all include.path 2>/dev/null | grep -qxF "$INC" || own --add include.path "$INC"
+    # 讀到的不是 include 那一份，多半是那一條排在某個 core.hooksPath 前面。拿掉它，在檔尾自己寫一段
+    # 新的——同一段還有別的 path 時，git config --add 會把它加回原本那一段（DP-997）。比 .git/config
+    # 優先的設定層（例如 .git/config.worktree）也設了 core.hooksPath 的話，順序救不了，下面那一句會說出來。
     if [[ "$(g config --get core.hooksPath || true)" != "$CHAIN" ]]; then
-      echo "接不上：.git/config 讀到的 core.hooksPath 不是 include 那一份（$(g config --show-origin --get core.hooksPath)）。[include] 要在 .git/config 的最後。" >&2
+      own --fixed-value --unset-all include.path "$INC" 2>/dev/null || true
+      [[ -z "$(tail -c1 "$common/config")" ]] || echo >> "$common/config"
+      esc="${INC//\\/\\\\}"; esc="${esc//\"/\\\"}"
+      # 寫不進檔尾（例如 .git/config 唯讀而 .git 可寫）就退回 git config：它用 rename 寫得過，而那一段
+      # 被整段拿掉時它會把 include 開在檔尾。接不接得上交給下面那一句讀回來判。
+      { printf '[include]\n\tpath = "%s"\n' "$esc" >> "$common/config"; } 2>/dev/null || {
+        tail_failed=1; own --add include.path "$INC" || true; }
+    fi
+    if [[ "$(g config --get core.hooksPath || true)" != "$CHAIN" ]]; then
+      # 讀到的那一份來自 .git/config 自己、或哪一層都沒有，才是「寫不進檔尾」害的；來自別的設定層就照另一句說
+      origin="$(g config --show-origin --get core.hooksPath || true)"
+      if [[ -n "${tail_failed:-}" && ( -z "$origin" || "$origin" == "file:.git/config"$'\t'* ) ]]; then
+        echo "接不上：寫不進 ${common}/config 的檔尾，改用 git config 放回的那一條 include 仍讀不到（$(g config --show-origin --get core.hooksPath)）。讓那個檔可寫再重跑。" >&2
+      else
+        echo "接不上：.git/config 讀到的 core.hooksPath 不是 include 那一份（$(g config --show-origin --get core.hooksPath)）。我們那一條已經在 .git/config 的最後，讀到的那一份來自更優先的設定層：拿掉那裡的 core.hooksPath 再重跑。" >&2
+      fi
       exit 1
     fi
     echo "接上了：core.hooksPath → ${CHAIN}（經 .git/config 尾端的 include；原本是「$(own --get core.hooksPath || true)」，轉呼叫 ${#names[@]} 支：${names[*]}）"

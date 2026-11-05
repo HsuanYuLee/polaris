@@ -445,8 +445,9 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
   finding 照樣寫回，判定記成 `PARTIAL`（單上寫「沒跑完」），逾時前一個字都沒寫出來才是「跑不到」。
 
 **擋不到的，明講。** `git push --no-verify` 跳過所有 hook。有人把那一行 `[include]` 拿掉，或在它
-後面再設一次 `core.hooksPath`，轉呼叫就不在了，`status` 會說出來。驗證者碰得到什麼只寫在
-指示裡：預設命令不載 MCP、不讀個人設定，但叫得到 Bash——那是一份會被自願遵守的界線，不是一道閘。
+後面再設一次 `core.hooksPath`，轉呼叫就不在了，`status` 會說出來；重跑 `install` 會在檔尾重寫一段
+`[include]` 接回去。驗證者碰得到什麼只寫在指示裡：預設命令不載 MCP、不讀個人設定，但叫得到
+Bash——那是一份會被自願遵守的界線，不是一道閘。
 每推一次多一個 agent 的 token 與時間。
 
 ## 注一刀進去驗那條斷言真的會紅
