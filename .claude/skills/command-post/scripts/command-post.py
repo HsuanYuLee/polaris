@@ -2165,6 +2165,86 @@ def lines_to_rebuild(now, since_hours):
     return out, skipped
 
 
+FENCE = "````"
+
+
+def read_standing():
+    """常駐規矩全文；讀不到回 None，由印的那一端說出來。"""
+    try:
+        with open(STANDING, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def related_entries(entries, line, name, per_line):
+    """日誌裡跟這條線有關的最近幾筆：只認宣告那一格、「X 線」這種寫法、或上一任的名字。"""
+    marks = ("線：" + line, line + " 線", line + "線", "線＝" + line) + ((name,) if name else ())
+    return [e for e in entries if any(k in e for k in marks)][-per_line:]
+
+
+def line_section(line, heading_note, commander, standing, holding, work, related, no_related,
+                 hand_off_without_issue=True):
+    """一條實作線的開場段，重建與新線共用同一個形狀。回傳要接進輸出的行。
+
+    heading_note 接在標題線名後面；work 是〈你的工作〉開頭那幾行；related 是日誌裡跟這條線
+    有關的幾筆，沒有時印 no_related。hand_off_without_issue 是 False 時，holding 指不到本機的
+    單就不印「從那張單接手」那一句。
+    """
+    # 宣告的線名常常自己就帶「線」（「review 線」「DP 線（…）」），再接一個會印成「X 線 線」。
+    label = line if "線" in line else line + " 線"
+    no_standing = ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
+                   "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
+    out = ["## " + label + heading_note, "", FENCE + "markdown"]
+    out += [
+        BROWSER_MENTION,
+        "你是 **" + label + "**，實作 session。指揮官是 " + commander + "；"
+        "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
+        "",
+        opening_text(commander),
+        "",
+        "**回報**：每到一站回一則——做完哪張或卡在哪、需不需要指引、缺什麼。"
+        "回報完不停下來等，繼續下一件；只有走不下去才停。",
+        "",
+        "## 常駐規矩",
+        "",
+        standing_for(standing, line, holding) if standing is not None else no_standing,
+        "",
+        "## 你的工作",
+        "",
+    ] + work + [
+        "",
+        "日誌裡跟這條線有關的最近幾筆：",
+        "",
+    ]
+    out += [e + "\n" for e in related] if related else [no_related, ""]
+    held = held_issue(holding)
+    if held or hand_off_without_issue:
+        out += ["從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
+    if held:
+        out += ["", pack_line(held)]
+    out += [FENCE, ""]
+    return out
+
+
+def new_line_text(commander, line, holding, now=None, per_line=6):
+    """還沒有人宣告過的一條新線的開場 prompt：跟重建的線段落同形，不需要本機單目錄。
+
+    線名與 holding 由下指令的人明講，所以不從宣告推；它不寫宣告，宣告由新 session 自己寫。
+    """
+    now = now or time.time()
+    entries, jprob = read_journal_entries()
+    out = ["# 新線開場 prompt（" + stamp(now) + "）", "",
+           "整段複製貼上，當成新 session 的第一則訊息。", ""]
+    out += line_section(line, "（新線）", commander, read_standing(), holding,
+                        ["指揮官派給這條線的工作：", "- 接：" + " ".join(holding.split())],
+                        related_entries(entries, line, None, per_line),
+                        "（日誌裡沒有提到「" + line + "」的紀錄）", hand_off_without_issue=False)
+    if jprob:
+        out.append("日誌：" + jprob)
+    return "\n".join(out).rstrip() + "\n"
+
+
 def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     """重建時要貼給新 session 的全部 prompt。
 
@@ -2177,14 +2257,8 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     now = now or time.time()
     entries, jprob = read_journal_entries()
     lines, skipped = lines_to_rebuild(now, since_hours)
-    try:
-        with open(STANDING, encoding="utf-8") as fh:
-            standing = fh.read()
-    except OSError:
-        standing = None
-    no_standing = ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
-                   "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
-    fence = "````"
+    standing = read_standing()
+    fence = FENCE
     out = ["# 重建 prompt（" + stamp(now) + "）", ""]
     out.append("每一段是一個新 session 的第一則訊息，整段複製貼上。")
     out.append("")
@@ -2229,46 +2303,17 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     for line, decl, name, running in lines:
         # 線名常常是另一個詞的前綴（`DP` 之於 `DP-732`），所以不做子字串比對：只認宣告那一格、
         # 「X 線」這種寫法、或上一任的名字。
-        marks = ("線：" + line, line + " 線", line + "線", "線＝" + line) + ((name,) if name else ())
-        related = [e for e in entries if any(k in e for k in marks)][-per_line:]
-        # 宣告的線名常常自己就帶「線」（「review 線」「DP 線（…）」），再接一個會印成「X 線 線」。
-        label = line if "線" in line else line + " 線"
-        out.append("## " + label + "（上一任 " + name + "，"
-                   + {True: "還活著", False: "已經結束", None: "死活不明"}[running] + "）")
-        out.append("")
-        out.append(fence + "markdown")
-        out += [
-            BROWSER_MENTION,
-            "你是 **" + label + "**，實作 session。指揮官是 " + commander + "；"
-            "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
-            "",
-            opening_text(commander),
-            "",
-            "**回報**：每到一站回一則——做完哪張或卡在哪、需不需要指引、缺什麼。"
-            "回報完不停下來等，繼續下一件；只有走不下去才停。",
-            "",
-            "## 常駐規矩",
-            "",
-            standing_for(standing, line, decl.get("holding")) if standing is not None else no_standing,
-            "",
-            "## 你的工作",
-            "",
+        related = related_entries(entries, line, name, per_line)
+        work = [
             "上一任最後的宣告（" + stamp(decl.get("declared_at")) + "）：",
             "- 接：" + " ".join(str(decl.get("holding")).split()),
             "- 卡：" + " ".join(str(decl.get("blocked_on")).split()),
             "- 開單：" + str(decl.get("tickets_opened")),
-            "",
-            "日誌裡跟這條線有關的最近幾筆：",
-            "",
         ]
-        out += ([e + "\n" for e in related] if related
-                else ["（日誌裡沒有提到「" + line + "」或「" + name + "」的紀錄）", ""])
-        out += ["從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
-        held = held_issue(decl.get("holding"))
-        if held:
-            out += ["", pack_line(held)]
-        out.append(fence)
-        out.append("")
+        out += line_section(line, "（上一任 " + name + "，"
+                            + {True: "還活著", False: "已經結束", None: "死活不明"}[running] + "）",
+                            commander, standing, decl.get("holding"), work, related,
+                            "（日誌裡沒有提到「" + line + "」或「" + name + "」的紀錄）")
 
     if not lines:
         out.append("（" + str(since_hours) + " 小時內沒有任何宣告說出自己是哪條線，"
@@ -2306,11 +2351,11 @@ def main():
     ap.add_argument("--declare", action="store_true",
                     help="寫下這個 session 自己的那一行。只寫自己的，不碰別人的。")
     ap.add_argument("--session-id", help="--declare 用：這個 session 的 sessionId")
-    ap.add_argument("--holding", help="--declare 用：接的是什麼")
+    ap.add_argument("--holding", help="--declare 用：接的是什麼；--rebuild 用：新線要接什麼（跟 --line 一起給）")
     ap.add_argument("--blocked-on", help="--declare 用：現在卡在哪；沒卡就寫「沒有」")
     ap.add_argument("--tickets-opened", default="無",
                     help="--declare 用：開了哪幾張單給誰")
-    ap.add_argument("--line", help="--declare 用：你是哪條線")
+    ap.add_argument("--line", help="--declare 用：你是哪條線；--rebuild 用：只印這一條還沒宣告過的新線的開場段")
     ap.add_argument("--browser", help="--declare 用：有沒有瀏覽器工具（有／沒有）")
     ap.add_argument("--station", help="--declare 用：手上那張單在哪一站；接的是一張單時跟它的輪次狀態對")
     ap.add_argument("--skills", help="--declare 用：現在載著哪幾支 skill")
@@ -2504,8 +2549,17 @@ def main():
             print("每一段 prompt 都要寫出回報給誰，一段沒有收件者的 prompt 等於沒有回報要求。",
                   file=sys.stderr)
             return 4
-        text = rebuild_text(frm, args.issues, since_hours=args.since_hours,
-                            now=args.now_epoch)
+        if args.line is not None or args.holding is not None:
+            missing = [f for f, v in (("--line", args.line), ("--holding", args.holding))
+                       if not (v or "").strip()]
+            if missing:
+                print("--rebuild 印一條新線的開場段要線名與 holding 兩格都給，缺 "
+                      + "、".join(missing) + "。", file=sys.stderr)
+                return 2
+            text = new_line_text(frm, args.line.strip(), args.holding, now=args.now_epoch)
+        else:
+            text = rebuild_text(frm, args.issues, since_hours=args.since_hours,
+                                now=args.now_epoch)
         path, prob = save_rebuild_copy(text, now=args.now_epoch)
         print(text)
         print(prob or ("副本：" + path + "（對話裡印出來的這一份才是給人貼的）"))

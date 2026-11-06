@@ -1112,6 +1112,16 @@ python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
   指揮官` 不算一條實作線）。內容是開場四步與失聯協定、常駐規矩、上一任最後的宣告，以及
   日誌裡跟這條線有關的最近幾筆。沒宣告線的 session 不印段落，並被指名——印一段猜的比不印糟。
 
+**從零開一條新線時，線名與 holding 由你講出來**，它只印那一條的段落，跟上面的線段落同形：
+
+```bash
+python3 .claude/skills/command-post/scripts/command-post.py --rebuild \
+  [--from <指揮官名字>] --line '<線名>' --holding '<這條線要接什麼>'
+```
+
+那條線不需要有人宣告過，本機也不需要有它的單目錄（例如 JIRA 剛開的單）。它不寫宣告，宣告由
+新 session 照開場四步自己寫。兩格缺一格就說出缺哪一格，離場碼 2，不印段落。
+
 **每一段的第一行是 `@browser:new_tab`。** 使用者 2026-10-12 的原話：「重建 session 要加
 @browser:new_tab 直接授權瀏覽器，直接做進框架」。那天機器重開兩次，貼上重建 prompt 的每一條線
 上線查瀏覽器都是「沒有」，各自停下來等指揮官轉達授權。這一行只在 VS Code 輸入框裡、貼成新
