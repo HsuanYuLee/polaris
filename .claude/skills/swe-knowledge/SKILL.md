@@ -439,9 +439,12 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
   上一節走請求鏈。
 - **判定寫回那張單**：一段行首 `check-your-own-work 九問，head <head>（驗證者）` 的紀錄，加
   `.spine/independent/<head>.json`。紅了那張單回 `engineering`；起不起來、拿不到資料、鏈走不完的
-  寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。
-- **進度看 log**：驗證者每做完一問或一條鏈就 append 一行到 `.spine/independent/<head 前 12 碼>.log`，
-  跑的期間 `tail -f` 那個檔就看得到走到哪。一趟有 3600 秒的時限；逾時被切掉時，逾時前做完的鏈與
+  寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。寫回之前它照單號重找一次單的現址
+  ——派出之後單可能被搬到別格；找不到或不只一張就不寫、不建目錄，把判定原樣印在輸出裡，並另存一份在
+  checkout 的 git 目錄底下 `polaris-push-verifier/unwritten/<head>.json`。
+- **進度看 log**：驗證者每做完一問或一條鏈就用 `push-verifier.py progress` 寫一行到單現在那一份的
+  `.spine/independent/<head 前 12 碼>.log`（它每次都照單號重找現址），跑的期間 `tail -f` 那個檔就看得到走到哪。單在途中被搬走時，
+  舊路徑那個檔不再長，用單號重找一次再 `tail -f`。一趟有 3600 秒的時限；逾時被切掉時，逾時前做完的鏈與
   finding 照樣寫回，判定記成 `PARTIAL`（單上寫「沒跑完」），逾時前一個字都沒寫出來才是「跑不到」。
 
 **擋不到的，明講。** `git push --no-verify` 跳過所有 hook。有人把那一行 `[include]` 拿掉，或在它

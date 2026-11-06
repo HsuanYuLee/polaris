@@ -4,8 +4,10 @@
   dispatch <remote> <url>     從 stdin 讀 git 給 pre-push 的那幾行，推到一顆開著的 PR 時在背景派驗證者
   run --issue <單> --repo <checkout> --head <sha> --base <branch> [--pr <n>] [--remote <name>]
                               驗證者本身：自己的 worktree、看不到施工對話的指示、判定寫回那張單
+  progress --issue <單> --repo <checkout> --head <sha> <一行>
+                              驗證者寫進度：每次重找單的現址再 append（DP-1001）
 
-Exit: dispatch 永遠 0（它不擋 push）；run 0 判定寫成、1 寫不成、2 用法錯。
+Exit: dispatch 永遠 0（它不擋 push）；run 0 判定寫成、1 寫不成、2 用法錯；progress 0 寫進去、1 找不到單。
 
 驗證者拿到的只有：那張單的凍結塊、那個 head 相對 base 的 diff（base 先從 origin fetch）、PR 上
 一輪的 review 意見（預抓成 reviews.json）、落腳 repo 的規矩檔、本機環境的宣告（`{前綴}-ENVIRONMENT-{名}`）。不給施工對話、不給量測登錄、不給單上可以改的那部分。
@@ -65,6 +67,39 @@ def find_ticket(issues, branch):
     if len(hits) != 1:
         return None, f"單號 {'、'.join(sorted(keys))} 在 {issues} 對到 {len(hits)} 張單"
     return hits[0], None
+
+
+def locate_ticket(ticket, repo):
+    """派出之後單可能被位置重算搬走（DP-1001）：寫回之前用目錄名裡的單號，在同一棵單樹重找一次現址。
+    找不到或不只一張就回 None 與原因，呼叫端不寫、不建目錄。"""
+    m = KEY.match(os.path.basename(ticket.rstrip("/")))
+    if not m:
+        return (ticket, None) if os.path.isdir(ticket) else (None, f"{ticket} 不在了，目錄名裡也沒有單號可以重找")
+    # 兩處都找：install 記下的單樹，與舊路徑所在的那棵 git 樹（手派的 --issue 可以不在前者裡面）。
+    # 不在非 git 的目錄上找——往上走到 / 會掃整顆檔案系統。
+    roots = []
+    root = config(repo, "polaris.pushVerifier.issues")
+    if root and os.path.isdir(root):
+        roots.append(os.path.realpath(root))
+    d = os.path.dirname(ticket)
+    while d != os.path.dirname(d) and not os.path.isdir(d):
+        d = os.path.dirname(d)
+    top = git(d, "rev-parse", "--show-toplevel", check=False) if os.path.isdir(d) else ""
+    if top and os.path.realpath(top) not in roots:
+        roots.append(os.path.realpath(top))
+    still = os.path.isdir(os.path.join(ticket, ".spine"))  # 原路徑還是一張單：沒有被搬，或搬了又出現同號的第二份
+    if not roots:
+        return ((os.path.realpath(ticket), None) if still else
+                (None, f"{ticket} 不在了，也問不到它屬於哪一棵單樹（沒有記單的根目錄，舊路徑上面也不是 git 樹）"))
+    hits = {os.path.realpath(ticket)} if still else set()  # 跟 find_ticket 同一個認法：帶 .spine/ 的目錄，名字開頭是這個單號
+    for r in roots:
+        for spine in glob.glob(os.path.join(r, "**", ".spine"), recursive=True):
+            k = KEY.match(os.path.basename(os.path.dirname(spine)))
+            if k and k.group(0) == m.group(0):
+                hits.add(os.path.realpath(os.path.dirname(spine)))
+    if len(hits) != 1:
+        return None, f"單號 {m.group(0)} 在 {'、'.join(roots)} 對到 {len(hits)} 張單"
+    return hits.pop(), None
 
 
 def post_status(repo, sha, state, ticket, what, wait=0, remote="origin"):
@@ -155,8 +190,22 @@ def environment_declarations(repo_root):
     return sorted(set(out))
 
 
-def progress_log(ticket, head):
-    return os.path.join(ticket, ".spine", "independent", f"{head[:12]}.log")
+def progress_command(ticket, repo, head):
+    """給驗證者寫進度用的命令：progress 子命令每寫一行都重找一次單的現址（DP-1001）。"""
+    return " ".join(shlex.quote(x) for x in [sys.executable, os.path.abspath(__file__), "progress",
+                                              "--issue", ticket, "--repo", repo, "--head", head])
+
+
+def progress(a):
+    """append 一行進度到那張單現在那一份的 .spine/independent/<head 前 12 碼>.log；找不到就說出來、不寫、不建目錄。"""
+    ticket, why = locate_ticket(a.issue, a.repo)
+    if not ticket:
+        say(f"進度沒寫進去：{why}。不要自己建目錄。")
+        return 1
+    os.makedirs(os.path.join(ticket, ".spine", "independent"), exist_ok=True)  # 剛找到的現址底下，不會造出空殼
+    with open(os.path.join(ticket, ".spine", "independent", f"{a.head[:12]}.log"), "a", encoding="utf-8") as fh:
+        fh.write(" ".join(a.line) + "\n")
+    return 0
 
 
 def fetch_base(repo, base, remote="origin"):
@@ -204,12 +253,12 @@ def fetch_reviews(repo, pr, out, remote="origin"):
             "逐則寫出它在 head 上的狀態與處置。")
 
 
-def build_prompt(ticket, wt, diff_file, out_file, head, base, reviews_note):
+def build_prompt(ticket, repo, wt, diff_file, out_file, head, base, reviews_note):
     text = open(os.path.join(ticket, "index.md"), encoding="utf-8").read()
     rules = [os.path.join(wt, f) for f in RULE_FILES if os.path.isfile(os.path.join(wt, f))]
     rules += sorted(glob.glob(os.path.join(wt, ".claude", "rules", "*.md")))
     envs = environment_declarations(wt)
-    log = progress_log(ticket, head)
+    log = progress_command(ticket, repo, head)
     started = datetime.now(timezone.utc)
     return f"""你是一個獨立的驗證者。有人剛把 head {head} 推到一顆開著的 PR（base {base}）。你看不到寫它的人說過什麼，這是刻意的：只照下面的材料自己判。
 
@@ -249,13 +298,13 @@ def build_prompt(ticket, wt, diff_file, out_file, head, base, reviews_note):
 
 這一趟開始於 {started:%Y-%m-%dT%H:%M:%SZ}（epoch {int(started.timestamp())}），有 {AGENT_TIMEOUT} 秒的時限，到了會被直接切掉。剩幾分用 `date +%s` 減開始的 epoch 算。所以每做完九問的一問或一條請求鏈，馬上做兩件事：
 
-1. append 一行到 {log}，形狀是「第 N 問<tab>抓到什麼」或「鏈 <鏈名><tab>結果」。用 append（`>>`），不要覆寫。
+1. 跑 `{log} '<一行>'` 寫一行進度，形狀是「第 N 問<tab>抓到什麼」或「鏈 <鏈名><tab>結果」。它每次都重找單現在在哪再 append；它說寫不進去就照常往下做，不要自己建目錄或改寫別的路徑。
 2. 把到目前為止的結果寫進 {out_file}，形狀跟下面〈判定〉那份一樣，verdict 先寫 PARTIAL。全部做完再改成最後的判定。
 
 ## 會卡住的命令帶硬逾時
 
 - `php artisan tinker` 與其他互動式 REPL、等外部服務好的迴圈，這兩類命令一律帶 {COMMAND_TIMEOUT} 秒硬逾時：`timeout {COMMAND_TIMEOUT} <命令>`，沒有 `timeout` 就用 `perl -e 'alarm {COMMAND_TIMEOUT}; exec @ARGV' <命令>`。不用 sleep 加 kill 自己等。
-- 逾時那一刻 append 一行「卡住<tab><命令>、等了幾秒」到 {log}，然後換路：換一種做法，或把那條鏈寫進 missing。同一條命令不再等第二次。
+- 逾時那一刻用 `{log}` 寫一行「卡住<tab><命令>、等了幾秒」，然後換路：換一種做法，或把那條鏈寫進 missing。同一條命令不再等第二次。
 
 ## 判定
 
@@ -274,7 +323,7 @@ missing 只寫事實：
 
 ## 你碰得到的東西的上界
 
-- 不改 {wt} 以外的任何檔案，只寫 {out_file} 與 append {log}；本機起環境需要的暫存檔放在 {os.path.dirname(out_file)} 底下。
+- 不改 {wt} 以外的任何檔案，只寫 {out_file} 與用 `{log}` 寫進度；本機起環境需要的暫存檔放在 {os.path.dirname(out_file)} 底下。
 - 不 commit、不推任何 ref、不開或關 PR。
 - 不送 Slack、不寫 JIRA、不留 PR review 或留言。
 - 不碰其他 checkout、branch 與它們的 .env。
@@ -303,7 +352,10 @@ def write_back(ticket, head, result):
 
 def back_to_engineering(ticket, head):
     state = os.path.join(ticket, ".spine", "loop-state.json")
-    station = json.load(open(state)).get("station")
+    try:
+        station = json.load(open(state)).get("station")
+    except (OSError, ValueError) as e:  # 讀不到就說出來，後面的 failure status 照樣要貼
+        return f"退不回 engineering：讀不到 {state}（{e.__class__.__name__}）"
     if station == "engineering":
         return "站別本來就是 engineering"
     r = subprocess.run(["bash", SPINE, "advance", "--state", state, "--to", "engineering",
@@ -313,14 +365,44 @@ def back_to_engineering(ticket, head):
 
 
 def commit_ticket(ticket, head):
+    """commit 那張單，連同 git 看得到的、同一個目錄名的其他路徑（DP-1001）：搬動沒被 commit 時（mv 或 git mv、
+    搬一次或兩次），舊路徑與中間路徑的刪除都要進這一顆，不然這顆或下一顆 commit 的樹裡同一個單號有兩份。"""
     issues_top = git(ticket, "rev-parse", "--show-toplevel", check=False)
     if not issues_top:
-        return "單的那棵樹不是 git repo，判定只寫在檔案裡"
-    rel = os.path.relpath(ticket, issues_top)
-    git(issues_top, "add", "--", rel, check=False)
-    r = subprocess.run(["git", "-C", issues_top, "commit", "-q", "-m", f"push-verifier: {os.path.basename(ticket)} head {head[:12]}", "--", rel],
+        return True, "單的那棵樹不是 git repo，判定只寫在檔案裡"
+    top = os.path.realpath(issues_top)
+    name = os.path.basename(ticket.rstrip("/"))
+    rels = [os.path.relpath(os.path.realpath(ticket), top)]
+    st = subprocess.run(["git", "-C", top, "status", "--porcelain=v1", "-z", "-uall", "--", f":(glob)**/{name}/**"],
+                        capture_output=True, text=True).stdout.split("\0")
+    for entry in st:  # -z 的改名項後面多一筆來源路徑（沒有 XY 前綴），兩種都只取到 name 那一層
+        parts = (entry[3:] if len(entry) > 3 and entry[2] == " " else entry).split("/")
+        if name in parts:
+            rel = "/".join(parts[:parts.index(name) + 1])
+            if rel not in rels:
+                rels.append(rel)
+    # 磁碟上還在的才 add；已經不在磁碟上的（index 或 HEAD 裡的舊路徑）交給 commit --only 收它的刪除
+    staged = [r for r in rels if os.path.exists(os.path.join(top, r))]
+    if staged:
+        git(top, "add", "-A", "--", *staged, check=False)
+    r = subprocess.run(["git", "-C", top, "commit", "-q", "-m", f"push-verifier: {name} head {head[:12]}", "--", *rels],
                        capture_output=True, text=True)
-    return "已 commit" if r.returncode == 0 else f"commit 失敗：{r.stderr.strip()[:200]}"
+    return (True, "已 commit") if r.returncode == 0 else (False, f"commit 失敗：{r.stderr.strip()[:200]}")
+
+
+def keep_unwritten(repo, head, result):
+    """寫不回單的判定另存一份在 checkout 的 git 目錄：派工時 stdout 進的是單目錄裡的 log，單不在了它也跟著不在。"""
+    common = git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir", check=False)
+    if not common:
+        return "（問不到 git 目錄，沒有另存）"
+    path = os.path.join(common, "polaris-push-verifier", "unwritten", f"{head}.json")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(result, fh, ensure_ascii=False, indent=2)
+        return path
+    except OSError as e:
+        return f"（另存 {path} 失敗：{e}）"
 
 
 def read_partial(out_file):
@@ -359,7 +441,10 @@ def run(a):
             open(diff_file, "w").write(f"（問不到 base {a.base}：{why}，diff 產不出來）\n")
         reviews_note = (fetch_reviews(a.repo, a.pr, os.path.join(work, "reviews.json"), a.remote) if a.pr
                         else "問不到：這一趟沒有拿到 PR 號，review 意見沒有預抓，第五問寫進 missing。")
-        prompt = build_prompt(a.issue, wt, diff_file, out_file, a.head, a.base, reviews_note)
+        here, why = locate_ticket(a.issue, a.repo)  # 等 pending、抓 base 與 review 的這幾分鐘裡單也可能被搬走
+        if not here:
+            raise RuntimeError(f"派出之後、讀單之前就找不到單：{why}")
+        prompt = build_prompt(here, a.repo, wt, diff_file, out_file, a.head, a.base, reviews_note)
         try:
             p = subprocess.run(shlex.split(agent) + [prompt], cwd=wt, capture_output=True, text=True, timeout=AGENT_TIMEOUT,
                                env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")})
@@ -382,14 +467,36 @@ def run(a):
         shutil.rmtree(work, ignore_errors=True)
     result.update({"head": a.head, "base": a.base, "pr": a.pr, "agent_cmd": agent,
                    "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
-    label = write_back(a.issue, a.head, result)
-    note = back_to_engineering(a.issue, a.head) if result["verdict"] == "FAIL" else "站別不動"
+    ticket, why = locate_ticket(a.issue, a.repo)
+    if ticket and ticket != os.path.realpath(a.issue):
+        say(f"單在派出之後搬了：{a.issue} → {ticket}，判定寫在現在那一份")
+    if ticket:
+        try:
+            label = write_back(ticket, a.head, result)
+        except OSError as e:
+            ticket, why = None, f"寫回 {ticket} 失敗（{e}）"
+    if ticket:
+        note = back_to_engineering(ticket, a.head) if result["verdict"] == "FAIL" else "站別不動"
+        # 退回 engineering 會讓位置重算再搬一次單，commit 之前再找一次
+        ticket = locate_ticket(ticket, a.repo)[0] or ticket
+    else:
+        say(f"判定沒有寫回、沒有 commit，也沒有建任何目錄：{why}。這一趟的判定原樣印在下面，也存一份在 {keep_unwritten(a.repo, a.head, result)}")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result["verdict"] == "PASS":  # 判綠的 success 由 verify-ac 從單上貼，沒有單就沒有人歸位這一趟的 pending
+            post_status(a.repo, a.head, "failure", a.issue, "驗證者判綠，但判定寫不回單", remote=a.remote)
     # pending 是這一趟開頭貼的，所以每一種結局都要把它歸位；沒判綠就不是 success
     if result["verdict"] == "FAIL":
         post_status(a.repo, a.head, "failure", a.issue, "驗證者判紅，回施工", remote=a.remote)
     elif result["verdict"] in ("UNMEASURABLE", "PARTIAL"):
         post_status(a.repo, a.head, "failure", a.issue, f"驗證者 {result['verdict']}，這個 head 沒驗完", remote=a.remote)
-    print(f"判定：{label}；{note}；{commit_ticket(a.issue, a.head)}")
+    if ticket:
+        done, said = commit_ticket(ticket, a.head)
+        print(f"判定：{label}；{note}；{said}")
+        if not done:
+            return 1
+    else:
+        print(f"判定：{result['verdict']}；沒有寫回")
+        return 1
     return 0
 
 
@@ -400,6 +507,13 @@ def main():
         except Exception as e:  # 派工壞掉不能讓 push 失敗
             say(f"派工本身出錯，這次沒派：{e}")
         return 0
+    if len(sys.argv) >= 2 and sys.argv[1] == "progress":
+        ap = argparse.ArgumentParser()
+        ap.add_argument("cmd", choices=["progress"])
+        for k in ("--issue", "--repo", "--head"):
+            ap.add_argument(k, required=True)
+        ap.add_argument("line", nargs="+")
+        return progress(ap.parse_args())
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["run"])
     for k in ("--issue", "--repo", "--head", "--base"):
