@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # [polaris-git-hooks]
 # git commit 之前真的被執行的就是這一份。它在版控裡：改它會出現在 diff 裡，一個新 clone
-# 接上一次（`../scripts/install-git-hooks.sh`，設 core.hooksPath）就拿到當前的版本。
+# 接上一次（`../install-git-hooks.sh`，設 core.hooksPath）就拿到當前的版本。
 #
 # 以前這份內容是安裝器用 heredoc 生出來、寫進 .git/hooks/ 的。那樣的話關卡的改動不在任何
 # 一個 diff 裡，而每一台機器手上是哪一版沒有人說得出來。

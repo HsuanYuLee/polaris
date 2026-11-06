@@ -195,11 +195,11 @@ grep -rn 'pnpm -r\|pnpm --recursive\|pnpm recursive' \
 接上 git hook（過不了閘的 commit 從來不存在）：
 
 ```bash
-bash .claude/skills/framework-release/scripts/install-git-hooks.sh
-bash .claude/skills/framework-release/scripts/install-git-hooks.sh --status
+bash scripts/install-git-hooks.sh
+bash scripts/install-git-hooks.sh --status
 ```
 
-它有代價，而那個代價寫在 `framework-release` 自己的 `SKILL.md` 裡——安裝之前它會說出來。
+它有代價，寫在 `scripts/install-git-hooks.sh` 的檔頭：接上之後 `.git/hooks/` 底下的東西全部失效。那裡有不是這套裝的 hook 時，它會指名並停下來，不接。
 
 ## 單住在哪
 
