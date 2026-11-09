@@ -20,9 +20,9 @@ scope: universal
 指著那條路徑，改名會讓每一張單的 `holders[]` 從下一次寫入起推不出是誰。名字給人讀，路徑
 給機器讀，兩者不必是同一個字。
 
-## 硬規則：壓縮之後也要成立的十條
+## 硬規則：壓縮之後也要成立的十一條
 
-compact 之後一支 skill 只留前 5,000 tokens，所以這十條放在最前面；`reinject-after-compact.sh`
+compact 之後一支 skill 只留前 5,000 tokens，所以這十一條放在最前面；`reinject-after-compact.sh`
 在壓縮後把這一節原文重新注入。每一條只是指路，細節在指名的那一節。
 
 <!-- COMMANDER-HARD-RULES-BEGIN -->
@@ -36,6 +36,7 @@ compact 之後一支 skill 只留前 5,000 tokens，所以這十條放在最前�
 8. 被指出的錯，同一則回覆帶四格，規矩收進它該住的那支 skill 的那一節，不寫進自己的筆記。→〈被指出錯誤的那一輪就收進 harness〉
 9. 每一輪重讀指揮台那一頁，不靠記憶推「誰在做什麼、使用者在等什麼」。→〈指揮台那一頁：每一輪重讀〉
 10. 壓縮之後，先把手上用過的 skill 逐支重新 invoke，再繼續。→〈壓縮之後：重新 invoke，不靠摘要〉
+11. worker 回 `FINAL_ANSWER`／`completed` 只表示這一個 turn 結束；原派工還有工作且沒有正式停點，就在宣稱整線完成之前用 runtime action 續派同一條線。只寫續派草稿不算續派。→〈worker 的 turn 結束不是工作終局〉
 <!-- COMMANDER-HARD-RULES-END -->
 
 ## 一、地圖
@@ -976,6 +977,34 @@ wakeup：peer 的回報本身就會開一個回合。沒有新指令不回 peer 
 **每天固定時間的例行（例如站會）由指揮官主動派，不等使用者開口。** 什麼時候派、什麼時候交到
 使用者手上，照那家公司的例行 skill。催促、生氣不是送出的授權，不得轉成送出的指令。一條線漏了
 某一步、使用者問為什麼，指揮官去問那條線原因、回報原因，不是改下另一道指令。
+
+### worker 的 turn 結束不是工作終局
+
+`FINAL_ANSWER`、`completed` 與一則「checkpoint 完成」只證明 worker 這一個 turn 結束，
+不證明原派工完成。收到其中任何一種終止事件，指揮官在對使用者寫「完成」或把那條線移出在飛清單
+之前，照三樣既有資料重判一次：
+
+1. 原派工寫下的完成條件；
+2. worker 回報裡仍未完成的工作；
+3. 那張單有沒有記下 `driving-work-to-done` 的正式停點。
+
+三種結果只有一種會續派：
+
+| 重判結果 | 指揮官的動作 |
+|---|---|
+| 原派工完成條件全部成立 | 接受終局，不再叫醒 worker |
+| 單上有正式停點 | 記下停點並照〈問人的時候〉處理，不用重派掩蓋停點 |
+| 還有工作、沒有正式停點 | **先續派同一條線，再回報使用者**；那條線已不存在才按同一個 epic 重建 |
+
+第三種不因 worker 的回覆叫 `FINAL_ANSWER`、狀態叫 `completed`、或它剛交了一份完整 checkpoint
+而改變。續派文字只指回原派工與回報裡的接點，不重新發明範圍。續派是一次 runtime action：
+使用當下 surface 提供的 follow-up 動作，拿到 accepted／delivered 回執才算續起。只把文字寫進檔案、
+只說「下一步要續派」、或只留一則通知，都還沒有續派；當下 surface 沒有 follow-up 動作時，照正式
+停點回報工具缺口，不宣稱線已恢復。**續派之後的 checkpoint 照樣可以回報，但回報不把線結束。**
+
+這是一個收到 runtime 事件後的 supervisor 程序，不是一道 workspace hook：workspace 裡的 hook
+收不到 collaboration runtime 的終止事件，所以不宣稱能在 worker 端攔下 `FINAL_ANSWER`。
+反方向也不做成自轉：完成條件成立或有正式停點時，不排 wakeup、不重建、不續派。
 
 ### `notify_when_idle` 那一格：它偵測不到的第三態
 
