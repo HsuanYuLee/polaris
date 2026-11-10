@@ -16,7 +16,7 @@ Exit: dispatch 永遠 0（它不擋 push）；run 0 判定寫成、1 寫不成�
 它碰得到的東西只有指示裡寫的上界，不是一道閘：預設命令不載 MCP、不讀這台機器的個人設定，
 但 Bash 叫得到。真正擋推 ref 與改動的，是那個 worktree 是 detached、而且用完就拆。
 """
-import argparse, glob, json, os, re, shlex, shutil, subprocess, sys, tempfile, time
+import argparse, glob, json, os, re, shlex, shutil, subprocess, sys, tempfile
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -100,27 +100,6 @@ def locate_ticket(ticket, repo):
     if len(hits) != 1:
         return None, f"單號 {m.group(0)} 在 {'、'.join(roots)} 對到 {len(hits)} 張單"
     return hits.pop(), None
-
-
-def post_status(repo, sha, state, ticket, what, wait=0, remote="origin"):
-    """把這個 head 的 polaris/verify-ac 狀態貼上 GitHub（DP-993 A-P5）；貼不成只說一行，不擋 push。"""
-    key = KEY.match(os.path.basename(ticket))
-    script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "post-verify-status.sh")
-    # pending 在 pre-push 那一刻貼不上：sha 還沒到 GitHub，statuses API 回 422。wait 秒內每 10 秒再試一次
-    deadline = time.time() + wait
-    while True:
-        try:
-            r = subprocess.run(["bash", script, "--repo", repo, "--sha", sha, "--state", state,
-                                "--description", f"{key.group(0) if key else os.path.basename(ticket)} {what}",
-                                "--remote", remote],
-                               capture_output=True, text=True, timeout=30)
-            said = r.stdout.strip() or r.stderr.strip()
-        except (OSError, subprocess.TimeoutExpired) as e:
-            said = f"NOT POSTED: {sha[:12]} {state}（{e}）"
-        if not said.startswith("NOT POSTED") or "422" not in said or time.time() >= deadline:
-            say(said)
-            return
-        time.sleep(10)
 
 
 def dispatch(remote, url):
@@ -418,10 +397,10 @@ def read_partial(out_file):
 
 
 def run(a):
-    # 手派的時候常給短 sha，而 GitHub 的 status 只收完整的（DP-996）
+    # 手派的時候常給短 sha；後續 worktree 與判定紀錄一律綁完整 commit。
     full = git(a.repo, "rev-parse", "--verify", "--quiet", f"{a.head}^{{commit}}", check=False)
     if not full:
-        say(f"--head {a.head} 在 {a.repo} 解不出一顆 commit，這次不貼 status、不派。")
+        say(f"--head {a.head} 在 {a.repo} 解不出一顆 commit，這次不派。")
         return 2
     a.head = full
     agent = config(a.repo, "polaris.pushVerifier.agentCmd") or DEFAULT_AGENT
@@ -429,7 +408,6 @@ def run(a):
     wt = os.path.join(work, "wt")
     out_file = os.path.join(work, "verdict.json")
     result = None
-    post_status(a.repo, a.head, "pending", a.issue, "驗證者已派出，等 verify-ac 判定", wait=120, remote=a.remote)
     try:
         git(a.repo, "worktree", "add", "--detach", wt, a.head)
         base_ref, why = fetch_base(a.repo, a.base, a.remote)
@@ -482,13 +460,6 @@ def run(a):
     else:
         say(f"判定沒有寫回、沒有 commit，也沒有建任何目錄：{why}。這一趟的判定原樣印在下面，也存一份在 {keep_unwritten(a.repo, a.head, result)}")
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        if result["verdict"] == "PASS":  # 判綠的 success 由 verify-ac 從單上貼，沒有單就沒有人歸位這一趟的 pending
-            post_status(a.repo, a.head, "failure", a.issue, "驗證者判綠，但判定寫不回單", remote=a.remote)
-    # pending 是這一趟開頭貼的，所以每一種結局都要把它歸位；沒判綠就不是 success
-    if result["verdict"] == "FAIL":
-        post_status(a.repo, a.head, "failure", a.issue, "驗證者判紅，回施工", remote=a.remote)
-    elif result["verdict"] in ("UNMEASURABLE", "PARTIAL"):
-        post_status(a.repo, a.head, "failure", a.issue, f"驗證者 {result['verdict']}，這個 head 沒驗完", remote=a.remote)
     if ticket:
         done, said = commit_ticket(ticket, a.head)
         print(f"判定：{label}；{note}；{said}")

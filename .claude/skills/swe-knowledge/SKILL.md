@@ -77,11 +77,9 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
    base 不是預設分支的 `gh pr merge`（例如併進一條 feature branch）也讀那一行；base 是預設分支的
    照舊要 delivered。
 
-   **換一個 agent，那支 hook 就不在了，所以判定也貼在 GitHub 上。** 那顆 commit 的 status
-   `polaris/verify-ac`：push-verifier 派出驗證者時是 `pending`，驗證者判紅是 `failure`，verify-ac
-   對這個 head 寫成判定那一行或交付紀錄是 `success`。誰打開那顆 PR 都看得到這一格。它只貼狀態，不改 branch protection
-   或 ruleset，也不設成 required check：框架對 repo 的支援一律外掛。貼的是
-   `scripts/post-verify-status.sh`，貼不成只說一行，不擋交付或 push。
+   **判定只留在本機。** push-verifier 的結果、verify-ac 判定行與交付紀錄都寫回單；
+   `check-ship-point.sh` 從這些本機紀錄判斷能不能出貨。框架不以任何人的 GitHub token 對產品 repo
+   建 commit status，也不把本機判定投影成遠端 check。
 
    **只上 stage 的 tag 不是進預設分支的出貨**（DP-907）。上 prod 之前要先在 stage 驗過，而
    stage 驗收在判定之前，所以那種 tag 站別到 `engineering` 就放行。認法看名字：有一段是
@@ -128,11 +126,6 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
 發現的（「我好像沒有在 PR 上看到你怎麼處理的」）。偵測有主人（誰欠我回覆、誰欠我審查，
 都有東西在算），**動作沒有主人**。而「還沒被 approve」這個狀態，跟「我還沒動手」長得
 一模一樣。
-
-判定那一行或交付紀錄寫成時，verify-ac 叫下面兩行宣告去貼 `success`：
-
-<!-- SWE-DELIVERY-RECORDED: bash .claude/skills/swe-knowledge/scripts/post-verify-status.sh delivered -->
-<!-- SWE-VERDICT-RECORDED: bash .claude/skills/swe-knowledge/scripts/post-verify-status.sh verdict -->
 
 ## 在程式碼裡，「你寫下的話」長成什麼樣子
 
