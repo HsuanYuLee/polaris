@@ -6,9 +6,10 @@
 # 過了，就是寫明了要到哪一站才量得到、為什麼。出貨點對「開一顆 PR」「轉成 ready」讀的是這一行。
 #
 # 寫不成的情況說出來、回 1，不寫任何東西：有一條沒過；有一條這一站沒量、卻沒用 --not-yet 寫成
-# 未到站；--not-yet 指名了一條量過而沒過的、或不存在的 assertion。
+# 未到站；--not-yet 指名了一條量過而沒過的、或不存在的 assertion；--head 沒對上判定樹，或對上的不只一個 head。
 #
 # Usage: record-verdict.sh --issue <單的目錄> --head <sha> [--not-yet '<ID>=<哪一站>:<為什麼>']...
+# --head 指名要寫哪一棵判定樹的 head；可以給前綴，至少 7 碼。
 # Output: 寫成時印 `VERDICT: <單號> head <sha12> 過 n/m，未到站 k 條` 與寫進去的那一行。
 # Exit:  0 寫成 / 1 寫不成（說出哪幾條；凍結塊沒過 fence 驗證也算）/ 2 參數不對
 #
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 [[ -f "$ISSUE_DIR/index.md" && -n "$HEAD_SHA" ]] || { echo "$PREFIX 要 --issue <帶 index.md 的單> 與 --head <sha>" >&2; exit 2; }
+[[ ${#HEAD_SHA} -ge 7 ]] || { echo "$PREFIX --head 可以給前綴，但至少 7 碼（拿到 ${#HEAD_SHA} 碼）" >&2; exit 2; }
 ISSUE_DIR="$(cd "$ISSUE_DIR" && pwd)"
 # 成功的定義要是人簽過、commit 過的那一份，跟 record-delivery-intent.sh 同一道
 if ! FENCE_OUT="$(bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$ISSUE_DIR/index.md" 2>&1)" \
@@ -40,7 +42,7 @@ if ! FENCE_OUT="$(bash "$ROOT_DIR/scripts/frozen-assertion-fence.sh" verify "$IS
   exit 1
 fi
 
-python3 - "$ROOT_DIR" "$ISSUE_DIR" "$HEAD_SHA" "${NOT_YET[@]+"${NOT_YET[@]}"}" <<'PY'
+PYTHON_OUT="$(python3 - "$ROOT_DIR" "$ISSUE_DIR" "$HEAD_SHA" "${NOT_YET[@]+"${NOT_YET[@]}"}" <<'PY'
 import json, os, re, sys
 from urllib.parse import quote
 from datetime import datetime, timezone
@@ -57,19 +59,67 @@ for spec in sys.argv[4:]:
     not_yet[m.group(1)] = (m.group(2).strip(), m.group(3).strip())
 
 index = os.path.join(issue, "index.md")
-report = av.judge(index, os.path.join(issue, ".spine", "evidence"), head=head,
+report = av.judge(index, os.path.join(issue, ".spine", "evidence"), head=None,
                   ledger_path=os.path.join(issue, ".spine", "measurement-ledger.json"))
+# judge(head=None) 會依落腳處保留每棵樹的 head。呼叫者仍要指名這次寫哪一棵，
+# 而判定行一律記完整 SHA，讓短 SHA 只存在於命令列介面。
+heads = report["heads"]
+candidates = list(heads)
+single_tree_candidate = not candidates and bool(report["head"])
+if single_tree_candidate:
+    candidates.append({"tree": "（單樹）", "head_sha": report["head"]})
+declared = av.declared_landing(index)
+issue_root = os.path.dirname(os.path.abspath(index))
+if not single_tree_candidate:
+    for tree in declared:
+        if not any(av.covering_landing(item["tree"], [tree], issue_root)
+                   for item in candidates):
+            candidates.append({"tree": tree, "head_sha": None})
+seen_heads = set()
+deduplicated = []
+for item in candidates:
+    if item["head_sha"] and item["head_sha"] in seen_heads:
+        continue
+    if item["head_sha"]:
+        seen_heads.add(item["head_sha"])
+    deduplicated.append(item)
+candidates = deduplicated
+matched = [item for item in candidates
+           if item["head_sha"] and item["head_sha"].startswith(head)]
+match_problems = []
+if len(matched) != 1:
+    match_problems.append(f"--head {head} 對不上唯一一棵判定樹；每棵樹與 head：")
+    match_problems.extend(
+        f"  {item['tree']}: {item['head_sha'] or '這棵沒有可判的證據'}"
+        for item in candidates)
+else:
+    head = matched[0]["head_sha"]
+
+# 選定要寫入的完整 head 後，才對那個 head 做最終判定。單樹沿用 judge 原有的
+# 逐條 head 比對；多樹則補上沒有 measured_in 的舊證據無法歸樹時的同一道保護。
+if len(matched) == 1 and not heads:
+    report = av.judge(index, os.path.join(issue, ".spine", "evidence"), head=head,
+                      ledger_path=os.path.join(issue, ".spine", "measurement-ledger.json"))
+
 ids = [r["id"] for r in report["rows"]]
-problems = [f"--not-yet 指名的 {k} 不是這張單的 assertion" for k in not_yet if k not in ids]
+problems = list(match_problems)
+problems.extend(f"--not-yet 指名的 {k} 不是這張單的 assertion"
+                for k in not_yet if k not in ids)
 passed, pending = [], []
 for row in report["rows"]:
     # 未到站只給這一站還沒量過、或量了卻量不到（UNMEASURABLE）的：量過而沒過的，寫成未到站等於把一條紅改叫別的名字
     ev_path = os.path.join(issue, ".spine", "evidence", row["id"] + ".json")
     try:
-        ev_verdict = json.load(open(ev_path, encoding="utf-8")).get("verdict") if os.path.exists(ev_path) else None
+        evidence = json.load(open(ev_path, encoding="utf-8")) if os.path.exists(ev_path) else {}
+        ev_verdict = evidence.get("verdict")
     except (OSError, ValueError):
-        ev_verdict = "FAIL"
+        evidence, ev_verdict = {}, "FAIL"
     measured = ev_verdict is not None and ev_verdict != "UNMEASURABLE"
+    if len(matched) == 1 and heads and ev_verdict == "PASS" and not evidence.get("measured_in") \
+            and evidence.get("head_sha") != head:
+        shown_ev, shown_head = av.distinguish(str(evidence.get("head_sha") or ""), head)
+        problems.append(f"{row['id']} 沒過：量在 {shown_ev}，要交付 {shown_head}（證據沒有 measured_in）")
+        continue
     if row["state"] == av.PASS:
         passed.append(row["id"])
         if row["id"] in not_yet:
@@ -107,6 +157,12 @@ key = re.match(r"[A-Z][A-Z0-9]*-\d+", os.path.basename(issue))
 print(f"VERDICT: {key.group(0) if key else os.path.basename(issue)} head {head[:12]} 過 {len(passed)}/{len(ids)}，未到站 {len(pending)} 條")
 print(line)
 PY
+)" || { rc=$?; [[ -n "$PYTHON_OUT" ]] && printf '%s\n' "$PYTHON_OUT"; exit "$rc"; }
+printf '%s\n' "$PYTHON_OUT"
+
+# Python 已把縮寫正規化後的完整 SHA 寫進最後一行判定；宣告也要收到同一個完整 SHA。
+RECORDED_HEAD="$(sed -nE 's/.*<!-- *VERIFY-AC-VERDICT: head=([0-9a-f]+) [^>]*-->.*/\1/p' <<<"$PYTHON_OUT" | tail -1)"
+HEAD_SHA="${RECORDED_HEAD:-$HEAD_SHA}"
 
 while IFS= read -r declared; do
   [[ -n "$declared" ]] || continue
