@@ -40,6 +40,76 @@ import tempfile
 
 PRODUCER = "run-hardened-oracle.sh"
 
+#: 命名空間宣告「除了 oracle 以外，還收誰產的證據」。形狀跟 SEAL-CONDITION 同一套，鍵是命名
+#: 空間，值是「產生者名 | 判一份證據的命令」。命令在 repo 根跑，後面接單的目錄與證據檔；
+#: 回 0 表示這份證據站得住。核心不認得任何一個產生者——誰的證據要被收，由那個命名空間自己說。
+EVIDENCE_PRODUCER_DECLARATION = re.compile(
+    r"<!--\s*[A-Za-z0-9_-]*EVIDENCE-PRODUCER-([A-Za-z0-9_.-]+):\s*([^|\s][^|]*?)\s*\|\s*(.+?)\s*-->")
+
+
+def _skills_root():
+    """`.claude/skills`：這支住在 verify-ac/scripts/lib 底下，往上四層。"""
+    here = os.path.abspath(__file__)
+    return os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(here))))
+
+
+def issue_namespace(index_path):
+    """單所屬的命名空間：單所在 git 樹的第一層目錄名。問不到回 None。
+
+    跟 fence 的 SEAL-CONDITION 同一條推法（frozen-assertion-fence.sh），不另發明一份。
+    """
+    issue_dir = os.path.dirname(os.path.abspath(index_path))
+    try:
+        done = subprocess.run(["git", "-C", issue_dir, "rev-parse", "--show-toplevel"],
+                              capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0 or not done.stdout.strip():
+        return None
+    top = os.path.realpath(done.stdout.strip())
+    rel = os.path.relpath(os.path.realpath(issue_dir), top)
+    if rel.startswith("..") or rel in ("", "."):
+        return None
+    return rel.split(os.sep)[0]
+
+
+def declared_evidence_producers(namespace, root=None):
+    """掃所有 SKILL.md，回 {產生者名: 判一份證據的命令}；只收這個命名空間的宣告。"""
+    found = {}
+    if not namespace:
+        return found
+    base = root or _skills_root()
+    for dirpath, dirnames, filenames in os.walk(base) if os.path.isdir(base) else ():
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        if "SKILL.md" not in filenames:
+            continue
+        try:
+            text = open(os.path.join(dirpath, "SKILL.md"), encoding="utf-8").read()
+        except OSError:
+            continue
+        for ns, producer, command in EVIDENCE_PRODUCER_DECLARATION.findall(text):
+            if ns == namespace:
+                found.setdefault(producer.strip(), command.strip())
+    return found
+
+
+def _check_declared_evidence(command, issue_dir, evidence_path):
+    """在 repo 根跑宣告的命令，接單的目錄與證據檔。回 (exit code, 最後一行輸出)。
+
+    命令字串由宣告決定，單與證據以位置參數接上去——路徑裡的空白與引號不會被 shell 再拆一次。
+    """
+    repo_root = os.path.dirname(os.path.dirname(_skills_root()))
+    try:
+        done = subprocess.run(
+            ["bash", "-c", f'{command} "$1" "$2"', "declared-evidence", issue_dir, evidence_path],
+            cwd=repo_root, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 2, f"宣告的命令跑不起來：{exc}"
+    text = (done.stdout + done.stderr).strip()
+    last = text.splitlines()[-1] if text else f"exit {done.returncode}"
+    return done.returncode, last
+
+
 PASS = "pass"
 FAIL = "fail"
 UNMEASURABLE = "unmeasurable"
@@ -684,6 +754,10 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
 
     registered = registered_commands(ledger_path) if ledger_path else None
     layers["registered"] = registered is not None
+    issue_dir = os.path.dirname(os.path.abspath(index_path))
+    namespace = issue_namespace(index_path)
+    declared_producers = declared_evidence_producers(namespace)
+    declared_judged = []
     if ledger_path and registered is None:
         report["notes"].append(
             f"讀不到量測登錄（{ledger_path}），「證據記的命令是登錄過的那一條」沒有被檢查")
@@ -714,7 +788,22 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
             continue
         evidence[aid] = ev
         if ev.get("producer") != PRODUCER:
-            mark(aid, FAIL, f"產生者是 {ev.get('producer')!r}，不是 {PRODUCER}")
+            # 命名空間宣告過的產生者走它自己的檢查：這類證據沒有命令、也沒綁 head（例如一個
+            # 環境上的截圖），登錄與 head 那兩層對它沒有東西可比，站不站得住由宣告的命令說。
+            producer = ev.get("producer")
+            command = declared_producers.get(producer) if producer else None
+            if command is None:
+                mark(aid, FAIL, f"產生者是 {producer!r}，不是 {PRODUCER}")
+                continue
+            rc, last = _check_declared_evidence(command, issue_dir, path)
+            if rc != 0:
+                mark(aid, FAIL, f"命名空間 {namespace} 宣告的產生者 {producer} 的檢查不成立（exit {rc}）：{last}")
+                continue
+            if ev.get("verdict") != "PASS":
+                mark(aid, FAIL, f"判定是 {ev.get('verdict')!r}，不是 PASS（產生者 {producer}）")
+                continue
+            mark(aid, PASS, f"由命名空間 {namespace} 宣告的產生者 {producer} 判：{last}")
+            declared_judged.append(aid)
             continue
         if registered is not None:
             # 登錄檔在，就每一條都要在裡面。「沒登錄過」不能當成豁免——那正好是一份手寫
@@ -782,6 +871,11 @@ def judge(index_path, evidence_dir, head=None, delta_allows=(),
     # 們共用的是同一趟執行，不是同一個判定**：分組的鍵是 `rerun_exec_key()`（跑什麼），
     # 每一條自己的正負向樣式跟著它進那一組，在同一份輸出上各自判。為什麼樣式不在鍵裡，
     # 寫在那支函式的 docstring 裡，這裡不抄第二份。
+    if declared_judged:
+        report["notes"].append(
+            f"{len(declared_judged)} 條由命名空間 {namespace} 宣告的產生者判（"
+            + "、".join(declared_judged) + "），不比登錄與 head、不重跑：宣告 "
+            + "；".join(f"{k} | {v}" for k, v in sorted(declared_producers.items())))
     if rerun:
         # 分組只算一次，預告與實際讀的是同一份。以前是「跑之前算一次、跑的時候用另一個
         # 快取再算一次」——兩個算式一致的時候沒有人看得出來它們是兩份，而漂開的那一刻
