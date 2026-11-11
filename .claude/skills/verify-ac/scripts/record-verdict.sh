@@ -115,8 +115,9 @@ for row in report["rows"]:
     except (OSError, ValueError):
         evidence, ev_verdict = {}, "FAIL"
     measured = ev_verdict is not None and ev_verdict != "UNMEASURABLE"
-    if len(matched) == 1 and heads and ev_verdict == "PASS" and not evidence.get("measured_in") \
-            and evidence.get("head_sha") != head:
+    # 判準是 producer：宣告產生者（例如環境步驟腳本）的證據由那個產生者的規則判，逐條判定對它們不比 head，這裡也不比（DP-1023）
+    if len(matched) == 1 and heads and ev_verdict == "PASS" and evidence.get("producer") == av.PRODUCER \
+            and not evidence.get("measured_in") and evidence.get("head_sha") != head:
         shown_ev, shown_head = av.distinguish(str(evidence.get("head_sha") or ""), head)
         problems.append(f"{row['id']} 沒過：量在 {shown_ev}，要交付 {shown_head}（證據沒有 measured_in）")
         continue
