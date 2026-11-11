@@ -33,15 +33,16 @@ EOF
 #
 # Slack 不在這張表上：那個管道自己就標著「Sent using @Claude」，再署一次是同一個資訊的
 # 第二份，而它佔的是末尾最後被讀到的位置。
-POLARIS_ATTRIBUTION_MARK="由 Claude Code 代發"
+POLARIS_ATTRIBUTION_MARK="由 AI 助理代發"
 # **認的樣式比要寫的那一句寬。** 要寫什麼由上面那個字串說了算；而「這份 body 已經署過名
 # 了嗎」問的是另一件事——人會寫出意思相同、字不同的版本，最常見的是中間插一個帳號：
-# 「由 Claude Code 代 @someone 發出」。
+# 「由 Claude Code 代 @someone 發出」。舊版 Claude Code 與 Codex 的明確署名也保留，
+# 新稿用各種 agent 都真實的 AI 助理，不從環境推測執行者。
 #
 # 用單一字面值比對的那一版認不出它，於是**又補了一份**，而那正好是使用者 2026-09-04 指名
 # 拿掉的東西（同一個資訊的第二份，佔末尾最後被讀到的位置）。2026-09-17 那則 review 就是
 # 這樣長出兩份署名的——然後有人回頭去手動修，把整篇正文蓋掉了。
-POLARIS_ATTRIBUTION_PATTERN='由 Claude Code 代[^）)]{0,40}發'
+POLARIS_ATTRIBUTION_PATTERN='由 (AI 助理代|Claude Code 代|Codex 代)[^）)]{0,40}發'
 if [[ "${1:-}" == "--print-attribution-pattern" ]]; then
   printf '%s\n' "$POLARIS_ATTRIBUTION_PATTERN"
   exit 0

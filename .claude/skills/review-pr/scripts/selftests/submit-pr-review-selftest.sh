@@ -27,7 +27,7 @@ SUBJECT="${SUBJECT_OVERRIDE:-$SCRIPTS/submit-pr-review.sh}"
 # 這支腳本在兩支 skill 底下各有一份副本，而副本沒有任何關卡在守（見 DP-459 活區）。
 SIBLING_SKILLS=(review-pr review-inbox)
 
-EXPECTED=23
+EXPECTED=25
 RAN=0
 SKIPPED=0
 FAILED=0
@@ -356,18 +356,32 @@ fi
 
 # ── H-P8：署名認得等價的寫法 ─────────────────────────────────────────────────
 # 補出來的第二份署名就是那一次回頭編輯的理由——沒有那一步，蓋掉正文的那一步不會發生。
-printf -- '<!-- polaris-review-target: o/r#12 -->\n這是一則審查意見。\n\n_（由 Claude Code 代 @someone 發出）_\n' \
-  > "$WORK/body-self-signed.txt"
-run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
-  --event COMMENT --body-file "$WORK/body-self-signed.txt" --submit
-signed_count="$(python3 -c '
-import json,sys
-print(json.load(open(sys.argv[1]))["body"].count("由 Claude Code 代"))' "$STUB_POST_PAYLOAD" 2>/dev/null || printf X)"
-if [[ "$RC" -eq 0 && "$signed_count" == "1" ]]; then
-  pass "H-P8 body 自帶等價的署名時，不補第二份"
-else
-  fail "H-P8 body 自帶等價的署名時，不補第二份" "rc=$RC 署名出現 $signed_count 次"
-fi
+# 數的是所有被接受的署名合計幾份，不是某一句字面值幾次：補出來的那一份寫的是宣告源
+# 現在那一句，跟 body 自帶的那一句不一定同字，只數其中一句的話，補了第二份也還是 1。
+# 這份清單刻意寫在這裡、不問閘的樣式——拿閘的樣式來數，閘少認一種署名時這裡也跟著
+# 少數一種，那條相容就沒有人在量了。
+count_attributions() {
+  python3 -c '
+import json,re,sys
+body=json.load(open(sys.argv[1]))["body"]
+print(len(re.findall(r"由 (?:AI 助理代|Claude Code 代|Codex 代)", body)))' "$1" 2>/dev/null || printf X
+}
+assert_signed_once() {
+  local label="$1" mark="$2" count
+  printf -- '<!-- polaris-review-target: o/r#12 -->\n這是一則審查意見。\n\n_（%s）_\n' "$mark" \
+    > "$WORK/body-self-signed.txt"
+  run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
+    --event COMMENT --body-file "$WORK/body-self-signed.txt" --submit
+  count="$(count_attributions "$STUB_POST_PAYLOAD")"
+  if [[ "$RC" -eq 0 && "$count" == "1" ]]; then
+    pass "$label"
+  else
+    fail "$label" "rc=$RC 署名合計 $count 份"
+  fi
+}
+assert_signed_once "H-P8 body 自帶等價的署名時，不補第二份" '由 Claude Code 代 @someone 發出'
+assert_signed_once "H-P8 body 自帶「由 Claude Code 代發」時，不補第二份" '由 Claude Code 代發'
+assert_signed_once "H-P8 body 自帶「由 Codex 代發」時，不補第二份" '由 Codex 代發'
 
 # ── H-P9：預覽與真送同一套規則 ───────────────────────────────────────────────
 # 兩邊套不同規則的話，預覽答的是另一個問題——而預覽正是這條鏈上唯一一個便宜的檢查點。
@@ -376,12 +390,12 @@ run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
 preview_rc="$RC"
 preview_signed="$(printf '%s' "$OUT" | python3 -c '
 import json,sys
-print("yes" if "由 Claude Code 代" in json.load(sys.stdin)["body"] else "no")' 2>/dev/null || printf X)"
+print("yes" if "由 AI 助理代" in json.load(sys.stdin)["body"] else "no")' 2>/dev/null || printf X)"
 run_subject --repository o/r --pull-number 12 --reviewed-head "$CURRENT_HEAD" \
   --event COMMENT --body-file "$WORK/body.txt" --submit
 real_signed="$(python3 -c '
 import json,sys
-print("yes" if "由 Claude Code 代" in json.load(open(sys.argv[1]))["body"] else "no")' "$STUB_POST_PAYLOAD" 2>/dev/null || printf X)"
+print("yes" if "由 AI 助理代" in json.load(open(sys.argv[1]))["body"] else "no")' "$STUB_POST_PAYLOAD" 2>/dev/null || printf X)"
 if [[ "$preview_rc" -eq 0 && "$preview_signed" == "yes" && "$real_signed" == "yes" ]]; then
   pass "H-P9 同一份 body，預覽與真送補出來的署名相同"
 else
