@@ -276,6 +276,104 @@ def pack_of(state: dict) -> str | None:
     return (state.get("knowledge_pack") or {}).get("pack")
 
 
+def _touched_index(issues_root: str) -> dict[str, str] | None:
+    """整棵樹每一張單「上次真的被改過」的日期，一次 `git log` 問完（DP-1026）。
+
+    以前每張單各跑一次 `git log --follow`：2026-11-11 在 1,427 張的真樹上量到每張 0.12～1.5 秒、
+    整趟 358 秒（同一天 eval 與驗證者同時在跑時單張量到 2.3 秒——尾段那一小時是那種負載下的）。
+    這裡只跑一次、只看 `*/index.md`（同一棵樹 2.8 秒），逐 commit 由新到舊掃 numstat：
+
+    - 鍵是單的目錄名，不是路徑。單換格子是 rename，路徑變、目錄名不變，所以不需要 `--follow`
+      就能跨搬家；`-M` 讓搬家在 numstat 上長成 `0  0  a/{old => new}/index.md`，行數為 0，
+      照舊不算「動過」。
+    - 目錄名真的換過的（slug 改名），rename 那一行同時說出新舊兩個名字：往更舊的 commit 掃時，
+      舊名字的改動記到新名字上——這正是 `--follow` 會走到的那段歷史。
+    - 每個名字只記第一次（最新一次）行數不為 0 的 commit 日期，跟 `first_commit_that_changed_lines`
+      對單一路徑做的事相同。
+
+    跟逐張 `--follow` 差在哪，說出來：
+    - 檔名本身改過的（例如 spec.md → index.md）`--follow` 跟得到、`*/index.md` 收不到改名前那段。
+      但這裡問的是最新一次，而改名那顆 commit 本身就碰了 index.md，所以答案一樣。2026-11-11 真樹
+      歷史裡這種改名 53 筆，1,427 張逐張逐位元比對 0 差。
+    - 半徑：以前一張單問不到只有那一張「不知道」；這裡整棵樹一次問，問不到回 None，呼叫端
+      退回逐張問（`last_touched`），所以一次失敗不會讓整棵樹變成「不知道」。
+    - 路徑含非 ASCII 時 git 會把整條路徑加引號，`core.quotePath=false` 關掉它，不然那幾行會被
+      當成不是 index.md 丟掉（真樹上 163 行會這樣）。路徑裡有 `"` 或控制字元的 git 照樣加引號
+      （真樹上 8 行），`_unquote` 拆掉。
+
+    問不到（不是 git repo、git 失敗、逾時）回 None。
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", issues_root, "-c", "core.quotePath=false", "log", "--format=%cs", "--numstat",
+             "-M", "--", "*/index.md"],
+            capture_output=True, text=True, timeout=RESOLVER_TIMEOUT_SECONDS * 4)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    index: dict[str, str] = {}
+    alias: dict[str, str] = {}
+
+    def resolve(name: str) -> str:
+        seen = set()
+        while name in alias and name not in seen:
+            seen.add(name)
+            name = alias[name]
+        return name
+
+    def _unquote(path: str) -> str:
+        """git 的 C 風格引號：`"a\\"b"` → `a"b`。沒加引號的原樣回。"""
+        if len(path) < 2 or path[0] != '"' or path[-1] != '"':
+            return path
+        # quotePath=false 之後非 ASCII 原樣印，剩下會被跳脫的只有 `\"`、`\\` 與控制字元。
+        return re.sub(r"\\(\\|\"|[abtnvfr]|[0-7]{3})",
+                      lambda m: {"\\": "\\", '"': '"'}.get(m.group(1))
+                      or (chr(int(m.group(1), 8)) if m.group(1)[0] in "01234567"
+                          else {"a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v", "f": "\f", "r": "\r"}[m.group(1)]),
+                      path[1:-1])
+
+    def names_of(path: str) -> tuple[str, str]:
+        """numstat 那一欄的路徑裡，這張單搬家前後的目錄名（沒搬就是同一個）。"""
+        if " => " not in path:
+            parent = os.path.basename(os.path.dirname(path))
+            return parent, parent
+        if "{" in path and "}" in path and " => " in path.split("{", 1)[1].split("}", 1)[0]:
+            pre, rest = path.split("{", 1)
+            inner, post = rest.split("}", 1)
+            old_part, new_part = inner.split(" => ", 1)
+            old_path, new_path = pre + old_part + post, pre + new_part + post
+        else:
+            old_path, new_path = path.split(" => ", 1)
+        return (os.path.basename(os.path.dirname(old_path.replace("//", "/"))),
+                os.path.basename(os.path.dirname(new_path.replace("//", "/"))))
+
+    date = None
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if DATE_LINE.match(line):
+            date = line
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3 or not date:
+            continue
+        parts[2] = _unquote(parts[2])
+        if not parts[2].endswith("index.md"):
+            continue
+        old_name, new_name = names_of(parts[2])
+        if old_name != new_name:
+            alias[old_name] = resolve(new_name)
+        name = resolve(new_name)
+        if (parts[0] != "0" or parts[1] != "0") and name not in index:
+            index[name] = date
+    return index
+
+
+_TOUCHED_INDEX: dict[str, dict[str, str] | None] = {}
+
+
 def last_touched(issues_root: str, relative: str, name: str) -> str | None:
     """這張單上次**被動過**是哪一天——問 `issues` 自己的 git 歷史。
 
@@ -289,25 +387,20 @@ def last_touched(issues_root: str, relative: str, name: str) -> str | None:
     狀態都會產生 commit，而那不是有人在做這張單。實測 DP-440：整個目錄的最後一筆是今天
     （一個只改 `.spine/` 的記帳 commit），`index.md` 是 08-04。後者才是答案。
 
-    答案照單名記住。搬完之後要再調查一次，那時候舊路徑已經不在了，git 會回空的——而
-    「0 天前」與「不知道」在這份清單上是兩件不同的事。
+    答案照單名記住：整棵樹的答案由 `_touched_index` 一次問完（DP-1026），這裡只是查表。
+    `relative` 留著是為了呼叫端不用改，查表不用它。
     """
     if name in _TOUCHED_CACHE:
         return _TOUCHED_CACHE[name]
-    answer = None
-    try:
-        result = subprocess.run(
-            # --follow：單會換格子，換格子就是 rename。不跟著走的話，每一次搬家都會把
-            # 所有單的「上次動過」清成「不知道」——它們的歷史還在，只是掛在舊路徑上。
-            # --numstat：純改名是 `0  0`。搬家本身也是一個 commit，算進去的話每一次重算
-            # 都會把所有單刷成「今天動過」，而「兩個月沒動的 code review」就永遠浮不出來。
-            ["git", "-C", issues_root, "log", "--follow", "--format=%cs", "--numstat",
-             "--", os.path.join(relative, "index.md")],
-            capture_output=True, text=True, timeout=RESOLVER_TIMEOUT_SECONDS)
-        if result.returncode == 0:
-            answer = first_commit_that_changed_lines(result.stdout)
-    except (OSError, subprocess.SubprocessError):
-        answer = None
+    root = os.path.abspath(issues_root)
+    if root not in _TOUCHED_INDEX:
+        _TOUCHED_INDEX[root] = _touched_index(root)
+    table = _TOUCHED_INDEX[root]
+    if table is None:
+        # 整棵樹一次問不到（git 失敗、逾時）：退回逐張問，半徑跟以前一樣是一張單，不是整棵樹。
+        answer = touched_at(issues_root, relative)
+    else:
+        answer = table.get(name)
     _TOUCHED_CACHE[name] = answer
     return answer
 
@@ -315,8 +408,9 @@ def last_touched(issues_root: str, relative: str, name: str) -> str | None:
 def touched_at(issues_root: str, relative: str) -> str | None:
     """**這個路徑**上可以改的那部分，上次真的被改過是哪一天。問不到回 None。
 
-    不走 `last_touched`：那一支照**單名**記住答案，而這裡問的正好是同一個單號的兩個不同
-    路徑——共用一份按名字記的快取，兩邊會拿到同一個日期，而那個日期正是要拿來分辨它們的。
+    逐路徑 `git log --follow`，一張單約 0.25 秒。`last_touched` 只在整棵樹一次問不到的時候退回
+    來這裡（DP-1026），平常不走——那一支照**單名**查表，而這裡按路徑問，同一個單號的兩個不同
+    路徑在這裡拿得到各自的日期。
 
     「不知道」與「今天」是兩件事。問不到就回 None，讓報告寫「不知道」——把記帳那天填進去
     的話，一個看得出來的空白會變成一個看不出來的謊。
