@@ -642,6 +642,62 @@ def standing_for(text, line=None, holding=None):
     return "".join(keep).strip()
 
 
+def pointer_lines(raw):
+    """一節（或前言）裡以「→」開頭的行，去掉縮排與清單記號，照原順序。其餘行都不是指向。"""
+    out = []
+    for ln in raw.splitlines():
+        s = ln.strip()
+        if s.startswith("- "):
+            s = s[2:].strip()
+        if s.startswith("→"):
+            out.append(s)
+    return out
+
+
+STANDING_DATE = re.compile(r"（\d{4}-\d{2}-\d{2}[^）]*）\s*$")
+
+
+def standing_pointers_for(text, line, holding):
+    """一條線的常駐規矩，只有標題與指向：每一節一行標題（去掉日期與 `[線：…]` 標記），底下接
+    那一節的「→」行；原話、散文、標本一行都不帶。節的篩法跟 `standing_for` 同一套（共用的、
+    對上這條線的，封存不帶）。前言只留它的「→」行，前言自己的標題不印——線段落上面已經有一個
+    「## 常駐規矩」。
+
+    沒有「→」行的節印一行說本文在 standing.md 的那一節、用 Read 讀那個路徑（`--lookup` 只讀日誌與宣告，
+    讀不到 standing.md，驗證者 2026-11-11 實跑量到）：那一節是規矩本身，不是指向，
+    SKILL.md〈重建〉要它搬進它指的 skill。原話留給指揮官段與壓縮後的注入（`commander_memory`），
+    那兩處照舊走 `standing_for`。使用者 2026-11-10 原話：「現在各線的 prompt 都不合理的龐大，找到
+    原因並修正」——那天每條線 16.9～17.8KB，常駐規矩段 10.3KB／30 節。
+    """
+    keep = []
+    saw_section = False
+    for tags, raw in standing_chunks(text):
+        if STANDING_ARCHIVED in tags:
+            continue
+        if tags and not any(standing_tag_matches(t, line, holding) for t in tags):
+            continue
+        pointers = pointer_lines(raw)
+        if not raw.startswith("## "):
+            keep += pointers
+            continue
+        saw_section = True
+        title = STANDING_DATE.sub("", STANDING_TAG.sub("", raw.splitlines()[0][3:])).strip()
+        keep.append("- " + title)
+        keep += ["  " + p for p in pointers] or [
+            "  （沒有指向：本文在 " + STANDING + " 的這一節，用 Read 讀那個路徑）"]
+    if not saw_section and not keep:
+        # 空白會被讀成「沒有規矩」，所以三種空各說各的（驗證者 dbf1f0cb：把「整份沒有節」與「沒有一節對上這條線」
+        # 說成同一句，讀的人會去 Read 整份、拿到別條線的規矩）。
+        if not text.strip():
+            return "（" + STANDING + " 是空的：這台機器還沒有常駐規矩）"
+        total = sum(1 for ln in text.splitlines() if ln.startswith("## "))
+        if total:
+            return ("（" + STANDING + " 有 " + str(total) + " 節，沒有一節的標記對上「" + line
+                    + "」、也沒有共用的節：這條線沒有常駐規矩，不用 Read 那份檔）")
+        return "（" + STANDING + " 沒有任何「## 」節，前言也沒有「→」行：規矩本文在那份檔裡，用 Read 讀那個路徑）"
+    return "\n".join(keep)
+
+
 def standing_sections(text):
     """standing.md 切成 [(標題, [那一節帶「原話」的句子])]，照檔案順序。"""
     out = []
@@ -2177,26 +2233,29 @@ def read_standing():
         return None
 
 
-def related_entries(entries, line, name, per_line):
-    """日誌裡跟這條線有關的最近幾筆：只認宣告那一格、「X 線」這種寫法、或上一任的名字。"""
+def related_entries(entries, line, name):
+    """日誌裡跟這條線有關的每一筆：只認宣告那一格、「X 線」這種寫法、或上一任的名字。
+    線段落只印筆數，內文由新線自己用 `--lookup` 讀。"""
     marks = ("線：" + line, line + " 線", line + "線", "線＝" + line) + ((name,) if name else ())
-    return [e for e in entries if any(k in e for k in marks)][-per_line:]
+    return [e for e in entries if any(k in e for k in marks)]
 
 
-def line_section(line, heading_note, commander, standing, holding, work, related, no_related,
-                 hand_off_without_issue=True):
+def line_section(line, heading_note, commander, standing, holding, work, related_count,
+                 hand_off_without_issue=True, related_name=None):
     """一條實作線的開場段，重建與新線共用同一個形狀。回傳要接進輸出的行。
 
-    heading_note 接在標題線名後面；work 是〈你的工作〉開頭那幾行；related 是日誌裡跟這條線
-    有關的幾筆，沒有時印 no_related。hand_off_without_issue 是 False 時，holding 指不到本機的
-    單就不印「從那張單接手」那一句。
+    heading_note 接在標題線名後面；work 是〈你的工作〉開頭那幾行；related_count 是日誌裡跟
+    這條線有關的筆數——段落只印筆數與讀法（`--lookup`），不貼內文；related_name 是上一任的名字，
+    有的話一起進 `--lookup` 的鍵，不然只對得上舊名字的那幾筆用線名查不到。hand_off_without_issue 是
+    False 時，holding 指不到本機的單就不印「從那張單接手」那一句。段尾印這一段的 bytes，讓
+    印的人看得到自己印了多少。
     """
     # 宣告的線名常常自己就帶「線」（「review 線」「DP 線（…）」），再接一個會印成「X 線 線」。
     label = line if "線" in line else line + " 線"
     no_standing = ("（日誌目錄裡沒有常駐規矩檔：" + STANDING + "。"
                    "這一條線要守的規矩只有下面那張單與 skill 自己帶的。）")
     out = ["## " + label + heading_note, "", FENCE + "markdown"]
-    out += [
+    body = [
         BROWSER_MENTION,
         "你是 **" + label + "**，實作 session。指揮官是 " + commander + "；"
         "使用者只在指揮官那條線發號施令，你的回報送給指揮官。",
@@ -2208,26 +2267,30 @@ def line_section(line, heading_note, commander, standing, holding, work, related
         "",
         "## 常駐規矩",
         "",
-        standing_for(standing, line, holding) if standing is not None else no_standing,
+        standing_pointers_for(standing, line, holding) if standing is not None else no_standing,
         "",
         "## 你的工作",
         "",
     ] + work + [
         "",
-        "日誌裡跟這條線有關的最近幾筆：",
-        "",
+        # 印完整路徑，不印 $CP：那個變數只活在開場四步第 2 步那一個 shell 片段裡，新線另開 shell 跑就是
+        # Unknown option（驗證者 dbf1f0cb 實跑量到）。
+        ("日誌裡標著這條線（宣告欄、「" + (line if "線" in line else line + " 線") + "」寫法" + ("、上一任名字 " + related_name if related_name else "")
+         + "）的紀錄：" + str(related_count) + " 筆，`python3 " + SCRIPT + " --lookup '" + line + "'"
+         + (" '" + related_name + "'" if related_name else "") + "` 讀；`--lookup` 是全文搜尋，命中數會多於這個筆數。")
+        if related_count
+        else "（日誌裡沒有提到「" + line + "」的紀錄；之後有了用 `python3 " + SCRIPT + " --lookup '" + line + "'` 讀。）",
     ]
-    out += [e + "\n" for e in related] if related else [no_related, ""]
     held = held_issue(holding)
     if held or hand_off_without_issue:
-        out += ["從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
+        body += ["", "從那張單自己的 index.md 與 .spine/ 接手；不確定在哪一站就問 driving-work-to-done。"]
     if held:
-        out += ["", pack_line(held)]
-    out += [FENCE, ""]
-    return out
+        body += ["", pack_line(held)]
+    body += ["", "（這一段到這裡 " + str(len("\n".join(body).encode("utf-8"))) + " bytes）"]
+    return out + body + [FENCE, ""]
 
 
-def new_line_text(commander, line, holding, now=None, per_line=6):
+def new_line_text(commander, line, holding, now=None):
     """還沒有人宣告過的一條新線的開場 prompt：跟重建的線段落同形，不需要本機單目錄。
 
     線名與 holding 由下指令的人明講，所以不從宣告推；它不寫宣告，宣告由新 session 自己寫。
@@ -2238,14 +2301,13 @@ def new_line_text(commander, line, holding, now=None, per_line=6):
            "整段複製貼上，當成新 session 的第一則訊息。", ""]
     out += line_section(line, "（新線）", commander, read_standing(), holding,
                         ["指揮官派給這條線的工作：", "- 接：" + " ".join(holding.split())],
-                        related_entries(entries, line, None, per_line),
-                        "（日誌裡沒有提到「" + line + "」的紀錄）", hand_off_without_issue=False)
+                        len(related_entries(entries, line, None)), hand_off_without_issue=False)
     if jprob:
         out.append("日誌：" + jprob)
     return "\n".join(out).rstrip() + "\n"
 
 
-def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
+def rebuild_text(commander, issues_root, since_hours=24, now=None):
     """重建時要貼給新 session 的全部 prompt。
 
     使用者 2026-09-19 的原話：「直接給我 prompt，不要用文件給，用 md 給，我要能直接複製
@@ -2303,7 +2365,6 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
     for line, decl, name, running in lines:
         # 線名常常是另一個詞的前綴（`DP` 之於 `DP-732`），所以不做子字串比對：只認宣告那一格、
         # 「X 線」這種寫法、或上一任的名字。
-        related = related_entries(entries, line, name, per_line)
         work = [
             "上一任最後的宣告（" + stamp(decl.get("declared_at")) + "）：",
             "- 接：" + " ".join(str(decl.get("holding")).split()),
@@ -2312,8 +2373,8 @@ def rebuild_text(commander, issues_root, since_hours=24, now=None, per_line=6):
         ]
         out += line_section(line, "（上一任 " + name + "，"
                             + {True: "還活著", False: "已經結束", None: "死活不明"}[running] + "）",
-                            commander, standing, decl.get("holding"), work, related,
-                            "（日誌裡沒有提到「" + line + "」或「" + name + "」的紀錄）")
+                            commander, standing, decl.get("holding"), work,
+                            len(related_entries(entries, line, name)), related_name=name)
 
     if not lines:
         out.append("（" + str(since_hours) + " 小時內沒有任何宣告說出自己是哪條線，"
