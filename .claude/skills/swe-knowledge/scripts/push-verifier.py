@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Purpose: push-verifier.sh 接上的 pre-push 轉呼叫叫這一支（DP-911）。
 
-  dispatch <remote> <url>     從 stdin 讀 git 給 pre-push 的那幾行，推到一顆開著的 PR 時在背景派驗證者
+  dispatch <remote> <url>     從 stdin 讀 git 給 pre-push 的那幾行，推到一顆開著的 PR 時在背景派驗證者；
+                              推的只是壓版 commit（動到 VERSION，且只碰 VERSION／CHANGELOG.md／package.json／.changeset/）時說一行、不派（DP-1046）
   run --issue <單> --repo <checkout> --head <sha> --base <branch> [--pr <n>] [--remote <name>]
                               驗證者本身：自己的 worktree、看不到施工對話的指示、判定寫回那張單
   progress --issue <單> --repo <checkout> --head <sha> <一行>
@@ -11,7 +12,8 @@ Exit: dispatch 永遠 0（它不擋 push）；run 0 判定寫成、1 寫不成�
 
 驗證者拿到的只有：那張單的凍結塊、那個 head 相對 base 的 diff（base 先從 origin fetch）、PR 上
 一輪的 review 意見（預抓成 reviews.json）、落腳 repo 的規矩檔、本機環境的宣告（`{前綴}-ENVIRONMENT-{名}`）。不給施工對話、不給量測登錄、不給單上可以改的那部分。
-判定是意見，不擋 merge：紅了那張單回 engineering，跑不到的寫「跑不到」與缺什麼，不判綠。
+判定是意見，不擋 merge：紅了那張單回 engineering（已釋出的單——.spine/release.json 在——站別不動，DP-1046），
+跑不到的寫「跑不到」與缺什麼，不判綠。
 
 它碰得到的東西只有指示裡寫的上界，不是一道閘：預設命令不載 MCP、不讀這台機器的個人設定，
 但 Bash 叫得到。真正擋推 ref 與改動的，是那個 worktree 是 detached、而且用完就拆。
@@ -102,6 +104,28 @@ def locate_ticket(ticket, repo):
     return hits.pop(), None
 
 
+# 壓版 commit 會碰的檔：釋出尾段 compress 那一顆只動這四處（DP-1046）
+RELEASE_FILES = ("VERSION", "CHANGELOG.md", "package.json")
+RELEASE_DIR = ".changeset/"
+
+
+def pushed_files(repo, remote_sha, local_sha):
+    """遠端那條 branch 現在的 sha 到要推的 sha 之間（<remote sha>..<local sha>）改到的檔集合。
+    算不出來回 None：遠端還沒有那條 branch（sha 全 0），或遠端那顆 sha 本機沒有。None 不是空集合——呼叫端照舊派。"""
+    if remote_sha == ZERO:
+        return None
+    r = subprocess.run(["git", "-C", repo, "diff", "--name-only", remote_sha, local_sha], capture_output=True, text=True)
+    if r.returncode != 0:
+        return None
+    return {l for l in r.stdout.splitlines() if l.strip()}
+
+
+def is_version_bump(files):
+    """壓版 commit 的形狀：真的動到 VERSION，而且沒有碰 VERSION、CHANGELOG.md、package.json、.changeset/ 之外的任何檔。
+    只碰 package.json、只碰 .changeset/ 都不是（那是一般的改動），空集合也不是。"""
+    return bool(files) and "VERSION" in files and all(f in RELEASE_FILES or f.startswith(RELEASE_DIR) for f in files)
+
+
 def dispatch(remote, url):
     top = git(".", "rev-parse", "--show-toplevel")
     issues = config(top, "polaris.pushVerifier.issues")
@@ -110,7 +134,7 @@ def dispatch(remote, url):
         if len(parts) != 4:
             continue
         # 第一欄是 push 命令寫下的 src 原字（HEAD、HEAD~1 都會出現），分支名只能從遠端那一欄讀
-        _local_ref, local_sha, remote_ref, _ = parts
+        _local_ref, local_sha, remote_ref, remote_sha = parts
         if local_sha == ZERO:
             say(f"這次是刪分支 {remote_ref}，不派。")
             continue
@@ -118,6 +142,11 @@ def dispatch(remote, url):
             say(f"推的是 {remote_ref}，不是分支，不派。")
             continue
         branch = remote_ref[len("refs/heads/"):]
+        # 釋出尾段推壓版 commit 時 PR 常常還開著；那一趟派出去的驗證者會對版號 commit 判紅、把已釋出的單退回 engineering（DP-1046）
+        files = pushed_files(top, remote_sha, local_sha)
+        if files is not None and is_version_bump(files):
+            say(f"壓版 commit，不派驗證者：{branch} 相對遠端多出來的 commit 只碰 {'、'.join(sorted(files))}。")
+            continue
         # 推的網址可能被 pushInsteadOf 改寫過；認不出來就問 remote 原本設的那一個
         slug = slug_of(url) or slug_of(git(top, "remote", "get-url", remote, check=False) if remote else "")
         if not slug:
@@ -343,6 +372,28 @@ def back_to_engineering(ticket, head):
     return f"站別 {station} → engineering" if r.returncode == 0 else f"退回 engineering 失敗：{r.stderr.strip()[:300]}"
 
 
+def released_version(ticket):
+    """那張單釋出了沒：.spine/release.json 在就是釋出過（釋出尾段寫的），回它的 version；讀不出 version 回「（版本讀不到）」；檔不在回 None。"""
+    path = os.path.join(ticket, ".spine", "release.json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        return str(json.load(open(path, encoding="utf-8")).get("version") or "（版本讀不到）")
+    except (OSError, ValueError):
+        return "（版本讀不到）"
+
+
+def settle_station(ticket, head, verdict):
+    """判定寫回之後站別怎麼動，回一句給 log：只有紅才動；已釋出的單紅了也不動（DP-1046）——
+    釋出之後 PR 還開著的那幾分鐘推上去的壓版 commit 派出的驗證者判紅，站別會跟 release.json 打架。"""
+    if verdict != "FAIL":
+        return "站別不動"
+    version = released_version(ticket)
+    if version:
+        return f"已釋出 {version}，站別不動"
+    return back_to_engineering(ticket, head)
+
+
 def commit_ticket(ticket, head):
     """commit 那張單，連同 git 看得到的、同一個目錄名的其他路徑（DP-1001）：搬動沒被 commit 時（mv 或 git mv、
     搬一次或兩次），舊路徑與中間路徑的刪除都要進這一顆，不然這顆或下一顆 commit 的樹裡同一個單號有兩份。"""
@@ -454,7 +505,7 @@ def run(a):
         except OSError as e:
             ticket, why = None, f"寫回 {ticket} 失敗（{e}）"
     if ticket:
-        note = back_to_engineering(ticket, a.head) if result["verdict"] == "FAIL" else "站別不動"
+        note = settle_station(ticket, a.head, result["verdict"])
         # 退回 engineering 會讓位置重算再搬一次單，commit 之前再找一次
         ticket = locate_ticket(ticket, a.repo)[0] or ticket
     else:

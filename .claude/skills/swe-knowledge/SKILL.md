@@ -438,13 +438,18 @@ bash .claude/skills/swe-knowledge/scripts/push-verifier.sh remove  --repo <check
   把 `core.hooksPath` 寫回 `[core]`，轉呼叫照樣在，原本的 hook 跟著那一格轉。
 - **它不擋 push，也不等。** 判有沒有 open PR 用的是推到遠端的那個分支名，`HEAD:<branch>` 也認得。
   刪分支、推 tag 不派，各說一行；推沒有 open PR 的分支不派，也不說；問不到有沒有 PR 時說一行，照樣不派。
+  **壓版 commit 不派**（DP-1046）：推的 head 相對遠端那條 branch 多出來的 commit 真的動到 `VERSION`、而且只碰
+  `VERSION`、`CHANGELOG.md`、`package.json`、`.changeset/`，印一行「壓版 commit，不派驗證者」。釋出尾段推那一顆
+  的時候 PR 常常還開著，派出去的驗證者對版號 commit 判紅，會把一張已釋出的單退回 `engineering`。只碰
+  `package.json`、只碰 `.changeset/`、多碰任何一個別的檔、或遠端還沒有那條 branch，照舊派。
 - **驗證者看到的**只有凍結塊、那個 head 相對 base 的 diff、PR 上一輪的 review 意見、repo 的規矩檔、
   本機環境的宣告，在自己的 worktree 裡。base 先從 origin fetch，本機沒有那條 base 也產得出 diff；
   review 意見在派它之前預抓成一份檔，它不用自己打 `gh`。它跑 `check-your-own-work` 九問，並照
   上一節走請求鏈。
 - **判定寫回那張單**：一段行首 `check-your-own-work 九問，head <head>（驗證者）` 的紀錄，加
-  `.spine/independent/<head>.json`。紅了那張單回 `engineering`；起不起來、拿不到資料、鏈走不完的
-  寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。寫回之前它照單號重找一次單的現址
+  `.spine/independent/<head>.json`。紅了那張單回 `engineering`；已釋出的單（釋出紀錄 `release.json` 在）
+  紅了也照樣寫那一段與判定檔，但站別不動，log 多印一行「已釋出 <version>，站別不動」（DP-1046）。
+  起不起來、拿不到資料、鏈走不完的寫「跑不到」與缺什麼，不判綠。它不擋 merge，出貨點不讀它。寫回之前它照單號重找一次單的現址
   ——派出之後單可能被搬到別格；找不到或不只一張就不寫、不建目錄，把判定原樣印在輸出裡，並另存一份在
   checkout 的 git 目錄底下 `polaris-push-verifier/unwritten/<head>.json`。
 - **進度看 log**：驗證者每做完一問或一條鏈就用 `push-verifier.py progress` 寫一行到單現在那一份的
