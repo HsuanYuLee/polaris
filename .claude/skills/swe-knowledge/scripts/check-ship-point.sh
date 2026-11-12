@@ -29,6 +29,30 @@
 # 或交付紀錄釘在這個 head。命名空間的條件對這兩種收到的是 --action merge：梯子放行某一次併，就放行
 # 為了那一次併而把 PR 轉成 ready。
 #
+# open 與 ready 對到的單上有這個 head 的判定行時，還要這個 head 的兩行九問紀錄都在單上（DP-1029；只靠
+# 交付紀錄對到、沒有判定行的那一路照舊放行。那一型在真實樹上有幾張，量到的值不抄在這裡，要知道就問：
+#   find <單的根目錄> -path '*/.spine/delivery.json' | while read d; do t=${d%/.spine/delivery.json}; grep -q VERIFY-AC-VERDICT "$t/index.md" 2>/dev/null || echo "$t"; done | wc -l
+# 對比 delivery.json 的總數）：施工方那一行（行首
+# `check-your-own-work 九問，head <sha>`）與驗證者那一行（同樣行首，接 `（驗證者）`；括號裡以「驗證者」開頭就是
+# 驗證者那一行，後面可以帶字，例如 `（驗證者，第二輪）`；括號不以「驗證者」開頭的是施工方那一行，例如
+# `（對這顆 diff 逐問答）`）。判定行比驗證者早寫得出來，只看判定行的話，驗證者後到的 head 照樣 ready。
+# 兩行的行首可以先有標題或清單前綴（`## `、`- `）。缺哪一行就說哪一行。驗證者那一行寫「跑不到」帶理由、
+# 或判綠，就算在，不再判它的內容。
+# 同一行還有第二個讀者：交付紀錄的 self_check 那一格（verify-ac/scripts/record-delivery-intent.sh）仍只認行首
+# 裸寫的九問行，帶標題或清單前綴的九問行它記成沒跑；這一道認、那一格不認。這顆不動那支（DP-1029 A-N2 把改動
+# 限在這一支與 swe-knowledge 第 3 條），這裡只把這個差說出來。
+#
+# 驗證者在這個 head 判紅時（DP-1029 A-P3），ready 還要單上對它每一條 finding 逐條處置。紅與 finding 數先讀
+# `.spine/independent/<head>.json` 的 verdict（push-verifier 寫）：FAIL 是紅；PASS 與 UNMEASURABLE 不看處置，驗證者
+# 那一行寫的是「：紅」也以 json 為準；讀不到那份才看那一行冒號後的字，「紅」算 1 條。verdict 是 PARTIAL
+# （push-verifier 逾時那半份，單上寫「沒跑完」）跟紅同一個待遇：那半份列了 finding 就要逐條處置，一條都沒列就擋下
+# 並說驗證者沒跑完——它的答案還沒給完。處置寫在行首「回驗證者 <head>」那一段（前面可以是 `## `～`#### ` 標題），
+# 底下一條一項、只數頂層項目，每一項是照做、說明為什麼不照做、拒絕、另開單四種處置之一。標題與第一個項目之間
+# 可以有幾行前言或空行，不算也不中斷；數起來之後遇到下一段散文就停；不論數起來沒有，下一個標題、下一段
+# 「回驗證者」、或一行九問紀錄就是這一段的結尾（驗證者那一行底下接的 1.～9. 與 finding 清單不是處置）。
+# 處置條數少於 finding 數就擋，並說出紅幾條、處置幾條、寫在哪。open 不看這一格。merge、tag、deploy 不看九問行，
+# 也不看處置。
+#
 # merge 的 base 不是那個 repo 的預設分支時（例如併進一條 feature branch），照 open 與 ready 判：
 # 那不是進預設分支，〈五條〉第 3 條管不到它，但它仍要這個 head 判過。預設分支由呼叫者用
 # --default-branch 給；沒給（問不到）就當成預設分支，照 delivered 判。
@@ -127,8 +151,98 @@ def verdict_heads(ticket):
     except OSError:
         return set()
 
+# 九問紀錄的行首：`check-your-own-work 九問，head <sha>`，engineering 自己的例子還有 `head <a> → <b>` 兩段式（取後者）；
+# 驗證者那一行在 sha 後面接一個以「驗證者」開頭的括號（`（驗證者）`，也可以是 `（驗證者，第二輪）`——push-verifier
+# 寫的是固定格式，人手寫的會帶字；只認逐字 `（驗證者）` 時，帶字的那一行會被算成施工方那一行，一張只有驗證者行
+# 的單就過了 A-P1）。括號不以「驗證者」開頭、或沒有括號的，是施工方那一行。行首可以先有標題（`## `）或清單
+# （`- `、`1. `）前綴——真實樹上的施工方紀錄有這一型。施工方行與驗證者判紅那一行共用同一段行首，兩者認得的
+# 形狀才不會分岔。
+NINE_LEAD = (r"^(?:#{1,6}\s+|[-*]\s+|\d+[.)]\s+)?check-your-own-work 九問，head\s+"
+             r"(?:[0-9a-f]{7,40}\s*→\s*)?([0-9a-f]{7,40})\s*")
+VERIFIER_TAG = r"（驗證者[^）\n]*）"
+NINE_LINE = re.compile(NINE_LEAD + r"(" + VERIFIER_TAG + r")?", re.M)
+
+def nine_question_heads(ticket):
+    """回 (施工方寫過的 head 集合, 驗證者寫過的 head 集合)。讀不到單就兩個都空。"""
+    try:
+        text_ = open(os.path.join(ticket, "index.md"), encoding="utf-8").read()
+    except OSError:
+        return set(), set()
+    builder, verifier = set(), set()
+    for sha, is_verifier in NINE_LINE.findall(text_):
+        (verifier if is_verifier else builder).add(sha)
+    return builder, verifier
+
 def matches_head(recorded):
     return any(h.startswith(r) or r.startswith(h) for h in heads for r in recorded if len(h) >= 7)
+
+# 驗證者判紅的 head，ready 還要單上對它每一條 finding 的處置（DP-1029 A-P3 重簽）。先讀 `.spine/independent/<head>.json`
+# 的 verdict（push-verifier 寫）：FAIL 是紅；PARTIAL 是逾時那半份（單上寫「沒跑完」），跟紅同一個待遇；PASS 與
+# UNMEASURABLE 不看處置，那一行寫什麼都以 json 為準。讀不到 json 才看驗證者那一行冒號後的字：「紅」當 1 條、
+# 「沒跑完」當一條都還沒列。
+VERIFIER_LABEL_LINE = re.compile(NINE_LEAD + VERIFIER_TAG + r"\s*：\s*(紅|沒跑完)", re.M)
+
+def verifier_verdict(ticket):
+    """回 (「紅」或「沒跑完」或 None, finding 數)。讀不到單就 (None, 0)。"""
+    try:
+        text_ = open(os.path.join(ticket, "index.md"), encoding="utf-8").read()
+    except OSError:
+        return None, 0
+    ind = os.path.join(ticket, ".spine", "independent")
+    try:
+        names = sorted(os.listdir(ind))
+    except OSError:
+        names = []
+    for fn in names:
+        stem, ext = os.path.splitext(fn)
+        if ext != ".json" or not matches_head({stem}):
+            continue
+        rec = read(os.path.join(ind, fn)) or {}
+        n = len(rec.get("findings") or [])
+        if rec.get("verdict") == "FAIL":
+            return "紅", max(n, 1)
+        if rec.get("verdict") == "PARTIAL":
+            return "沒跑完", n
+        if rec.get("verdict") in ("PASS", "UNMEASURABLE"):
+            return None, 0
+    for sha, label in VERIFIER_LABEL_LINE.findall(text_):
+        if matches_head({sha}):
+            return label, 1 if label == "紅" else 0
+    return None, 0
+
+# 處置紀錄：行首「回驗證者 <head>」開一段（前面可以是 `## `～`#### ` 標題，跟 prior-decisions.py 認段落的寫法一樣），
+# 底下一條一項。只數不縮排的頂層項目（`- ` 或 `1. `）；縮排的子項與續行屬於上一條，不另算。標題與第一個項目之間
+# 的前言行（真實樹上的處置段多半先有一句「幾條處置落在哪一顆」）跳過不算、也不中斷；數起來之後遇到非項目、非縮排、
+# 非空的行（下一段散文）就停。不論數起來沒有，下一個標題、下一段「回驗證者 <head>」、或一行九問紀錄都是這一段的
+# 結尾——驗證者那一行底下接的是它自己的 1.～9. 與 finding 清單，不是處置。
+DISPOSITION_HEAD = re.compile(r"^(?:#{2,4}\s+)?回驗證者\s+([0-9a-f]{7,40})\b")
+LIST_ITEM = re.compile(r"^(?:[-*]|\d+[.)])\s+\S")
+HEADING = re.compile(r"^#{1,6}\s")
+
+def section_ends(line):
+    return bool(HEADING.match(line) or DISPOSITION_HEAD.match(line) or NINE_LINE.match(line))
+
+def disposition_count(ticket):
+    """單上對這個 head 的驗證者 finding 寫了幾條處置；沒有那一段就 0。"""
+    try:
+        lines = open(os.path.join(ticket, "index.md"), encoding="utf-8").read().split("\n")
+    except OSError:
+        return 0
+    best = 0
+    for i, line in enumerate(lines):
+        m = DISPOSITION_HEAD.match(line)
+        if not m or not matches_head({m.group(1)}):
+            continue
+        n = 0
+        for nxt in lines[i + 1:]:
+            if section_ends(nxt):
+                break
+            if LIST_ITEM.match(nxt):
+                n += 1
+            elif n and nxt.strip() and not nxt[0].isspace():
+                break
+        best = max(best, n)
+    return best
 
 mapped = {}
 for key in KEY.findall(branch + "\n" + text):
@@ -200,6 +314,35 @@ for ticket, why in sorted(mapped.items()):
     station = state.get("station") or "?"
     name = os.path.relpath(ticket, root)
     if by_verdict and heads and matches_head(verdict_heads(ticket) | delivery_heads(ticket)):
+        # 九問那兩行只對「判定行對到這個 head」的 open／ready 要；只靠交付紀錄對到、沒有判定行的那一路
+        # 照改前放行（A-N1；那一型佔真實樹的多數，怎麼量寫在檔頭，值不抄在這裡）。
+        if action in ("open", "ready") and matches_head(verdict_heads(ticket)):
+            builder, verifier = nine_question_heads(ticket)
+            missing = []
+            if not matches_head(builder):
+                missing.append("施工方那一行（行首「check-your-own-work 九問，head <這個 head>」，跑 check-your-own-work 寫回單）")
+            if not matches_head(verifier):
+                missing.append("驗證者那一行（行首「check-your-own-work 九問，head <這個 head>（驗證者）」，等 push-verifier 寫回，它跑不到也會寫一行）")
+            if missing:
+                blocked.append(f"{name}（靠{why}對到）這個 head 判過了，但單上缺它的九問紀錄：{'；'.join(missing)}。"
+                               f"順序是 push → push-verifier → 九問 → verify-ac 判定 → {action}，兩行都在了再 {action}。")
+                continue
+            if action == "ready":
+                label, n_findings = verifier_verdict(ticket)
+                if label == "沒跑完" and n_findings == 0:
+                    blocked.append(f"{name}（靠{why}對到）驗證者在這個 head 沒跑完（push-verifier 逾時，那半份一條 finding 都還沒列），"
+                                   f"答案還沒給完；等它重跑寫回單再 ready。")
+                    continue
+                if label:
+                    n_done = disposition_count(ticket)
+                    if n_done < n_findings:
+                        said = f"判紅 {n_findings} 條" if label == "紅" else f"沒跑完（push-verifier 逾時），那半份已列 {n_findings} 條 finding"
+                        blocked.append(f"{name}（靠{why}對到）驗證者在這個 head {said}，單上對它的逐條處置只有 {n_done} 條"
+                                       f"（寫在行首「回驗證者 <這個 head>」那一段底下，前面可以是 ## 標題，標題與第一項之間可以有前言；"
+                                       f"一條 finding 一個不縮排的清單項，子項不另算；段到下一個標題、下一段散文或九問行為止，所以寫在這個 head 的九問行前面；"
+                                       f"四種處置：照做、說明為什麼不照做、拒絕、另開單）。"
+                                       f"每一條都有處置了再 ready；照做的那一路推新的 head 讓驗證者重判。")
+                        continue
         continue
     if station not in passing:
         allowed, said = namespace_allows(ticket, name)

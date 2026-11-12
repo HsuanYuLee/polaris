@@ -72,10 +72,22 @@ assertion 全綠但改動還躺在預設分支上、沒有任何人看得到它�
    不擋。擋的時候說出單在哪、這次的 head、最後一筆判定的 head，以及修法。
 
    **這兩種的「判過」不是 delivered。** 帶著 stage、prod 才量得到的 assertion 的單，交付紀錄在那之前
-   寫不成，PR 卻要先 ready、先併才走得到 stage。所以這兩種讀的是 verify-ac 對這個 head 寫的那一行
-   （verify-ac 的 `record-verdict.sh`）：每一條不是過，就是寫明要到哪一站才量得到。
-   base 不是預設分支的 `gh pr merge`（例如併進一條 feature branch）也讀那一行；base 是預設分支的
-   照舊要 delivered。
+   寫不成，PR 卻要先 ready、先併才走得到 stage。所以這兩種讀單上對這個 head 寫的三種行：verify-ac 的
+   判定行（`record-verdict.sh` 寫，每一條不是過，就是寫明要到哪一站才量得到）、施工方的九問行（行首
+   `check-your-own-work 九問，head <sha>`）、驗證者的九問行（同樣行首接一個以「驗證者」開頭的括號，`（驗證者）`
+   或 `（驗證者，第二輪）` 都算；跑不到也是一行），
+   判定行對到這個 head 時三行都在才放行，缺哪一行說哪一行（只靠交付紀錄對到、沒有判定行的照舊放行）。
+   驗證者判紅的 head，`gh pr ready` 還要單上對它每一條 finding 的處置，少一條就擋（DP-1029）。紅不紅先讀
+   `.spine/independent/<head>.json` 的 verdict，讀不到那份才看驗證者那一行；json 是 PASS 或 UNMEASURABLE 而那一行
+   寫「：紅」時以 json 為準。verdict 是 PARTIAL（push-verifier 逾時那半份，單上寫「沒跑完」）跟紅同一個待遇：
+   列了 finding 就要逐條處置，一條都沒列也不放行，閘會說驗證者沒跑完。
+   處置紀錄由施工方寫在單上：一行以「回驗證者 <head>」開頭（前面可以加 `## `～`#### ` 標題），底下每條 finding
+   一個不縮排的清單項（`- ` 或 `1. `），寫照做、說明為什麼不照做、拒絕、另開單之一；縮排的子項不另算一條。
+   標題與第一個清單項之間可以先寫幾行前言；清單到下一段散文、下一個標題或下一行九問紀錄為止，所以這一段要寫在
+   這個 head 的九問行前面。九問行前面也可以加標題或清單前綴——但交付紀錄的 self_check 那一格
+   （`verify-ac/scripts/record-delivery-intent.sh`）仍只認行首裸寫的九問行，帶前綴的它記成沒跑；DP-1029 不動那一格
+   （它的 A-N2 把改動限在這一支閘與這一段），要讓交付紀錄也記到，九問行照舊裸寫在行首。
+   base 不是預設分支的 `gh pr merge`（例如併進一條 feature branch）只讀判定行；base 是預設分支的照舊要 delivered。
 
    **判定只留在本機。** push-verifier 的結果、verify-ac 判定行與交付紀錄都寫回單；
    `check-ship-point.sh` 從這些本機紀錄判斷能不能出貨。框架不以任何人的 GitHub token 對產品 repo
