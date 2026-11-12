@@ -1701,17 +1701,21 @@ def holders_of(issues_root, ticket_path):
     return "、".join(said)
 
 
-def epic_dir_of(issue_path):
-    """這張單落在哪一張鏈頂單底下：自己或往上最遠的那一個帶 `.spine/` 的目錄。
+def epic_dir_of(issue_path, issues_root):
+    """這張單落在哪一張鏈頂單底下：自己或往上最遠的那一個帶 `.spine/` 的目錄，不越過 `issues_root`。
 
     帶著 `.spine/` 的才是單（`driving-work-to-done`〈一張單住在哪〉），所以中間只當路徑用的
-    那幾層不算。往上一張都沒有、自己也沒有 `.spine/` 的話回 None——那不是一張單。
+    那幾層不算。往上走到單的根目錄就停：根目錄之上的 `.spine/` 不是這棵樹的單（workspace 根
+    自己帶一個，DP-1025）。單不在 `issues_root` 底下時沒有根可以擋，照舊一路往上。
+    往上一張都沒有、自己也沒有 `.spine/` 的話回 None——那不是一張單。
     """
-    cur = os.path.abspath(issue_path)
+    cur = os.path.realpath(issue_path)
+    root = os.path.realpath(issues_root)
+    inside = cur.startswith(root + os.sep)
     top = cur if os.path.isdir(os.path.join(cur, ".spine")) else None
     while True:
         parent = os.path.dirname(cur)
-        if parent == cur:
+        if parent == cur or (inside and parent == root):
             return top
         if os.path.isdir(os.path.join(parent, ".spine")):
             top = parent
@@ -1786,7 +1790,7 @@ def pr_epic_note(text, issues_root):
         if not ticket:
             lines.append(pr + "：對不到單，" + why + "。")
             continue
-        epic = epic_dir_of(ticket)
+        epic = epic_dir_of(ticket, issues_root)
         rows = open_tickets_under(epic)
         lines.append(pr + "（" + branch + "）屬於 " + os.path.basename(epic) + "，底下還 open 的單 "
                      + str(len(rows)) + " 張：")
@@ -1873,7 +1877,7 @@ def who_holds(issues_root, spec):
 
     for key in [k for k in spec.split("@") if k]:
         for d in ticket_dirs(issues_root, key):
-            lines, prob = other_live_lines(epic_dir_of(d) or d, set())
+            lines, prob = other_live_lines(epic_dir_of(d, issues_root) or d, set())
             if prob:
                 return None, prob
             for name, why in lines:
@@ -1932,13 +1936,13 @@ def line_refusal(to_name, epic):
             + " 要重建一條，跑 --rebuild；同一個 epic 已經有線的話派給那一條。")
 
 
-def epic_line_warning(issue_path, to_name, from_name):
+def epic_line_warning(issue_path, issues_root, to_name, from_name):
     """一個 epic 一條線：`--issue` 落在的那張鏈頂單已經有別條活線時，回一則警告。
 
     **警告不進指令本文**：本文是要送出去的那一份（`sent.jsonl` 記的是它的 hash），把警告
     混進去，收件者讀到的是一句寫給指揮官的話。所以它走 stderr，由 main() 印。
     """
-    epic = epic_dir_of(issue_path)
+    epic = epic_dir_of(issue_path, issues_root)
     if not epic:
         return None
     lines, problem = other_live_lines(epic, {to_name, from_name})
@@ -2683,7 +2687,7 @@ def main():
                 print("兩個對不上就不產出指令。要它回某一站，先在那張單上換站。", file=sys.stderr)
                 return 9
         if args.order:
-            epic = epic_dir_of(args.issue)
+            epic = epic_dir_of(args.issue, args.issues)
             # 宣告裡寫的是單號，不是整個目錄名，所以比的是目錄名開頭那個單號。
             key = re.match(r"[A-Z][A-Z0-9]*-\d+", os.path.basename(epic)) if epic else None
             refusal = line_refusal(to_names[0], key.group(0) if key else
@@ -2719,7 +2723,7 @@ def main():
             note = pr_epic_note(out, args.issues)
             if note:
                 print(note, file=sys.stderr)
-            warning = epic_line_warning(args.issue, to_names[0], frm)
+            warning = epic_line_warning(args.issue, args.issues, to_names[0], frm)
             if warning:
                 print(warning, file=sys.stderr)
         print(out)
