@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reinject-after-compact.sh — SessionStart hook（source = compact）：壓縮之後把手上的 skill 叫回來。
+# reinject-after-compact.sh — SessionStart hook（source = compact）：壓縮之後指回手上的 skill。
 #
 # 為什麼是 hook
 # -------------
@@ -10,14 +10,13 @@
 # 做什麼
 # ------
 # 只在 source 是 compact 時輸出 additionalContext：
-#   1. 這個 session 的 transcript 裡 invoke 過哪幾支 skill，要求現在逐支重新 invoke。
-#   2. 這個 session 宣告自己是指揮官的話，附上 command-post SKILL.md 硬規則那一節的原文
-#      （兩個 COMMANDER-HARD-RULES 標記之間），不是另一份抄本。
-#   3. 指揮官的話，再附上 command-post.py 的 commander_memory()：最後一筆使用者在等的原文、
-#      在等裡每個鍵在日誌全部時間的使用者原話、常駐規矩每節標題與原話、這個 session 的 transcript
-#      裡使用者說過卻沒進日誌的話、24 小時內的決定，
-#      放不下的落檔並給路徑。它跟 --rebuild 的指揮官段是同一份，這裡不另外解析日誌。2026-10-21 指揮官壓縮後把前一天
-#      已決定的三件重問或漏掉；SKILL.md 寫著壓縮後先跑 --lookup，沒有東西逼它跑。
+#   1. 不是指揮官的 session：transcript 裡 invoke 過哪幾支 skill，以及要照某一支的某一節做時
+#      才 invoke 那支。不要求全部重新 invoke：每次 invoke 把正文再載一次，之後每一趟都帶著
+#      （2026-11-12 量到壓縮後 8 趟內 11 次，DP-1052）。
+#   2. 宣告以「指揮官」開頭的 session（含「指揮官（投資線）」這種帶括號的）：command-post SKILL.md 硬規則那一節的原文（兩個
+#      COMMANDER-HARD-RULES 標記之間），加上 command-post.py after_compact_recall() 寫出的
+#      日誌完整版的檔案路徑一行。內容在檔案裡，不注入；它跟 --rebuild 的指揮官段是同一份。
+#      2026-10-21 指揮官壓縮後把前一天已決定的三件重問或漏掉，所以那份檔案照樣每次寫。
 # 其他來源（startup、resume、clear）什麼都不輸出。
 #
 # 擋不到什麼，明講
@@ -62,43 +61,39 @@ try:
 except OSError:
     pass
 parts = []
-if skills:
-    parts.append("[compact 之後] 這個 session 壓縮前用過這幾支 skill："
-                 + "、".join(skills) + "。壓縮後它們只剩前段，現在逐支重新 invoke（Skill 工具），"
-                 "再繼續手上的事。摘要裡的流程不是權威，skill 才是。")
-else:
-    parts.append("[compact 之後] transcript 裡讀不到這個 session 用過哪支 skill。"
-                 "手上的工作對得上哪支 skill，就先 invoke 它再繼續。")
 sid = data.get("session_id") or ""
 decl = os.path.join(os.path.expanduser("~"), ".claude", "sessions", "declarations", sid + ".json")
 try:
     line = json.load(open(decl, encoding="utf-8")).get("line")
 except (OSError, ValueError):
     line = None
-if line == "指揮官":
+if isinstance(line, str) and line.startswith("指揮官"):
     try:
         text = open(skill_md, encoding="utf-8").read()
         a = text.index("<!-- COMMANDER-HARD-RULES-BEGIN -->")
         b = text.index("<!-- COMMANDER-HARD-RULES-END -->")
-        parts.append("你是指揮官。command-post 的硬規則（原文）：\n" + text[a + len("<!-- COMMANDER-HARD-RULES-BEGIN -->"):b].strip())
+        rules = text[a + len("<!-- COMMANDER-HARD-RULES-BEGIN -->"):b].strip()
+        parts.append(rules or "command-post 的硬規則那一節是空的（" + skill_md + "）。先 invoke command-post。")
     except (OSError, ValueError) as exc:
-        parts.append("你是指揮官，但 command-post 的硬規則讀不到（" + skill_md + "：" + str(exc)
+        parts.append("command-post 的硬規則讀不到（" + skill_md + "：" + str(exc)
                      + "）。先 invoke command-post。")
     try:
         spec = importlib.util.spec_from_file_location("command_post", command_post)
         cp = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cp)
-        # 宿主對 additionalContext 的上限是 10,000 字元，超過就整段換成檔案路徑加前 2,000 字
-        # 預覽（code.claude.com/docs/en/hooks〈JSON output〉）。所以決定那一段只拿剩下的額度。
-        budget = 9800 - len("\n\n".join(parts)) - len("[compact 之後] 日誌裡已經決定的事（摘要會漏，這一份不會）：\n") - 4
-        inline, _, problem = cp.after_compact_recall(cap=max(budget, 1500), transcript=tp or None)
+        _, path, problem = cp.after_compact_recall(transcript=tp or None)
     except Exception as exc:
-        inline, problem = None, command_post + " 載不起來（" + str(exc) + "）"
+        path, problem = None, command_post + " 載不起來（" + str(exc) + "）"
     if problem:
-        parts.append("[compact 之後] 日誌裡的決定帶不回來：" + problem
-                     + "。先跑 command-post.py --board 與手上每張單的 --lookup，再回答使用者。")
+        parts.append("日誌的完整版寫不出來：" + problem
+                     + "。先跑 command-post.py --board 與手上每張單的 --lookup。")
     else:
-        parts.append("[compact 之後] 日誌裡已經決定的事（摘要會漏，這一份不會）：\n" + inline)
+        parts.append("日誌裡已經決定的事，完整版在 " + path + "，回答或派工之前讀它。")
+elif skills:
+    parts.append("[compact 之後] 這個 session 壓縮前用過：" + "、".join(skills)
+                 + "。要照某一支的某一節做時，才 invoke 那支 skill 讀那一節；摘要裡的流程不是權威。")
+else:
+    parts.append("[compact 之後] 手上的工作要照某一支 skill 做時，先 invoke 它讀那一節。")
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "SessionStart",
                                          "additionalContext": "\n\n".join(parts)}},
                  ensure_ascii=False))

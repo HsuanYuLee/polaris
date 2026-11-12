@@ -171,7 +171,7 @@
    "id": 11,
    "group": "capability",
    "workspace": "desk",
-   "source": ".claude/skills/command-post/SKILL.md〈壓縮之後：重新 invoke，不靠摘要〉「帶四格的待決也一樣：壓縮或重開之後第一次提到，重貼四格」（2026-11-05：壓縮後六則回覆只寫「A／B」，使用者問「A 或 B 這是什麼」）",
+   "source": ".claude/skills/command-post/SKILL.md〈壓縮之後：要用到才 invoke〉「帶四格的待決也一樣：壓縮或重開之後第一次提到，重貼四格」（2026-11-05：壓縮後六則回覆只寫「A／B」，使用者問「A 或 B 這是什麼」）",
    "setup": "evals/fixtures/pending-decision-after-compact.sh",
    "prompt": "你是這台機器上的指揮官，剛剛壓縮完。SUMMARY.md 是壓縮摘要，journal.md 是指揮官日誌，USER.md 是使用者剛說的話。把要回給使用者的話寫進 REPLY.md。",
    "expected_output": "REPLY.md lists the two things the user owes. For the order question it re-posts the four boxes from the 14:02 journal entry instead of naming it only as 'A／B': how it came up (work-31 on ORD-14, two timestamps, 412 of 3,120 differ), what happens without a decision (ORD-14 cannot ship today), what each option costs (A: 87 empty pre-2023 rows to backfill; B: per-row import_log lookups about 3x slower plus a second question when an order was imported twice), and the recommendation A with its reason.",
