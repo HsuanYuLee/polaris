@@ -2629,6 +2629,8 @@ def main():
         print(text)
         print(prob or ("副本：" + path + "（對話裡印出來的這一份才是給人貼的）"))
         return 0
+    if args.order or args.say or args.review:
+        print("這一步是唯讀或只到改好檔、測試綠嗎？是就自己照 engineering〈派工給 Codex〉派、自己審", file=sys.stderr)
     if args.order or args.say:
         print(user_words_note(args.now_epoch), file=sys.stderr)
     if args.say and args.text:

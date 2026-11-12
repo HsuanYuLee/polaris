@@ -77,6 +77,103 @@ bash .claude/skills/engineering/scripts/record-measurement-change.sh record \
 
 施工計劃那一類不存在：這條流程不分「明確施工」與「嘗試實作」。看得懂就做，看不懂就先探。
 
+## 派工給 Codex
+
+找不到 Codex 執行檔，或它回用量上限（例：2026-11-11 17:43 派出的那一趟回
+`turn.failed`「You've hit your usage limit… try again at 8:33 PM」），那一步就由這條線
+自己做，說出是哪一種，不停下來等。
+
+**哪些步驟走 Codex。** 唯讀的步驟，或只做到改好檔、測試綠的步驟：改 code、補測試、跑測試、
+寫腳本、用 curl 量測、整理單上的表、寫報告檔。留在 Claude 線的是：瀏覽器操作、SIT 手點、
+push、PR、對外送出、JIRA 與 Slack，以及下面〈已量到的限制〉列的那幾件。這條分界對每一條線
+都成立，產品線與框架線一樣。指揮官用 `command-post.py` 的 `--order`、`--say`、`--review`
+產指令時，stderr 會多印一行提示指到這一節。
+
+**派的人就是審的人。** 外包的那條線自己寫 prompt、自己派、自己審回傳，commit 也由它做。
+不交給指揮官或別的 session 代跑。
+
+**prompt 檔**由那條線寫，位置是 `<單>/.spine/codex/prompt-<步驟名>.md`，必須寫出：
+
+- repo 的絕對路徑，以及 branch 或 worktree；
+- 要改什麼、怎麼算做完、跑哪些測試；
+- 不 commit、不 add、不 stash、不 push；搬檔用 `mv`，不用 `git mv`。
+  commit 由外包的那條線在沙箱外做；
+- 開頭先讀 repo 的 `CLAUDE.md`、指名的 skill，以及 `.claude/rules` 三份。
+  Codex 載不到 `.claude/rules`，所以 prompt 要逐份指名；
+- 結尾的回傳格式：核對、改了哪些檔、測試結果、沒做到的。
+
+**派工命令**，一字不差，由外包的那條線自己用 Bash `run_in_background` 跑：
+
+```bash
+<codex 執行檔> exec -C <workspace 根或 worktree 根> -s workspace-write --add-dir <單樹根> -c approval_policy=never --json -o <單>/.spine/codex/<時間>-<步驟名>.md "$(cat <prompt 檔>)" < /dev/null > <同名>.jsonl 2> <同名>.err
+```
+
+- `<codex 執行檔>` 填找得到的那一個：`codex` 在 `PATH` 上就用它。macOS 的 ChatGPT.app 內帶
+  一份，例如 `Contents/Resources/codex-cli/bin/codex`（2026-11-11 量到；2026-11-06 那一版在
+  `Contents/Resources/codex`）。不另外裝（`CLAUDE.md`〈工具不存在時〉）；兩處都找不到，
+  就是第一句說的「找不到」。
+- `-C` 指 workspace 根或 worktree 根，那裡有 `.agents/skills` 與 `AGENTS.md`；不指 issues 樹。
+- 單樹根由派的人填，不寫任何一台機器的路徑。
+
+**完成**要同時成立三件事：process exit 0、jsonl 裡有 `turn.completed`、`-o` 回傳檔非空。
+缺一件就是還沒做完，把 `.err` 尾端貼進單。jsonl 裡是 `turn.failed` 而訊息是用量上限，
+那一步照第一句自己做。
+
+沒做完的那一趟，工作樹可能留著改到一半的檔。先跑 `git -C <worktree> diff --stat`，看過內容
+再決定：照同一份 prompt 重派，或用 `git checkout -- <檔>` 還原指名的檔，不還原整棵樹。
+重派時換一個新的 `<時間>`，不要蓋掉上一趟的 `-o`、`.jsonl`、`.err`，那三個檔是上一趟的證據。
+
+**回傳怎麼審。** 外包的那條線自己讀整份回傳檔，逐條對單上的 AC，每句事實看它標的是量到、
+讀到還是推的。通過才派一次 Claude 驗證（push-verifier 或 `verify-ac`）；沒通過就改 prompt
+重派。回報時標「Codex 做、我審過」。Codex 的回傳是這條線的交付物，收回報的人照讀交付物的
+規矩讀它，不另外再審一次 Codex。
+
+### 已量到的限制
+
+- `.codex/hooks.json` 的 `^Bash$` matcher 登記兩支：`block-git-hook-bypass` 擋
+  `git commit --no-verify` 這類繞過 git hook 的 commit、push 命令；`gate-ship-point` 只在
+  非 draft `gh pr create`、`gh pr ready`、`gh pr merge`、tag 與 release 出貨點檢查單是否判過。
+  `send_message` 與 `schedule_message` 的 matcher 只登記 `gate-ship-point`，只擋符合 skill
+  宣告的部署請求樣式、而所屬單還沒判過的那一種；其他對外訊息不擋（規矩：hook 只補防線，
+  邊界仍是 prompt 與這一節）。
+- 沙箱有網路（`gh pr view` 與 github.com 都通），所以沙箱擋不了 `gh pr create`。push、PR 與
+  對外送出留在 Claude 線是規矩，不是沙箱做不到；hook 只擋其中幾種，所以不把這些步驟寫進 prompt。
+- 非 TTY 那一趟判成掛住的標記是 jsonl 0 bytes，而且沒有 `-o` 回傳檔。`.err` 裡的
+  「Reading additional input from stdin...」成功的那一趟也會印，不能拿來判斷有沒有掛住；
+  派工命令仍要帶 `< /dev/null`（設定解不開：非 TTY 一律帶）。
+- 2026-11-06 量到加上 `-c sandbox_workspace_write.network_access=true` 後，`<內網 Kibana 主機>`
+  解析得到，`curl -I` 回 302；`<SIT API 主機>` 解析得到，`curl -I` 回 200（代價：所有對外連線
+  全開，不只開這幾台主機）。見 `<DP-1007 單>/.spine/codex/20261106-1630-probe-network-access.md`
+  與 `<DP-1007 單>/.spine/codex/20261106-1633-probe-sit-api-host.md`。
+- 2026-11-06 量到沙箱連不到本機 PostgreSQL：PHPUnit 回 `SQLSTATE[08006] ... Operation not
+  permitted`；要資料庫的 oracle 由 Claude 線跑（未證實：要在使用者的 `~/.codex/config.toml`
+  寫 permission profile，由使用者決定）。見 `<那張產品單>/.spine/codex/20261106-1434-verify-sh.md`。
+- prompt 裡要寫：資源被占就停下來回報。2026-11-06 讀到那一趟 3001 被 push-verifier 的 dev server
+  占著，Codex 照 prompt 停下來回報；資源空了就重派同一份 prompt（設定解不開：兩個 listener
+  不能同時獨占同一個 address 與 port）。見 `<另一張產品單>/.spine/codex/20261106-1422-dev-oracles.md`。
+- 2026-11-06 在沙箱裡跑 `pnpm exec nuxt dev --port 3001`，第一次啟動就 exit 1，錯誤是
+  `EMFILE: too many open files, watch`；本機 dev server 的量測留在 Claude 線（未查 Codex 有沒有
+  可以調 open-file 上限的設定）。見 `<另一張產品單>/.spine/codex/20261106-1650-dev-oracles.md`。
+- 2026-11-06 量到 Codex 裡起不了第二個 Codex：app-server 初始化被拒。標本 eval 這類「派一次
+  Codex」的步驟由外包的那條線在沙箱外跑（設定解不開：`approval_policy=never` 下沒有逐次 escalation）。
+- **Codex 不跑站別腳本與單樹重算。** refinement 搬單、engineering 開輪次與
+  `place-issues-by-state.sh` 都由外包的那條線在沙箱外跑。2026-11-06 一趟 Codex 跑 refinement
+  觸發重算，因為沒有 JIRA 憑證，重算搬了 55 張單；Codex 只做站裡的活：改檔、測試、量測、寫表。
+- `~/.codex/AGENTS.md` 由使用者自己管理，不交給 Codex 或任何一條線改。
+- **commit 由外包的那條線在沙箱外做。** 只用路徑限定的 `git add <檔>`，不用 `git commit -a`；
+  2026-11-06 一次 `-a` 把 Codex 改的另一張單的檔掃進別的 commit。workspace-write 沙箱在主
+  checkout、worktree 的 gitdir 與 issues 寫 `.git` 時都回 `index.lock: Operation not permitted`；
+  官方文件寫 workspace-write 下 `.git` 與 gitdir 唯讀，`writable_roots` 與 `--add-dir` 都解不開。
+  見 [codex-core README]。
+- Codex 的 workspace-write 沙箱不准寫主 checkout 的 `.git`，fetch 與 `worktree add` 都會被拒，
+  所以 fetch 與開 worktree 由外包的那條線在派工前做好，prompt 裡寫 worktree 路徑。
+- 盲跑 runner 需要 `sandbox-exec`，Codex 沙箱裡起不來；盲跑與 preflight 留在 Claude 線。
+- 2026-11-06 量到 `npx tsx` 跑同一支 prebuild 腳本回 `listen EPERM`，`node --import tsx` 跑同一支
+  腳本 exit 0。要在沙箱裡 build 得改 repo 的 build 入口，而框架對 repo 的支援一律外掛、不往
+  repo 寫，所以 build 留在 Claude 線。
+
+[codex-core README]: https://github.com/openai/codex/blob/main/codex-rs/core/README.md
+
 ## 輪次
 
 一輪沒產出 code 也是一輪。「試過 A，撞到 X，結論走 B，code 全丟」是正常結果——這一輪的產出

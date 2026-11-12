@@ -541,13 +541,9 @@ scottspence 量到：只給一句提示的觸發率 55%，要求逐支判斷再�
 三支都登記在版控的 `.claude/settings.json`（DP-867），clone 下來就接上了，不用改設定。
 要確認或改登記，讀那一份檔案，這裡不抄第二份。
 
-### Codex 那一側（只列，不做）
+### Codex 那一側
 
-| Claude Code | Codex 的對應 | 現況 |
-|---|---|---|
-| PreToolUse 擋 SendMessage | Codex 沒有 session 之間的 SendMessage；要擋的是它的對外指令時，靠 `config.toml` 的 sandbox／approval policy | 沒有對應的閘 |
-| SessionStart(compact) 重注 | Codex 的自動壓縮沒有 hook 事件；`AGENTS.md` 每一輪都在 context 裡 | 硬規則要的話放進 `AGENTS.md` |
-| UserPromptSubmit forced-eval | 同上，寫進 `AGENTS.md` 的開頭 | 無 hook，只靠被讀到 |
+每條線自己派、自己審，程序在 engineering〈派工給 Codex〉。
 
 ### 併與上線的指令
 
