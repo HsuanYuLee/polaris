@@ -15,6 +15,9 @@ transcript 裡最後一則說的話。兩個理由，第二個才是真正的那
 
 閒置多久仍然由 transcript 的 mtime 算——那是一次 stat，不讀內容。
 
+閒置旁邊另有一格「最後一筆」：只讀 transcript 尾端固定長度（TAIL_BYTES），判它是不是停在
+一個還沒有結果的工具呼叫、或一條移到背景還沒收到完成通知的命令。不讀全檔，理由同上。
+
 問不到的留在地圖上並指名問不到的是哪一份，不從清單上消失、也不填一個猜的。而「從來沒
 寫過宣告」「宣告讀不動」「宣告在而缺欄位」是三件事，長成三句不同的話。
 """
@@ -915,6 +918,88 @@ def idle_seconds_of(path, now):
         return None, f"算不出閒置多久：{path}（{exc}）"
 
 
+TAIL_BYTES = 64 * 1024
+BACKGROUND_RE = re.compile(r"moved to the background \(ID: (\w+)\)|running in background with ID: (\w+)")
+
+
+def _entry_time(entry):
+    t = entry.get("timestamp")
+    if not t:
+        return None
+    try:
+        return calendar.timegm(time.strptime(t[:19], "%Y-%m-%dT%H:%M:%S"))
+    except ValueError:
+        return None
+
+
+def _result_text(block):
+    c = block.get("content")
+    if isinstance(c, list):
+        return " ".join(str(x.get("text") or "") for x in c if isinstance(x, dict))
+    return str(c or "")
+
+
+def last_entry_of(path, now):
+    """transcript 最後一筆停在哪裡。**只讀尾端 TAIL_BYTES**，不讀全檔。
+
+    回傳 (text, problem)。text 是「卡在工具呼叫 N 分」或「等背景工作 {ID} N 分」，沒有卡住
+    就是 None。problem 是判不出的原因：尾端讀不動、或最後一筆長過 TAIL_BYTES。判不出的時候
+    不印卡住，也不當成沒事。
+    """
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            f.seek(max(0, size - TAIL_BYTES))
+            raw = f.read()
+    except OSError as exc:
+        return None, f"尾端讀不動：{path}（{exc}）"
+    lines = raw.split(b"\n")
+    if size > TAIL_BYTES:
+        lines = lines[1:]  # 第一行是切到一半的
+    entries = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            entries.append((json.loads(line), line))
+        except ValueError:
+            continue
+    if not entries:
+        if size == 0:
+            return None, "transcript 是空的，判不出"
+        if size > TAIL_BYTES and len(lines) <= 1:
+            return None, f"最後一筆長過 {TAIL_BYTES // 1024} KB，判不出"
+        return None, "尾端解析不出任何一筆，判不出"
+    results, last_msg, pending, calls = set(), None, {}, []
+    for entry, line in entries:
+        content = (entry.get("message") or {}).get("content")
+        for task_id in list(pending):
+            if f"<task-id>{task_id}</task-id>".encode() in line:
+                del pending[task_id]
+        if entry.get("type") not in ("user", "assistant") or not isinstance(content, list):
+            continue
+        last_msg = entry
+        if entry.get("type") == "assistant":
+            calls += [(b.get("id"), _entry_time(entry)) for b in content
+                      if isinstance(b, dict) and b.get("type") == "tool_use"]
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            results.add(block.get("tool_use_id"))
+            m = BACKGROUND_RE.search(_result_text(block))
+            if m:
+                pending[m.group(1) or m.group(2)] = _entry_time(entry)
+    minutes = lambda at: f"{max(0, int(now - at)) // 60} 分" if at else "? 分"
+    # 平行的呼叫是連續好幾筆各帶一條 tool_use，結果各自回來；尾端裡任何一條還沒結果就算卡住。
+    open_calls = [at for cid, at in calls if cid not in results]
+    if open_calls:
+        return f"卡在工具呼叫 {minutes(open_calls[0])}", None
+    if pending:
+        task_id, at = list(pending.items())[-1]
+        return f"等背景工作 {task_id} {minutes(at)}", None
+    return None, None
+
+
 def alive(pid):
     try:
         os.kill(pid, 0)
@@ -1042,6 +1127,12 @@ def build(now=None):
             row["idle_seconds"] = idle
             if idle_prob:
                 row["idle_problem"] = idle_prob
+            # transcript 不在的時候閒置那一格已經說了，不再說第二次。
+            stuck, stuck_prob = (None, None) if idle_prob else last_entry_of(transcript_path(cwd, sid), now)
+            if stuck:
+                row["last_entry"] = stuck
+            if stuck_prob:
+                row["last_entry_problem"] = stuck_prob
         out["sessions"].append(row)
     return out
 
@@ -1066,6 +1157,10 @@ def human(m):
         pid = s["pid"] if s["pid"] is not None else "?"
         alive_s = {True: "活著", False: "已經結束", None: "?"}[s["running"]]
         lines.append(f"  {who}  pid={pid}  {alive_s}  閒置 {dur(s['idle_seconds'])}")
+        if s.get("last_entry"):
+            lines.append(f"      最後一筆：{s['last_entry']}")
+        elif s.get("last_entry_problem"):
+            lines.append(f"      最後一筆判不出：{s['last_entry_problem']}")
         if s["missing"]:
             lines.append(f"      這一列缺：{'、'.join(s['missing'])}")
         if s["problem"]:
